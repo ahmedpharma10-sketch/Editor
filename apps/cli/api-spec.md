@@ -4,7 +4,7 @@ User-facing reference for the `dapi` CLI. All canvas/project commands talk to th
 
 **Top-level:** `open`, `whoami`, `context` (alias `ctx`), `mount`, `models`, `voices`.
 **Groups:** `selection` (alias `sel`), `node` (aliases `n`, `entity`), `project` (alias `p`), `asset` (alias `a`), `folder` (alias `fld`), `font` (alias `f`).
-Selection reads and mutations live under `selection`. Anything that targets one or more nodes lives under `node` — scenes are nodes too; they are created declaratively via `mount` (`<scene key="...">`). Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [JSX_API.md](./JSX_API.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots. AI asset generation (image / video / speech / audio) is **declared in the project module** and produced on mount (see the JSX API); the `models` and `voices` commands list what's available to reference from those declarations. Inspecting an existing asset (probe / transcript / analyze / visualize / frame) lives under `asset`; writing an asset's original file back out to disk is `asset export`. Organizing the asset library into folders lives under `folder`; moving assets between folders is `asset mv`.
+Selection reads and mutations live under `selection`. Anything that targets one or more nodes lives under `node` — scenes are nodes too; they are created declaratively via `mount` (`<scene key="...">`). Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx-spec.md](./jsx-spec.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots. AI asset generation (image / video / speech / audio) is **declared in the project module** and produced on mount (see the JSX API); the `models` and `voices` commands list what's available to reference from those declarations. Inspecting an existing asset (probe / transcript / analyze / visualize / frame) lives under `asset`; writing an asset's original file back out to disk is `asset export`. Organizing the asset library into folders lives under `folder`; moving assets between folders is `asset mv`.
 
 Shared types used below:
 
@@ -13,7 +13,7 @@ NodeRef = { id: number; name: string; type: string }   // node ids are entity id
 Size    = { width: number; height: number }
 Asset   = { id: string; name: string; type: string } // asset ids are opaque strings (sqids)
 Folder  = { id: string; name: string; type: 'folder' } // folder ids are opaque strings (sqids)
-Time    = number | `${number}f` | "MM:SS"            // seconds, frames at 30 fps ("45f"), or a clock string — see JSX_API.md
+Time    = number | `${number}f` | "MM:SS"            // seconds, frames at 30 fps ("45f"), or a clock string — see jsx-spec.md
 ```
 
 Time inputs take the `Time` format unless noted otherwise. Times in **outputs** are plain seconds — except the raw records of `node ls`, which use engine units (frames at 30 fps, packed colors, dB).
@@ -115,7 +115,7 @@ Essential context about the open project. Call this first to understand the canv
 
 ### `dapi mount (<path> | --code <str>)`
 
-Compiles a Solid JSX project module and executes it in the app, mounting the rendered roots into the document — like reloading a webpage, re-mounting rebuilds them in place instead of adding copies. Every top-level element declares its identity in the JSX with a `key`: `<scene key="intro">` replaces the node carrying that key (or creates it). With `--code`, the `export default () =>` wrapper is optional — a bare JSX expression (no `export default` in the source) is wrapped into a component module automatically. Full specification: [JSX_API.md](./JSX_API.md).
+Compiles a Solid JSX project module and executes it in the app, mounting the rendered roots into the document — like reloading a webpage, re-mounting rebuilds them in place instead of adding copies. Every top-level element declares its identity in the JSX with a `key`: `<scene key="intro">` replaces the node carrying that key (or creates it). With `--code`, the `export default () =>` wrapper is optional — a bare JSX expression (no `export default` in the source) is wrapped into a component module automatically. Full specification: [jsx-spec.md](./jsx-spec.md).
 
 - **Output:** none.
 
@@ -248,7 +248,7 @@ Focuses the node on the canvas and captures a screenshot, written to a PNG file 
 
 ### `dapi node insert <parentId> (<path> | --code <str>) [--index <N>]`
 
-Compiles a Solid JSX project module and executes it in the app — the same pipeline as [`mount`](#dapi-mount-path---code-str), including declared asset generation — but instead of mounting the rendered roots into the document, inserts them as children of an existing entity. Because the result is inserted rather than reconciled, root elements take no `key`: every run inserts fresh entities; there is no replace-or-create matching and nothing is deleted. Full specification: [JSX_API.md](./JSX_API.md).
+Compiles a Solid JSX project module and executes it in the app — the same pipeline as [`mount`](#dapi-mount-path---code-str), including declared asset generation — but instead of mounting the rendered roots into the document, inserts them as children of an existing entity. Because the result is inserted rather than reconciled, root elements take no `key`: every run inserts fresh entities; there is no replace-or-create matching and nothing is deleted. Full specification: [jsx-spec.md](./jsx-spec.md).
 
 The rendered roots must be valid as children of the target parent, following the JSX containment rules: a node parent takes any element or paint root except `<scene>` (scenes only exist at the document top level) and `<colorStop>`; a gradient paint parent takes only `<colorStop>` roots — this is how a stop is added to an existing gradient (`node insert <paintId> --code '<colorStop offset={0.5} color="#FF0055" />'`); other sub-entities take no children.
 
@@ -278,7 +278,7 @@ Deletes one or more entities and all their descendants. Alias: `remove`.
 
 ### `dapi node patch ([path] | --json <str>)`
 
-Assigns JSX props on one or more existing entities in a single call. Every patch entry takes the same properties, with the same value requirements, as a JSX element in [`mount`](#dapi-mount-path---code-str) — the full table lives in [JSX_API.md](./JSX_API.md#element-reference) and is not repeated here; the payload type is `PatchProps` from `@diffusionstudio/jsx`. Patches are applied through the same setters as a render, so the two surfaces cannot diverge. Changes are tracked for undo like a UI edit.
+Assigns JSX props on one or more existing entities in a single call. Every patch entry takes the same properties, with the same value requirements, as a JSX element in [`mount`](#dapi-mount-path---code-str) — the full table lives in [jsx-spec.md](./jsx-spec.md#element-reference) and is not repeated here; the payload type is `PatchProps` from `@diffusionstudio/jsx`. Patches are applied through the same setters as a render, so the two surfaces cannot diverge. Changes are tracked for undo like a UI edit.
 
 Any live entity is addressable — not just nodes: paints and color stops can be patched too (`color`, `offset`, `opacity`, gradient `rotation`). There is no separate rename command: renaming a node is patching its `name`.
 
@@ -695,7 +695,7 @@ Deletes one or more folders. **Deletion cascades:** every descendant folder and 
 
 ## Generation reference
 
-**Asset generation (image / video / speech / audio) is declared in the project module** (`generate.*` declarations, see the JSX API) and produced by the editor on mount. There are no CLI commands that generate; the two commands below only list what you can reference from those declarations. (Captioning is also declarative — a `<captions>` element in a mounted or inserted project, see [Captions](./JSX_API.md#captions).) Both require the app to be running.
+**Asset generation (image / video / speech / audio) is declared in the project module** (`generate.*` declarations, see the JSX API) and produced by the editor on mount. There are no CLI commands that generate; the two commands below only list what you can reference from those declarations. (Captioning is also declarative — a `<captions>` element in a mounted or inserted project, see [Captions](./jsx-spec.md#captions).) Both require the app to be running.
 
 ### `dapi models [type]`
 
