@@ -1,0 +1,120 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import { query } from 'bitecs';
+import { ChildOf } from '../../components/relations';
+import { deleteEntity } from '../../api/entities';
+
+import type { Transcript, WordGroup } from '@diffusionstudio/api-contract';
+import type { EngineWorld } from '../../api/world';
+import type { Asset } from '../../db';
+
+export type TextRangeOverride = {
+  start: number;
+  end: number;
+};
+
+
+export type GroupByOptions = {
+  duration: number;
+} | {
+  length: number;
+};
+
+const ENDING_PUNCTUATION = ['.', '!', '?', ',', ';'];
+
+export function groupBy(transcript: Transcript, options: GroupByOptions): WordGroup[] {
+  const groups: WordGroup[] = [[]];
+
+  for (const segment of transcript) {
+    // Segment boundaries are sentence boundaries — never merge across them.
+    if (groups[groups.length - 1].length > 0) {
+      groups.push([]);
+    }
+
+    for (const word of segment.words) {
+      const last = groups[groups.length - 1];
+      const charCount = last.reduce((acc, w) => acc + w.text.length, 0);
+      const duration = last.reduce((acc, w) => acc + (w.end - w.start), 0);
+
+      if ('duration' in options && duration + (word.end - word.start) > options.duration) {
+        groups.push([]);
+      } else if ('length' in options && charCount + word.text.length > options.length) {
+        groups.push([]);
+      }
+
+      groups.at(-1)?.push(word);
+
+      if (ENDING_PUNCTUATION.some(p => word.text.endsWith(p))) {
+        groups.push([]);
+      }
+    }
+  }
+
+  return groups.filter(g => g.length > 0);
+}
+
+/**
+ * Find the active group index for a given time.
+ * Returns -1 if no group is active.
+ */
+export function findActiveGroup(groups: WordGroup[], relativeTime: number): number {
+  return groups.findIndex(group =>
+    relativeTime >= group[0].start && relativeTime <= (group.at(-1)?.end ?? 0)
+  );
+}
+
+export function clearTextRanges(world: EngineWorld, parentEid: number) {
+  const c = world.components;
+
+  for (const rid of query(world, [ChildOf(parentEid), c.TextRange])) {
+    deleteEntity(world, rid);
+  }
+
+  c.Cache.textRanges[parentEid] = [];
+}
+
+/**
+ * Split a word group into two halves at the nearest word boundary
+ * to the midpoint of the joined text. Used by paper and guinea presets.
+ */
+export function splitSequence(sequence: WordGroup): [WordGroup, WordGroup] {
+  const text = sequence.map(w => w.text).join(' ');
+  const midPoint = Math.ceil(text.length / 2);
+
+  let index = text.length;
+  for (let i = midPoint, j = midPoint; i > 0 && j < text.length - 1; i--, j++) {
+    if (text[i] === ' ') {
+      index = i;
+      break;
+    }
+    if (text[j] === ' ') {
+      index = j;
+      break;
+    }
+  }
+
+  const leftText = text.slice(0, index).trim();
+  const splitAt = leftText.split(/ /).length;
+
+  return [sequence.slice(0, splitAt), sequence.slice(splitAt)];
+}
+
+
+/**
+ * Resolve a transcript from any asset type that can carry one.
+ */
+export async function resolveTranscript(asset: Asset): Promise<Transcript> {
+  if (asset.type === 'TRANSCRIPT') {
+    const file = await asset.handle.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  }
+
+  if ((asset.type === 'AUDIO' || asset.type === 'VIDEO') && asset.transcript) {
+    return asset.transcript;
+  }
+
+  return [];
+}

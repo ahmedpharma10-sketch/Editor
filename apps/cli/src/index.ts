@@ -1,0 +1,1264 @@
+#!/usr/bin/env node
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { platform, tmpdir } from "node:os";
+import { extname, isAbsolute, join, resolve } from "node:path";
+import { Command } from "commander";
+import { parseTime, TIME_FPS } from "@diffusionstudio/jsx/time";
+import { cliAPI, waitForCliSocket } from "./cli-client";
+import { compileProject } from "./compile-project";
+import { listLocalFonts } from "./fonts";
+import { openFolder } from "./open-folder";
+import type { EncoderConfigInput } from "./protocol";
+
+const APP_NAME = "Diffusion Studio";
+const PROTOCOL = "diffusion";
+
+// Forwarded to the app's process.argv;
+const HIDDEN_FLAG = "--hidden";
+
+function openApp(target?: string, background = false): void {
+  const isUrl = !!target && target.startsWith(`${PROTOCOL}://`);
+  const os = platform();
+
+  if (os === "darwin") {
+    const args: string[] = [];
+    if (background) args.push("-g");
+    if (isUrl) {
+      args.push(target!);
+    } else {
+      args.push("-a", APP_NAME);
+      if (target) args.push(target);
+    }
+
+    if (background) {
+      args.push("--args", HIDDEN_FLAG);
+    }
+
+    spawn("open", args, { detached: true, stdio: "ignore" }).unref();
+    return;
+  }
+
+  if (os === "win32") {
+    const arg = target ?? APP_NAME;
+    const args = ["/c", "start", "", arg];
+    if (background) args.push(HIDDEN_FLAG);
+    spawn("cmd", args, { detached: true, stdio: "ignore" }).unref();
+    return;
+  }
+
+  const candidates = [
+    "/usr/bin/diffusion-studio",
+    "/usr/local/bin/diffusion-studio",
+    join(process.env.HOME ?? "", ".local/bin/diffusion-studio"),
+  ];
+  const bin = candidates.find((p) => existsSync(p));
+  if (bin) {
+    const args = target ? [target] : [];
+    if (background) args.push(HIDDEN_FLAG);
+    spawn(bin, args, { detached: true, stdio: "ignore" }).unref();
+    return;
+  }
+  if (isUrl) {
+    spawn("xdg-open", [target!], { detached: true, stdio: "ignore" }).unref();
+    return;
+  }
+  console.error(`Could not locate "${APP_NAME}" on this system.`);
+  process.exit(1);
+}
+
+async function openTarget(target: string | undefined, background: boolean): Promise<void> {
+  if (target && !target.startsWith(`${PROTOCOL}://`)) {
+    const absPath = isAbsolute(target) ? target : resolve(process.cwd(), target);
+    if (!existsSync(absPath)) {
+      console.error(`Path not found: ${absPath}`);
+      process.exit(1);
+    }
+    if (statSync(absPath).isDirectory()) {
+      openApp(undefined, background);
+      try {
+        await waitForCliSocket();
+        const result = await openFolder(absPath);
+        console.log(JSON.stringify(result));
+      } catch (e) {
+        console.error((e as Error).message);
+        process.exit(1);
+      }
+      return;
+    }
+  }
+  openApp(target, background);
+}
+
+function handleSocketError(e: unknown): never {
+  const code = (e as NodeJS.ErrnoException).code;
+  if (code === "ENOENT" || code === "ECONNREFUSED") {
+    console.error(`${APP_NAME} is not running. Launch the app first, then retry.`);
+  } else {
+    console.error((e as Error).message);
+  }
+  process.exit(1);
+}
+
+// Node ids are entity ids — integers. argv is always string, so the
+// conversion belongs here, at the one boundary, with a strict check. Coercing
+// app-side with Number() would silently accept "0x1f", "1e3", " 7 ", "" → 0.
+function parseNodeIds(ids: string[]): number[] {
+  return ids.map((id) => {
+    if (!/^\d+$/.test(id)) {
+      console.error(`Invalid node id: ${JSON.stringify(id)} (expected a non-negative integer)`);
+      process.exit(1);
+    }
+    return Number(id);
+  });
+}
+
+type AssetAddOptions = { folder?: string };
+
+async function addAssets(paths: string[], opts: AssetAddOptions): Promise<void> {
+  if (paths.length === 0) {
+    console.error("No file paths provided.");
+    process.exit(1);
+  }
+
+  const absolutePaths = paths.map((p) => (isAbsolute(p) ? p : resolve(process.cwd(), p)));
+  for (const p of absolutePaths) {
+    if (!existsSync(p)) {
+      console.error(`File not found: ${p}`);
+      process.exit(1);
+    }
+    if (!statSync(p).isFile()) {
+      console.error(`Not a file: ${p}`);
+      process.exit(1);
+    }
+  }
+
+  try {
+    const results = await cliAPI.addAssets(absolutePaths, opts.folder);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type AssetListOptions = { folder?: string; depth?: string };
+
+async function listAssets(opts: AssetListOptions): Promise<void> {
+  let depth: number | undefined;
+  if (opts.depth !== undefined) {
+    const n = Number(opts.depth);
+    if (!Number.isInteger(n) || n <= 0) {
+      console.error(`--depth must be a positive integer (got "${opts.depth}")`);
+      process.exit(1);
+    }
+    depth = n;
+  }
+
+  try {
+    const results = await cliAPI.listAssets(opts.folder, depth);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function deleteAssets(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.deleteAssets(ids);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type MoveOptions = { to?: string };
+
+async function moveAssets(ids: string[], opts: MoveOptions): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.moveAssets(ids, opts.to);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type AssetExportOptions = { output?: string };
+
+async function exportAssets(ids: string[], opts: AssetExportOptions): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+
+  let output: string;
+  let isDir: boolean;
+  if (opts.output === undefined) {
+    output = tmpdir();
+    isDir = true;
+  } else {
+    output = isAbsolute(opts.output) ? opts.output : resolve(process.cwd(), opts.output);
+    // A trailing separator always means a directory; so do multiple ids.
+    const wantsDir = /[\\/]$/.test(opts.output) || ids.length > 1;
+    if (existsSync(output) && statSync(output).isFile()) {
+      if (wantsDir) {
+        console.error(`--output must be a directory here, but resolves to an existing file: ${output}`);
+        process.exit(1);
+      }
+      isDir = false;
+    } else if (existsSync(output)) {
+      isDir = true;
+    } else {
+      isDir = wantsDir;
+      if (isDir) mkdirSync(output, { recursive: true });
+    }
+  }
+
+  const stop = startSpinner(ids.length > 1 ? "Exporting assets" : "Exporting asset");
+  try {
+    const results = await cliAPI.exportAssets(ids, output, isDir);
+    stop();
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+async function listFolders(parentId: string | undefined): Promise<void> {
+  try {
+    const results = await cliAPI.listFolders(parentId);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type FolderCreateOptions = { parent?: string };
+
+async function createFolder(name: string, opts: FolderCreateOptions): Promise<void> {
+  try {
+    const result = await cliAPI.createFolder(name, opts.parent);
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function renameFolder(id: string, name: string): Promise<void> {
+  try {
+    const result = await cliAPI.renameFolder(id, name);
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function moveFolders(ids: string[], opts: MoveOptions): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.moveFolders(ids, opts.to);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function deleteFolders(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.deleteFolders(ids);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function listSelection(): Promise<void> {
+  try {
+    const results = await cliAPI.listSelection();
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function setSelection(ids: string[]): Promise<void> {
+  try {
+    const results = await cliAPI.setSelection(parseNodeIds(ids));
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function focusSelection(): Promise<void> {
+  try {
+    const results = await cliAPI.focusSelection();
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function listNodes(ids: string[]): Promise<void> {
+  try {
+    // No ids → root scenes; with ids → those specific nodes.
+    const results = await cliAPI.listNodes(ids.length ? parseNodeIds(ids) : undefined);
+    let failed = false;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        console.log(JSON.stringify(result.node));
+      } else {
+        console.error(result.error);
+        failed = true;
+      }
+    }
+    if (failed) process.exit(1);
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type TreeOptions = { depth?: string };
+
+async function nodeTree(id: string | undefined, opts: TreeOptions): Promise<void> {
+  const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
+
+  let depth: number | undefined = 3;
+  if (opts.depth !== undefined) {
+    const n = Number(opts.depth);
+    if (!Number.isInteger(n) || n < 0) {
+      console.error(`--depth must be a non-negative integer (got "${opts.depth}")`);
+      process.exit(1);
+    }
+    depth = n === 0 ? undefined : n;
+  }
+
+  try {
+    const results = await cliAPI.nodeTree(eid, depth);
+    for (const result of results) {
+      console.log(JSON.stringify(result));
+    }
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type NodeGrepOptions = {
+  ignoreCase?: boolean;
+  type?: string[];
+  component?: string[];
+  refsOnly?: boolean;
+  count?: boolean;
+};
+
+async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrepOptions): Promise<void> {
+  // Validate the regex here so a bad pattern fails before the app is contacted.
+  try {
+    new RegExp(pattern);
+  } catch (e) {
+    console.error(`Invalid pattern: ${(e as Error).message}`);
+    process.exit(1);
+  }
+  const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
+
+  try {
+    const results = await cliAPI.grepNodes({
+      pattern,
+      ignoreCase: opts.ignoreCase,
+      id: eid,
+      types: opts.type,
+      components: opts.component,
+    });
+    if (opts.count) {
+      console.log(JSON.stringify(results.length));
+      return;
+    }
+    for (const result of results) {
+      if (opts.refsOnly) {
+        const { matches, ...ref } = result;
+        console.log(JSON.stringify(ref));
+      } else {
+        console.log(JSON.stringify(result));
+      }
+    }
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type ScreenshotOptions = { time?: string };
+
+async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): Promise<void> {
+  const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
+
+  let frame: number | undefined;
+  if (opts.time !== undefined) {
+    frame = Math.round(parseTimeArg(opts.time, "--time") * TIME_FPS);
+  }
+
+  try {
+    const { base64 } = await cliAPI.nodeScreenshot(eid, frame);
+    const path = join(tmpdir(), `${randomUUID()}.png`);
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ path }));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type AssetFrameOptions = { time?: string[]; output?: string };
+
+async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
+  let times: number[] | undefined;
+  if (opts.time !== undefined) {
+    times = opts.time.map((t) => parseTimeArg(t, "--time"));
+  }
+
+  const assetId = await resolveAssetRef(ref);
+  const dir = opts.output ?? tmpdir();
+  try {
+    const frames = await cliAPI.assetFrame(assetId, times);
+    for (const { time, base64 } of frames) {
+      const path = join(dir, `${randomUUID()}.png`);
+      writeFileSync(path, Buffer.from(base64, "base64"));
+      console.log(JSON.stringify({ time, path }));
+    }
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function resolveAssetRef(ref: string): Promise<string> {
+  if (/^[A-Za-z0-9]+$/.test(ref)) return ref;
+
+  const absPath = isAbsolute(ref) ? ref : resolve(process.cwd(), ref);
+  if (!existsSync(absPath)) {
+    console.error(`File not found: ${absPath}`);
+    process.exit(1);
+  }
+  if (!statSync(absPath).isFile()) {
+    console.error(`Not a file: ${absPath}`);
+    process.exit(1);
+  }
+
+  const stop = startSpinner("Adding asset");
+  try {
+    const [result] = await cliAPI.addAssets([absPath]);
+    stop();
+    if (!result || result.status !== "fulfilled" || typeof result.id !== "string") {
+      console.error(result?.error ?? `Failed to add asset: ${absPath}`);
+      process.exit(1);
+    }
+    return result.id;
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+async function assetProbe(ref: string): Promise<void> {
+  const assetId = await resolveAssetRef(ref);
+  const stop = startSpinner("Probing asset");
+  try {
+    const result = await cliAPI.assetProbe(assetId);
+    stop();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+async function assetTranscript(ref: string): Promise<void> {
+  const assetId = await resolveAssetRef(ref);
+  const stop = startSpinner("Transcribing asset");
+  try {
+    const result = await cliAPI.assetTranscript(assetId);
+    stop();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+type AssetAnalyzeOptions = { prompt?: string; start?: string; end?: string };
+
+async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<void> {
+  const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
+  const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
+  if (start !== undefined && end !== undefined && start >= end) {
+    console.error(`--start (${start}s) must be less than --end (${end}s).`);
+    process.exit(1);
+  }
+
+  const assetId = await resolveAssetRef(ref);
+  const stop = startSpinner("Analyzing asset");
+  try {
+    const result = await cliAPI.assetAnalyze(assetId, opts.prompt, start, end);
+    stop();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+type AssetSyncOptions = { video?: string };
+
+async function assetSync(audioRef: string, opts: AssetSyncOptions): Promise<void> {
+  const audioId = await resolveAssetRef(audioRef);
+  const videoId = await resolveAssetRef(opts.video!);
+  const stop = startSpinner("Measuring audio offset");
+  try {
+    const result = await cliAPI.assetSync(audioId, videoId);
+    stop();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+type AssetVisualizeOptions = { start?: string; end?: string; scale?: string; output?: string };
+
+function parseTimeArg(value: string, flag: string): number {
+  const seconds = parseTime(value);
+  if (seconds === undefined || seconds < 0) {
+    console.error(
+      `${flag} must be a non-negative Time — seconds ("1.5"), frames ("45f"), or "MM:SS" (got "${value}")`,
+    );
+    process.exit(1);
+  }
+  return seconds;
+}
+
+async function assetVisualize(ref: string, opts: AssetVisualizeOptions): Promise<void> {
+  const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
+  const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
+  if (start !== undefined && end !== undefined && start >= end) {
+    console.error(`--start (${start}s) must be less than --end (${end}s).`);
+    process.exit(1);
+  }
+
+  let scale: number | undefined;
+  if (opts.scale !== undefined) {
+    scale = Number(opts.scale);
+    if (!Number.isFinite(scale) || scale <= 0) {
+      console.error(`--scale must be a positive number (got "${opts.scale}")`);
+      process.exit(1);
+    }
+  }
+
+  const assetId = await resolveAssetRef(ref);
+  const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
+  const stop = startSpinner("Rendering visualization");
+  try {
+    const { base64, ...rest } = await cliAPI.assetVisualize(assetId, start, end, scale);
+    stop();
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ path, ...rest }));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+const MOUNT_EXTENSIONS = new Set([".tsx", ".jsx", ".ts", ".js"]);
+
+type MountOptions = { code?: string };
+
+// Validates the (<path> | --code) pair shared by `mount` and `node insert`,
+// then compiles the module. Compile errors fail here, before the app is contacted.
+async function compileProjectInput(path: string | undefined, code: string | undefined): Promise<string> {
+  if ((path === undefined) === (code === undefined)) {
+    console.error(`Provide exactly one of <path> or --code <str>.`);
+    process.exit(1);
+  }
+
+  let input: { path: string } | { code: string };
+  if (path !== undefined) {
+    const absPath = isAbsolute(path) ? path : resolve(process.cwd(), path);
+    if (!existsSync(absPath) || !statSync(absPath).isFile()) {
+      console.error(`File not found: ${absPath}`);
+      process.exit(1);
+    }
+    if (!MOUNT_EXTENSIONS.has(extname(absPath).toLowerCase())) {
+      console.error(`Entry module must be a .tsx, .jsx, .ts, or .js file (got "${extname(absPath)}")`);
+      process.exit(1);
+    }
+    input = { path: absPath };
+  } else {
+    input = { code: code! };
+  }
+
+  try {
+    return await compileProject(input);
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
+}
+
+async function mountProject(path: string | undefined, opts: MountOptions): Promise<void> {
+  const code = await compileProjectInput(path, opts.code);
+
+  const stop = startSpinner("Mounting project");
+  try {
+    await cliAPI.mount({ code });
+    stop();
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+type NodeInsertOptions = MountOptions & { index?: string };
+
+async function nodeInsert(parentId: string, path: string | undefined, opts: NodeInsertOptions): Promise<void> {
+  const [eid] = parseNodeIds([parentId]);
+
+  let index: number | undefined;
+  if (opts.index !== undefined) {
+    const n = Number(opts.index);
+    if (!Number.isInteger(n) || n < 0) {
+      console.error(`--index must be a non-negative integer (got "${opts.index}")`);
+      process.exit(1);
+    }
+    index = n;
+  }
+
+  const code = await compileProjectInput(path, opts.code);
+
+  const stop = startSpinner("Inserting entities");
+  try {
+    await cliAPI.insertNode({ code, parentId: eid, index });
+    stop();
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+async function deleteNodes(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.deleteNodes(parseNodeIds(ids));
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type JsonPayloadOptions = { json?: string };
+
+/**
+ * Unified JSON payload input, mirroring `mount`'s shape: a positional .json
+ * file path, or an inline --json string.
+ */
+function readJsonPayload(
+  path: string | undefined,
+  json: string | undefined,
+  required: boolean,
+): unknown {
+  if (path !== undefined && json !== undefined) {
+    console.error(`Provide only one of <path> or --json <str>.`);
+    process.exit(1);
+  }
+  if (path === undefined && json === undefined) {
+    if (!required) return undefined;
+    console.error(`Provide exactly one of <path> or --json <str>.`);
+    process.exit(1);
+  }
+  let raw: string;
+  if (path !== undefined) {
+    const absPath = isAbsolute(path) ? path : resolve(process.cwd(), path);
+    if (!existsSync(absPath) || !statSync(absPath).isFile()) {
+      console.error(`File not found: ${absPath}`);
+      process.exit(1);
+    }
+    if (extname(absPath).toLowerCase() !== ".json") {
+      console.error(`Payload must be a .json file (got "${extname(absPath)}")`);
+      process.exit(1);
+    }
+    raw = readFileSync(absPath, "utf8");
+  } else {
+    raw = json!;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    console.error(`Payload is not valid JSON.`);
+    process.exit(1);
+  }
+}
+
+async function patchNodes(path: string | undefined, opts: JsonPayloadOptions): Promise<void> {
+  const payload = readJsonPayload(path, opts.json, true);
+  if (
+    !Array.isArray(payload) ||
+    payload.some(
+      (p) =>
+        typeof p !== "object" ||
+        p === null ||
+        !Number.isInteger((p as { id?: unknown }).id),
+    )
+  ) {
+    console.error(`Payload must be an array of { id: number } with JSX props.`);
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.patchNodes(payload as Parameters<typeof cliAPI.patchNodes>[0]);
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function duplicateNodes(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    console.error("No ids provided.");
+    process.exit(1);
+  }
+  try {
+    const results = await cliAPI.duplicateNodes(parseNodeIds(ids));
+    for (const result of results) console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type NodeExportOptions = JsonPayloadOptions & { output?: string };
+
+async function nodeExport(
+  idArg: string | undefined,
+  configArg: string | undefined,
+  opts: NodeExportOptions,
+): Promise<void> {
+  // Node ids are integers, so a lone non-numeric positional is the config file.
+  let id = idArg;
+  let configPath = configArg;
+  if (id !== undefined && configPath === undefined && !/^\d+$/.test(id)) {
+    configPath = id;
+    id = undefined;
+  }
+  const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
+
+  const config = readJsonPayload(configPath, opts.json, false) as EncoderConfigInput | undefined;
+  if (config !== undefined && (typeof config !== "object" || config === null || Array.isArray(config))) {
+    console.error(`Encode config must be a JSON object.`);
+    process.exit(1);
+  }
+
+  const format = config?.format ?? "mp4";
+  const output = opts.output !== undefined
+    ? (isAbsolute(opts.output) ? opts.output : resolve(process.cwd(), opts.output))
+    : join(tmpdir(), `${randomUUID()}.${format}`);
+
+  const stop = startSpinner("Rendering scene");
+  try {
+    const { path } = await cliAPI.exportNode(output, eid, config);
+    stop();
+    console.log(JSON.stringify({ path }));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+async function activeProject(): Promise<void> {
+  try {
+    const result = await cliAPI.activeProject();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function listProjects(): Promise<void> {
+  try {
+    const result = await cliAPI.listProjects();
+    for (const project of result) console.log(JSON.stringify(project));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function createProject(name?: string): Promise<void> {
+  try {
+    const result = await cliAPI.createProject(name);
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function openProject(id: string): Promise<void> {
+  try {
+    const result = await cliAPI.openProject(id);
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function deleteProject(id: string): Promise<void> {
+  try {
+    const result = await cliAPI.deleteProject(id);
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function context(): Promise<void> {
+  try {
+    const result = await cliAPI.context();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function whoami(): Promise<void> {
+  try {
+    const result = await cliAPI.whoami();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+function startSpinner(label: string): () => void {
+  if (!process.stderr.isTTY) {
+    process.stderr.write(`${label}…\n`);
+    return () => { };
+  }
+  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  const start = Date.now();
+  let i = 0;
+  const render = () => {
+    const secs = Math.floor((Date.now() - start) / 1000);
+    process.stderr.write(`\r${frames[i]} ${label}… ${secs}s`);
+    i = (i + 1) % frames.length;
+  };
+  render();
+  const timer = setInterval(render, 80);
+  return () => {
+    clearInterval(timer);
+    process.stderr.write("\r\x1b[K"); // carriage return + clear to end of line
+  };
+}
+
+async function listModels(type: string | undefined): Promise<void> {
+  if (type !== undefined && type !== "image" && type !== "video" && type !== "audio") {
+    console.error(`[type] must be one of "image", "video", "audio" (got "${type}")`);
+    process.exit(1);
+  }
+  try {
+    const models = await cliAPI.models({ type: type as "image" | "video" | "audio" | undefined });
+    for (const model of models) console.log(JSON.stringify(model));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function listVoices(): Promise<void> {
+  try {
+    const voices = await cliAPI.voices();
+    for (const voice of voices) console.log(JSON.stringify(voice));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type ListFontsOptions = {
+  family?: string;
+  weight?: string[];
+  style?: string;
+  limit?: string;
+  namesOnly?: boolean;
+};
+
+function listFonts(opts: ListFontsOptions): void {
+  let style: "normal" | "italic" | undefined;
+  if (opts.style !== undefined) {
+    if (opts.style !== "normal" && opts.style !== "italic") {
+      console.error(`--style must be "normal" or "italic" (got "${opts.style}")`);
+      process.exit(1);
+    }
+    style = opts.style;
+  }
+
+  let limit: number | undefined;
+  if (opts.limit !== undefined) {
+    const n = Number(opts.limit);
+    if (!Number.isInteger(n) || n <= 0) {
+      console.error(`--limit must be a positive integer (got "${opts.limit}")`);
+      process.exit(1);
+    }
+    limit = n;
+  }
+
+  try {
+    const families = listLocalFonts({
+      familyPattern: opts.family,
+      weights: opts.weight,
+      style,
+      limit,
+    });
+    if (opts.namesOnly) {
+      for (const family of families) console.log(family.family);
+    } else {
+      for (const family of families) console.log(JSON.stringify(family));
+    }
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
+}
+
+const program = new Command();
+
+program
+  .name("dapi")
+  .description("CLI for Diffusion Studio")
+  .version("0.0.0");
+
+program
+  .command("context")
+  .alias("ctx")
+  .description("Print essential context about the open project")
+  .action(() => context());
+
+program
+  .command("open")
+  .description("Open Diffusion Studio")
+  .argument("[target]", `file path, folder path, or "${PROTOCOL}://" URL to open`)
+  .option("-b, --background", "launch with the window hidden (headless)")
+  .action((target: string | undefined, opts: { background?: boolean }) =>
+    openTarget(target, opts.background ?? false));
+
+program
+  .command("mount")
+  .description("Compile a Solid JSX project module and mount it into the canvas (see JSX_API.md)")
+  .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
+  .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
+  .action((path: string | undefined, opts: MountOptions) => mountProject(path, opts));
+
+const asset = program
+  .command("asset")
+  .alias("a")
+  .description("Manage assets in the open project");
+
+asset
+  .command("add")
+  .description("Add one or more local files as assets in the open project")
+  .argument("<paths...>", "absolute or relative file paths to add")
+  .option("--folder <id>", "folder to place the new assets in (default: the library root)")
+  .action((paths: string[], opts: AssetAddOptions) => addAssets(paths, opts));
+
+asset
+  .command("ls")
+  .aliases(["list", "get"])
+  .description("List the asset library of the open project as its folder tree")
+  .option("--folder <id>", "folder whose contents to list (default: the library root)")
+  .option("--depth <n>", "max depth to descend (positive integer; default = full tree)")
+  .action((opts: AssetListOptions) => listAssets(opts));
+
+asset
+  .command("rm")
+  .alias("remove")
+  .description("Delete one or more assets from the open project by id")
+  .argument("<ids...>", "asset ids to delete")
+  .action((ids: string[]) => deleteAssets(ids));
+
+asset
+  .command("mv")
+  .alias("move")
+  .description("Move one or more assets into a folder")
+  .argument("<ids...>", "asset ids to move")
+  .option("--to <folderId>", "destination folder (default: the library root)")
+  .action((ids: string[], opts: MoveOptions) => moveAssets(ids, opts));
+
+asset
+  .command("export")
+  .description("Write one or more assets' original file bytes to disk (no re-encode)")
+  .argument("<ids...>", "asset ids to export")
+  .option("-o, --output <path>", "directory to write into, or an exact file path for a single id (default: system temp dir)")
+  .action((ids: string[], opts: AssetExportOptions) => exportAssets(ids, opts));
+
+asset
+  .command("probe")
+  .description("Read the container and per-track technical metadata of an asset")
+  .argument("<id|path>", "asset id, or a local file to add and probe")
+  .action((ref: string) => assetProbe(ref));
+
+asset
+  .command("transcript")
+  .description("Transcribe the speech in a video or audio asset and print the timed transcript")
+  .argument("<id|path>", "video or audio asset id, or a local file to add and transcribe")
+  .action((ref: string) => assetTranscript(ref));
+
+asset
+  .command("frame")
+  .description("Decode one or more frames of a video asset and write them as PNGs")
+  .argument("<id|path>", "video asset id, or a local file to add and grab frames from")
+  .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
+  .action((ref: string, opts: AssetFrameOptions) => assetFrame(ref, opts));
+
+asset
+  .command("visualize")
+  .alias("viz")
+  .description("Render a visual preview of an asset (waveform, filmstrip, or thumbnail) to a PNG")
+  .argument("<id|path>", "image, audio, or video asset id, or a local file to add and visualize")
+  .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
+  .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .option("-x, --scale <factor>", "scale factor for the thumbnails; smaller thumbnails fit more rows and columns, larger fit fewer (default: 1)")
+  .option("-o, --output <path>", "write the PNG here instead of a temp file")
+  .action((ref: string, opts: AssetVisualizeOptions) => assetVisualize(ref, opts));
+
+asset
+  .command("analyze")
+  .description("Analyze an image, audio, or video asset with AI and print a description of its contents")
+  .argument("<id|path>", "image, audio, or video asset id, or a local file to add and analyze")
+  .option("-p, --prompt <str>", "question or instruction to guide the analysis")
+  .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
+  .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .action((ref: string, opts: AssetAnalyzeOptions) => assetAnalyze(ref, opts));
+
+asset
+  .command("sync")
+  .alias("align")
+  .description("Measure the time offset that aligns an audio recording with a video's camera audio")
+  .argument("<audioId|path>", "the audio (or video) asset to align: an asset id or a local file to add")
+  .requiredOption("-v, --video <id|path>", "the reference video asset to align against: an asset id or a local file to add")
+  .action((audioRef: string, opts: AssetSyncOptions) => assetSync(audioRef, opts));
+
+const folder = program
+  .command("folder")
+  .alias("fld")
+  .description("Organize the asset library of the open project into folders");
+
+folder
+  .command("ls")
+  .aliases(["list", "get"])
+  .description("List the direct child folders of a parent folder; with no id, the root-level folders")
+  .argument("[parentId]", "parent folder id (optional; omitted = the library root)")
+  .action((parentId: string | undefined) => listFolders(parentId));
+
+folder
+  .command("create")
+  .description("Create a folder")
+  .argument("<name>", "folder name")
+  .option("-p, --parent <id>", "parent folder (default: the library root)")
+  .action((name: string, opts: FolderCreateOptions) => createFolder(name, opts));
+
+folder
+  .command("rename")
+  .description("Rename a folder")
+  .argument("<id>", "folder id")
+  .argument("<name>", "new name")
+  .action((id: string, name: string) => renameFolder(id, name));
+
+folder
+  .command("mv")
+  .alias("move")
+  .description("Move one or more folders under a new parent")
+  .argument("<ids...>", "folder ids to move")
+  .option("--to <folderId>", "destination parent folder (default: the library root)")
+  .action((ids: string[], opts: MoveOptions) => moveFolders(ids, opts));
+
+folder
+  .command("rm")
+  .alias("remove")
+  .description("Delete one or more folders, including all nested folders and the assets inside")
+  .argument("<ids...>", "folder ids to delete")
+  .action((ids: string[]) => deleteFolders(ids));
+
+const selection = program
+  .command("selection")
+  .alias("sel")
+  .description("Read and mutate the current node selection");
+
+selection
+  .command("ls")
+  .alias("get")
+  .description("List the currently selected nodes")
+  .action(() => listSelection());
+
+selection
+  .command("set")
+  .description("Replace the current selection with exactly the given node ids; none = clear")
+  .argument("[ids...]", "node ids to select")
+  .action((ids: string[]) => setSelection(ids));
+
+selection
+  .command("focus")
+  .description("Pan and zoom the canvas to fit the current selection in view")
+  .action(() => focusSelection());
+
+const node = program
+  .command("node")
+  .aliases(["n", "entity"])
+  .description("Operate on one or more nodes in the open project");
+
+node
+  .command("ls")
+  .alias("get")
+  .description("Print raw entity records — every component, as persisted; with no ids, lists the root scenes")
+  .argument("[ids...]", "entity ids to list (optional)")
+  .action((ids: string[]) => listNodes(ids));
+
+node
+  .command("tree")
+  .description("Print an entity's subtree as a nested JSON object, sub-entities included; with no id, prints every top-level node's tree")
+  .argument("[id]", "root entity id (optional; omitted = every top-level node)")
+  .option("--depth <n>", "max depth to descend (default: 3; 0 = full subtree)")
+  .action((id: string | undefined, opts: TreeOptions) => nodeTree(id, opts));
+
+node
+  .command("grep")
+  .description("Search entity records for a regex and print the matching entities with the components that matched — the search corpus is the raw records node ls emits")
+  .argument("<pattern>", "regex to match against stringified component values")
+  .argument("[id]", "root entity id to scope the search to a subtree (optional; omitted = the whole document)")
+  .option("-i, --ignore-case", "case-insensitive matching")
+  .option("-t, --type <types...>", "only match entities of these node types, e.g. -t text image")
+  .option("-k, --component <names...>", "restrict matching to these components, e.g. -k Name Chars")
+  .option("-l, --refs-only", "output only the matching entity refs, no match detail")
+  .option("-c, --count", "output only the number of matching entities")
+  .action((pattern: string, id: string | undefined, opts: NodeGrepOptions) => grepNodes(pattern, id, opts));
+
+node
+  .command("screenshot")
+  .description("Focus a node on the canvas and capture a screenshot as a PNG")
+  .argument("[id]", "node id to capture (optional; defaults to the canvas)")
+  .option("-t, --time <time>", `timeline position to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
+  .action((id: string | undefined, opts: ScreenshotOptions) => nodeScreenshot(id, opts));
+
+node
+  .command("insert")
+  .description("Compile a Solid JSX project module and insert the rendered entities into a parent entity (see JSX_API.md)")
+  .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
+  .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
+  .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
+  .option("-i, --index <n>", "0-based position among the parent's existing children (node roots only; default: append at the end)")
+  .action((parentId: string, path: string | undefined, opts: NodeInsertOptions) => nodeInsert(parentId, path, opts));
+
+node
+  .command("rm")
+  .alias("remove")
+  .description("Delete one or more entities and all their descendants")
+  .argument("<ids...>", "entity ids to delete")
+  .action((ids: string[]) => deleteNodes(ids));
+
+node
+  .command("cp")
+  .alias("duplicate")
+  .description("Deep-clone one or more nodes, including all descendants")
+  .argument("<ids...>", "node ids to duplicate")
+  .action((ids: string[]) => duplicateNodes(ids));
+
+node
+  .command("patch")
+  .description("Assign JSX props on one or more existing entities in a single call — the same properties, with the same value requirements, as mount. Renaming a node is patching its name")
+  .argument("[path]", "path to a .json file containing the patch array")
+  .option("--json <str>", "inline JSON array of { id, ...jsx props }")
+  .action((path: string | undefined, opts: JsonPayloadOptions) => patchNodes(path, opts));
+
+node
+  .command("export")
+  .description("Render a scene to a video file")
+  .argument("[id]", "scene node id (optional; defaults to the active scene)")
+  .argument("[config]", "path to a .json encode config (EncoderConfig)")
+  .option("-o, --output <path>", "write the video here (default: a temp file)")
+  .option("--json <str>", "inline JSON encode config (EncoderConfig)")
+  .action((id: string | undefined, config: string | undefined, opts: NodeExportOptions) =>
+    nodeExport(id, config, opts));
+
+const project = program
+  .command("project")
+  .alias("p")
+  .description("Manage projects");
+
+project
+  .command("active")
+  .description("Print the currently active project, or null if none is open")
+  .action(() => activeProject());
+
+project
+  .command("ls")
+  .alias("list")
+  .description("List all projects, most recently accessed first")
+  .action(() => listProjects());
+
+project
+  .command("create")
+  .description("Create a new project and open it")
+  .argument("[name]", "optional project name")
+  .action((name?: string) => createProject(name));
+
+project
+  .command("set")
+  .description("Set the active project by id, or null if no project has that id")
+  .argument("<id>", "project id to set active")
+  .action((id: string) => openProject(id));
+
+project
+  .command("rm")
+  .alias("remove")
+  .description("Delete a project by id")
+  .argument("<id>", "project id to delete")
+  .action((id: string) => deleteProject(id));
+
+program
+  .command("models")
+  .description("List available AI generation models and their constraints (for generate.* declarations — see the JSX API)")
+  .argument("[type]", `filter to one of "image", "video", "audio"`)
+  .action((type: string | undefined) => listModels(type));
+
+program
+  .command("voices")
+  .description("List the speech voices available for generate.voice declarations (see the JSX API)")
+  .action(() => listVoices());
+
+program
+  .command("whoami")
+  .description("Print the authenticated account, or null if signed out")
+  .action(() => whoami());
+
+program
+  .command("fonts")
+  .description("List the local fonts available on this machine")
+  .option("-f, --family <pattern>", "filter to families whose name contains <pattern> (case-insensitive)")
+  .option("-w, --weight <weights...>", "filter to variants with the given CSS weight(s), e.g. -w 400 700")
+  .option("-s, --style <style>", `filter to variants with the given style: "normal" or "italic"`)
+  .option("-l, --limit <n>", "output at most <n> families")
+  .option("-n, --names-only", "output only family names (one per line, no variant detail)")
+  .action((opts: ListFontsOptions) => listFonts(opts));
+
+program.parse();

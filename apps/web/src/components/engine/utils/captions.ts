@@ -1,0 +1,164 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import { hasComponent, entityExists } from "bitecs";
+import { trpc } from "@/lib/trpc";
+import { PaintType, getEntityTree, getParentEntity, secondsToFrames, uploadBlob, loadAsset, saveAsset } from "@/components/engine";
+import { createEncoder } from "@/components/engine/encode/encoder";
+import { resolveTranscript } from "@/components/engine/decoders/caption/utils";
+import { assert } from "@/utils";
+
+import type { Transcript } from "@diffusionstudio/api-contract";
+import type { Engine, EngineWorld } from "@/components/engine";
+import type { Asset } from "@/components/engine/db";
+
+const CAPTIONS_NAME_REGEX = /^Captions (\d+)$/;
+
+function nextCaptionsName(all: ReadonlyArray<Asset>): string {
+  let max = 0;
+  for (const asset of all) {
+    const match = asset.name.match(CAPTIONS_NAME_REGEX);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `Captions ${max + 1}`;
+}
+
+export function hasAudioSources(world: EngineWorld, sceneEid: number): boolean {
+  const c = world.components;
+  for (const eid of getEntityTree(world, sceneEid)) {
+    if (hasComponent(world, eid, c.Muted)) continue;
+    if (hasComponent(world, eid, c.Audio) && c.AssetId[eid]) return true;
+    if (hasComponent(world, eid, c.Paint) && c.Paint[eid] === PaintType.VIDEO && c.AssetId[eid]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Fingerprint of everything that shapes a scene's audible mix — source
+ * content, placement, source offset, rate, and gain. Volume fades and audio
+ * transitions are not captured; they don't change the spoken words.
+ */
+export function sceneAudioFingerprint(world: EngineWorld, sceneEid: number): string {
+  const c = world.components;
+  const entries: string[] = [];
+
+  for (const eid of getEntityTree(world, sceneEid)) {
+    if (hasComponent(world, eid, c.Muted)) continue;
+
+    // Video paints carry the asset; their timing lives on the geometry parent.
+    let timingEid = eid;
+    if (hasComponent(world, eid, c.Paint) && c.Paint[eid] === PaintType.VIDEO) {
+      timingEid = getParentEntity(world, eid) ?? eid;
+    } else if (!hasComponent(world, eid, c.Audio)) {
+      continue;
+    }
+
+    const asset = c.AssetId[eid] ? world.assets.get(c.AssetId[eid]) : undefined;
+    if (!asset) continue;
+
+    entries.push([
+      asset.hash,
+      c.Computed.start[timingEid] ?? 0,
+      c.Computed.end[timingEid] ?? 0,
+      c.Computed.delay[timingEid] ?? 0,
+      c.PlaybackRate[timingEid] ?? 1,
+      c.Volume[timingEid] ?? 0,
+    ].join(":"));
+  }
+
+  return `v1:${fnv1a(entries.sort().join("|"))}`;
+}
+
+function fnv1a(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function transcriptTrim(transcript: Transcript): { start: number; end: number } {
+  const firstWord = transcript.at(0)?.words.at(0);
+  const lastWord = transcript.at(-1)?.words.at(-1);
+  return { start: secondsToFrames(firstWord?.start), end: secondsToFrames(lastWord?.end) };
+}
+
+export type TranscribeStatus = "encoding" | "uploading" | "transcribing";
+
+/**
+ * Encodes a scene's audio, transcribes it, and stores the transcript as an asset.
+ */
+export async function transcribeScene(
+  engine: Engine,
+  sceneEid: number,
+  onStatus?: (status: TranscribeStatus) => void,
+) {
+  const world = engine.world;
+  const c = world.components;
+
+  if (!entityExists(world, sceneEid) || !hasComponent(world, sceneEid, c.Scene)) {
+    throw new Error(`Node ${sceneEid} is not a scene.`);
+  }
+  if (!hasAudioSources(world, sceneEid)) {
+    throw new Error("No audio found. Add an audio or video clip to the scene to generate captions.");
+  }
+
+  const sourceHash = sceneAudioFingerprint(world, sceneEid);
+  const cached = Array.from(world.assets.values())
+    .find(a => a.type === "TRANSCRIPT" && a.sourceHash === sourceHash);
+
+  if (cached) {
+    const transcript = await resolveTranscript(cached);
+    if (transcript.length) {
+      return {
+        asset: { id: cached.id, name: cached.name, type: cached.type },
+        trim: transcriptTrim(transcript),
+      };
+    }
+  }
+
+  onStatus?.("encoding");
+  engine.stop();
+  let result;
+  try {
+    const encoder = await createEncoder(world, {
+      scene: sceneEid,
+      video: { enabled: false },
+      audio: { enabled: true, codec: "opus", sampleRate: 24000 },
+      format: "ogg",
+    });
+    result = await encoder.render();
+  } finally {
+    engine.start();
+  }
+
+  if (result.type !== "success" || !result.data) {
+    throw new Error("Failed to encode audio");
+  }
+
+  onStatus?.("uploading");
+  const assetid = crypto.randomUUID();
+  const audioFile = new File([result.data], `${assetid}.ogg`, { type: "audio/ogg" });
+  const fileRef = await uploadBlob(audioFile, assetid);
+  assert(fileRef, "Failed to upload audio");
+
+  onStatus?.("transcribing");
+  const { results: transcript } = await trpc.transcribe.mutate({ audio: fileRef });
+
+  assert(transcript.length, "No speech detected. The audio does not appear to contain recognizable speech.");
+  assert(transcript.every((s) => s.words.length > 0), "No speech detected. The audio does not appear to contain recognizable speech.");
+
+  const name = nextCaptionsName(Array.from(world.assets.values()));
+  const blob = new Blob([JSON.stringify(transcript)], { type: "application/json" });
+  const file = new File([blob], `${name}.json`, { type: "application/json" });
+  const asset = await loadAsset(world, file, { name });
+
+  assert(asset.type === "TRANSCRIPT", "Expected a transcript asset");
+  await saveAsset(world, { ...asset, sourceHash });
+
+  return { asset: { id: asset.id, name: asset.name, type: asset.type }, trim: transcriptTrim(transcript) };
+}

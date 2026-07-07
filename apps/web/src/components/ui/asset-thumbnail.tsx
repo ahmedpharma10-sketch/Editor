@@ -1,0 +1,196 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
+import { Show, For, createResource } from 'solid-js';
+import { cx } from '@/lib/cva';
+import { getAudioPeaksAsync } from '@/components/engine/decoders/audio-peaks';
+import { useEngine } from '@/context/engine';
+import { assetsVersion } from '@/components/engine';
+
+import type { AudioAsset, ImageAsset, VideoAsset } from '@/components/engine/db';
+import type { Asset } from '@/components/engine/db';
+
+const DEFAULT_THUMBNAIL_SIZE = {
+  width: 300,
+  height: 168,
+} as const;
+
+type ThumbnailSize = {
+  width: number;
+  height: number;
+};
+
+function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
+  const engine = useEngine();
+  const [url] = createResource(
+    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
+    async () => {
+      const objectUrl = URL.createObjectURL(await props.asset.handle.getFile());
+      try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = objectUrl;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = props.size.width;
+        canvas.height = props.size.height;
+        const ctx = canvas.getContext('2d')!;
+
+        const asset = props.asset as ImageAsset;
+        const imgW = image.naturalWidth || asset.width;
+        const imgH = image.naturalHeight || asset.height;
+        const scale = Math.max(props.size.width / imgW, props.size.height / imgH);
+        const scaledW = imgW * scale;
+        const scaledH = imgH * scale;
+        const dx = (props.size.width - scaledW) / 2;
+        const dy = (props.size.height - scaledH) / 2;
+
+        ctx.drawImage(image, dx, dy, scaledW, scaledH);
+        const url = canvas.toDataURL('image/webp', 0.7);
+
+        canvas.width = 0;
+        canvas.height = 0;
+
+        return url;
+      } catch {
+        return undefined;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+  );
+
+  return (
+    <Show when={url()}>
+      <img
+        src={url()!}
+        alt={props.asset.name}
+        class="w-full h-full object-cover select-none"
+      />
+    </Show>
+  );
+}
+
+function VideoThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
+  const engine = useEngine();
+  const [src] = createResource(
+    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
+    async () => {
+      try {
+        const file = await props.asset.handle.getFile();
+
+        const input = new Input({
+          formats: ALL_FORMATS,
+          source: new BlobSource(file),
+        });
+
+        const track = await input.getPrimaryVideoTrack();
+        if (!track) return;
+
+        const sink = new CanvasSink(track, {
+          width: props.size.width,
+          height: props.size.height,
+          fit: 'cover',
+        });
+
+        const ts = await track.getFirstTimestamp();
+        const wrappedCanvas = await sink.getCanvas(ts + 0.3);
+        if (!wrappedCanvas) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = wrappedCanvas.canvas.width;
+        canvas.height = wrappedCanvas.canvas.height;
+        canvas.getContext('2d')?.drawImage(wrappedCanvas.canvas, 0, 0);
+        const url = canvas.toDataURL('image/webp', 0.7);
+        canvas.width = 0;
+        canvas.height = 0;
+        return url;
+      } catch {
+        return undefined;
+      }
+    }
+  );
+
+  return (
+    <Show when={src()}>
+      <img
+        src={src()!}
+        alt={props.asset.name}
+        class="w-full h-full object-cover select-none"
+      />
+    </Show>
+  );
+}
+
+function TranscriptThumbnail() {
+  return (
+    <div class="absolute inset-0 bg-caption-background overflow-clip rounded-sm">
+      <div class="absolute top-1 left-1 h-4 px-1 flex items-center bg-overlay rounded-sm">
+        <span class="text-xxs text-foreground">Captions</span>
+      </div>
+      <div class="absolute top-9 left-1 right-0 bottom-1 flex items-center gap-0.5 overflow-clip">
+        <div class="bg-caption-accent h-full rounded-sm shrink-0" style={{ width: '37px', 'min-width': '16px' }} />
+        <div class="bg-caption-accent h-full rounded-sm shrink-0" style={{ width: '16px' }} />
+        <div class="bg-caption-accent h-full rounded-sm shrink-0" style={{ width: '36px', 'min-width': '16px' }} />
+        <div class="bg-caption-accent h-full rounded-sm shrink-0" style={{ width: '37px', 'min-width': '16px' }} />
+      </div>
+    </div>
+  );
+}
+
+function AudioThumbnail(props: { asset: Asset }) {
+  const engine = useEngine();
+  const [bins] = createResource(
+    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
+    () => getAudioPeaksAsync(props.asset as AudioAsset | VideoAsset),
+  );
+
+  return (
+    <div class="absolute inset-0 pt-7 pb-1 bg-audio-background">
+      <div class="flex items-center justify-center w-full h-full">
+        <Show when={bins()}>
+          <For each={Array.from(bins()!)}>
+            {value => {
+              const height = Math.min(Math.max(2, (value / 255) * 100), 98);
+              return <div class="bg-audio-primary flex-1 rounded-sm" style={{ height: `${height}%` }} />;
+            }}
+          </For>
+        </Show>
+      </div>
+    </div>
+  );
+}
+
+type AssetThumbnailProps = {
+  asset: Asset;
+  class?: string;
+  draggable?: boolean;
+  size?: ThumbnailSize;
+}
+
+export function AssetThumbnail(props: AssetThumbnailProps) {
+  const size = () => props.size ?? DEFAULT_THUMBNAIL_SIZE;
+
+  return (
+    <div class={cx(props.class, 'relative')} draggable={props.draggable}>
+      <Show when={props.asset.mimeType.startsWith('image')}>
+        <ImageThumbnail asset={props.asset} size={size()} />
+      </Show>
+      <Show when={props.asset.mimeType.startsWith('video')}>
+        <VideoThumbnail asset={props.asset} size={size()} />
+      </Show>
+      <Show when={props.asset.mimeType.startsWith('audio')}>
+        <AudioThumbnail asset={props.asset} />
+      </Show>
+      <Show when={props.asset.type === 'TRANSCRIPT'}>
+        <TranscriptThumbnail />
+      </Show>
+      <div class="absolute inset-0 bg-transparent" />
+    </div>
+  );
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@diffusionstudio/jsx",
+  "version": "0.1.0",
+  "description": "Solid JSX runtime and types for authoring Diffusion Studio compositions — mounted into the editor via `dapi mount`.",
+  "license": "MPL-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./time": "./src/time.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./src/jsx-runtime.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit"
+  },
+  "keywords": [
+    "diffusion-studio",
+    "solid-js",
+    "jsx",
+    "video-editing"
+  ],
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

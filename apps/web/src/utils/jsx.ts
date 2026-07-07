@@ -1,0 +1,687 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import { hasComponent, query, Not } from "bitecs";
+import { getAssetSpec, isAssetRef, parseTime } from "@diffusionstudio/jsx";
+import * as solid from "solid-js";
+import * as solidStore from "solid-js/store";
+import * as diffusionJsx from "@diffusionstudio/jsx";
+import {
+  CaptionType,
+  FontStyle,
+  GeometryType,
+  PaintType,
+  ScaleMode,
+  TextAlign,
+  TextBaseline,
+  addComponent,
+  appendChild,
+  createEntity,
+  deleteEntity,
+  getNextName,
+  getSceneAncestor,
+  hasAudioSources,
+  removeChild,
+  removeComponent,
+  resizeEntity,
+  setComponent,
+  transcribeScene,
+} from "@/components/engine";
+import { ChildOf } from "@/components/engine/components";
+import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
+import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
+import { assert, parseColor } from "@/utils";
+
+import type { AssetRef, AssetSpecInput, ProjectDocument } from "@diffusionstudio/jsx";
+import type { Engine, EngineWorld } from "@/components/engine";
+import type { GenerationMemo } from "@/utils/jsx-generation";
+
+type DocumentNode = {
+  kind: "element";
+  eid: number;
+  inPoint?: number;
+  outPoint?: number;
+  startTime?: number;
+  objectFit?: keyof typeof SCALE_MODE_MAP;
+  parent?: DocumentNode;
+  children?: DocumentNode[];
+} | {
+  kind: "root";
+  eid?: number;
+  parent?: undefined;
+  children?: DocumentNode[];
+} | {
+  kind: "text";
+  text: string;
+  parent?: DocumentNode;
+  children?: DocumentNode[];
+};
+
+// Multiple new scenes are laid side by side in render order.
+const PLACEMENT_GAP = 40;
+
+const SCALE_MODE_MAP = {
+  cover: ScaleMode.COVER,
+  contain: ScaleMode.FIT,
+  fill: ScaleMode.FILL,
+} as const;
+
+const FONT_STYLE_MAP = {
+  normal: FontStyle.NORMAL,
+  italic: FontStyle.ITALIC,
+  oblique: FontStyle.OBLIQUE,
+} as const;
+
+const TEXT_ALIGN_MAP = {
+  left: TextAlign.LEFT,
+  center: TextAlign.CENTER,
+  right: TextAlign.RIGHT,
+} as const;
+
+const TEXT_BASELINE_MAP = {
+  top: TextBaseline.TOP,
+  middle: TextBaseline.MIDDLE,
+  bottom: TextBaseline.BOTTOM,
+} as const;
+
+const CAPTION_PRESET_MAP = {
+  classic: CaptionType.CLASSIC,
+  cascade: CaptionType.CASCADE,
+  spotlight: CaptionType.SPOTLIGHT,
+  whisper: CaptionType.WHISPER,
+  paper: CaptionType.PAPER,
+  guinea: CaptionType.GUINEA,
+  stark: CaptionType.STARK,
+} as const;
+
+type GenaiQueueItem = {
+  node: DocumentNode;
+  ref?: AssetRef;
+  type: "asset" | "caption";
+};
+
+export class WorldDocument implements ProjectDocument<DocumentNode> {
+  public promises: Promise<void>[] = [];
+  public stage: DocumentNode;
+  public rootEid: number | null = null;
+  public engine: Engine;
+
+  private queue: GenaiQueueItem[] = [];
+
+  public constructor(engine: Engine, target?: { parentEid: number }) {
+    this.stage = { kind: "root", eid: target?.parentEid };
+    this.engine = engine;
+  }
+
+  /**
+   * Waits for the rendering to complete and then handles the genai queue.
+   */
+  public async commit(): Promise<void> {
+    const world = this.world;
+    const c = world.components;
+    const errors: unknown[] = [];
+
+    // Wait for assets to settle
+    {
+      await Promise.all(this.promises);
+    }
+
+    // Handle generative queue
+    {
+      const memo: GenerationMemo = new Map();
+
+      await Promise.all(this.queue.map(async ({ node, ref, type }) => {
+        if (node.kind !== "element" || hasComponent(world, node.eid, c.Deleted) || type !== "asset" || !ref) return;
+        try {
+          const asset = await resolveGeneratedAsset(world, ref, memo);
+          await this.mountSource(node, asset.id);
+        } catch (err) {
+          errors.push(err instanceof Error ? err : new Error(String(err), { cause: err }));
+        } finally {
+          world.history.untrack(() => removeComponent(world, node.eid, c.Generating));
+        }
+      }));
+    }
+
+    // Handle captioning queue
+    {
+      const scenes = new Map<number, number[]>();
+
+      for (const { node, type } of this.queue) {
+        if (node.kind !== "element" || hasComponent(world, node.eid, c.Deleted) || type !== "caption" || c.AssetId[node.eid]) continue;
+        const sceneEid = getSceneAncestor(world, node.eid);
+        if (sceneEid === null) continue;
+        scenes.set(sceneEid, [...(scenes.get(sceneEid) ?? []), node.eid]);
+      }
+
+      for (const [sceneEid, eids] of scenes) {
+        if (!hasAudioSources(world, sceneEid)) continue;
+        try {
+          const { asset, trim } = await transcribeScene(this.engine, sceneEid);
+          world.history.transaction("Attach captions", () => {
+            for (const eid of eids) {
+              if (hasComponent(world, eid, c.Deleted)) continue;
+              setComponent(world, eid, c.AssetId, asset.id);
+              setComponent(world, eid, c.Trim, trim);
+            }
+          });
+        } catch (error) {
+          console.error("Captioning failed:", error);
+        }
+      }
+    }
+
+    // Handle errors
+    {
+      const messages = errors.map((err) => err instanceof Error ? err.message : String(err));
+      assert(errors.length === 0, `${errors.length} asset generations failed:\n${messages.join("\n")}`);
+    }
+  }
+
+  private get world(): EngineWorld {
+    return this.engine.world;
+  }
+
+  public createElement(tag: string): DocumentNode {
+    const world = this.world;
+    const c = world.components;
+    const eid = createEntity(world);
+    const node: DocumentNode = { kind: "element", eid };
+
+    switch (tag) {
+      case "scene": {
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        addComponent(world, eid, c.Scene);
+        addComponent(world, eid, c.ClipsContent);
+        setComponent(world, eid, c.Name, getNextName(world, "Scene"));
+        break;
+      } case "group": {
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        addComponent(world, eid, c.Group);
+        setComponent(world, eid, c.Name, getNextName(world, "Group"));
+        break;
+      } case "rect": {
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        setComponent(world, eid, c.Name, getNextName(world, "Rect"));
+        break;
+      } case "sequence": {
+        addComponent(world, eid, c.Group);
+        addComponent(world, eid, c.Sequential);
+        setComponent(world, eid, c.Name, getNextName(world, "Sequence"));
+        break;
+      } case "video": {
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        setComponent(world, eid, c.Name, getNextName(world, "Video"));
+        break;
+      } case "image": {
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        setComponent(world, eid, c.Name, getNextName(world, "Image"));
+        break;
+      } case "audio": {
+        addComponent(world, eid, c.Audio);
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        setComponent(world, eid, c.Name, getNextName(world, "Audio"));
+        break;
+      } case "text": {
+        setComponent(world, eid, c.Geometry, GeometryType.TEXT);
+        const fid = createEntity(world);
+        setComponent(world, fid, c.Paint, PaintType.SOLID);
+        setComponent(world, fid, c.Color, 0xffffff);
+        appendChild(world, fid, eid);
+        break;
+      } case "captions": {
+        setComponent(world, eid, c.Geometry, GeometryType.TEXT);
+        setComponent(world, eid, c.Caption, {});
+        setComponent(world, eid, c.Name, getNextName(world, "Captions"));
+        this.queue.push({ node, type: "caption" });
+        break;
+      } case "solidPaint": {
+        setComponent(world, eid, c.Paint, PaintType.SOLID);
+        setComponent(world, eid, c.Color, 0xE0E0E0);
+        break;
+      } case "linearGradientPaint": {
+        setComponent(world, eid, c.Paint, PaintType.LINEAR_GRADIENT);
+        break;
+      } case "radialGradientPaint": {
+        setComponent(world, eid, c.Paint, PaintType.RADIAL_GRADIENT);
+        break;
+      } case "colorStop": {
+        setComponent(world, eid, c.ColorStop, {});
+        break;
+      } default: {
+        assert(false, `unknown tag: "${tag}"`);
+      }
+    }
+
+    return node;
+  }
+
+  public createTextNode(text: string): DocumentNode {
+    // This is the text inside a tag, there is no engine equivalent
+    return { kind: "text", text };
+  }
+
+  /**
+   * Wraps an existing entity so props can be applied to it through the same
+   * `setProperty` path a fresh render uses (e.g. `dapi node patch`). Timing
+   * state is hydrated from the entity's components so a partial patch (say,
+   * only `inPoint`) composes with its existing delay/trim like a full render.
+   */
+  public element(eid: number): DocumentNode {
+    const world = this.world;
+    const c = world.components;
+    const node: DocumentNode = { kind: "element", eid };
+    if (hasComponent(world, eid, c.Delay)) node.startTime = c.Delay[eid];
+    if (hasComponent(world, eid, c.Trim)) {
+      const delay = node.startTime ?? 0;
+      const start = c.Trim.start[eid];
+      const end = c.Trim.end[eid];
+      if (start !== undefined) node.inPoint = start + delay;
+      if (end !== undefined) node.outPoint = end + delay;
+    }
+    return node;
+  }
+
+  public replaceText(node: DocumentNode, text: string) {
+    assert(node.kind === "text", "replaceText target is not a text node");
+    node.text = text;
+  }
+
+  public isTextNode(node: DocumentNode): boolean {
+    return node.kind === "text";
+  }
+
+  public setProperty(node: DocumentNode, name: string, value: unknown) {
+    if (name === "children" || name === "ref" || value === undefined || node.kind !== "element") return;
+
+    const world = this.world;
+    const c = world.components;
+    const eid = node.eid;
+
+    switch (name) {
+      case "name": {
+        assert(typeof value === "string", "`name` must be a string" + `, value: ${value}`);
+        setComponent(world, eid, c.Name, value);
+        break;
+      } case "x": {
+        assert(typeof value === "number", "`x` must be a number" + `, value: ${value}`);
+        setComponent(world, eid, c.Position, { x: Math.round(value) });
+        break;
+      } case "y": {
+        assert(typeof value === "number", "`y` must be a number" + `, value: ${value}`);
+        setComponent(world, eid, c.Position, { y: Math.round(value) });
+        break;
+      } case "width": {
+        assert(typeof value === "number", "`width` must be a number" + `, value: ${value}`);
+        assert(value >= 0, "`width` must be >= 0");
+        resizeEntity(world, eid, { width: Math.round(value) });
+        break;
+      } case "height":
+        assert(typeof value === "number", "`height` must be a number" + `, value: ${value}`);
+        assert(value >= 0, "`height` must be >= 0");
+        resizeEntity(world, eid, { height: Math.round(value) });
+        break;
+      case "rotation": {
+        assert(typeof value === "number", "`rotation` must be a number" + `, value: ${value}`);
+        setComponent(world, eid, c.Rotation, value);
+        break;
+      } case "opacity": {
+        assert(typeof value === "number", "`opacity` must be a number" + `, value: ${value}`);
+        assert(value >= 0 && value <= 1, "`opacity` must be between 0 and 1");
+        if (hasComponent(world, eid, c.ColorStop)) {
+          setComponent(world, eid, c.ColorStop, { opacity: value });
+        } else {
+          setComponent(world, eid, c.Appearance, { opacity: value });
+        }
+        break;
+      } case "cornerRadius": {
+        assert(typeof value === "number", "`cornerRadius` must be a number" + `, value: ${value}`);
+        assert(value >= 0, "`cornerRadius` must be >= 0");
+        setComponent(world, eid, c.CornerRadius, Math.round(value));
+        break;
+      } case "inPoint": {
+        const parsed = parseFrames(String(value), 30);
+        assert(typeof parsed === "number", "`inPoint` must be a string or number" + `, value: ${value}`);
+        node.inPoint = parsed;
+        const delay = node.startTime ?? 0;
+        setComponent(world, eid, c.Trim, { start: node.inPoint - delay });
+        break;
+      } case "outPoint": {
+        const parsed = parseFrames(String(value), 30);
+        assert(typeof parsed === "number", "`outPoint` must be a string or number" + `, value: ${value}`);
+        node.outPoint = parsed;
+        const delay = node.startTime ?? 0;
+        setComponent(world, eid, c.Trim, { end: node.outPoint - delay });
+        break;
+      }
+      case "startTime": {
+        const parsed = parseFrames(String(value), 30);
+        assert(typeof parsed === "number", "`startTime` must be a string or number" + `, value: ${value}`);
+        node.startTime = parsed;
+        setComponent(world, eid, c.Delay, node.startTime);
+        if (node.inPoint !== undefined) {
+          setComponent(world, eid, c.Trim, { start: node.inPoint - node.startTime });
+        }
+        if (node.outPoint !== undefined) {
+          setComponent(world, eid, c.Trim, { end: node.outPoint - node.startTime });
+        }
+        break;
+      }
+      case "fill": {
+        assert(typeof value === "string", "`fill` must be a string" + `, value: ${value}`);
+        const color = parseColor(value);
+        assert(color !== null, `fill is not a valid CSS color: "${value}"`);
+        const fills = [...query(world, [c.Paint, ChildOf(eid), Not(c.Deleted)])]
+          .filter((fid) => c.Paint[fid] === PaintType.SOLID);
+
+        if (fills.length === 0) {
+          const fid = createEntity(world);
+          setComponent(world, fid, c.Paint, PaintType.SOLID);
+          appendChild(world, fid, eid);
+          fills.push(fid);
+        }
+
+
+        for (const fid of fills) {
+          setComponent(world, fid, c.Color, color);
+        }
+        break;
+      }
+      case "volume": {
+        assert(typeof value === "number", "`volume` must be a number" + `, value: ${value}`);
+        assert(value >= 0, "`volume` must be >= 0");
+        // Convert linear volume to decibels
+        const db = value <= 0 ? -Infinity : 20 * Math.log10(value);
+        setComponent(world, eid, c.Volume, db);
+        break;
+      } case "src": {
+        if (isAssetRef(value)) {
+          world.history.untrack(() => addComponent(world, eid, c.Generating));
+          if (!hasComponent(world, eid, c.Size)) {
+            resizeEntity(world, eid, placeholderSize(getAssetSpec(value)));
+          }
+          this.queue.push({ node, ref: value, type: "asset" });
+          break;
+        }
+        assert(typeof value === "string", "`src` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`src` must be a non-empty string");
+
+        this.promises.push(this.mountSource(node, value));
+        break;
+      } case "objectFit":
+        assert(typeof value === "string", "`objectFit` must be a string" + `, value: ${value}`);
+        assert(value in SCALE_MODE_MAP, `invalid objectFit value: "${value}"`);
+
+        // The media paint is attached asynchronously
+        node.objectFit = value as keyof typeof SCALE_MODE_MAP;
+
+        for (const pid of query(world, [c.Paint, ChildOf(eid), Not(c.Deleted)])) {
+          if (c.Paint[pid] === PaintType.IMAGE || c.Paint[pid] === PaintType.VIDEO) {
+            setComponent(world, pid, c.ScaleMode, SCALE_MODE_MAP[node.objectFit]);
+          }
+        }
+        break;
+      case "key": {
+        assert(typeof value === "string", "`key` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`key` must be a non-empty string");
+        setComponent(world, eid, c.Key, value.trim());
+        break;
+      }
+      case "fontFamily":
+        assert(typeof value === "string", "`fontFamily` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`fontFamily` must be a non-empty string");
+        setComponent(world, eid, c.TextStyle, { fontFamily: value.trim() });
+        break;
+      case "fontSize":
+        assert(typeof value === "number", "`fontSize` must be a number" + `, value: ${value}`);
+        assert(value > 0, "`fontSize` must be > 0");
+        setComponent(world, eid, c.TextStyle, { fontSize: Math.round(value) });
+        break;
+      case "fontWeight":
+        if (value === "normal") value = "400";
+        else if (value === "bold") value = "700";
+        assert(typeof value === "string", "`fontWeight` must be a string" + `, value: ${value}`);
+        assert(Number.isFinite(Number(value)), "`fontWeight` must be a number");
+        setComponent(world, eid, c.TextStyle, { fontWeight: value });
+        break;
+      case "fontStyle":
+        assert(typeof value === "string", "`fontStyle` must be a string" + `, value: ${value}`);
+        assert(value in FONT_STYLE_MAP, `invalid fontStyle value: "${value}"`);
+        setComponent(world, eid, c.TextStyle, { fontStyle: FONT_STYLE_MAP[value as keyof typeof FONT_STYLE_MAP] });
+        break;
+      case "textAlign":
+        assert(typeof value === "string", "`textAlign` must be a string" + `, value: ${value}`);
+        assert(value in TEXT_ALIGN_MAP, `invalid textAlign value: "${value}"`);
+        setComponent(world, eid, c.TextStyle, { textAlign: TEXT_ALIGN_MAP[value as keyof typeof TEXT_ALIGN_MAP] });
+        break;
+      case "textBaseline":
+        assert(typeof value === "string", "`textBaseline` must be a string" + `, value: ${value}`);
+        assert(value in TEXT_BASELINE_MAP, `invalid textBaseline value: "${value}"`);
+        setComponent(world, eid, c.TextStyle, { textBaseline: TEXT_BASELINE_MAP[value as keyof typeof TEXT_BASELINE_MAP] });
+        break;
+      case "color": {
+        assert(typeof value === "string", "`color` must be a string" + `, value: ${value}`);
+        const color = parseColor(value);
+        assert(color !== null, `color is not a valid CSS color: "${value}"`);
+        if (hasComponent(world, eid, c.ColorStop)) {
+          setComponent(world, eid, c.ColorStop, { color });
+        } else if (hasComponent(world, eid, c.Paint)) {
+          setComponent(world, eid, c.Color, color);
+        } else {
+          assert(false, "`color` only applies to paints or color stops");
+        }
+        break;
+      } case "offset": {
+        assert(hasComponent(world, eid, c.ColorStop), "`offset` only applies to <colorStop>");
+        assert(typeof value === "number", "`offset` must be a number" + `, value: ${value}`);
+        assert(value >= 0 && value <= 1, "`offset` must be between 0 and 1");
+        setComponent(world, eid, c.ColorStop, { offset: value });
+        break;
+      } case "preset": {
+        assert(hasComponent(world, eid, c.Caption), "`preset` only applies to <captions>");
+        assert(typeof value === "string", "`preset` must be a string" + `, value: ${value}`);
+        assert(value in CAPTION_PRESET_MAP, `invalid preset value: "${value}"`);
+        setComponent(world, eid, c.Caption, { type: CAPTION_PRESET_MAP[value as keyof typeof CAPTION_PRESET_MAP] });
+        break;
+      } case "colors": {
+        assert(hasComponent(world, eid, c.Caption), "`colors` only applies to <captions>");
+        assert(Array.isArray(value), "`colors` must be an array of CSS colors" + `, value: ${value}`);
+        const colors = value.map((entry) => {
+          assert(typeof entry === "string", "`colors` entries must be strings" + `, value: ${entry}`);
+          const color = parseColor(entry);
+          assert(color !== null, `colors entry is not a valid CSS color: "${entry}"`);
+          return color;
+        });
+        setComponent(world, eid, c.Caption, { colors });
+        break;
+      }
+    }
+  }
+
+  public insertNode(parent: DocumentNode, node: DocumentNode) {
+    const c = this.world.components;
+    if (parent.kind === "root" && node.kind === "element") {
+      if (parent.eid === undefined) {
+        assert(hasComponent(this.world, node.eid, c.Geometry), "this element cannot be a document root");
+        const key = c.Key[node.eid];
+        assert(key !== undefined, "`key` is required for `root` nodes");
+
+        // Find and replace node with the same key
+        const existing = query(this.world, [c.Key, Not(c.Deleted)])
+          .find((eid) => eid !== node.eid && c.Key[eid] === key);
+
+        if (existing === undefined) {
+          const width = c.Computed.width[node.eid] ?? 0;
+          const height = c.Computed.height[node.eid] ?? 0;
+          const position = this.findPlacement(width, height);
+          setComponent(this.world, node.eid, c.Position, position);
+        } else {
+          setComponent(this.world, node.eid, c.Position, {
+            x: c.Position.x[existing] ?? 0,
+            y: c.Position.y[existing] ?? 0,
+          });
+          deleteEntity(this.world, existing);
+        }
+      } else {
+        appendChild(this.world, node.eid, parent.eid);
+      }
+
+      this.rootEid = node.eid;
+    } else if (parent.kind === "element" && node.kind === "text") {
+      assert(hasComponent(this.world, parent.eid, c.Geometry), `<${parent.kind}> cannot contain text`);
+      assert(c.Geometry[parent.eid] === GeometryType.TEXT, `<${parent.kind}> is not a text element`);
+      setComponent(this.world, parent.eid, c.Chars, node.text);
+    } else if (parent.kind === "element" && node.kind === "element") {
+      appendChild(this.world, node.eid, parent.eid);
+    }
+
+    parent.children ??= [];
+    parent.children.push(node);
+    node.parent = parent;
+  }
+
+  public removeNode(parent: DocumentNode, node: DocumentNode) {
+    const c = this.world.components;
+
+    if (parent.kind === "element" && node.kind === "text") {
+      removeComponent(this.world, parent.eid, c.Chars);
+    } else if (parent.kind === "element" && node.kind === "element") {
+      removeChild(this.world, node.eid, parent.eid);
+      deleteEntity(this.world, node.eid);
+    }
+
+    parent.children = parent.children?.filter((child) => child !== node);
+    node.parent = undefined;
+  }
+
+  public getParentNode(node: DocumentNode): DocumentNode | undefined {
+    return node.parent;
+  }
+
+  public getFirstChild(node: DocumentNode): DocumentNode | undefined {
+    return node.children?.[0];
+  }
+
+  public getNextSibling(node: DocumentNode): DocumentNode | undefined {
+    const index = node.parent?.children?.indexOf(node);
+    if (index === undefined || index == -1) {
+      return undefined;
+    }
+
+    return node.parent?.children?.[index + 1];
+  }
+
+  private findPlacement(width: number, height: number): { x: number; y: number } {
+    const center = findEmptyPlacement(this.world, width, height, PLACEMENT_GAP);
+    return {
+      x: Math.round(center.x - width / 2),
+      y: Math.round(center.y - height / 2),
+    };
+  }
+
+  /**
+   * Attaches a resolved asset to a media node — shared by plain `src` values
+   * (resolved during mount) and generated assets (landing after commit).
+   */
+  private async mountSource(node: DocumentNode, src: string) {
+    if (node.kind !== "element") return;
+
+    const asset = await resolveAsset(this.world, src);
+    const world = this.world;
+    const c = world.components;
+    const eid = node.eid;
+
+    if (asset.type === 'AUDIO') {
+      setComponent(world, eid, c.AssetId, asset.id);
+      resizeEntity(world, eid, { width: 500, height: 150 });
+    } else if (asset.type === 'IMAGE' || asset.type === 'VIDEO') {
+      const fid = createEntity(world);
+      setComponent(world, fid, c.Paint, asset.type === 'IMAGE' ? PaintType.IMAGE : PaintType.VIDEO);
+      setComponent(world, fid, c.ScaleMode, node.objectFit ? SCALE_MODE_MAP[node.objectFit] : ScaleMode.COVER);
+      setComponent(world, fid, c.AssetId, asset.id);
+      appendChild(world, fid, eid);
+
+      if (!hasComponent(world, eid, c.Size)) {
+        resizeEntity(world, eid, { width: asset.width, height: asset.height });
+      }
+    }
+
+    setComponent(world, eid, c.Name, asset.name);
+  }
+}
+
+function placeholderSize(spec: AssetSpecInput): { width: number; height: number } {
+  if (spec.type === "image" || spec.type === "video") {
+    return ASPECT_RATIO_DIMENSIONS[spec.aspectRatio ?? "16:9"] ?? { width: 1920, height: 1080 };
+  }
+  return { width: 500, height: 150 };
+}
+
+function parseFrames(value: string | null | undefined, fps: number): number | undefined {
+  const seconds = parseTime(value);
+  return seconds === undefined ? undefined : Math.round(seconds * fps);
+}
+
+/**
+ * Evaluates a compiled project module (see JSX_API.md). The CLI ships a
+ * single-file ESM bundle whose host modules are left external under the
+ * "dapi-host:" prefix; here each one is rewritten to a blob-URL shim that
+ * re-exports the app's own module instance, so the project shares the
+ * editor's reactive runtime (and the same AssetRef class).
+ */
+
+// Must match HOST_MODULE_PREFIX in @diffusionstudio/cli's compile step.
+const HOST_MODULE_PREFIX = "dapi-host:";
+
+const HOST_MODULES: Record<string, object> = {
+  "solid-js": solid,
+  "solid-js/store": solidStore,
+  "@diffusionstudio/jsx": diffusionJsx,
+};
+
+declare global {
+  var __dapiHostModules__: Record<string, object> | undefined;
+}
+
+const shimUrls = new Map<string, string>();
+
+// A blob module cannot import bare specifiers, so the shim reaches its target
+// namespace through a global and re-exports every name statically.
+function getShimUrl(name: string): string {
+  const cached = shimUrls.get(name);
+  if (cached) return cached;
+
+  const ns = HOST_MODULES[name]!;
+  globalThis.__dapiHostModules__ ??= {};
+  globalThis.__dapiHostModules__[name] = ns;
+
+  const lines = [`const m = globalThis.__dapiHostModules__[${JSON.stringify(name)}];`];
+  for (const key of Object.keys(ns)) {
+    if (key === "default") continue;
+    lines.push(`export const ${key} = m[${JSON.stringify(key)}];`);
+  }
+  if ("default" in ns) lines.push("export default m.default;");
+
+  const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/javascript" }));
+  shimUrls.set(name, url);
+  return url;
+}
+
+export async function importProjectModule(code: string): Promise<Record<string, unknown>> {
+  let rewritten = code;
+  for (const name of Object.keys(HOST_MODULES)) {
+    rewritten = rewritten.replaceAll(
+      JSON.stringify(`${HOST_MODULE_PREFIX}${name}`),
+      JSON.stringify(getShimUrl(name)),
+    );
+  }
+
+  const url = URL.createObjectURL(new Blob([rewritten], { type: "text/javascript" }));
+  try {
+    // Top-level code (including top-level await) runs to completion here.
+    return (await import(/* @vite-ignore */ url)) as Record<string, unknown>;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
