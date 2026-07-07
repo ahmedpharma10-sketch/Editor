@@ -165,7 +165,7 @@ export type GeneratedAsset = { id: string; name: string; type: string };
 
 export type FolderInfo = { id: string; name: string; type: "folder" };
 
-export type AssetTreeEntry = { id: string; name: string; type: string; children: AssetTreeEntry[] };
+export type AssetTreeEntry = { id: string; name: string; type: string; children?: AssetTreeEntry[] };
 
 export type AssetMoveResult =
   | { status: "fulfilled"; id: string; folderId: string | null }

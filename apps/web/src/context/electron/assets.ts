@@ -60,16 +60,17 @@ export function handleAssetsList(engine: Accessor<Engine>) {
         .map((folder) => {
           visited.add(folder.id);
           const next = remaining === undefined ? undefined : remaining - 1;
+          const children = next === undefined || next > 0 ? entries(folder.id, next) : [];
           return {
             id: folder.id,
             name: folder.name,
             type: "folder",
-            children: next === undefined || next > 0 ? entries(folder.id, next) : [],
+            ...(children.length > 0 && { children }),
           };
         });
       const assetEntries = assets
         .filter((asset) => assetFolderId(world, asset) === parentId)
-        .map((asset) => ({ id: asset.id, name: asset.name, type: asset.type, children: [] }));
+        .map((asset) => ({ id: asset.id, name: asset.name, type: asset.type }));
       return [...folderEntries, ...assetEntries];
     };
 
