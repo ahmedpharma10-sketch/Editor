@@ -70,8 +70,7 @@ export const {
 /**
  * Host entry point: renders a project component directly into `document`.
  * Mounting is synchronous — the document is fully written when this returns —
- * and the returned dispose function ends the reactive root (the one-shot
- * contract in JSX_API.md; nothing is rendered outside an active mount).
+ * and the returned dispose function ends the reactive root.
  */
 export function renderProject<N>(project: () => unknown, document: ProjectDocument<N>) {
   const previous = currentDocument;
@@ -79,7 +78,7 @@ export function renderProject<N>(project: () => unknown, document: ProjectDocume
 
   let dispose: () => void = () => { };
   try {
-    dispose = render(() => createComponent(project as () => unknown, {}), document.stage);
+    dispose = render(() => createComponent(project, {}), document.stage);
   } catch (error) {
     dispose?.();
     currentDocument = previous;

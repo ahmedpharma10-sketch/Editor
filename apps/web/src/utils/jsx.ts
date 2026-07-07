@@ -624,11 +624,9 @@ function parseFrames(value: string | null | undefined, fps: number): number | un
 }
 
 /**
- * Evaluates a compiled project module (see JSX_API.md). The CLI ships a
+ * Evaluates a compiled project module. The CLI ships a
  * single-file ESM bundle whose host modules are left external under the
- * "dapi-host:" prefix; here each one is rewritten to a blob-URL shim that
- * re-exports the app's own module instance, so the project shares the
- * editor's reactive runtime (and the same AssetRef class).
+ * "dapi-host:" prefix
  */
 
 // Must match HOST_MODULE_PREFIX in @diffusionstudio/cli's compile step.

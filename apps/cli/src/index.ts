@@ -964,7 +964,7 @@ program
 
 program
   .command("mount")
-  .description("Compile a Solid JSX project module and mount it into the canvas (see JSX_API.md)")
+  .description("Compile a Solid JSX project module and mount it into the canvas")
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
   .action((path: string | undefined, opts: MountOptions) => mountProject(path, opts));
@@ -1162,7 +1162,7 @@ node
 
 node
   .command("insert")
-  .description("Compile a Solid JSX project module and insert the rendered entities into a parent entity (see JSX_API.md)")
+  .description("Compile a Solid JSX project module and insert the rendered entities into a parent entity")
   .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")

@@ -46,8 +46,8 @@ npm install --save-dev @diffusionstudio/jsx solid-js
 
 ## Documentation
 
-See the JSX API specification shipped with the Diffusion Studio CLI
-(`JSX_API.md`) for the full element reference, timing model, media source
+See the JSX API specification shipped with the Diffusion Studio CLI for the 
+full element reference, timing model, media source
 resolution, and the `generate.*` declaration API.
 
 ## Testing outside the editor

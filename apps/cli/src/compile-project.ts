@@ -10,11 +10,7 @@ import presetSolid from "babel-preset-solid";
 import presetTypescript from "@babel/preset-typescript";
 
 /**
- * Compiles a Solid JSX project module into a single-file ESM bundle for
- * `dapi mount` (see JSX_API.md). JSX compiles against the editor's universal
- * renderer runtime (`@diffusionstudio/jsx`); npm dependencies and local
- * imports are bundled; the host-provided modules are left external under the
- * "dapi-host:" prefix so the app can rewrite them to its own module instances.
+ * Compiles a Solid JSX project module into a single-file ESM bundle for `dapi mount`
  */
 
 // Prefix shared with the app's module loader — a specifier no user code would
