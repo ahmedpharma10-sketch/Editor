@@ -3,16 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Public authoring API (used by project modules).
-export { generate, AssetRef, isAssetRef, getAssetSpec } from "./generate";
-export type {
-  AspectRatio,
-  AssetInput,
-  AssetSpecInput,
-  GenerateAudioOptions,
-  GenerateImageOptions,
-  GenerateVideoOptions,
-  GenerateVoiceOptions,
-} from "./generate";
 export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
 export type {
@@ -35,7 +25,7 @@ export type {
 } from "./types";
 
 // Renderer runtime — compiled project modules import these (babel-preset-solid
-// universal mode, moduleName "@diffusionstudio/jsx").
+// universal mode, moduleName "@diffusionstudio/solid").
 export {
   render,
   effect,

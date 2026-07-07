@@ -16,7 +16,7 @@ Compositions are [SolidJS](https://www.solidjs.com) modules. `dapi mount` compil
 
 ```tsx
 import { For } from "solid-js";
-import { generate } from "@diffusionstudio/jsx";
+import { generate } from "@diffusionstudio/ai";
 
 const hero = generate.image({ prompt: "A neon city at night, cinematic" });
 const motion = generate.video({ prompt: "slow camera push-in", startFrame: hero });
@@ -96,7 +96,8 @@ Conventions throughout: single results are one JSON value, collections are JSON 
 | `apps/web` | `@diffusionstudio/web` | The editor UI (Solid + Vite) |
 | `apps/desktop` | `@diffusionstudio/desktop` | Electron shell hosting the editor |
 | `apps/cli` | `@diffusionstudio/cli` | The `dapi` CLI |
-| `packages/jsx` | `@diffusionstudio/jsx` | Solid JSX runtime and types for compositions |
+| `packages/solid` | `@diffusionstudio/solid` | Solid JSX runtime and types for compositions |
+| `packages/ai` | `@diffusionstudio/ai` | Declarative generated assets (`generate.*`) |
 
 ## Contributing / local setup
 

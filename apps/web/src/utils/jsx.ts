@@ -3,10 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { hasComponent, query, Not } from "bitecs";
-import { getAssetSpec, isAssetRef, parseTime } from "@diffusionstudio/jsx";
+import { getAssetSpec, isAssetRef } from "@diffusionstudio/ai";
+import { parseTime } from "@diffusionstudio/solid";
 import * as solid from "solid-js";
 import * as solidStore from "solid-js/store";
-import * as diffusionJsx from "@diffusionstudio/jsx";
+import * as diffusionSolid from "@diffusionstudio/solid";
+import * as diffusionAi from "@diffusionstudio/ai";
 import {
   CaptionType,
   FontStyle,
@@ -37,7 +39,8 @@ import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
 import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
 import { assert, assertAllSettled, parseColor } from "@/utils";
 
-import type { AssetRef, AssetSpecInput, ProjectDocument } from "@diffusionstudio/jsx";
+import type { AssetRef, AssetSpecInput } from "@diffusionstudio/ai";
+import type { ProjectDocument } from "@diffusionstudio/solid";
 import type { Engine, EngineWorld } from "@/components/engine";
 import type { GenerationMemo } from "@/utils/jsx-generation";
 
@@ -670,7 +673,8 @@ const HOST_MODULE_PREFIX = "dapi-host:";
 const HOST_MODULES: Record<string, object> = {
   "solid-js": solid,
   "solid-js/store": solidStore,
-  "@diffusionstudio/jsx": diffusionJsx,
+  "@diffusionstudio/solid": diffusionSolid,
+  "@diffusionstudio/ai": diffusionAi,
 };
 
 declare global {

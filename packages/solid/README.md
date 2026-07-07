@@ -1,4 +1,4 @@
-# @diffusionstudio/jsx
+# @diffusionstudio/solid
 
 Solid JSX runtime and types for authoring [Diffusion Studio](https://diffusion.studio)
 compositions as code. Projects written against this package are compiled and
@@ -7,7 +7,7 @@ editable node in the composition — there is no hidden DOM, no CSS resolution,
 and no measuring pass.
 
 ```tsx
-import { generate } from "@diffusionstudio/jsx";
+import { generate } from "@diffusionstudio/ai";
 
 const hero = generate.image({ prompt: "A neon city at night, cinematic" });
 
@@ -31,7 +31,7 @@ needed for **types and tooling** — IntelliSense, `tsc --noEmit`, and testing
 components outside the editor.
 
 ```sh
-npm install --save-dev @diffusionstudio/jsx solid-js
+npm install --save-dev @diffusionstudio/solid solid-js
 ```
 
 ```jsonc
@@ -39,7 +39,7 @@ npm install --save-dev @diffusionstudio/jsx solid-js
 {
   "compilerOptions": {
     "jsx": "preserve",
-    "jsxImportSource": "@diffusionstudio/jsx"
+    "jsxImportSource": "@diffusionstudio/solid"
   }
 }
 ```
@@ -47,8 +47,8 @@ npm install --save-dev @diffusionstudio/jsx solid-js
 ## Documentation
 
 See the JSX API specification shipped with the Diffusion Studio CLI for the 
-full element reference, timing model, media source
-resolution, and the `generate.*` declaration API.
+full element reference, timing model, and media source resolution. Generated
+assets (the `generate.*` declaration API) live in `@diffusionstudio/ai`.
 
 ## Testing outside the editor
 
@@ -57,8 +57,8 @@ so a test can supply a lightweight in-memory document and assert on what the
 renderer wrote into it:
 
 ```ts
-import { renderProject } from "@diffusionstudio/jsx";
-import type { ProjectDocument } from "@diffusionstudio/jsx";
+import { renderProject } from "@diffusionstudio/solid";
+import type { ProjectDocument } from "@diffusionstudio/solid";
 import Project from "./project";
 
 const document: ProjectDocument = /* your in-memory implementation */;

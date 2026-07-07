@@ -17,7 +17,7 @@ import presetTypescript from "@babel/preset-typescript";
 // contain by accident, so the app-side rewrite is unambiguous.
 export const HOST_MODULE_PREFIX = "dapi-host:";
 
-const HOST_MODULES_RE = /^(?:solid-js(?:\/store)?|@diffusionstudio\/jsx)$/;
+const HOST_MODULES_RE = /^(?:solid-js(?:\/store)?|@diffusionstudio\/(?:solid|ai))$/;
 
 async function transformSolidJsx(source: string, filename: string): Promise<string> {
   const result = await transformAsync(source, {
@@ -25,7 +25,7 @@ async function transformSolidJsx(source: string, filename: string): Promise<stri
     babelrc: false,
     configFile: false,
     presets: [
-      [presetSolid, { generate: "universal", moduleName: "@diffusionstudio/jsx" }],
+      [presetSolid, { generate: "universal", moduleName: "@diffusionstudio/solid" }],
       [presetTypescript, {}],
     ],
     sourceMaps: "inline",
