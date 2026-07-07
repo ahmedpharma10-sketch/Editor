@@ -20,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetMoveResult, AssetProbeRequest, AssetsExportRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
+import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetsExportRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -42,7 +42,40 @@ export function handleAssetsAdd(engine: Accessor<Engine>) {
   }
 }
 
+/**
+ * The persisted asset record minus the props that can't cross the wire
+ */
+function toAssetRecord(asset: Asset): AssetRecord {
+  const record: Record<string, unknown> = { ...asset };
+  delete record.handle;
+  delete record.directoryHandle;
+  delete record.hash;
+  delete record.transcript;
+  return record as AssetRecord;
+}
+
 export function handleAssetsList(engine: Accessor<Engine>) {
+  return async ({ ids }: { ids?: string[] }): Promise<AssetListResult[]> => {
+    const { world } = engine();
+
+    // No ids → every asset in the library
+    if (ids === undefined || ids.length === 0) {
+      return Array.from(world.assets.values()).map((asset) => ({
+        status: "fulfilled",
+        asset: toAssetRecord(asset),
+      }));
+    }
+
+    return ids.map((id) => {
+      const asset = world.assets.get(id);
+      return asset
+        ? { status: "fulfilled", asset: toAssetRecord(asset) }
+        : { status: "rejected", id, error: `No such asset: ${id}` };
+    });
+  };
+}
+
+export function handleAssetTree(engine: Accessor<Engine>) {
   return async ({ folderId, depth }: { folderId?: string; depth?: number }): Promise<AssetTreeEntry[]> => {
     const { world } = engine();
     if (folderId !== undefined) {

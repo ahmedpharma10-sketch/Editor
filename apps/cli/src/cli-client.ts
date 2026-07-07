@@ -76,8 +76,9 @@ export const cliAPI = {
   context: () => cliRequest(CLI_CHANNELS.CONTEXT, undefined),
   addAssets: (paths: string[], folderId?: string) =>
     cliRequest(CLI_CHANNELS.ASSETS_ADD, { paths, folderId }),
-  listAssets: (folderId?: string, depth?: number) =>
-    cliRequest(CLI_CHANNELS.ASSETS_LIST, { folderId, depth }),
+  listAssets: (ids?: string[]) => cliRequest(CLI_CHANNELS.ASSETS_LIST, { ids }),
+  assetTree: (folderId?: string, depth?: number) =>
+    cliRequest(CLI_CHANNELS.ASSET_TREE, { folderId, depth }),
   deleteAssets: (ids: string[]) => cliRequest(CLI_CHANNELS.ASSETS_DELETE, { ids }),
   moveAssets: (ids: string[], to?: string) => cliRequest(CLI_CHANNELS.ASSETS_MOVE, { ids, to }),
   exportAssets: (ids: string[], output: string, isDir: boolean) =>

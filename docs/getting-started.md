@@ -40,7 +40,7 @@ You can also manage projects directly: `dapi project create`, `dapi project ls`,
 
 ```sh
 dapi context      # the open project: scenes, active scene, playhead, fonts
-dapi asset ls     # the media library as a folder tree
+dapi asset tree   # the media library as a folder tree
 ```
 
 `dapi context` (alias `ctx`) is the right first call in any session; it tells you what is on the canvas before you change it.

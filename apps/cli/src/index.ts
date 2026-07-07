@@ -146,9 +146,28 @@ async function addAssets(paths: string[], opts: AssetAddOptions): Promise<void> 
   }
 }
 
-type AssetListOptions = { folder?: string; depth?: string };
+async function listAssets(ids: string[]): Promise<void> {
+  try {
+    // No ids → every asset in the library; with ids → those specific assets.
+    const results = await cliAPI.listAssets(ids.length ? ids : undefined);
+    let failed = false;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        console.log(JSON.stringify(result.asset));
+      } else {
+        console.error(result.error);
+        failed = true;
+      }
+    }
+    if (failed) process.exit(1);
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
 
-async function listAssets(opts: AssetListOptions): Promise<void> {
+type AssetTreeOptions = { folder?: string; depth?: string };
+
+async function assetTree(opts: AssetTreeOptions): Promise<void> {
   let depth: number | undefined;
   if (opts.depth !== undefined) {
     const n = Number(opts.depth);
@@ -160,7 +179,7 @@ async function listAssets(opts: AssetListOptions): Promise<void> {
   }
 
   try {
-    const results = await cliAPI.listAssets(opts.folder, depth);
+    const results = await cliAPI.assetTree(opts.folder, depth);
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -975,11 +994,17 @@ asset
 
 asset
   .command("ls")
-  .aliases(["list", "get"])
-  .description("List the asset library of the open project as its folder tree")
+  .alias("get")
+  .description("Print raw asset records — every persisted property except the file handles; with no ids, lists every asset")
+  .argument("[ids...]", "asset ids to list (optional)")
+  .action((ids: string[]) => listAssets(ids));
+
+asset
+  .command("tree")
+  .description("Print the asset library of the open project as its folder tree")
   .option("--folder <id>", "folder whose contents to list (default: the library root)")
   .option("--depth <n>", "max depth to descend (positive integer; default = full tree)")
-  .action((opts: AssetListOptions) => listAssets(opts));
+  .action((opts: AssetTreeOptions) => assetTree(opts));
 
 asset
   .command("rm")

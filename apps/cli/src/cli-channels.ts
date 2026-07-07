@@ -20,6 +20,7 @@ export const CLI_CHANNELS = {
   CONTEXT: "cli:context",
   ASSETS_ADD: "cli:assets:add",
   ASSETS_LIST: "cli:assets:list",
+  ASSET_TREE: "cli:asset:tree",
   ASSETS_DELETE: "cli:assets:delete",
   ASSETS_MOVE: "cli:assets:move",
   ASSETS_EXPORT: "cli:assets:export",
@@ -167,6 +168,12 @@ export type FolderInfo = { id: string; name: string; type: "folder" };
 
 export type AssetTreeEntry = { id: string; name: string; type: string; children?: AssetTreeEntry[] };
 
+export type AssetRecord = { id: string } & Record<string, unknown>;
+
+export type AssetListResult =
+  | { status: "fulfilled"; asset: AssetRecord }
+  | { status: "rejected"; id: string; error: string };
+
 export type AssetMoveResult =
   | { status: "fulfilled"; id: string; folderId: string | null }
   | { status: "rejected"; id: string; error: string };
@@ -213,6 +220,10 @@ export type CliRequestMap = {
     response: any;
   };
   [CLI_CHANNELS.ASSETS_LIST]: {
+    request: { ids?: string[] };
+    response: AssetListResult[];
+  };
+  [CLI_CHANNELS.ASSET_TREE]: {
     request: { folderId?: string; depth?: number };
     response: AssetTreeEntry[];
   };

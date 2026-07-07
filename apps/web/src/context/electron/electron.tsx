@@ -12,7 +12,7 @@ import { CLI_CHANNELS } from '@diffusionstudio/cli/channels';
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from "@/utils/common";
 import { handleContextGet } from "./context";
-import { handleAssetsAdd, handleAssetsList, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscribe, handleAssetVisualize, handleAssetAnalyze } from "./assets";
+import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscribe, handleAssetVisualize, handleAssetAnalyze } from "./assets";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
@@ -57,6 +57,7 @@ export function ElectronProvider(props: ElectronProviderProps) {
     const unsubContext = cliBridge.handle(CLI_CHANNELS.CONTEXT, handleContextGet(engineRef));
     const unsubAssetsAdd = cliBridge.handle(CLI_CHANNELS.ASSETS_ADD, handleAssetsAdd(engineRef));
     const unsubAssetsList = cliBridge.handle(CLI_CHANNELS.ASSETS_LIST, handleAssetsList(engineRef));
+    const unsubAssetTree = cliBridge.handle(CLI_CHANNELS.ASSET_TREE, handleAssetTree(engineRef));
     const unsubAssetsDelete = cliBridge.handle(CLI_CHANNELS.ASSETS_DELETE, handleAssetsDelete(engineRef));
     const unsubAssetsMove = cliBridge.handle(CLI_CHANNELS.ASSETS_MOVE, handleAssetsMove(engineRef));
     const unsubAssetsExport = cliBridge.handle(CLI_CHANNELS.ASSETS_EXPORT, handleAssetsExport(engineRef));
@@ -96,6 +97,7 @@ export function ElectronProvider(props: ElectronProviderProps) {
       unsubContext();
       unsubAssetsAdd();
       unsubAssetsList();
+      unsubAssetTree();
       unsubAssetsDelete();
       unsubAssetsMove();
       unsubAssetsExport();

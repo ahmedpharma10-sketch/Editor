@@ -8,7 +8,8 @@ The asset library holds a project's media. Beyond storage, the CLI ships an insp
 
 ```sh
 dapi asset add <paths...> [--folder <id>]   # import files
-dapi asset ls [--folder <id>] [--depth N]   # the library as a folder tree
+dapi asset ls [ids...]                      # raw asset records (all assets if no ids)
+dapi asset tree [--folder <id>] [--depth N] # the library as a folder tree
 dapi asset mv <ids...> [--to <folderId>]    # move assets between folders
 dapi asset rm <ids...>                      # delete assets
 dapi asset export <ids...> [-o <path>]      # write original file bytes back to disk (no re-encode)
@@ -74,7 +75,7 @@ Puts a multimodal model in front of an image, video, or audio asset. Without a p
 
 ```sh
 dapi open -b ./shoot                                  # project from footage
-dapi asset ls --depth 1                               # what's here?
+dapi asset tree --depth 1                             # what's here?
 dapi asset probe gbHJ                                 # what format is it?
 dapi asset visualize gbHJ                             # what does it look like over time?
 dapi asset transcribe gbHJ                            # what is said, and when?

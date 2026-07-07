@@ -78,7 +78,7 @@ These same props are what `dapi node patch` assigns on existing nodes.
 
 - an **absolute path** like `"/Movies/clip.mp4"`
 - a **remote URL**, registered as a remote asset
-- an **asset id**: an imported library asset (see `dapi asset ls`)
+- an **asset id**: an imported library asset (see `dapi asset tree`)
 - an **`AssetRef`**: the value returned by a `generate.*` declaration
 
 ## Timing

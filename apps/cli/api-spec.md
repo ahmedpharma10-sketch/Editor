@@ -447,9 +447,23 @@ Adds one or more local files as assets in the open project.
 
 ---
 
-### `dapi asset ls`
+### `dapi asset ls [ids...]`
 
-Lists the asset library of the open project as its folder tree — folders and assets interleaved in one array, each folder carrying its contents in `children`. Aliases: `list`, `get`.
+The raw asset records, as persisted minus the file handles — every serializable property the asset carries (per-type media metadata, `folderId`, a stored `transcript`, …). The property-level counterpart to `asset tree`'s structure. With no ids, returns every asset in the library. Alias: `get`.
+
+- **Input:** `[ids...]` — zero or more asset ids (optional)
+- **Output:** JSON Lines, one per asset
+  ```ts
+  AssetRecord = { id: string } & { [property: string]: unknown }
+  // e.g. name, type, mimeType, size, createdAt, folderId; duration/width/height/… by type
+  ```
+- **Errors:** if any input id fails to resolve, writes a per-id message to stderr and exits non-zero after emitting all successful records to stdout.
+
+---
+
+### `dapi asset tree`
+
+Prints the asset library of the open project as its folder tree — folders and assets interleaved in one array, each folder carrying its contents in `children`.
 
 - **Input:**
   - `--folder <id>` — folder whose contents to list (optional; default the library root)
@@ -598,7 +612,7 @@ Decodes one or more frames of a video asset at the given times and writes each t
 
 ## Folders
 
-All under `dapi folder` (alias `dapi fld`). Operate on the open project. Folders organize the asset library and nest arbitrarily; assets reference their containing folder via `folderId` (`null` = library root). Everywhere a folder id is optional, omitting it means the library root — there is no sentinel value for the root. Read the full hierarchy (folders and assets together) with [`asset ls`](#dapi-asset-ls); move assets between folders with [`asset mv`](#dapi-asset-mv-ids---to-folderid).
+All under `dapi folder` (alias `dapi fld`). Operate on the open project. Folders organize the asset library and nest arbitrarily; assets reference their containing folder via `folderId` (`null` = library root). Everywhere a folder id is optional, omitting it means the library root — there is no sentinel value for the root. Read the full hierarchy (folders and assets together) with [`asset tree`](#dapi-asset-tree); move assets between folders with [`asset mv`](#dapi-asset-mv-ids---to-folderid).
 
 ### `dapi folder ls [parentId]`
 
@@ -735,7 +749,7 @@ Lists local fonts available on this machine. macOS only.
 
 ## Conventions
 
-- **Stdout:** JSON. Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one JSON object per line, no surrounding array) so per-item results stay streamable — this covers list reads (`selection ls`, `selection focus`, `node ls`, `node grep`, `asset ls`, `folder ls`, `models`, `voices`, `fonts`), selection mutations that return the new state, and batch operations (`node rm`, `node patch`, `node cp`, `asset add`, `asset rm`, `asset mv`, `asset export`, `folder mv`, `folder rm`). `node tree` emits one nested JSON object per root, and `asset ls` emits one nested object per root entry. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `mount` and `node insert` write nothing.
+- **Stdout:** JSON. Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one JSON object per line, no surrounding array) so per-item results stay streamable — this covers list reads (`selection ls`, `selection focus`, `node ls`, `node grep`, `asset ls`, `folder ls`, `models`, `voices`, `fonts`), selection mutations that return the new state, and batch operations (`node rm`, `node patch`, `node cp`, `asset add`, `asset rm`, `asset mv`, `asset export`, `folder mv`, `folder rm`). `node tree` emits one nested JSON object per root, and `asset tree` emits one nested object per root entry. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `mount` and `node insert` write nothing.
 - **Unix-style names are canonical:** list/read → `ls`, delete/remove → `rm`, duplicate → `cp`, move/reparent → `mv`, search → `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls` on every command that has one. Applied wherever the semantics match; commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.
 - **Exit codes:** `0` on success, `1` on any error (missing file, app not running, invalid input, IPC error).
