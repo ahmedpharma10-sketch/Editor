@@ -1,6 +1,6 @@
 # Working with media
 
-The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain (probe, decode, visualize, transcribe, analyze) so an agent can *look at* footage before cutting it. All of it runs locally except `analyze` and `transcript`, which use hosted models.
+The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain (probe, decode, visualize, transcribe, analyze) so an agent can *look at* footage before cutting it. All of it runs locally except `analyze` and `transcribe`, which use hosted models.
 
 **Id or path:** every inspection command takes either an asset id or a local file path. A path is imported into the library first, then inspected, so `dapi asset probe clip.mp4` works on a file that isn't in the project yet.
 
@@ -53,10 +53,10 @@ dapi asset visualize <id|path> [-s <start>] [-e <end>] [-x <scale>] [-o <path>]
 
 Renders a one-image preview chosen by media type: audio gets an amplitude **waveform** with a time axis, video gets a **filmstrip** of evenly sampled frames with the audio waveform beneath it, and images get a thumbnail. `-s`/`-e` window the preview; `-x` trades thumbnail size against grid density. Prints `{ path }`.
 
-### `asset transcript`
+### `asset transcribe`
 
 ```sh
-dapi asset transcript <id|path>
+dapi asset transcribe <id|path>
 ```
 
 Transcribes speech in a video or audio asset. Returns segments with **word-level start/end times in seconds**: the raw material for caption timing, jump cuts, and content search.
@@ -77,7 +77,7 @@ dapi open -b ./shoot                                  # project from footage
 dapi asset ls --depth 1                               # what's here?
 dapi asset probe gbHJ                                 # what format is it?
 dapi asset visualize gbHJ                             # what does it look like over time?
-dapi asset transcript gbHJ                            # what is said, and when?
+dapi asset transcribe gbHJ                            # what is said, and when?
 dapi asset analyze gbHJ -p "best moment for a thumbnail?"
 dapi mount cut.tsx                                    # compose the edit
 dapi node screenshot                                  # verify visually

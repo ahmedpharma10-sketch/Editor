@@ -12,7 +12,7 @@ import { CLI_CHANNELS } from '@diffusionstudio/cli/channels';
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from "@/utils/common";
 import { handleContextGet } from "./context";
-import { handleAssetsAdd, handleAssetsList, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscript, handleAssetVisualize, handleAssetAnalyze } from "./assets";
+import { handleAssetsAdd, handleAssetsList, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscribe, handleAssetVisualize, handleAssetAnalyze } from "./assets";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
@@ -67,7 +67,7 @@ export function ElectronProvider(props: ElectronProviderProps) {
     const unsubFoldersDelete = cliBridge.handle(CLI_CHANNELS.FOLDERS_DELETE, handleFoldersDelete(engineRef));
     const unsubAssetProbe = cliBridge.handle(CLI_CHANNELS.ASSET_PROBE, handleAssetProbe(engineRef));
     const unsubAssetFrame = cliBridge.handle(CLI_CHANNELS.ASSET_FRAME, handleAssetFrame(engineRef));
-    const unsubAssetTranscript = cliBridge.handle(CLI_CHANNELS.ASSET_TRANSCRIPT, handleAssetTranscript(engineRef));
+    const unsubAssetTranscribe = cliBridge.handle(CLI_CHANNELS.ASSET_TRANSCRIBE, handleAssetTranscribe(engineRef));
     const unsubAssetVisualize = cliBridge.handle(CLI_CHANNELS.ASSET_VISUALIZE, handleAssetVisualize(engineRef));
     const unsubAssetAnalyze = cliBridge.handle(CLI_CHANNELS.ASSET_ANALYZE, requireAuth(handleAssetAnalyze(engineRef)));
     const unsubSelectionList = cliBridge.handle(CLI_CHANNELS.SELECTION_LIST, handleSelectionList(engineRef));
@@ -106,7 +106,7 @@ export function ElectronProvider(props: ElectronProviderProps) {
       unsubFoldersDelete();
       unsubAssetProbe();
       unsubAssetFrame();
-      unsubAssetTranscript();
+      unsubAssetTranscribe();
       unsubAssetVisualize();
       unsubAssetAnalyze();
       unsubSelectionList();

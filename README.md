@@ -63,7 +63,7 @@ Cutting footage requires looking at it. The CLI ships the inspection tools an ag
 dapi asset probe clip.mp4                                # container + codec metadata, like ffprobe
 dapi asset frame clip.mp4 -t 0 12 45                     # decode frames to PNGs
 dapi asset visualize track.mp3                           # waveform / filmstrip previews
-dapi asset transcript interview.wav                      # timed, word-level transcript
+dapi asset transcribe interview.wav                      # timed, word-level transcript
 dapi asset analyze b-roll.mp4 -p "when is the product shown?"   # ask a vision model
 dapi node screenshot                                     # see the canvas itself
 ```
@@ -76,7 +76,7 @@ dapi node screenshot                                     # see the canvas itself
 | `dapi context` | Summary of the open project: scenes, playhead, fonts |
 | `dapi mount` | Compile and mount a JSX composition |
 | `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `export` |
-| `dapi asset …` | The media library: `add`, `ls`, `probe`, `frame`, `visualize`, `analyze`, `transcript`, `export` |
+| `dapi asset …` | The media library: `add`, `ls`, `probe`, `frame`, `visualize`, `analyze`, `transcribe`, `export` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
 

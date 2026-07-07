@@ -30,7 +30,7 @@ export const CLI_CHANNELS = {
   FOLDERS_DELETE: "cli:folders:delete",
   ASSET_PROBE: "cli:asset:probe",
   ASSET_FRAME: "cli:asset:frame",
-  ASSET_TRANSCRIPT: "cli:asset:transcript",
+  ASSET_TRANSCRIBE: "cli:asset:transcribe",
   ASSET_VISUALIZE: "cli:asset:visualize",
   ASSET_ANALYZE: "cli:asset:analyze",
   SELECTION_LIST: "cli:selection:list",
@@ -148,10 +148,10 @@ export type AssetProbeRequest = { id: string };
 export type AssetFrameRequest = { id: string; times?: number[] };
 export type AssetFrameResult = Array<{ time: number; base64: string }>;
 
-export type AssetTranscriptRequest = { id: string };
+export type AssetTranscribeRequest = { id: string };
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
-export type AssetTranscriptResult = { id: string; segments: TranscriptSegment[] };
+export type AssetTranscribeResult = { id: string; segments: TranscriptSegment[] };
 
 export type AssetVisualizeRequest = { id: string; start?: number; end?: number; scale?: number };
 export type AssetVisualizeResult = {
@@ -253,9 +253,9 @@ export type CliRequestMap = {
     request: AssetFrameRequest;
     response: AssetFrameResult;
   };
-  [CLI_CHANNELS.ASSET_TRANSCRIPT]: {
-    request: AssetTranscriptRequest;
-    response: AssetTranscriptResult;
+  [CLI_CHANNELS.ASSET_TRANSCRIBE]: {
+    request: AssetTranscribeRequest;
+    response: AssetTranscribeResult;
   };
   [CLI_CHANNELS.ASSET_VISUALIZE]: {
     request: AssetVisualizeRequest;

@@ -489,11 +489,11 @@ async function assetProbe(ref: string): Promise<void> {
   }
 }
 
-async function assetTranscript(ref: string): Promise<void> {
+async function assetTranscribe(ref: string): Promise<void> {
   const assetId = await resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await cliAPI.assetTranscript(assetId);
+    const result = await cliAPI.assetTranscribe(assetId);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -1010,10 +1010,10 @@ asset
   .action((ref: string) => assetProbe(ref));
 
 asset
-  .command("transcript")
+  .command("transcribe")
   .description("Transcribe the speech in a video or audio asset and print the timed transcript")
   .argument("<id|path>", "video or audio asset id, or a local file to add and transcribe")
-  .action((ref: string) => assetTranscript(ref));
+  .action((ref: string) => assetTranscribe(ref));
 
 asset
   .command("frame")

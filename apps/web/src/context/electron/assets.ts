@@ -20,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetMoveResult, AssetProbeRequest, AssetsExportRequest, AssetTranscriptResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
+import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetMoveResult, AssetProbeRequest, AssetsExportRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -307,8 +307,8 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
   };
 }
 
-export function handleAssetTranscript(engine: Accessor<Engine>) {
-  return async ({ id }: { id: string }): Promise<AssetTranscriptResult> => {
+export function handleAssetTranscribe(engine: Accessor<Engine>) {
+  return async ({ id }: { id: string }): Promise<AssetTranscribeResult> => {
     const { world } = engine();
     const asset = world.assets.get(id);
     assert(asset, `Asset ${id} not found.`);

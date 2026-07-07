@@ -4,7 +4,7 @@ User-facing reference for the `dapi` CLI. All canvas/project commands talk to th
 
 **Top-level:** `open`, `whoami`, `context` (alias `ctx`), `mount`, `models`, `voices`.
 **Groups:** `selection` (alias `sel`), `node` (aliases `n`, `entity`), `project` (alias `p`), `asset` (alias `a`), `folder` (alias `fld`), `font` (alias `f`).
-Selection reads and mutations live under `selection`. Anything that targets one or more nodes lives under `node` — scenes are nodes too; they are created declaratively via `mount` (`<scene key="...">`). Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx-spec.md](./jsx-spec.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots. AI asset generation (image / video / speech / audio) is **declared in the project module** and produced on mount (see the JSX API); the `models` and `voices` commands list what's available to reference from those declarations. Inspecting an existing asset (probe / transcript / analyze / visualize / frame) lives under `asset`; writing an asset's original file back out to disk is `asset export`. Organizing the asset library into folders lives under `folder`; moving assets between folders is `asset mv`.
+Selection reads and mutations live under `selection`. Anything that targets one or more nodes lives under `node` — scenes are nodes too; they are created declaratively via `mount` (`<scene key="...">`). Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx-spec.md](./jsx-spec.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots. AI asset generation (image / video / speech / audio) is **declared in the project module** and produced on mount (see the JSX API); the `models` and `voices` commands list what's available to reference from those declarations. Inspecting an existing asset (probe / transcribe / analyze / visualize / frame) lives under `asset`; writing an asset's original file back out to disk is `asset export`. Organizing the asset library into folders lives under `folder`; moving assets between folders is `asset mv`.
 
 Shared types used below:
 
@@ -521,7 +521,7 @@ Reads the container and per-track technical metadata of an asset — like `ffpro
 
 ---
 
-### `dapi asset transcript <id|path>`
+### `dapi asset transcribe <id|path>`
 
 Transcribes the speech in a video or audio asset and returns the timed transcript. Word-level start/end times are in **seconds** (source/content time).
 
