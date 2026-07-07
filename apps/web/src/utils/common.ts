@@ -15,6 +15,16 @@ export function assert(condition: any, message?: string): asserts condition {
 }
 
 /**
+ * Assert that all promises in the array have been settled.
+ * @param results - The array of promises.
+ * @returns void
+ */
+export function assertAllSettled(results: PromiseSettledResult<void>[]) {
+  const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+  assert(errors.length === 0, `${errors.length} pipeline stage(s) failed:\n${errors.map((err) => err instanceof Error ? err.message : String(err)).join("\n")}`);
+}
+
+/**
  * Clamp a value between a minimum and maximum.
  * @param value - The value to clamp.
  * @param min - The minimum value.

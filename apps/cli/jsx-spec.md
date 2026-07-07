@@ -357,11 +357,10 @@ camera audio, two cameras on the same take, two microphones in one room.
 Alignment runs at the [sync stage](#pipeline) of the pipeline: after generated
 assets land (either side may be generated), before captions read the scene. It
 is local, consumes no credits, and blocks the command, so exit `0` means final
-placement. Each resolved node logs `{ offsetSeconds, confidence }` on stderr; a
-clear match scores above ~0.9, and a correlation too weak to trust fails the
-command (see [Errors](#errors)) while the node keeps its default placement.
-Offsets are **cached** by the pair of source contents, so re-mounting an
-unchanged project re-measures nothing.
+placement. A correlation too weak to trust fails the command (see
+[Errors](#errors)) while the node keeps its default placement. Offsets are
+**cached** by the pair of source contents, so re-mounting an unchanged project
+re-measures nothing.
 
 Because `syncTo` is part of the shared property table, `dapi node patch`
 accepts it too: patching `syncTo` onto an existing node re-aligns it against

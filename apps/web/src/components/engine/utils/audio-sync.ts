@@ -144,6 +144,18 @@ function prefixSums(x: Float32Array): { sum: Float64Array; sumSq: Float64Array }
   return { sum, sumSq };
 }
 
+const offsetCache = new Map<string, Promise<AudioSyncResult>>();
+
+export function computeAudioSyncOffsetCached(a: Asset, b: Asset): Promise<AudioSyncResult> {
+  const key = `${a.hash}:${b.hash}`;
+  const cached = offsetCache.get(key);
+  if (cached) return cached;
+  const promise = computeAudioSyncOffset(a, b);
+  offsetCache.set(key, promise);
+  promise.catch(() => offsetCache.delete(key));
+  return promise;
+}
+
 export async function computeAudioSyncOffset(
   audioAsset: Asset,
   videoAsset: Asset,

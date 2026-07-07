@@ -13,7 +13,6 @@ import {
   transcodeForAnalysis,
   startResumableSession,
   uploadResumableStream,
-  computeAudioSyncOffset,
   assetFolderId,
   moveAssetsToFolder,
   useFolders,
@@ -21,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetMoveResult, AssetProbeRequest, AssetsExportRequest, AssetSyncRequest, AssetSyncResult, AssetTranscriptResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
+import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetMoveResult, AssetProbeRequest, AssetsExportRequest, AssetTranscriptResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -335,27 +334,6 @@ export function handleAssetTranscript(engine: Accessor<Engine>) {
     await saveAsset(world, { ...asset, transcript });
 
     return { id, segments: transcript };
-  };
-}
-
-export function handleAssetSync(engine: Accessor<Engine>) {
-  return async ({ audioId, videoId }: AssetSyncRequest): Promise<AssetSyncResult> => {
-    const { world } = engine();
-    const audio = world.assets.get(audioId);
-    assert(audio, `Asset ${audioId} not found.`);
-    const video = world.assets.get(videoId);
-    assert(video, `Asset ${videoId} not found.`);
-    assert(
-      audio.type === "AUDIO" || audio.type === "VIDEO",
-      `Asset ${audioId} is not an audio or video asset.`,
-    );
-    assert(
-      video.type === "AUDIO" || video.type === "VIDEO",
-      `Asset ${videoId} is not an audio or video asset.`,
-    );
-
-    const { offsetSeconds, confidence } = await computeAudioSyncOffset(audio, video);
-    return { audioId, videoId, offsetSeconds, confidence };
   };
 }
 

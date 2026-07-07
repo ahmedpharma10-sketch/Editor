@@ -317,11 +317,11 @@ Deep-clones one or more nodes, including all descendants. Alias: `duplicate`.
 
 ---
 
-### `dapi node export [id] ([config] | --json <str>)`
+### `dapi node render [id] ([config] | --json <str>)`
 
-Renders a scene to a video file. Composes the scene frame-by-frame and muxes the result, writing it to disk. Operates on one scene — scenes are nodes, so this is the node-level render. If `[id]` is omitted, exports the active scene.
+Renders a scene to a video file. Composes the scene frame-by-frame and muxes the result, writing it to disk. Operates on one scene — scenes are nodes, so this is the node-level render. If `[id]` is omitted, renders the active scene.
 
-Encode settings are passed as a single JSON config — the same object the in-app render method takes (`EncoderConfig`), minus the runtime-only fields the CLI fills in for you (`scene`, `target`, `onProgress`). The whole config is **optional**; omit it to render with the defaults below. The encode window follows the scene's timeline workarea (its `Trim`): export starts at the workarea start and runs to the scene's end, unless capped earlier with `trim.end`. Renders locally; **no credits** and no authenticated account required.
+Encode settings are passed as a single JSON config — the same object the in-app render method takes (`EncoderConfig`), minus the runtime-only fields the CLI fills in for you (`scene`, `target`, `onProgress`). The whole config is **optional**; omit it to render with the defaults below. The encode window follows the scene's timeline workarea (its `Trim`): the render starts at the workarea start and runs to the scene's end, unless capped earlier with `trim.end`. Renders locally; **no credits** and no authenticated account required.
 
 Like the generators, this is **long-running** — the CLI blocks until the render finishes (or fails) before printing. While waiting, a progress spinner with elapsed time is shown on **stderr** (a single static line when stderr isn't a TTY), so stdout stays clean JSON for piping.
 
@@ -329,7 +329,7 @@ Like the generators, this is **long-running** — the CLI blocks until the rende
   - `[id]` — scene node id (optional; defaults to the active scene).
   - `-o, --output <path>` — write the video here (optional; default a uuid-named file in the system temp directory). The container extension is derived from the config's `format`.
   - Encode config (optional) — at most one of:
-    - `[config]` — path to a `.json` file containing the config object. Node ids are integers, so a lone non-numeric positional is read as the config path (`dapi node export encode.json` works without an id).
+    - `[config]` — path to a `.json` file containing the config object. Node ids are integers, so a lone non-numeric positional is read as the config path (`dapi node render encode.json` works without an id).
     - `--json <str>` — the object inline
 
     Config shape (every field optional; all defaults shown):

@@ -17,9 +17,13 @@ import {
   TextBaseline,
   addComponent,
   appendChild,
+  computeAudioSyncOffsetCached,
   createEntity,
   deleteEntity,
+  findAssetDuration,
+  findGeometryAsset,
   getNextName,
+  getParentEntity,
   getSceneAncestor,
   hasAudioSources,
   removeChild,
@@ -31,7 +35,7 @@ import {
 import { ChildOf } from "@/components/engine/components";
 import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
 import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
-import { assert, parseColor } from "@/utils";
+import { assert, assertAllSettled, parseColor } from "@/utils";
 
 import type { AssetRef, AssetSpecInput, ProjectDocument } from "@diffusionstudio/jsx";
 import type { Engine, EngineWorld } from "@/components/engine";
@@ -98,7 +102,8 @@ const CAPTION_PRESET_MAP = {
 type GenaiQueueItem = {
   node: DocumentNode;
   ref?: AssetRef;
-  type: "asset" | "caption";
+  targetKey?: string;
+  type: "asset" | "caption" | "sync";
 };
 
 export class WorldDocument implements ProjectDocument<DocumentNode> {
@@ -120,62 +125,82 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   public async commit(): Promise<void> {
     const world = this.world;
     const c = world.components;
-    const errors: unknown[] = [];
 
     // Wait for assets to settle
     {
-      await Promise.all(this.promises);
+      const results = await Promise.allSettled(this.promises);
+      assertAllSettled(results);
     }
 
     // Handle generative queue
     {
       const memo: GenerationMemo = new Map();
 
-      await Promise.all(this.queue.map(async ({ node, ref, type }) => {
+      const results = await Promise.allSettled(this.queue.map(async ({ node, ref, type }) => {
         if (node.kind !== "element" || hasComponent(world, node.eid, c.Deleted) || type !== "asset" || !ref) return;
         try {
           const asset = await resolveGeneratedAsset(world, ref, memo);
           await this.mountSource(node, asset.id);
-        } catch (err) {
-          errors.push(err instanceof Error ? err : new Error(String(err), { cause: err }));
         } finally {
           world.history.untrack(() => removeComponent(world, node.eid, c.Generating));
         }
       }));
+
+      assertAllSettled(results);
+    }
+
+    // Handle sync queue: after generated assets have landed (either side may
+    // be generated), before captions read the scene's final placement.
+    {
+      for (const { node, targetKey, type } of this.queue) {
+        if (node.kind !== "element" || type !== "sync" || !targetKey) continue;
+        const targetEid = query(world, [c.Key, Not(c.Deleted)]).find(eid => c.Key[eid] === targetKey);
+
+        assert(targetEid !== undefined, `syncTo: no other element carries key "${targetKey}"`);
+
+        const source = findGeometryAsset(world, node.eid);
+        assert(
+          source !== null && (source.type === "AUDIO" || source.type === "VIDEO"),
+          `syncTo: node ${node.eid} has no audio or video source to align`,
+        );
+        const targetSource = findGeometryAsset(world, targetEid);
+        assert(
+          targetSource !== null && (targetSource.type === "AUDIO" || targetSource.type === "VIDEO"),
+          `syncTo: target "${targetKey}" has no audio or video source to align against`,
+        );
+
+        const { offsetSeconds } = await computeAudioSyncOffsetCached(source, targetSource);
+
+        const offsetFrames = Math.round(offsetSeconds * world.frameRate);
+        const parentEid = getParentEntity(world, node.eid);
+        const parentDelay = parentEid !== null ? (c.Computed.delay[parentEid] ?? 0) : 0;
+        const delay = (c.Computed.delay[targetEid] ?? 0) + offsetFrames - parentDelay;
+
+        node.startTime = delay;
+        setComponent(world, node.eid, c.Delay, delay);
+
+        const targetStart = (c.Computed.start[targetEid] ?? 0) - parentDelay;
+        const targetEnd = (c.Computed.end[targetEid] ?? 0) - parentDelay;
+        const duration = findAssetDuration(world, node.eid);
+
+        const start = node.inPoint ?? Math.max(delay, targetStart);
+        const end = node.outPoint ?? Math.min(duration !== null ? delay + duration : targetEnd, targetEnd);
+        assert(end > start, `syncTo: the aligned clip does not overlap the window of "${targetKey}"`);
+        setComponent(world, node.eid, c.Trim, { start: start - delay, end: end - delay });
+      }
     }
 
     // Handle captioning queue
     {
-      const scenes = new Map<number, number[]>();
-
       for (const { node, type } of this.queue) {
         if (node.kind !== "element" || hasComponent(world, node.eid, c.Deleted) || type !== "caption" || c.AssetId[node.eid]) continue;
         const sceneEid = getSceneAncestor(world, node.eid);
-        if (sceneEid === null) continue;
-        scenes.set(sceneEid, [...(scenes.get(sceneEid) ?? []), node.eid]);
-      }
+        if (!sceneEid || !hasAudioSources(world, sceneEid)) continue;
 
-      for (const [sceneEid, eids] of scenes) {
-        if (!hasAudioSources(world, sceneEid)) continue;
-        try {
-          const { asset, trim } = await transcribeScene(this.engine, sceneEid);
-          world.history.transaction("Attach captions", () => {
-            for (const eid of eids) {
-              if (hasComponent(world, eid, c.Deleted)) continue;
-              setComponent(world, eid, c.AssetId, asset.id);
-              setComponent(world, eid, c.Trim, trim);
-            }
-          });
-        } catch (error) {
-          console.error("Captioning failed:", error);
-        }
+        const { asset, trim } = await transcribeScene(this.engine, sceneEid);
+        setComponent(world, node.eid, c.AssetId, asset.id);
+        setComponent(world, node.eid, c.Trim, trim);
       }
-    }
-
-    // Handle errors
-    {
-      const messages = errors.map((err) => err instanceof Error ? err.message : String(err));
-      assert(errors.length === 0, `${errors.length} asset generations failed:\n${messages.join("\n")}`);
     }
   }
 
@@ -394,6 +419,16 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         // Convert linear volume to decibels
         const db = value <= 0 ? -Infinity : 20 * Math.log10(value);
         setComponent(world, eid, c.Volume, db);
+        break;
+      } case "muted": {
+        assert(typeof value === "boolean", "`muted` must be a boolean" + `, value: ${value}`);
+        if (value) addComponent(world, eid, c.Muted);
+        else removeComponent(world, eid, c.Muted);
+        break;
+      } case "syncTo": {
+        assert(typeof value === "string", "`syncTo` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`syncTo` must be a non-empty string");
+        this.queue.push({ node, targetKey: value.trim(), type: "sync" });
         break;
       } case "src": {
         if (isAssetRef(value)) {

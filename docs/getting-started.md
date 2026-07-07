@@ -63,13 +63,13 @@ Check the result visually:
 dapi node screenshot     # prints { "path": "/tmp/….png" }
 ```
 
-## Export
+## Render
 
 ```sh
-dapi node export -o hello.mp4
+dapi node render -o hello.mp4
 ```
 
-Renders the active scene locally with sensible defaults (MP4, H.264, 1080p). Codec, bitrate, resolution, and trim are configurable; see [`node export`](cli.md#node-export) in the CLI reference.
+Renders the active scene locally with sensible defaults (MP4, H.264, 1080p). Codec, bitrate, resolution, and trim are configurable; see [`node render`](cli.md#node-render) in the CLI reference.
 
 ## Next
 

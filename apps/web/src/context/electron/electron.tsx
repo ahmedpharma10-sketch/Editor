@@ -12,10 +12,10 @@ import { CLI_CHANNELS } from '@diffusionstudio/cli/channels';
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from "@/utils/common";
 import { handleContextGet } from "./context";
-import { handleAssetsAdd, handleAssetsList, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscript, handleAssetVisualize, handleAssetAnalyze, handleAssetSync } from "./assets";
+import { handleAssetsAdd, handleAssetsList, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscript, handleAssetVisualize, handleAssetAnalyze } from "./assets";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
-import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeExport } from "./node";
+import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
 import { handleMount, handleNodeInsert } from "./mount";
 import { handleProjectActive, handleProjectList, handleProjectCreate, handleProjectDelete, handleProjectOpen } from "./project";
 import { handleModels } from "./models";
@@ -70,7 +70,6 @@ export function ElectronProvider(props: ElectronProviderProps) {
     const unsubAssetTranscript = cliBridge.handle(CLI_CHANNELS.ASSET_TRANSCRIPT, handleAssetTranscript(engineRef));
     const unsubAssetVisualize = cliBridge.handle(CLI_CHANNELS.ASSET_VISUALIZE, handleAssetVisualize(engineRef));
     const unsubAssetAnalyze = cliBridge.handle(CLI_CHANNELS.ASSET_ANALYZE, requireAuth(handleAssetAnalyze(engineRef)));
-    const unsubAssetSync = cliBridge.handle(CLI_CHANNELS.ASSET_SYNC, handleAssetSync(engineRef));
     const unsubSelectionList = cliBridge.handle(CLI_CHANNELS.SELECTION_LIST, handleSelectionList(engineRef));
     const unsubSelectionSet = cliBridge.handle(CLI_CHANNELS.SELECTION_SET, handleSelectionSet(engineRef));
     const unsubSelectionFocus = cliBridge.handle(CLI_CHANNELS.SELECTION_FOCUS, handleSelectionFocus(engineRef));
@@ -83,7 +82,7 @@ export function ElectronProvider(props: ElectronProviderProps) {
     const unsubNodeDelete = cliBridge.handle(CLI_CHANNELS.NODE_DELETE, handleNodeDelete(engineRef));
     const unsubNodePatch = cliBridge.handle(CLI_CHANNELS.NODE_PATCH, handleNodePatch(engineRef));
     const unsubNodeDuplicate = cliBridge.handle(CLI_CHANNELS.NODE_DUPLICATE, handleNodeDuplicate(engineRef));
-    const unsubNodeExport = cliBridge.handle(CLI_CHANNELS.NODE_EXPORT, handleNodeExport(engineRef));
+    const unsubNodeRender = cliBridge.handle(CLI_CHANNELS.NODE_RENDER, handleNodeRender(engineRef));
     const unsubProjectActive = cliBridge.handle(CLI_CHANNELS.PROJECT_ACTIVE, handleProjectActive(engineRef));
     const unsubProjectList = cliBridge.handle(CLI_CHANNELS.PROJECT_LIST, handleProjectList());
     const unsubProjectCreate = cliBridge.handle(CLI_CHANNELS.PROJECT_CREATE, handleProjectCreate(engineRef, setParams));
@@ -110,7 +109,6 @@ export function ElectronProvider(props: ElectronProviderProps) {
       unsubAssetTranscript();
       unsubAssetVisualize();
       unsubAssetAnalyze();
-      unsubAssetSync();
       unsubSelectionList();
       unsubSelectionSet();
       unsubSelectionFocus();
@@ -123,7 +121,7 @@ export function ElectronProvider(props: ElectronProviderProps) {
       unsubNodeDelete();
       unsubNodePatch();
       unsubNodeDuplicate();
-      unsubNodeExport();
+      unsubNodeRender();
       unsubProjectActive();
       unsubProjectList();
       unsubProjectCreate();

@@ -33,7 +33,6 @@ export const CLI_CHANNELS = {
   ASSET_TRANSCRIPT: "cli:asset:transcript",
   ASSET_VISUALIZE: "cli:asset:visualize",
   ASSET_ANALYZE: "cli:asset:analyze",
-  ASSET_SYNC: "cli:asset:sync",
   SELECTION_LIST: "cli:selection:list",
   SELECTION_SET: "cli:selection:set",
   SELECTION_FOCUS: "cli:selection:focus",
@@ -46,7 +45,7 @@ export const CLI_CHANNELS = {
   NODE_DELETE: "cli:node:delete",
   NODE_PATCH: "cli:node:patch",
   NODE_DUPLICATE: "cli:node:duplicate",
-  NODE_EXPORT: "cli:node:export",
+  NODE_RENDER: "cli:node:render",
   PROJECT_ACTIVE: "cli:project:active",
   PROJECT_LIST: "cli:project:list",
   PROJECT_CREATE: "cli:project:create",
@@ -102,6 +101,10 @@ export type MountRequest = {
   code: string;
 };
 
+export type MountResult =
+  | { status: "fulfilled" }
+  | { status: "rejected"; error: string };
+
 export type NodeInsertRequest = {
   code: string;
   parentId: number;
@@ -137,8 +140,8 @@ export type EncoderConfigInput = {
   trim?: { end?: number };  // seconds; caps the encode end
 };
 
-export type NodeExportRequest = { id?: number; output: string; config?: EncoderConfigInput };
-export type NodeExportResult = { path: string };
+export type NodeRenderRequest = { id?: number; output: string; config?: EncoderConfigInput };
+export type NodeRenderResult = { path: string };
 
 export type AssetProbeRequest = { id: string };
 
@@ -157,16 +160,6 @@ export type AssetVisualizeResult = {
 
 export type AssetAnalyzeRequest = { id: string; prompt?: string; start?: number; end?: number };
 export type AssetAnalyzeResult = { id: string; analysis?: string; start?: number; end?: number };
-
-export type AssetSyncRequest = { audioId: string; videoId: string };
-export type AssetSyncResult = {
-  audioId: string;
-  videoId: string;
-  // Place the audio at: audioStart = videoStart + offsetSeconds.
-  // Positive = the recording started after the camera rolled.
-  offsetSeconds: number;
-  confidence: number; // 0..1 normalized cross-correlation peak; clear match ≳ 0.9
-};
 
 export type GeneratedAsset = { id: string; name: string; type: string };
 
@@ -272,10 +265,6 @@ export type CliRequestMap = {
     request: AssetAnalyzeRequest;
     response: AssetAnalyzeResult;
   };
-  [CLI_CHANNELS.ASSET_SYNC]: {
-    request: AssetSyncRequest;
-    response: AssetSyncResult;
-  };
   [CLI_CHANNELS.SELECTION_LIST]: { request: void; response: NodeRef[] };
   [CLI_CHANNELS.SELECTION_SET]: {
     request: { ids: number[] };
@@ -300,11 +289,11 @@ export type CliRequestMap = {
   };
   [CLI_CHANNELS.MOUNT]: {
     request: MountRequest;
-    response: void;
+    response: MountResult;
   };
   [CLI_CHANNELS.NODE_INSERT]: {
     request: NodeInsertRequest;
-    response: void;
+    response: MountResult;
   };
   [CLI_CHANNELS.NODE_DELETE]: {
     request: { ids: number[] };
@@ -318,9 +307,9 @@ export type CliRequestMap = {
     request: { ids: number[] };
     response: NodeDuplicateResult[];
   };
-  [CLI_CHANNELS.NODE_EXPORT]: {
-    request: NodeExportRequest;
-    response: NodeExportResult;
+  [CLI_CHANNELS.NODE_RENDER]: {
+    request: NodeRenderRequest;
+    response: NodeRenderResult;
   };
   [CLI_CHANNELS.PROJECT_ACTIVE]: {
     request: void;

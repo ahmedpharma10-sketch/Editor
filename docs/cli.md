@@ -133,10 +133,10 @@ Deletes nodes and their descendants: `dapi node rm <ids...>`.
 
 ## Rendering
 
-### `node export`
+### `node render`
 
 ```sh
-dapi node export [id] [-o, --output <path>] ([config.json] | --json <str>)
+dapi node render [id] [-o, --output <path>] ([config.json] | --json <str>)
 ```
 
 Renders a scene to a video file, locally. Defaults to the active scene and an MP4 (H.264, 10 Mbps, 1080p, AAC 128 kbps) in the temp directory; prints `{ path }`. Long-running: progress goes to stderr, stdout stays clean JSON. The encode window follows the scene's workarea.

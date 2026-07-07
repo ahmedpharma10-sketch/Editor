@@ -57,6 +57,12 @@ export type PatchProps = {
   outPoint?: Time;
   /** Composition time at which the node's source time 0 is placed. Defaults to the in point. */
   startTime?: Time;
+  /**
+   * Key of another element carrying an audio track. Derives `startTime` by
+   * cross-correlating the two audio signals so the recordings coincide on the
+   * timeline. Mutually exclusive with `startTime`.
+   */
+  syncTo?: string;
   /** Any CSS color, applied to the node's solid fill (created if absent); alpha is ignored — use `opacity`. */
   fill?: string;
   /** Path, URL, asset id, or a `generate.*` declaration. */
@@ -65,6 +71,8 @@ export type PatchProps = {
   objectFit?: Fit;
   /** 0–1; 1 = unity gain. */
   volume?: number;
+  /** Excludes the node's audio from the mix; independent of `volume`. */
+  muted?: boolean;
   /** A family available on the machine (`dapi fonts`). */
   fontFamily?: string;
   /** Font size, px. */
@@ -100,10 +108,12 @@ export const PATCH_PROP_KEYS = Object.keys({
   inPoint: true,
   outPoint: true,
   startTime: true,
+  syncTo: true,
   fill: true,
   src: true,
   objectFit: true,
   volume: true,
+  muted: true,
   fontFamily: true,
   fontSize: true,
   fontWeight: true,
@@ -164,7 +174,7 @@ export type ColorStopProps = Required<Pick<PatchProps, "offset" | "color">> &
 
 export type VideoProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "objectFit" | "volume">;
+  Pick<PatchProps, "objectFit" | "volume" | "muted" | "syncTo">;
 
 export type ImageProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
@@ -172,7 +182,7 @@ export type ImageProps = CommonProps &
 
 export type AudioProps = TimingProps &
   Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "name" | "volume">;
+  Pick<PatchProps, "name" | "volume" | "muted" | "syncTo">;
 
 export type TextProps = CommonProps &
   Pick<

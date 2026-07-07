@@ -81,5 +81,5 @@ dapi asset transcript gbHJ                            # what is said, and when?
 dapi asset analyze gbHJ -p "best moment for a thumbnail?"
 dapi mount cut.tsx                                    # compose the edit
 dapi node screenshot                                  # verify visually
-dapi node export -o cut.mp4                           # ship it
+dapi node render -o cut.mp4                           # ship it
 ```

@@ -7,7 +7,7 @@ Diffusion Studio is a canvas-based video editor. What makes it different is `dap
 ```sh
 dapi open                       # use -b to run the editor headless
 dapi mount hero.tsx             # render a composition into it
-dapi node export -o hero.mp4    # encode the scene to disk
+dapi node render -o hero.mp4    # encode the scene to disk
 ```
 
 ## Compositions as code

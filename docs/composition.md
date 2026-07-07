@@ -106,7 +106,7 @@ Composition-relative, Lottie-inspired. Values take any [time format](cli.md#time
 <audio src="/Movies/lav.wav" syncTo="camera" />
 ```
 
-`syncTo` and `startTime` are mutually exclusive; `inPoint`/`outPoint` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; each aligned node logs its offset and a confidence score (a clear match is above ~0.9).
+`syncTo` and `startTime` are mutually exclusive; `inPoint`/`outPoint` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; an alignment too weak to trust fails the mount and the node keeps its default placement.
 
 ## Paints
 

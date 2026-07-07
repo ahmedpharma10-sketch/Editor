@@ -524,22 +524,6 @@ async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<voi
   }
 }
 
-type AssetSyncOptions = { video?: string };
-
-async function assetSync(audioRef: string, opts: AssetSyncOptions): Promise<void> {
-  const audioId = await resolveAssetRef(audioRef);
-  const videoId = await resolveAssetRef(opts.video!);
-  const stop = startSpinner("Measuring audio offset");
-  try {
-    const result = await cliAPI.assetSync(audioId, videoId);
-    stop();
-    console.log(JSON.stringify(result));
-  } catch (e) {
-    stop();
-    handleSocketError(e);
-  }
-}
-
 type AssetVisualizeOptions = { start?: string; end?: string; scale?: string; output?: string };
 
 function parseTimeArg(value: string, flag: string): number {
@@ -625,8 +609,12 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
 
   const stop = startSpinner("Mounting project");
   try {
-    await cliAPI.mount({ code });
+    const result = await cliAPI.mount({ code });
     stop();
+    if (result.status === "rejected") {
+      console.error(result.error);
+      process.exit(1);
+    }
   } catch (e) {
     stop();
     handleSocketError(e);
@@ -652,8 +640,12 @@ async function nodeInsert(parentId: string, path: string | undefined, opts: Node
 
   const stop = startSpinner("Inserting entities");
   try {
-    await cliAPI.insertNode({ code, parentId: eid, index });
+    const result = await cliAPI.insertNode({ code, parentId: eid, index });
     stop();
+    if (result.status === "rejected") {
+      console.error(result.error);
+      process.exit(1);
+    }
   } catch (e) {
     stop();
     handleSocketError(e);
@@ -751,12 +743,12 @@ async function duplicateNodes(ids: string[]): Promise<void> {
   }
 }
 
-type NodeExportOptions = JsonPayloadOptions & { output?: string };
+type NodeRenderOptions = JsonPayloadOptions & { output?: string };
 
-async function nodeExport(
+async function nodeRender(
   idArg: string | undefined,
   configArg: string | undefined,
-  opts: NodeExportOptions,
+  opts: NodeRenderOptions,
 ): Promise<void> {
   // Node ids are integers, so a lone non-numeric positional is the config file.
   let id = idArg;
@@ -780,7 +772,7 @@ async function nodeExport(
 
   const stop = startSpinner("Rendering scene");
   try {
-    const { path } = await cliAPI.exportNode(output, eid, config);
+    const { path } = await cliAPI.renderNode(output, eid, config);
     stop();
     console.log(JSON.stringify({ path }));
   } catch (e) {
@@ -1051,14 +1043,6 @@ asset
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .action((ref: string, opts: AssetAnalyzeOptions) => assetAnalyze(ref, opts));
 
-asset
-  .command("sync")
-  .alias("align")
-  .description("Measure the time offset that aligns an audio recording with a video's camera audio")
-  .argument("<audioId|path>", "the audio (or video) asset to align: an asset id or a local file to add")
-  .requiredOption("-v, --video <id|path>", "the reference video asset to align against: an asset id or a local file to add")
-  .action((audioRef: string, opts: AssetSyncOptions) => assetSync(audioRef, opts));
-
 const folder = program
   .command("folder")
   .alias("fld")
@@ -1191,14 +1175,14 @@ node
   .action((path: string | undefined, opts: JsonPayloadOptions) => patchNodes(path, opts));
 
 node
-  .command("export")
+  .command("render")
   .description("Render a scene to a video file")
   .argument("[id]", "scene node id (optional; defaults to the active scene)")
   .argument("[config]", "path to a .json encode config (EncoderConfig)")
   .option("-o, --output <path>", "write the video here (default: a temp file)")
   .option("--json <str>", "inline JSON encode config (EncoderConfig)")
-  .action((id: string | undefined, config: string | undefined, opts: NodeExportOptions) =>
-    nodeExport(id, config, opts));
+  .action((id: string | undefined, config: string | undefined, opts: NodeRenderOptions) =>
+    nodeRender(id, config, opts));
 
 const project = program
   .command("project")

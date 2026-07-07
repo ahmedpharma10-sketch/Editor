@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { entityExists, hasComponent, query, Not, Or } from "bitecs";
-import { PATCH_PROP_KEYS } from "@diffusionstudio/jsx";
 
 import { createEncoder } from "@/components/engine/encode/encoder";
 import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
@@ -37,8 +36,8 @@ import type {
   NodePatchResult,
   NodeRef,
   NodeTree,
-  NodeExportRequest,
-  NodeExportResult,
+  NodeRenderRequest,
+  NodeRenderResult,
 } from "@diffusionstudio/cli/channels";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
@@ -249,8 +248,8 @@ export function handleNodeGrep(engine: Accessor<Engine>) {
       id !== undefined
         ? getEntityTree(world, resolveEntityEid(world, id))
         : [...query(world, [c.Geometry, Not(ChildOf("*")), Not(c.Deleted)])].flatMap((root) =>
-            getEntityTree(world, root),
-          );
+          getEntityTree(world, root),
+        );
 
     const results: NodeGrepResult[] = [];
     for (const eid of eids) {
@@ -331,8 +330,8 @@ export function handleNodeScreenshot(engine: Accessor<Engine>) {
   };
 }
 
-export function handleNodeExport(engine: Accessor<Engine>) {
-  return async ({ id, output, config }: NodeExportRequest): Promise<NodeExportResult> => {
+export function handleNodeRender(engine: Accessor<Engine>) {
+  return async ({ id, output, config }: NodeRenderRequest): Promise<NodeRenderResult> => {
     const e = engine();
     const w = e.world;
 
@@ -428,81 +427,46 @@ export function handleNodeDuplicate(engine: Accessor<Engine>) {
   };
 }
 
-const PATCH_KEYS: ReadonlySet<string> = new Set(PATCH_PROP_KEYS);
-
 export function handleNodePatch(engine: Accessor<Engine>) {
   return async ({ patches }: { patches: NodePatch[] }): Promise<NodePatchResult[]> => {
     const e = engine();
     const world = e.world;
-    const doc = new WorldDocument(e);
 
-    // `src` mounts asynchronously and can't be rolled back, so a dry run only
-    // performs its synchronous checks.
-    const applyPatch = (eid: number, patch: NodePatch, dryRun: boolean) => {
-      const node = doc.element(eid);
-      for (const [key, value] of Object.entries(patch)) {
-        if (key === "id") continue;
-        if (!PATCH_KEYS.has(key)) throw new Error(`Unsupported property: ${key}`);
-        if (dryRun && key === "src") {
-          if (typeof value !== "string" || value.trim().length === 0)
-            throw new Error("`src` must be a non-empty string");
-          continue;
-        }
-        doc.setProperty(node, key, value);
-      }
-    };
+    const results: NodePatchResult[] = [];
+    for (const patch of patches) {
+      const doc = new WorldDocument(e);
 
-    const resolved = patches.map((patch) => {
       try {
         const eid = resolveEntityEid(world, patch.id);
-        world.history.startTransaction("vetting patch");
+
+        world.history.startTransaction("patching node");
         try {
-          applyPatch(eid, patch, true);
-        } finally {
+          const node = doc.element(eid);
+          for (const [key, value] of Object.entries(patch)) {
+            if (key === "id") continue;
+            doc.setProperty(node, key, value);
+          }
+          world.history.commitTransaction();
+        } catch (error) {
           world.history.rollbackTransaction();
+          throw error;
         }
-        return { patch, eid, promises: [] as Promise<void>[] };
-      } catch (err) {
-        return { patch, error: (err as Error).message };
-      }
-    });
 
-    const toApply = resolved.filter(
-      (r): r is { patch: NodePatch; eid: number; promises: Promise<void>[] } => "eid" in r,
-    );
-    if (toApply.length > 0) {
-      world.history.transaction("patching nodes", () => {
-        for (const entry of toApply) {
-          const before = doc.promises.length;
-          applyPatch(entry.eid, entry.patch, false);
-          entry.promises = doc.promises.slice(before);
+        // `src` mounts asynchronously; a failed mount rejects this patch, but
+        // its synchronous props are committed at this point regardless.
+        world.history.startTransaction("Commit document");
+        try {
+          await doc.commit();
+        } finally {
+          world.history.commitTransaction();
         }
-      });
-    }
 
-    // Await async source mounts per patch so a failed `src` rejects the right
-    // node; its synchronous props are applied at this point regardless.
-    const srcErrors = new Map<NodePatch, string>();
-    if (toApply.some((entry) => entry.promises.length > 0)) {
-      world.history.startTransaction("Commit document");
-      try {
-        await Promise.all(toApply.map(async (entry) => {
-          const settled = await Promise.allSettled(entry.promises);
-          const failed = settled.find((s): s is PromiseRejectedResult => s.status === "rejected");
-          if (failed === undefined) return;
-          const reason = failed.reason;
-          srcErrors.set(entry.patch, reason instanceof Error ? reason.message : String(reason));
-        }));
-      } finally {
-        world.history.commitTransaction();
+        results.push({ status: "fulfilled", id: patch.id });
+      } catch (error) {
+        results.push({ status: "rejected", id: patch.id, error: (error as Error).message });
       }
     }
 
-    return resolved.map((r) => {
-      if (!("eid" in r)) return { status: "rejected", id: r.patch.id, error: r.error };
-      const srcError = srcErrors.get(r.patch);
-      if (srcError !== undefined) return { status: "rejected", id: r.patch.id, error: srcError };
-      return { status: "fulfilled", id: r.patch.id };
-    });
+    return results;
   };
 }

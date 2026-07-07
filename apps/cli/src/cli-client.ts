@@ -96,8 +96,6 @@ export const cliAPI = {
     cliRequest(CLI_CHANNELS.ASSET_VISUALIZE, { id, start, end, scale }),
   assetAnalyze: (id: string, prompt?: string, start?: number, end?: number) =>
     cliRequest(CLI_CHANNELS.ASSET_ANALYZE, { id, prompt, start, end }, GENERATE_TIMEOUT_MS),
-  assetSync: (audioId: string, videoId: string) =>
-    cliRequest(CLI_CHANNELS.ASSET_SYNC, { audioId, videoId }, GENERATE_TIMEOUT_MS),
   listSelection: () => cliRequest(CLI_CHANNELS.SELECTION_LIST, undefined),
   setSelection: (ids: number[]) => cliRequest(CLI_CHANNELS.SELECTION_SET, { ids }),
   focusSelection: () => cliRequest(CLI_CHANNELS.SELECTION_FOCUS, undefined),
@@ -111,8 +109,8 @@ export const cliAPI = {
   deleteNodes: (ids: number[]) => cliRequest(CLI_CHANNELS.NODE_DELETE, { ids }),
   patchNodes: (patches: NodePatch[]) => cliRequest(CLI_CHANNELS.NODE_PATCH, { patches }),
   duplicateNodes: (ids: number[]) => cliRequest(CLI_CHANNELS.NODE_DUPLICATE, { ids }),
-  exportNode: (output: string, id?: number, config?: EncoderConfigInput) =>
-    cliRequest(CLI_CHANNELS.NODE_EXPORT, { id, output, config }, GENERATE_TIMEOUT_MS),
+  renderNode: (output: string, id?: number, config?: EncoderConfigInput) =>
+    cliRequest(CLI_CHANNELS.NODE_RENDER, { id, output, config }, GENERATE_TIMEOUT_MS),
   activeProject: () => cliRequest(CLI_CHANNELS.PROJECT_ACTIVE, undefined),
   listProjects: () => cliRequest(CLI_CHANNELS.PROJECT_LIST, undefined),
   createProject: (name?: string) => cliRequest(CLI_CHANNELS.PROJECT_CREATE, { name }),
