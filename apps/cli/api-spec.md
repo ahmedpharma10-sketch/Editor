@@ -294,6 +294,7 @@ Any live entity is addressable — not just nodes: paints and color stops can be
   All props are optional; a patch may set any subset. An unsupported property or an out-of-range value rejects that entity; a rejected patch applies none of its props (no half-applied patches). Notes beyond the JSX table:
   - `fill` recolors the entity's existing solid fill(s), or creates one if the entity has none.
   - `src` takes a path, URL, or asset id (`generate.*` declarations are JSX-only). The source resolves asynchronously after the other props land — if resolution fails, the entity is reported rejected even though its other props were applied; patch `src` on its own to avoid ambiguity.
+  - `syncTo` re-runs audio alignment against the document node carrying the given key and writes the entity's `startTime` from the measured offset (see [jsx-spec.md](./jsx-spec.md#audio-sync)). The command blocks until alignment settles; a failed alignment rejects the entity.
   - Element applicability is not checked: props are applied wherever `mount` would apply them (e.g. `fontSize` only makes sense on a text node).
 - **Output:** JSON Lines, one per input id
   ```ts
@@ -592,28 +593,6 @@ Decodes one or more frames of a video asset at the given times and writes each t
   { time: number; path: string }   // time = the requested timestamp in seconds; path = the written PNG
   ```
 - **Errors:** exits non-zero if the id is unknown, the asset is not a video, any `--time` is past the asset's duration, or a PNG can't be written.
-
----
-
-### `dapi asset sync <audioId|path>`
-
-Measures the time offset between a standalone audio recording and the camera audio embedded in a video — for aligning a separate voice/lav recording to the in-camera sound of the same take. Cross-correlates the two audio signals and returns the offset plus a confidence score. **Read-only** — it reports the offset and leaves it to the caller to act on (position the clip with `node` commands, trim, mute the camera track). Renders locally; no credits. Alias: `align`.
-
-- **Input:**
-  - `<audioId|path>` — the audio (or video) asset to align: an id or a local file to add (required). Its audio track is the signal being measured.
-  - `-v, --video <id|path>` — the reference video asset whose camera audio to align against: an id or a local file to add (required).
-- **Output:** one JSON object — the measured alignment:
-  ```ts
-  {
-    audioId:       string;   // the aligned asset
-    videoId:       string;   // the reference video
-    offsetSeconds: number;   // sign convention: place the audio at
-                             //   audioStart = videoStart + offsetSeconds
-                             // positive = recording started AFTER the camera rolled
-    confidence:    number;   // 0..1, normalized cross-correlation peak (clear match ≳ 0.9)
-  }
-  ```
-- **Errors:** exits non-zero if either id is unknown, either asset has no decodable audio track, or the two clips share too little common audio to align (`No reliable alignment found`).
 
 ---
 

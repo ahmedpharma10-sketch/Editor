@@ -1,6 +1,6 @@
 # Working with media
 
-The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain (probe, decode, visualize, transcribe, analyze, align) so an agent can *look at* footage before cutting it. All of it runs locally except `analyze` and `transcript`, which use hosted models.
+The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain (probe, decode, visualize, transcribe, analyze) so an agent can *look at* footage before cutting it. All of it runs locally except `analyze` and `transcript`, which use hosted models.
 
 **Id or path:** every inspection command takes either an asset id or a local file path. A path is imported into the library first, then inspected, so `dapi asset probe clip.mp4` works on a file that isn't in the project yet.
 
@@ -69,13 +69,6 @@ dapi asset analyze <id|path> [-p <prompt>] [-s <start>] [-e <end>]
 
 Puts a multimodal model in front of an image, video, or audio asset. Without a prompt, returns a general description; with one, answers it ("what's the dominant color?", "when is the product shown?"). `-s`/`-e` scope the analyzed segment; timestamps in the answer are relative to `-s`.
 
-### `asset sync`
-
-```sh
-dapi asset sync <audioId|path> -v <videoId|path>
-```
-
-Measures the offset between a standalone recording (a lav or voice track) and the camera audio of the same take, by cross-correlation. Prints `{ offsetSeconds, confidence }` with the convention `audioStart = videoStart + offsetSeconds`; a clear match scores above ~0.9. Read-only: position the clip yourself with the reported offset.
 
 ## A typical agent pass
 

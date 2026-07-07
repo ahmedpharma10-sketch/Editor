@@ -75,4 +75,4 @@ Renders the active scene locally with sensible defaults (MP4, H.264, 1080p). Cod
 
 - [CLI reference](cli.md): the full command surface
 - [Writing compositions](composition.md): timing, paints, generative assets, captions
-- [Working with media](assets.md): probe, transcribe, analyze, and align footage
+- [Working with media](assets.md): probe, transcribe, and analyze footage

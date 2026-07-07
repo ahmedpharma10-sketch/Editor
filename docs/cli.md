@@ -176,7 +176,7 @@ dapi project rm <id>         # delete
 
 ## Assets and folders
 
-The library commands (`asset add/ls/mv/rm/export`, `folder ls/create/rename/mv/rm`) and the media-inspection commands (`probe`, `transcript`, `analyze`, `visualize`, `frame`, `sync`) are covered in [Working with media](assets.md).
+The library commands (`asset add/ls/mv/rm/export`, `folder ls/create/rename/mv/rm`) and the media-inspection commands (`probe`, `transcript`, `analyze`, `visualize`, `frame`) are covered in [Working with media](assets.md).
 
 ## Discovery
 

@@ -33,6 +33,10 @@ component tree renders into it.
 6. **Generate** — declared assets generate in dependency order, **blocking the
    command** until every one has landed. Each placeholder renders a generating
    state until its asset lands, then the node's paint is attached.
+7. **Sync** — nodes declaring `syncTo` are aligned once every generated asset
+   has landed: each node's audio is cross-correlated against its target's and
+   its `startTime` is written from the measured offset (see
+   [Audio sync](#audio-sync)). Local and blocking; captions wait for it.
 
 ## Project module contract
 
@@ -182,12 +186,14 @@ alpha is ignored — use `opacity`). Takes only [paint children](#paints); use
 | `src` | `string \| AssetRef` | **required** | See [Media source resolution](#media-source-resolution). |
 | `objectFit` | `"cover" \| "contain" \| "fill"` | `"cover"` | How the source maps into the box. |
 | `volume` | `number` | `1` | `0`–`1`; `1` = unity gain. |
+| `muted` | `boolean` | `false` | Excludes the node's audio from the mix; independent of `volume`. |
+| `syncTo` | `string` | — | Key of another element carrying audio; derives `startTime` by audio alignment (see [Audio sync](#audio-sync)). Mutually exclusive with `startTime`. |
 
 **`<image>`** — common props plus `src` (**required**) and `objectFit` (default
 `"contain"`).
 
-**`<audio>`** — `name`, timing props, `src` (**required**), `volume`. No spatial
-props; no visual output.
+**`<audio>`** — `name`, timing props, `src` (**required**), `volume`, `muted`,
+`syncTo` (see [Audio sync](#audio-sync)). No spatial props; no visual output.
 
 **`<text>`** — common props plus:
 
@@ -277,6 +283,8 @@ Timing props follow Lottie-inspired semantics. All values are
 - `startTime` controls **which part of the source plays inside that window**. It is
   the composition time where source frame 0 sits, so it may be negative to skip into
   the source.
+- Instead of declaring `startTime`, a media node can derive it from another node's
+  audio with `syncTo` (see [Audio sync](#audio-sync)).
 
 > Example: `inPoint={0} outPoint={16} startTime="-30f"` shows the clip from
 > composition second 0 to 16, but because source-time-0 is placed 30 frames *before*
@@ -313,6 +321,52 @@ own; it lays its children out back-to-back in document order.
 </sequence>
 ```
 
+## Audio sync
+
+`syncTo` places a node in time by listening instead of arithmetic: the node's
+audio is cross-correlated against another node's audio, and its `startTime` is
+computed so the two recordings coincide on the timeline. It replaces manual
+offset measurement for multi-recorder material: a lav or voice track against
+camera audio, two cameras on the same take, two microphones in one room.
+
+```tsx
+<scene key="talk" width={1920} height={1080}>
+  <video key="camera" src="/Movies/take-3.mp4" inPoint={0} outPoint={45} muted />
+  <audio src="/Movies/lav.wav" syncTo="camera" />
+</scene>
+```
+
+- `syncTo` names the `key` of another element in the same render. Both sides
+  must carry an audio track; any pairing works (audio-to-video, audio-to-audio,
+  video-to-video).
+- The computed placement is `startTime = target.startTime + offset`, where
+  `offset` is the measured source-time offset between the two recordings
+  (positive when this node's recording started after the target's; possibly
+  negative). `syncTo` and `startTime` are mutually exclusive.
+- `inPoint`/`outPoint` keep their normal meaning and remain yours to set. When
+  omitted on a synced node, the window defaults to the intersection of the
+  node's natural extent with the target's window (instead of the usual
+  natural-duration fit), so a lav track simply covers its take.
+- Alignment reads source content: `muted` and `volume` on either side do not
+  affect the measurement. Use `muted` to keep only one side audible, as on the
+  camera track above.
+- Chains resolve in dependency order (A may sync to B while B syncs to C).
+  Unknown keys, cycles, and combining `syncTo` with `startTime` are mount
+  errors; nothing is inserted.
+
+Alignment runs at the [sync stage](#pipeline) of the pipeline: after generated
+assets land (either side may be generated), before captions read the scene. It
+is local, consumes no credits, and blocks the command, so exit `0` means final
+placement. Each resolved node logs `{ offsetSeconds, confidence }` on stderr; a
+clear match scores above ~0.9, and a correlation too weak to trust fails the
+command (see [Errors](#errors)) while the node keeps its default placement.
+Offsets are **cached** by the pair of source contents, so re-mounting an
+unchanged project re-measures nothing.
+
+Because `syncTo` is part of the shared property table, `dapi node patch`
+accepts it too: patching `syncTo` onto an existing node re-aligns it against
+the document node carrying that key.
+
 ## Captions
 
 `<captions />` inside a scene transcribes that scene's audio into a caption node — a
@@ -321,9 +375,11 @@ insert one with `dapi node insert.
 
 Transcription is **asynchronous and non-blocking**: the caption node is inserted at
 commit and its transcript attaches once ready. Because it reads the scene's audio,
-it runs **after** any generated assets in the scene have landed — so captioning a
-generated `voice`/`audio` track transcribes the finished audio. The scene must
-contain an unmuted audio or video source; otherwise the caption node is left empty.
+it runs **after** any generated assets in the scene have landed and after
+[audio sync](#audio-sync) has resolved — so captioning a generated
+`voice`/`audio` track transcribes the finished audio at its final placement. The
+scene must contain an unmuted audio or video source; otherwise the caption node
+is left empty.
 
 Transcripts are **cached**: every transcript asset records a fingerprint of the
 scene's audible mix (source content, placement, source offset, playback rate,
@@ -474,8 +530,9 @@ one-shot contract above is deliberately forward-compatible with it.
 | Stage | Where it surfaces | Effect |
 | ----- | ----------------- | ------ |
 | Compile (syntax/type-stripping/bundling) | CLI stderr, exit 1 | App never contacted. |
-| Evaluate / mount (thrown errors, invalid props, invalid root — e.g. nested `<scene>`, a root element without `key`, missing `src`, malformed `Time`) | CLI stderr, exit 1 | Staging root discarded; **nothing inserted**. |
+| Evaluate / mount (thrown errors, invalid props, invalid root — e.g. nested `<scene>`, a root element without `key`, missing `src`, malformed `Time`, an unknown or cyclic `syncTo` key, `syncTo` combined with `startTime`) | CLI stderr, exit 1 | Staging root discarded; **nothing inserted**. |
 | Generation (per-model constraints: `aspectRatio`, `duration`, feature flags) | CLI stderr, exit 1, after every generation settled | No rollback — the mounted tree stays committed; the affected placeholder stops showing its generating state and is left without a paint. |
+| Sync (a side without a decodable audio track, or no reliable alignment) | CLI stderr, exit 1, after every alignment settled | No rollback; the tree stays committed and the node keeps its default placement. |
 
 Runtime errors are mapped back to the source via inline sourcemaps produced at
 compile time.

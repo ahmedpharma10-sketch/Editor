@@ -65,9 +65,9 @@ User-defined components are ordinary Solid components; only intrinsic elements p
 
 - **`<scene>`**: `key`, `width`, `height` (all required), `name`, `fill`. No timing or transform props.
 - **`<rect>` / `<group>`**: `fill` (any CSS color; alpha is ignored, use `opacity`).
-- **`<video>`**: `src` (required), `objectFit` (`"cover"` | `"contain"` | `"fill"`, default `"cover"`), `volume` (`0`–`1`).
+- **`<video>`**: `src` (required), `objectFit` (`"cover"` | `"contain"` | `"fill"`, default `"cover"`), `volume` (`0`–`1`), `muted`, `syncTo` (see [Audio sync](#audio-sync)).
 - **`<image>`**: `src` (required), `objectFit` (default `"contain"`).
-- **`<audio>`**: `src` (required), `volume`, timing props.
+- **`<audio>`**: `src` (required), `volume`, `muted`, `syncTo`, timing props.
 - **`<text>`**: string children (required), `fontFamily` (see `dapi fonts`), `fontSize`, `fontWeight`, `fontStyle`, `fill`, `textAlign`, `textBaseline`.
 
 These same props are what `dapi node patch` assigns on existing nodes.
@@ -96,6 +96,17 @@ Composition-relative, Lottie-inspired. Values take any [time format](cli.md#time
 ```
 
 `<sequence>` removes the arithmetic for back-to-back cuts: children are placed sequentially and non-overlapping in document order.
+
+### Audio sync
+
+`syncTo` computes a node's `startTime` by cross-correlating its audio against another element's audio (named by `key`), so two recordings of the same take coincide on the timeline: a lav track against camera audio, two cameras, two microphones. Any pairing with audio tracks works (audio-to-video, audio-to-audio, video-to-video). `muted` silences the side that shouldn't be heard; alignment reads source content regardless of `muted` or `volume`.
+
+```tsx
+<video key="camera" src="/Movies/take-3.mp4" inPoint={0} outPoint={45} muted />
+<audio src="/Movies/lav.wav" syncTo="camera" />
+```
+
+`syncTo` and `startTime` are mutually exclusive; `inPoint`/`outPoint` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; each aligned node logs its offset and a confidence score (a clear match is above ~0.9).
 
 ## Paints
 
@@ -137,7 +148,7 @@ Declarations are pure: nothing generates until the mount commits, and refs never
 
 ## Captions
 
-`<captions />` inside a scene transcribes that scene's audio into a styled, timed caption node. It runs after generated assets land (so it can caption generated voice-over), attaches asynchronously, and is cached against the scene's audible mix, so re-mounting with unchanged audio doesn't re-transcribe.
+`<captions />` inside a scene transcribes that scene's audio into a styled, timed caption node. It runs after generated assets land and [audio sync](#audio-sync) resolves (so it can caption generated voice-over at its final placement), attaches asynchronously, and is cached against the scene's audible mix, so re-mounting with unchanged audio doesn't re-transcribe.
 
 ```tsx
 <captions preset="spotlight" colors={["#FF0055"]} />
@@ -177,4 +188,4 @@ The CLI strips types without checking them; run `tsc --noEmit` for type safety.
 
 ## Errors
 
-Compile errors surface on stderr before the app is contacted. Evaluate/mount errors (invalid props, a root without `key`, nested `<scene>`, …) abort with **nothing inserted**. Generation errors surface after all generations settle; the mounted tree stays committed and the affected placeholder is left without media. Runtime errors map back to your source via sourcemaps.
+Compile errors surface on stderr before the app is contacted. Evaluate/mount errors (invalid props, a root without `key`, nested `<scene>`, an unknown or cyclic `syncTo` key, …) abort with **nothing inserted**. Generation errors surface after all generations settle; the mounted tree stays committed and the affected placeholder is left without media. Audio-sync failures (no decodable audio, no reliable alignment) surface the same way; the node keeps its default placement. Runtime errors map back to your source via sourcemaps.
