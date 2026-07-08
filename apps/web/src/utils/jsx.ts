@@ -32,6 +32,7 @@ import {
   removeComponent,
   resizeEntity,
   setComponent,
+  setKeyframeTrack,
   transcribeScene,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
@@ -91,6 +92,67 @@ const TEXT_BASELINE_MAP = {
   middle: TextBaseline.MIDDLE,
   bottom: TextBaseline.BOTTOM,
 } as const;
+
+// Named easing presets, expanded to the descriptors the interpolation
+// inspector writes so JSX-authored keyframes match hand-edited ones.
+const EASING_PRESET_MAP: Record<string, string> = {
+  linear: "",
+  easeIn: "cubicBezier(0.42,0,1,1)",
+  easeOut: "cubicBezier(0,0,0.58,1)",
+  easeInOut: "cubicBezier(0.42,0,0.58,1)",
+  gentle: "spring(0.5,628)",
+  snappy: "spring(0.15,300)",
+  bouncy: "spring(0.4,500)",
+  strong: "spring(0.65,400)",
+};
+
+function parseEasing(value: unknown): string {
+  assert(typeof value === "string", "keyframe `easing` must be a string" + `, value: ${value}`);
+  const preset = EASING_PRESET_MAP[value];
+  if (preset !== undefined) return preset;
+
+  const valid =
+    /^cubicBezier\(-?[\d.]+,-?[\d.]+,-?[\d.]+,-?[\d.]+\)$/.test(value) ||
+    /^spring\(-?[\d.]+,-?[\d.]+\)$/.test(value) ||
+    /^steps\(\d+(,(true|false))?\)$/.test(value);
+  assert(valid, `invalid keyframe easing: "${value}"`);
+  return value;
+}
+
+/**
+ * Parses a keyframe-list prop value: times to local frames (0 = the node's
+ * in point), values through `convert` into the property's authored unit,
+ * easings through the preset map. Returns the list sorted by time — callers
+ * land `[0].value` as the authored value and hand the list to
+ * `setKeyframeTrack`.
+ */
+function parseKeyframes(
+  name: string,
+  entries: unknown[],
+  convert: (value: unknown) => number,
+): { time: number; value: number; easing: string }[] {
+  assert(entries.length > 0, `\`${name}\` keyframe list must not be empty`);
+
+  const frames = new Set<number>();
+  const keyframes = entries.map((entry) => {
+    assert(
+      typeof entry === "object" && entry !== null && !Array.isArray(entry),
+      `\`${name}\` keyframes must be { time, value, easing? } objects`,
+    );
+    const { time, value, easing } = entry as Record<string, unknown>;
+    const frame = parseFrames(String(time), 30);
+    assert(typeof frame === "number", `\`${name}\` keyframe \`time\` must be a time value` + `, value: ${time}`);
+    assert(!frames.has(frame), `\`${name}\` has two keyframes at frame ${frame}`);
+    frames.add(frame);
+    return {
+      time: frame,
+      value: convert(value),
+      easing: easing === undefined ? "" : parseEasing(easing),
+    };
+  });
+
+  return keyframes.sort((a, b) => a.time - b.time);
+}
 
 const CAPTION_PRESET_MAP = {
   classic: CaptionType.CLASSIC,
@@ -333,37 +395,113 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         setComponent(world, eid, c.Name, value);
         break;
       } case "x": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`x` must be a number" + `, value: ${v}`);
+            return Math.round(v);
+          });
+          setComponent(world, eid, c.Position, { x: keyframes[0].value });
+          setKeyframeTrack(world, eid, "position.x", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "position.x", []);
         assert(typeof value === "number", "`x` must be a number" + `, value: ${value}`);
         setComponent(world, eid, c.Position, { x: Math.round(value) });
         break;
       } case "y": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`y` must be a number" + `, value: ${v}`);
+            return Math.round(v);
+          });
+          setComponent(world, eid, c.Position, { y: keyframes[0].value });
+          setKeyframeTrack(world, eid, "position.y", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "position.y", []);
         assert(typeof value === "number", "`y` must be a number" + `, value: ${value}`);
         setComponent(world, eid, c.Position, { y: Math.round(value) });
         break;
       } case "width": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`width` must be a number" + `, value: ${v}`);
+            assert(v >= 0, "`width` must be >= 0");
+            return Math.round(v);
+          });
+          resizeEntity(world, eid, { width: keyframes[0].value });
+          setKeyframeTrack(world, eid, "width", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "width", []);
         assert(typeof value === "number", "`width` must be a number" + `, value: ${value}`);
         assert(value >= 0, "`width` must be >= 0");
         resizeEntity(world, eid, { width: Math.round(value) });
         break;
-      } case "height":
+      } case "height": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`height` must be a number" + `, value: ${v}`);
+            assert(v >= 0, "`height` must be >= 0");
+            return Math.round(v);
+          });
+          resizeEntity(world, eid, { height: keyframes[0].value });
+          setKeyframeTrack(world, eid, "height", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "height", []);
         assert(typeof value === "number", "`height` must be a number" + `, value: ${value}`);
         assert(value >= 0, "`height` must be >= 0");
         resizeEntity(world, eid, { height: Math.round(value) });
         break;
-      case "rotation": {
+      } case "rotation": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`rotation` must be a number" + `, value: ${v}`);
+            return v;
+          });
+          setComponent(world, eid, c.Rotation, keyframes[0].value);
+          setKeyframeTrack(world, eid, "rotation", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "rotation", []);
         assert(typeof value === "number", "`rotation` must be a number" + `, value: ${value}`);
         setComponent(world, eid, c.Rotation, value);
         break;
       } case "opacity": {
+        const isStop = hasComponent(world, eid, c.ColorStop);
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`opacity` must be a number" + `, value: ${v}`);
+            assert(v >= 0 && v <= 1, "`opacity` must be between 0 and 1");
+            return v;
+          });
+          if (isStop) setComponent(world, eid, c.ColorStop, { opacity: keyframes[0].value });
+          else setComponent(world, eid, c.Appearance, { opacity: keyframes[0].value });
+          setKeyframeTrack(world, eid, isStop ? "stop.opacity" : "opacity", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, isStop ? "stop.opacity" : "opacity", []);
         assert(typeof value === "number", "`opacity` must be a number" + `, value: ${value}`);
         assert(value >= 0 && value <= 1, "`opacity` must be between 0 and 1");
-        if (hasComponent(world, eid, c.ColorStop)) {
+        if (isStop) {
           setComponent(world, eid, c.ColorStop, { opacity: value });
         } else {
           setComponent(world, eid, c.Appearance, { opacity: value });
         }
         break;
       } case "cornerRadius": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`cornerRadius` must be a number" + `, value: ${v}`);
+            assert(v >= 0, "`cornerRadius` must be >= 0");
+            return Math.round(v);
+          });
+          setComponent(world, eid, c.CornerRadius, keyframes[0].value);
+          setKeyframeTrack(world, eid, "vertexRadius", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "vertexRadius", []);
         assert(typeof value === "number", "`cornerRadius` must be a number" + `, value: ${value}`);
         assert(value >= 0, "`cornerRadius` must be >= 0");
         setComponent(world, eid, c.CornerRadius, Math.round(value));
@@ -417,6 +555,19 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         break;
       }
       case "volume": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`volume` must be a number" + `, value: ${v}`);
+            assert(v >= 0, "`volume` must be >= 0");
+            // Keyframed silence floors at -60 dB so segments toward it
+            // interpolate over finite values.
+            return Math.max(v <= 0 ? -Infinity : 20 * Math.log10(v), -60);
+          });
+          setComponent(world, eid, c.Volume, keyframes[0].value);
+          setKeyframeTrack(world, eid, "volume", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "volume", []);
         assert(typeof value === "number", "`volume` must be a number" + `, value: ${value}`);
         assert(value >= 0, "`volume` must be >= 0");
         // Convert linear volume to decibels
@@ -499,19 +650,43 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         setComponent(world, eid, c.TextStyle, { textBaseline: TEXT_BASELINE_MAP[value as keyof typeof TEXT_BASELINE_MAP] });
         break;
       case "color": {
+        const isStop = hasComponent(world, eid, c.ColorStop);
+        assert(isStop || hasComponent(world, eid, c.Paint), "`color` only applies to paints or color stops");
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "string", "`color` must be a string" + `, value: ${v}`);
+            const color = parseColor(v);
+            assert(color !== null, `color is not a valid CSS color: "${v}"`);
+            return color;
+          });
+          if (isStop) setComponent(world, eid, c.ColorStop, { color: keyframes[0].value });
+          else setComponent(world, eid, c.Color, keyframes[0].value);
+          setKeyframeTrack(world, eid, isStop ? "stop.color" : "color", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, isStop ? "stop.color" : "color", []);
         assert(typeof value === "string", "`color` must be a string" + `, value: ${value}`);
         const color = parseColor(value);
         assert(color !== null, `color is not a valid CSS color: "${value}"`);
-        if (hasComponent(world, eid, c.ColorStop)) {
+        if (isStop) {
           setComponent(world, eid, c.ColorStop, { color });
-        } else if (hasComponent(world, eid, c.Paint)) {
-          setComponent(world, eid, c.Color, color);
         } else {
-          assert(false, "`color` only applies to paints or color stops");
+          setComponent(world, eid, c.Color, color);
         }
         break;
       } case "offset": {
         assert(hasComponent(world, eid, c.ColorStop), "`offset` only applies to <colorStop>");
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`offset` must be a number" + `, value: ${v}`);
+            assert(v >= 0 && v <= 1, "`offset` must be between 0 and 1");
+            return v;
+          });
+          setComponent(world, eid, c.ColorStop, { offset: keyframes[0].value });
+          setKeyframeTrack(world, eid, "stop.offset", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "stop.offset", []);
         assert(typeof value === "number", "`offset` must be a number" + `, value: ${value}`);
         assert(value >= 0 && value <= 1, "`offset` must be between 0 and 1");
         setComponent(world, eid, c.ColorStop, { offset: value });

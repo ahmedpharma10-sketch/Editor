@@ -154,12 +154,14 @@ All visual elements accept:
 | ---- | ---- | ------- | ------- |
 | `key` | `string` | — | Stable identity across mounts; **required** on document roots (see [Roots](#roots)). |
 | `name` | `string` | — | Human-readable node name. |
-| `x`, `y` | `number` | `0` | Position relative to the parent, px. |
-| `width`, `height` | `number` | parent size | Box size, px. |
-| `rotation` | `number` | `0` | Rotation in degrees. |
-| `opacity` | `number` | `1` | `0`–`1`. |
-| `cornerRadius` | `number` | `0` | Uniform corner radius, px. |
+| `x`, `y` | `Animatable<number>` | `0` | Position relative to the parent, px. |
+| `width`, `height` | `Animatable<number>` | parent size | Box size, px. |
+| `rotation` | `Animatable<number>` | `0` | Rotation in degrees. |
+| `opacity` | `Animatable<number>` | `1` | `0`–`1`. |
+| `cornerRadius` | `Animatable<number>` | `0` | Uniform corner radius, px. |
 | `inPoint`, `outPoint`, `startTime` | `Time` | see [Timing](#timing) | Temporal placement. |
+
+`Animatable` props also take a keyframe list — see [Animation](#animation).
 
 Common and per-element props share one property table, exported as
 `PatchProps`. `dapi node patch` accepts exactly these keys with the same value
@@ -185,7 +187,7 @@ alpha is ignored — use `opacity`). Takes only [paint children](#paints); use
 | ---- | ---- | ------- | ------- |
 | `src` | `string \| AssetRef` | **required** | See [Media source resolution](#media-source-resolution). |
 | `objectFit` | `"cover" \| "contain" \| "fill"` | `"cover"` | How the source maps into the box. |
-| `volume` | `number` | `1` | `0`–`1`; `1` = unity gain. |
+| `volume` | `Animatable<number>` | `1` | `0`–`1`; `1` = unity gain. |
 | `muted` | `boolean` | `false` | Excludes the node's audio from the mix; independent of `volume`. |
 | `syncTo` | `string` | — | Key of another element carrying audio; derives `startTime` by audio alignment (see [Audio sync](#audio-sync)). Mutually exclusive with `startTime`. |
 
@@ -306,6 +308,59 @@ import. All values may be negative.
 | `"${number}f"` | `"-30f"` | Frames. |
 | `"MM:SS"` | `"02:30"` | Minutes and seconds. |
 | `"HH:MM:SS"` | `"01:02:30"` | Hours, minutes, seconds. |
+
+## Animation
+
+Animatable props accept a keyframe list in place of a static value:
+
+```tsx
+<image
+  src="/photo.jpg"
+  inPoint={0} outPoint={5}
+  x={[
+    { time: 0, value: -400 },
+    { time: 1, value: 200, easing: "easeOut" },
+  ]}
+  opacity={[{ time: 0, value: 0 }, { time: "15f", value: 1 }]}
+/>
+```
+
+```ts
+type Keyframe<T> = { time: Time; value: T; easing?: Easing };
+type Animatable<T> = T | Keyframe<T>[];
+```
+
+Animatable props: `x`, `y`, `width`, `height`, `rotation`, `opacity`,
+`cornerRadius`, `volume`, `color`, `offset`. As part of the shared property
+table this applies to `dapi node patch` identically, and to paints and color
+stops (`color`, `opacity`, `offset` animate gradients).
+
+### Semantics
+
+- `time` is **node-local**: `0` is the node's in point, in any
+  [time format](#time-formats). Timing props are composition-relative;
+  keyframe times are not, so animation moves with the clip.
+- Outside the keyframed range the value holds at the first/last keyframe.
+- `easing` shapes the segment from its keyframe to the next; the last
+  keyframe's easing is ignored. Default `"linear"`.
+- A **static value replaces any existing keyframes** on that property — mount
+  and `dapi node patch` own what they set. Keyframes land as regular editor
+  keyframes, editable in the timeline and inspector, and props the render
+  doesn't set keep their hand-made tracks across re-mounts.
+
+### Easing
+
+| Easing | Use for |
+| ------ | ------- |
+| `"linear"` (default) | Constant-rate change. |
+| `"easeIn"`, `"easeOut"`, `"easeInOut"` | Standard acceleration curves (CSS equivalents). |
+| `"gentle"`, `"snappy"`, `"bouncy"`, `"strong"` | Spring presets, from soft settle to hard overshoot. |
+| `"cubicBezier(x1,y1,x2,y2)"` | Custom curve, CSS control points. |
+| `"spring(bounce,duration)"` | Custom spring: bounce `0`–`1`, duration in ms. |
+| `"steps(n)"` | Discrete hold: n equal steps, no interpolation. |
+
+Named presets expand to the same descriptors the editor's interpolation
+inspector writes, so they round-trip cleanly.
 
 ## Sequences
 

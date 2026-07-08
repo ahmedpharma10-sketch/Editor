@@ -48,12 +48,14 @@ User-defined components are ordinary Solid components; only intrinsic elements p
 | --- | --- | --- |
 | `key` | none | Stable identity; required on document roots. |
 | `name` | none | Node name in the editor. |
-| `x`, `y` | `0` | Position in px, relative to the parent, origin top-left. |
-| `width`, `height` | parent size | Box size in px. |
-| `rotation` | `0` | Degrees. |
-| `opacity` | `1` | `0`–`1`. |
-| `cornerRadius` | `0` | Px. |
+| `x`, `y` | `0` | Position in px, relative to the parent, origin top-left. Animatable. |
+| `width`, `height` | parent size | Box size in px. Animatable. |
+| `rotation` | `0` | Degrees. Animatable. |
+| `opacity` | `1` | `0`–`1`. Animatable. |
+| `cornerRadius` | `0` | Px. Animatable. |
 | `inPoint`, `outPoint`, `startTime` | see [Timing](#timing) | Temporal placement. |
+
+Animatable props also take a keyframe list — see [Animation](#animation).
 
 **Every box defaults to its parent's box**, the JSX analog of `position: absolute; inset: 0`. So a centered full-frame title is just:
 
@@ -107,6 +109,36 @@ Composition-relative, Lottie-inspired. Values take any [time format](cli.md#time
 ```
 
 `syncTo` and `startTime` are mutually exclusive; `inPoint`/`outPoint` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; an alignment too weak to trust fails the mount and the node keeps its default placement.
+
+## Animation
+
+Animatable props (`x`, `y`, `width`, `height`, `rotation`, `opacity`, `cornerRadius`, `volume`, `color`, `offset`) accept a keyframe list in place of a static value:
+
+```tsx
+<image
+  src="/photo.jpg"
+  inPoint={0} outPoint={5}
+  x={[
+    { time: 0, value: -400 },
+    { time: 1, value: 200, easing: "easeOut" },
+  ]}
+  opacity={[{ time: 0, value: 0 }, { time: "15f", value: 1 }]}
+/>
+```
+
+- `time` is **node-local** (0 = the node's in point), in any [time format](cli.md#time-values); animation moves with the clip. Outside the keyframed range the value holds at the first/last keyframe.
+- `easing` shapes the segment from its keyframe to the next (ignored on the last). Default `"linear"`.
+- A static value replaces any existing keyframes on the property; mounted keyframes are regular editor keyframes, editable in the timeline and inspector. Props the render doesn't set keep their hand-made tracks.
+- `color`, `opacity`, and `offset` also animate on paints and color stops, so gradients can move.
+
+| Easing | Use for |
+| --- | --- |
+| `"linear"` (default) | Constant-rate change. |
+| `"easeIn"`, `"easeOut"`, `"easeInOut"` | Standard acceleration curves (CSS equivalents). |
+| `"gentle"`, `"snappy"`, `"bouncy"`, `"strong"` | Spring presets, from soft settle to hard overshoot. |
+| `"cubicBezier(x1,y1,x2,y2)"` | Custom curve, CSS control points. |
+| `"spring(bounce,duration)"` | Custom spring: bounce `0`–`1`, duration in ms. |
+| `"steps(n)"` | Discrete hold: n equal steps, no interpolation. |
 
 ## Paints
 

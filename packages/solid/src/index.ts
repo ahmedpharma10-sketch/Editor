@@ -6,14 +6,17 @@
 export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
 export type {
+  Animatable,
   AudioProps,
   CaptionPreset,
   CaptionsProps,
   ColorStopProps,
+  Easing,
   Fit,
   GradientPaintProps,
   GroupProps,
   ImageProps,
+  Keyframe,
   PatchProps,
   RectProps,
   SceneProps,

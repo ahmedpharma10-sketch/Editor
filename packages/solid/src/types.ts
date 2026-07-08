@@ -14,6 +14,39 @@ export type Time = number | `${number}f` | `${string}:${string}`;
 
 export type Fit = "cover" | "contain" | "fill";
 
+/**
+ * Easing for the segment from a keyframe to the next one: a named preset or
+ * an explicit descriptor. `cubicBezier(x1,y1,x2,y2)` takes CSS-style control
+ * points, `spring(bounce,duration)` a 0–1 bounce and a duration in ms,
+ * `steps(n)` holds n discrete values.
+ */
+export type Easing =
+  | "linear"
+  | "easeIn"
+  | "easeOut"
+  | "easeInOut"
+  | "gentle"
+  | "snappy"
+  | "bouncy"
+  | "strong"
+  | `cubicBezier(${string})`
+  | `spring(${string})`
+  | `steps(${string})`;
+
+export type Keyframe<T> = {
+  /** Node-local time: 0 is the node's in point. Any `Time` format. */
+  time: Time;
+  value: T;
+  /** Shapes the segment to the next keyframe; ignored on the last. Default "linear". */
+  easing?: Easing;
+};
+
+/**
+ * A static value, or keyframes animating it over the node's local time.
+ * Setting a static value removes any existing keyframe track on the property.
+ */
+export type Animatable<T> = T | Keyframe<T>[];
+
 /** Caption style presets — the editor's caption inspector presets. */
 export type CaptionPreset =
   | "classic"
@@ -39,18 +72,18 @@ export type PatchProps = {
   key?: string;
   /** Human-readable node name. */
   name?: string;
-  /** Position relative to the parent, px. Defaults to 0. */
-  x?: number;
-  y?: number;
-  /** Box size, px. Defaults to the parent's size. */
-  width?: number;
-  height?: number;
-  /** Rotation in degrees. */
-  rotation?: number;
-  /** Opacity, 0–1. */
-  opacity?: number;
-  /** Uniform corner radius, px. */
-  cornerRadius?: number;
+  /** Position relative to the parent, px. Defaults to 0. Animatable. */
+  x?: Animatable<number>;
+  y?: Animatable<number>;
+  /** Box size, px. Defaults to the parent's size. Animatable. */
+  width?: Animatable<number>;
+  height?: Animatable<number>;
+  /** Rotation in degrees. Animatable. */
+  rotation?: Animatable<number>;
+  /** Opacity, 0–1. Animatable. */
+  opacity?: Animatable<number>;
+  /** Uniform corner radius, px. Animatable. */
+  cornerRadius?: Animatable<number>;
   /** Composition time at which the node becomes visible/audible. */
   inPoint?: Time;
   /** Composition time at which the node stops. */
@@ -69,8 +102,8 @@ export type PatchProps = {
   src?: string | AssetRef;
   /** How the source maps into the box. Default "cover" on `<video>`, "contain" on `<image>`. */
   objectFit?: Fit;
-  /** 0–1; 1 = unity gain. */
-  volume?: number;
+  /** 0–1; 1 = unity gain. Animatable. */
+  volume?: Animatable<number>;
   /** Excludes the node's audio from the mix; independent of `volume`. */
   muted?: boolean;
   /** A family available on the machine (`dapi fonts`). */
@@ -80,14 +113,14 @@ export type PatchProps = {
   /** CSS weights 100–900, or "normal" / "bold". */
   fontWeight?: number | "normal" | "bold";
   fontStyle?: "normal" | "italic";
-  /** Any CSS color: the glyph color on `<text>`, the paint color on paints and color stops. */
-  color?: string;
+  /** Any CSS color: the glyph color on `<text>`, the paint color on paints and color stops. Animatable. */
+  color?: Animatable<string>;
   /** Horizontal alignment of glyphs within the box. Default "left". */
   textAlign?: "left" | "center" | "right";
   /** Vertical alignment within the box. Default "top". */
   textBaseline?: "top" | "middle" | "bottom";
-  /** Position along the gradient, 0–1. */
-  offset?: number;
+  /** Position along the gradient, 0–1. Animatable. */
+  offset?: Animatable<number>;
   /** Caption style preset — `<captions>` only. Default "classic". */
   preset?: CaptionPreset;
   /** Fills the caption preset's color slots in order; any CSS color, alpha is ignored. */

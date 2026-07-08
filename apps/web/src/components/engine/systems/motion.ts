@@ -339,7 +339,7 @@ function resolveEasing(descriptor: string | undefined): EasingFunction | null {
 		fn = steps(n, fromStart);
 	}
 
-	const bezierMatch = descriptor.match(/^cubicBezier\(([\d.]+),([\d.]+),([\d.]+),([\d.]+)\)$/);
+	const bezierMatch = descriptor.match(/^cubicBezier\((-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)\)$/);
 	if (bezierMatch) {
 		const [, x1, y1, x2, y2] = bezierMatch;
 		fn = cubicBezier(Number(x1), Number(y1), Number(x2), Number(y2));

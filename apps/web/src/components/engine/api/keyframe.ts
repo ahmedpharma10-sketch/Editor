@@ -150,6 +150,45 @@ export function toggleKeyframeTrack(world: EngineWorld, eid: number, property: P
 	});
 }
 
+/**
+ * Declaratively replace all keyframes for (target, property): creates the
+ * track on first use, deletes it when `keyframes` is empty. Times are local
+ * frames; values are in the property's authored unit. Runs without a history
+ * transaction — callers (mount, patch) provide their own.
+ */
+export function setKeyframeTrack(
+	world: EngineWorld,
+	target: number,
+	property: PropertyPath,
+	keyframes: ReadonlyArray<{ time: number; value: number; easing?: string }>,
+): void {
+	const c = world.components;
+	const existing = findKeyframeTrackEntity(world, target, property);
+
+	if (existing !== null) {
+		for (const kid of query(world, [c.Keyframe, ChildOf(existing), Not(c.Deleted)])) {
+			deleteEntity(world, kid);
+		}
+		if (keyframes.length === 0) {
+			deleteEntity(world, existing);
+			return;
+		}
+	}
+	if (keyframes.length === 0) return;
+
+	const tid = existing ?? ensureKeyframeTrackEntity(world, target, property);
+	const sorted = [...keyframes].sort((a, b) => a.time - b.time);
+	for (const kf of sorted) {
+		const kid = createEntity(world);
+		setComponent(world, kid, c.Keyframe, {
+			time: kf.time,
+			value: kf.value,
+			easing: kf.easing ?? '',
+		});
+		appendChild(world, kid, tid);
+	}
+}
+
 export function removeKeyframeTrack(world: EngineWorld, eid: number, property: PropertyPath) {
 	const c = world.components;
 	const trackEid = findKeyframeTrackEntity(world, eid, property);
