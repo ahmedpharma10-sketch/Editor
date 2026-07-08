@@ -955,20 +955,24 @@ function listFonts(opts: ListFontsOptions): void {
 
 const program = new Command();
 
+// Appends the command's reference page to its help description.
+const DOCS_BASE = "https://github.com/diffusionstudio/editor/blob/main/apps/cli/reference";
+const docs = (page: string) => `\nReference: ${DOCS_BASE}/${page}.md`;
+
 program
   .name("dapi")
-  .description("CLI for Diffusion Studio")
+  .description(`CLI for Diffusion Studio${docs("README")}`)
   .version(version);
 
 program
   .command("context")
   .alias("ctx")
-  .description("Print essential context about the open project")
+  .description(`Print essential context about the open project${docs("context")}`)
   .action(() => context());
 
 program
   .command("open")
-  .description("Open Diffusion Studio")
+  .description(`Open Diffusion Studio${docs("open")}`)
   .argument("[target]", `file path, folder path, or "${PROTOCOL}://" URL to open`)
   .option("-b, --background", "launch with the window hidden (headless)")
   .action((target: string | undefined, opts: { background?: boolean }) =>
@@ -976,7 +980,7 @@ program
 
 program
   .command("mount")
-  .description("Compile a Solid JSX project module and mount it into the canvas")
+  .description(`Compile a Solid JSX project module and mount it into the canvas${docs("mount")}`)
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
   .action((path: string | undefined, opts: MountOptions) => mountProject(path, opts));
@@ -988,7 +992,7 @@ const asset = program
 
 asset
   .command("add")
-  .description("Add one or more local files as assets in the open project")
+  .description(`Add one or more local files as assets in the open project${docs("asset/add")}`)
   .argument("<paths...>", "absolute or relative file paths to add")
   .option("--folder <id>", "folder to place the new assets in (default: the library root)")
   .action((paths: string[], opts: AssetAddOptions) => addAssets(paths, opts));
@@ -996,13 +1000,13 @@ asset
 asset
   .command("ls")
   .alias("get")
-  .description("Print raw asset records — every persisted property except the file handles; with no ids, lists every asset")
+  .description(`Print raw asset records — every persisted property except the file handles; with no ids, lists every asset${docs("asset/ls")}`)
   .argument("[ids...]", "asset ids to list (optional)")
   .action((ids: string[]) => listAssets(ids));
 
 asset
   .command("tree")
-  .description("Print the asset library of the open project as its folder tree")
+  .description(`Print the asset library of the open project as its folder tree${docs("asset/tree")}`)
   .option("--folder <id>", "folder whose contents to list (default: the library root)")
   .option("--depth <n>", "max depth to descend (positive integer; default = full tree)")
   .action((opts: AssetTreeOptions) => assetTree(opts));
@@ -1010,40 +1014,40 @@ asset
 asset
   .command("rm")
   .alias("remove")
-  .description("Delete one or more assets from the open project by id")
+  .description(`Delete one or more assets from the open project by id${docs("asset/rm")}`)
   .argument("<ids...>", "asset ids to delete")
   .action((ids: string[]) => deleteAssets(ids));
 
 asset
   .command("mv")
   .alias("move")
-  .description("Move one or more assets into a folder")
+  .description(`Move one or more assets into a folder${docs("asset/mv")}`)
   .argument("<ids...>", "asset ids to move")
   .option("--to <folderId>", "destination folder (default: the library root)")
   .action((ids: string[], opts: MoveOptions) => moveAssets(ids, opts));
 
 asset
   .command("export")
-  .description("Write one or more assets' original file bytes to disk (no re-encode)")
+  .description(`Write one or more assets' original file bytes to disk (no re-encode)${docs("asset/export")}`)
   .argument("<ids...>", "asset ids to export")
   .option("-o, --output <path>", "directory to write into, or an exact file path for a single id (default: system temp dir)")
   .action((ids: string[], opts: AssetExportOptions) => exportAssets(ids, opts));
 
 asset
   .command("probe")
-  .description("Read the container and per-track technical metadata of an asset")
+  .description(`Read the container and per-track technical metadata of an asset${docs("asset/probe")}`)
   .argument("<id|path>", "asset id, or a local file to add and probe")
   .action((ref: string) => assetProbe(ref));
 
 asset
   .command("transcribe")
-  .description("Transcribe the speech in a video or audio asset and print the timed transcript")
+  .description(`Transcribe the speech in a video or audio asset and print the timed transcript${docs("asset/transcribe")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to add and transcribe")
   .action((ref: string) => assetTranscribe(ref));
 
 asset
   .command("frame")
-  .description("Decode one or more frames of a video asset and write them as PNGs")
+  .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/frame")}`)
   .argument("<id|path>", "video asset id, or a local file to add and grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
@@ -1052,7 +1056,7 @@ asset
 asset
   .command("visualize")
   .alias("viz")
-  .description("Render a visual preview of an asset (waveform, filmstrip, or thumbnail) to a PNG")
+  .description(`Render a visual preview of an asset (waveform, filmstrip, or thumbnail) to a PNG${docs("asset/visualize")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to add and visualize")
   .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1062,7 +1066,7 @@ asset
 
 asset
   .command("analyze")
-  .description("Analyze an image, audio, or video asset with AI and print a description of its contents")
+  .description(`Analyze an image, audio, or video asset with AI and print a description of its contents${docs("asset/analyze")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to add and analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
@@ -1077,20 +1081,20 @@ const folder = program
 folder
   .command("ls")
   .aliases(["list", "get"])
-  .description("List the direct child folders of a parent folder; with no id, the root-level folders")
+  .description(`List the direct child folders of a parent folder; with no id, the root-level folders${docs("folder/ls")}`)
   .argument("[parentId]", "parent folder id (optional; omitted = the library root)")
   .action((parentId: string | undefined) => listFolders(parentId));
 
 folder
   .command("create")
-  .description("Create a folder")
+  .description(`Create a folder${docs("folder/create")}`)
   .argument("<name>", "folder name")
   .option("-p, --parent <id>", "parent folder (default: the library root)")
   .action((name: string, opts: FolderCreateOptions) => createFolder(name, opts));
 
 folder
   .command("rename")
-  .description("Rename a folder")
+  .description(`Rename a folder${docs("folder/rename")}`)
   .argument("<id>", "folder id")
   .argument("<name>", "new name")
   .action((id: string, name: string) => renameFolder(id, name));
@@ -1098,7 +1102,7 @@ folder
 folder
   .command("mv")
   .alias("move")
-  .description("Move one or more folders under a new parent")
+  .description(`Move one or more folders under a new parent${docs("folder/mv")}`)
   .argument("<ids...>", "folder ids to move")
   .option("--to <folderId>", "destination parent folder (default: the library root)")
   .action((ids: string[], opts: MoveOptions) => moveFolders(ids, opts));
@@ -1106,7 +1110,7 @@ folder
 folder
   .command("rm")
   .alias("remove")
-  .description("Delete one or more folders, including all nested folders and the assets inside")
+  .description(`Delete one or more folders, including all nested folders and the assets inside${docs("folder/rm")}`)
   .argument("<ids...>", "folder ids to delete")
   .action((ids: string[]) => deleteFolders(ids));
 
@@ -1118,18 +1122,18 @@ const selection = program
 selection
   .command("ls")
   .alias("get")
-  .description("List the currently selected nodes")
+  .description(`List the currently selected nodes${docs("selection/ls")}`)
   .action(() => listSelection());
 
 selection
   .command("set")
-  .description("Replace the current selection with exactly the given node ids; none = clear")
+  .description(`Replace the current selection with exactly the given node ids; none = clear${docs("selection/set")}`)
   .argument("[ids...]", "node ids to select")
   .action((ids: string[]) => setSelection(ids));
 
 selection
   .command("focus")
-  .description("Pan and zoom the canvas to fit the current selection in view")
+  .description(`Pan and zoom the canvas to fit the current selection in view${docs("selection/focus")}`)
   .action(() => focusSelection());
 
 const node = program
@@ -1140,20 +1144,20 @@ const node = program
 node
   .command("ls")
   .alias("get")
-  .description("Print raw entity records — every component, as persisted; with no ids, lists the root scenes")
+  .description(`Print raw entity records — every component, as persisted; with no ids, lists the root scenes${docs("node/ls")}`)
   .argument("[ids...]", "entity ids to list (optional)")
   .action((ids: string[]) => listNodes(ids));
 
 node
   .command("tree")
-  .description("Print an entity's subtree as a nested JSON object, sub-entities included; with no id, prints every top-level node's tree")
+  .description(`Print an entity's subtree as a nested JSON object, sub-entities included; with no id, prints every top-level node's tree${docs("node/tree")}`)
   .argument("[id]", "root entity id (optional; omitted = every top-level node)")
   .option("--depth <n>", "max depth to descend (default: 3; 0 = full subtree)")
   .action((id: string | undefined, opts: TreeOptions) => nodeTree(id, opts));
 
 node
   .command("grep")
-  .description("Search entity records for a regex and print the matching entities with the components that matched — the search corpus is the raw records node ls emits")
+  .description(`Search entity records for a regex and print the matching entities with the components that matched — the search corpus is the raw records node ls emits${docs("node/grep")}`)
   .argument("<pattern>", "regex to match against stringified component values")
   .argument("[id]", "root entity id to scope the search to a subtree (optional; omitted = the whole document)")
   .option("-i, --ignore-case", "case-insensitive matching")
@@ -1165,14 +1169,14 @@ node
 
 node
   .command("screenshot")
-  .description("Focus a node on the canvas and capture a screenshot as a PNG")
+  .description(`Focus a node on the canvas and capture a screenshot as a PNG${docs("node/screenshot")}`)
   .argument("[id]", "node id to capture (optional; defaults to the canvas)")
   .option("-t, --time <time>", `timeline position to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
   .action((id: string | undefined, opts: ScreenshotOptions) => nodeScreenshot(id, opts));
 
 node
   .command("insert")
-  .description("Compile a Solid JSX project module and insert the rendered entities into a parent entity")
+  .description(`Compile a Solid JSX project module and insert the rendered entities into a parent entity${docs("node/insert")}`)
   .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
@@ -1182,27 +1186,27 @@ node
 node
   .command("rm")
   .alias("remove")
-  .description("Delete one or more entities and all their descendants")
+  .description(`Delete one or more entities and all their descendants${docs("node/rm")}`)
   .argument("<ids...>", "entity ids to delete")
   .action((ids: string[]) => deleteNodes(ids));
 
 node
   .command("cp")
   .alias("duplicate")
-  .description("Deep-clone one or more nodes, including all descendants")
+  .description(`Deep-clone one or more nodes, including all descendants${docs("node/cp")}`)
   .argument("<ids...>", "node ids to duplicate")
   .action((ids: string[]) => duplicateNodes(ids));
 
 node
   .command("patch")
-  .description("Assign JSX props on one or more existing entities in a single call — the same properties, with the same value requirements, as mount. Renaming a node is patching its name")
+  .description(`Assign JSX props on one or more existing entities in a single call — the same properties, with the same value requirements, as mount. Renaming a node is patching its name${docs("node/patch")}`)
   .argument("[path]", "path to a .json file containing the patch array")
   .option("--json <str>", "inline JSON array of { id, ...jsx props }")
   .action((path: string | undefined, opts: JsonPayloadOptions) => patchNodes(path, opts));
 
 node
   .command("render")
-  .description("Render a scene to a video file")
+  .description(`Render a scene to a video file${docs("node/render")}`)
   .argument("[id]", "scene node id (optional; defaults to the active scene)")
   .argument("[config]", "path to a .json encode config (EncoderConfig)")
   .option("-o, --output <path>", "write the video here (default: a temp file)")
@@ -1217,53 +1221,53 @@ const project = program
 
 project
   .command("active")
-  .description("Print the currently active project, or null if none is open")
+  .description(`Print the currently active project, or null if none is open${docs("project/active")}`)
   .action(() => activeProject());
 
 project
   .command("ls")
   .alias("list")
-  .description("List all projects, most recently accessed first")
+  .description(`List all projects, most recently accessed first${docs("project/ls")}`)
   .action(() => listProjects());
 
 project
   .command("create")
-  .description("Create a new project and open it")
+  .description(`Create a new project and open it${docs("project/create")}`)
   .argument("[name]", "optional project name")
   .action((name?: string) => createProject(name));
 
 project
   .command("set")
-  .description("Set the active project by id, or null if no project has that id")
+  .description(`Set the active project by id, or null if no project has that id${docs("project/set")}`)
   .argument("<id>", "project id to set active")
   .action((id: string) => openProject(id));
 
 project
   .command("rm")
   .alias("remove")
-  .description("Delete a project by id")
+  .description(`Delete a project by id${docs("project/rm")}`)
   .argument("<id>", "project id to delete")
   .action((id: string) => deleteProject(id));
 
 program
   .command("models")
-  .description("List available AI generation models and their constraints (for generate.* declarations — see the JSX API)")
+  .description(`List available AI generation models and their constraints (for generate.* declarations — see the JSX API)${docs("models")}`)
   .argument("[type]", `filter to one of "image", "video", "audio"`)
   .action((type: string | undefined) => listModels(type));
 
 program
   .command("voices")
-  .description("List the speech voices available for generate.voice declarations (see the JSX API)")
+  .description(`List the speech voices available for generate.voice declarations (see the JSX API)${docs("voices")}`)
   .action(() => listVoices());
 
 program
   .command("whoami")
-  .description("Print the authenticated account, or null if signed out")
+  .description(`Print the authenticated account, or null if signed out${docs("whoami")}`)
   .action(() => whoami());
 
 program
   .command("fonts")
-  .description("List the local fonts available on this machine")
+  .description(`List the local fonts available on this machine${docs("fonts")}`)
   .option("-f, --family <pattern>", "filter to families whose name contains <pattern> (case-insensitive)")
   .option("-w, --weight <weights...>", "filter to variants with the given CSS weight(s), e.g. -w 400 700")
   .option("-s, --style <style>", `filter to variants with the given style: "normal" or "italic"`)

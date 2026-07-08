@@ -7,4 +7,4 @@ Diffusion Studio is driven through `dapi`, its CLI. Start here:
 - [Writing compositions](composition.md): the JSX API with elements, timing, paints, generative assets, and captions
 - [Working with media](assets.md): the asset library and the vision/audio toolchain
 
-The exhaustive specifications these docs are distilled from live with the CLI source: [api-spec.md](../apps/cli/api-spec.md) and [jsx-spec.md](../apps/cli/jsx-spec.md).
+The exhaustive specification these docs are distilled from lives with the CLI source: [apps/cli/reference](../apps/cli/reference/README.md), one file per command, with the JSX code syntax in [apps/cli/reference/jsx](../apps/cli/reference/jsx/README.md).
