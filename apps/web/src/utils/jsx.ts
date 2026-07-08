@@ -17,6 +17,7 @@ import {
   ScaleMode,
   TextAlign,
   TextBaseline,
+  TransitionType,
   addComponent,
   appendChild,
   computeAudioSyncOffsetCached,
@@ -154,6 +155,31 @@ function parseKeyframes(
   return keyframes.sort((a, b) => a.time - b.time);
 }
 
+const TRANSITION_TYPE_MAP = {
+  dissolve: TransitionType.DISSOLVE,
+  slideFromRight: TransitionType.SLIDE_FROM_RIGHT,
+  slideFromLeft: TransitionType.SLIDE_FROM_LEFT,
+  fadeToBlack: TransitionType.FADE_TO_BLACK,
+  fadeToWhite: TransitionType.FADE_TO_WHITE,
+} as const;
+
+// 1 second at the canonical 30 fps — the transition inspector's default.
+const TRANSITION_DEFAULT_DURATION = 30;
+
+function parseTransitionType(value: unknown): number {
+  assert(typeof value === "string", "transition `type` must be a string" + `, value: ${value}`);
+  const type = TRANSITION_TYPE_MAP[value as keyof typeof TRANSITION_TYPE_MAP];
+  assert(type !== undefined, `invalid transition type: "${value}"`);
+  return type;
+}
+
+function parseTransitionDuration(value: unknown): number {
+  const frames = parseFrames(String(value), 30);
+  assert(typeof frames === "number", "transition `duration` must be a time value" + `, value: ${value}`);
+  assert(frames > 0, "transition `duration` must be > 0");
+  return frames;
+}
+
 const CAPTION_PRESET_MAP = {
   classic: CaptionType.CLASSIC,
   cascade: CaptionType.CASCADE,
@@ -276,75 +302,97 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   public createElement(tag: string): DocumentNode {
     const world = this.world;
     const c = world.components;
-    const eid = createEntity(world);
-    const node: DocumentNode = { kind: "element", eid };
 
     switch (tag) {
       case "scene": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         addComponent(world, eid, c.Scene);
         addComponent(world, eid, c.ClipsContent);
         setComponent(world, eid, c.Name, getNextName(world, "Scene"));
-        break;
+        return node;
       } case "group": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         addComponent(world, eid, c.Group);
         setComponent(world, eid, c.Name, getNextName(world, "Group"));
-        break;
+        return node;
       } case "rect": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         setComponent(world, eid, c.Name, getNextName(world, "Rect"));
-        break;
+        return node;
       } case "sequence": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         addComponent(world, eid, c.Group);
         addComponent(world, eid, c.Sequential);
         setComponent(world, eid, c.Name, getNextName(world, "Sequence"));
-        break;
+        return node;
       } case "video": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         setComponent(world, eid, c.Name, getNextName(world, "Video"));
-        break;
+        return node;
       } case "image": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         setComponent(world, eid, c.Name, getNextName(world, "Image"));
-        break;
+        return node;
       } case "audio": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         addComponent(world, eid, c.Audio);
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         setComponent(world, eid, c.Name, getNextName(world, "Audio"));
-        break;
+        return node;
       } case "text": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.TEXT);
         const fid = createEntity(world);
         setComponent(world, fid, c.Paint, PaintType.SOLID);
         setComponent(world, fid, c.Color, 0xffffff);
         appendChild(world, fid, eid);
-        break;
+        return node;
       } case "captions": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.TEXT);
         setComponent(world, eid, c.Caption, {});
         setComponent(world, eid, c.Name, getNextName(world, "Captions"));
         this.queue.push({ node, type: "caption" });
-        break;
+        return node;
       } case "solidPaint": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Paint, PaintType.SOLID);
         setComponent(world, eid, c.Color, 0xE0E0E0);
-        break;
+        return node;
       } case "linearGradientPaint": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Paint, PaintType.LINEAR_GRADIENT);
-        break;
+        return node;
       } case "radialGradientPaint": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Paint, PaintType.RADIAL_GRADIENT);
-        break;
+        return node;
       } case "colorStop": {
+        const eid = createEntity(world);
+        const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.ColorStop, {});
-        break;
+        return node;
       } default: {
         assert(false, `unknown tag: "${tag}"`);
       }
     }
-
-    return node;
   }
 
   public createTextNode(text: string): DocumentNode {
@@ -584,6 +632,26 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         assert(value.trim().length > 0, "`syncTo` must be a non-empty string");
         this.queue.push({ node, targetKey: value.trim(), type: "sync" });
         break;
+      } case "transition": {
+        if (value === null) {
+          removeComponent(world, eid, c.Transition);
+          break;
+        }
+        assert(
+          typeof value === "object" && !Array.isArray(value),
+          "`transition` must be a { type?, duration? } object or null" + `, value: ${value}`,
+        );
+        const { type, duration } = value as Record<string, unknown>;
+        const spec: { type?: number; duration?: number } = {};
+        if (type !== undefined) spec.type = parseTransitionType(type);
+        if (duration !== undefined) spec.duration = parseTransitionDuration(duration);
+
+        if (!hasComponent(world, eid, c.Transition)) {
+          spec.type ??= TransitionType.DISSOLVE;
+          spec.duration ??= TRANSITION_DEFAULT_DURATION;
+        }
+        setComponent(world, eid, c.Transition, spec);
+        break;
       } case "src": {
         if (isAssetRef(value)) {
           world.history.untrack(() => addComponent(world, eid, c.Generating));
@@ -822,6 +890,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
 
     setComponent(world, eid, c.Name, asset.name);
   }
+
 }
 
 function placeholderSize(spec: AssetSpecInput): { width: number; height: number } {

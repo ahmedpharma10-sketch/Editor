@@ -47,6 +47,22 @@ export type Keyframe<T> = {
  */
 export type Animatable<T> = T | Keyframe<T>[];
 
+/** Transition styles — the editor's transition inspector options. */
+export type TransitionType =
+  | "dissolve"
+  | "slideFromRight"
+  | "slideFromLeft"
+  | "fadeToBlack"
+  | "fadeToWhite";
+
+/** The `transition` prop's value — see `PatchProps["transition"]`. */
+export type TransitionSpec = {
+  /** Transition style. Default "dissolve". */
+  type?: TransitionType;
+  /** Length of the transition, centered on the cut. Any `Time` format. Default 1 second. */
+  duration?: Time;
+};
+
 /** Caption style presets — the editor's caption inspector presets. */
 export type CaptionPreset =
   | "classic"
@@ -96,6 +112,12 @@ export type PatchProps = {
    * timeline. Mutually exclusive with `startTime`.
    */
   syncTo?: string;
+  /**
+   * Transition into the next clip, rendered centered on the cut, set on the
+   * outgoing clip. Only on direct children of `<sequence>`; a partial value
+   * merges into the clip's existing transition, `null` removes it.
+   */
+  transition?: TransitionSpec | null;
   /** Any CSS color, applied to the node's solid fill (created if absent); alpha is ignored — use `opacity`. */
   fill?: string;
   /** Path, URL, asset id, or a `generate.*` declaration. */
@@ -142,6 +164,7 @@ export const PATCH_PROP_KEYS = Object.keys({
   outPoint: true,
   startTime: true,
   syncTo: true,
+  transition: true,
   fill: true,
   src: true,
   objectFit: true,
@@ -164,7 +187,8 @@ type TimingProps = Pick<PatchProps, "inPoint" | "outPoint" | "startTime">;
 type CommonProps = TimingProps &
   Pick<
     PatchProps,
-    "key" | "name" | "x" | "y" | "width" | "height" | "rotation" | "opacity" | "cornerRadius"
+    | "key" | "name" | "x" | "y" | "width" | "height" | "rotation" | "opacity" | "cornerRadius"
+    | "transition"
   >;
 
 export type SceneProps = {

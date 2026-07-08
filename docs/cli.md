@@ -69,7 +69,7 @@ dapi node insert <paintId> --code '<colorStop offset={0.5} color="#FF0055" />'
 dapi node patch ([path.json] | --json <str>)
 ```
 
-Assigns JSX props on existing entities. The payload is an array of `{ id, …props }`, taking exactly the props a JSX element takes (see the [element reference](composition.md#elements)). A rejected entry applies none of its props. Renaming is patching `name`; recoloring is patching `fill`; paints and color stops are patchable too.
+Assigns JSX props on existing entities. The payload is an array of `{ id, …props }`, taking exactly the props a JSX element takes (see the [element reference](composition.md#elements)). A rejected entry applies none of its props. Renaming is patching `name`; recoloring is patching `fill`; paints and color stops are patchable too. A [transition](composition.md#transitions) is patched as a `transition` prop on the outgoing clip (`null` removes it).
 
 ```sh
 dapi node patch --json '[{ "id": 42, "x": 100, "opacity": 0.5 }]'

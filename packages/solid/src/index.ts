@@ -24,6 +24,8 @@ export type {
   SolidPaintProps,
   TextProps,
   Time,
+  TransitionSpec,
+  TransitionType,
   VideoProps,
 } from "./types";
 

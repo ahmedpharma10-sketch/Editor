@@ -54,6 +54,7 @@ User-defined components are ordinary Solid components; only intrinsic elements p
 | `opacity` | `1` | `0`–`1`. Animatable. |
 | `cornerRadius` | `0` | Px. Animatable. |
 | `inPoint`, `outPoint`, `startTime` | see [Timing](#timing) | Temporal placement. |
+| `transition` | none | Cut into the next clip; `<sequence>` children only. See [Transitions](#transitions). |
 
 Animatable props also take a keyframe list — see [Animation](#animation).
 
@@ -109,6 +110,29 @@ Composition-relative, Lottie-inspired. Values take any [time format](cli.md#time
 ```
 
 `syncTo` and `startTime` are mutually exclusive; `inPoint`/`outPoint` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; an alignment too weak to trust fails the mount and the node keeps its default placement.
+
+## Transitions
+
+A clip inside a `<sequence>` takes a `transition` prop rendering the cut into the clip that follows it:
+
+```tsx
+<sequence>
+  <video src="/Movies/a.mp4" outPoint={8} transition={{ type: "fadeToBlack", duration: 0.5 }} />
+  <video src="/Movies/b.mp4" />
+</sequence>
+```
+
+| Type | Effect |
+| --- | --- |
+| `"dissolve"` (default) | Crossfade: the incoming clip fades in over the outgoing one. |
+| `"slideFromRight"` | The incoming clip slides in over the outgoing one, decelerating. |
+| `"slideFromLeft"` | Same, from the left. |
+| `"fadeToBlack"` | Dip to black: fade out, then fade the incoming clip in. |
+| `"fadeToWhite"` | Same, through white. |
+
+- `duration` takes any [time format](cli.md#time-values) (default 1 s) and runs centered on the cut. Timing is untouched: the clips stay back-to-back and the renderer overlaps them only while the transition runs.
+- `transition` only renders on a direct child of `<sequence>` that has a clip after it. On the last clip it waits until one follows, matching the editor's inspector; outside a sequence the engine drops it.
+- It's the same transition the inspector edits, and `dapi node patch` takes it like any other prop: a partial value merges into the clip's existing transition (`{ "id": 42, "transition": { "duration": 2 } }` keeps the type), and `"transition": null` removes it.
 
 ## Animation
 
