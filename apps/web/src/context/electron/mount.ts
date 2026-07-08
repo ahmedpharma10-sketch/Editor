@@ -22,6 +22,7 @@ export function handleMount(engine: Accessor<Engine>) {
     const e = engine();
     const world = e.world;
     const c = world.components;
+    let dispose = () => {};
 
     try {
       // Evaluate — top-level code (including top-level await) runs here.
@@ -33,7 +34,7 @@ export function handleMount(engine: Accessor<Engine>) {
 
       try {
         world.history.startTransaction("Render project");
-        renderProject(project, document);
+        dispose = renderProject(project, document);
         world.history.commitTransaction();
       } catch (error) {
         world.history.rollbackTransaction();
@@ -52,6 +53,8 @@ export function handleMount(engine: Accessor<Engine>) {
       }
     } catch (error) {
       return { status: "rejected", error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      dispose?.();
     }
 
     return { status: "fulfilled" };
@@ -69,6 +72,7 @@ export function handleNodeInsert(engine: Accessor<Engine>) {
   return async ({ code, parentId, index }: NodeInsertRequest): Promise<MountResult> => {
     const e = engine();
     const world = e.world;
+    let dispose = () => {};
 
     try {
       const parentEid = resolveEntityEid(world, parentId);
@@ -80,7 +84,7 @@ export function handleNodeInsert(engine: Accessor<Engine>) {
 
       try {
         world.history.startTransaction("Insert nodes");
-        renderProject(project, document);
+        dispose = renderProject(project, document);
         if (index !== undefined && document.rootEid !== null) {
           reorderEntity(world, document.rootEid, index);
         }
@@ -98,6 +102,8 @@ export function handleNodeInsert(engine: Accessor<Engine>) {
       }
     } catch (error) {
       return { status: "rejected", error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      dispose?.();
     }
 
     return { status: "fulfilled" };

@@ -2,21 +2,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { createContext, useContext } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 
+import type { JSX } from "solid-js";
 import type { ProjectDocument } from "./document";
 
 // Compiled project modules call the static runtime exports below
 // (babel-preset-solid in `universal` mode with a fixed moduleName), so the
-// renderer must be a module-level singleton. Its host operations forward to
-// the document of the active `renderProject` call.
+// renderer must be a module-level singleton.
+const DocumentContext = createContext<ProjectDocument | null>(null);
+
 let currentDocument: ProjectDocument | null = null;
 
 function doc(): ProjectDocument {
-  if (currentDocument === null) {
+  const document = useContext(DocumentContext) ?? currentDocument;
+  if (document === null) {
     throw new Error("No active mount — elements can only be created while a project renders");
   }
-  return currentDocument;
+  return document;
 }
 
 const renderer = createRenderer<unknown>({
@@ -69,19 +73,24 @@ export const {
 
 /**
  * Host entry point: renders a project component directly into `document`.
- * Mounting is synchronous — the document is fully written when this returns —
- * and the returned dispose function ends the reactive root.
+ * Mounting is synchronous — the document is fully written when this returns.
  */
-export function renderProject<N>(project: () => unknown, document: ProjectDocument<N>) {
+export function renderProject<N>(project: () => unknown, document: ProjectDocument<N>): () => void {
   const previous = currentDocument;
   currentDocument = document as ProjectDocument;
 
-  let dispose: () => void = () => { };
   try {
-    dispose = render(() => createComponent(project, {}), document.stage);
-  } catch (error) {
-    dispose?.();
+    return render(
+      () =>
+        createComponent(DocumentContext.Provider, {
+          value: document as ProjectDocument,
+          get children() {
+            return createComponent(project, {}) as JSX.Element;
+          },
+        }),
+      document.stage,
+    );
+  } finally {
     currentDocument = previous;
-    throw error;
   }
 }
