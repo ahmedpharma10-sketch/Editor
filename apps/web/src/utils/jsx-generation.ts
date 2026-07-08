@@ -48,7 +48,7 @@ const VOICE_MODEL = "elevenlabs-v3";
 
 /**
  * A spec with defaults applied and every `AssetInput` reduced to an asset id.
- * Field order is fixed, so `JSON.stringify` of it is a stable cache key.
+ * Field order is fixed, so `JSON.stringify` of it is a stable `generationKey`.
  */
 type ResolvedSpec =
   | { type: "image"; model: string; prompt: string; aspectRatio: AspectRatio; seed?: number; refIds: string[] }
@@ -57,11 +57,11 @@ type ResolvedSpec =
   | { type: "audio"; model: string; prompt: string };
 
 /**
- * Generated assets, cached by fully-resolved spec. Scoped per world so a
- * cached asset id always exists in the asset store it is reused from, and
- * per-session by construction (in-memory, never persisted).
+ * In-flight generations per world, keyed by `generationKey`, so identical
+ * concurrent declarations collapse to one request. Entries are removed once
+ * settled; finished generations are found via `asset.generationKey`.
  */
-const sessionCaches = new WeakMap<EngineWorld, Map<string, Promise<Asset>>>();
+const inflight = new WeakMap<EngineWorld, Map<string, Promise<Asset>>>();
 
 /**
  * Declarations already resolved within one `generateAssets` run, keyed by ref
@@ -85,25 +85,27 @@ function resolveInput(world: EngineWorld, input: AssetInput, memo: GenerationMem
 
 async function generateFromRef(world: EngineWorld, ref: AssetRef, memo: GenerationMemo): Promise<Asset> {
   const resolved = await resolveSpec(world, getAssetSpec(ref), memo);
-  const key = JSON.stringify(resolved);
+  const generationKey = JSON.stringify(resolved);
 
-  let cache = sessionCaches.get(world);
-  if (!cache) {
-    cache = new Map();
-    sessionCaches.set(world, cache);
+  const cached = Array.from(world.assets.values()).find((asset) => asset.generationKey === generationKey);
+  if (cached) return cached;
+
+  let pending = inflight.get(world);
+  if (!pending) {
+    pending = new Map();
+    inflight.set(world, pending);
   }
 
-  const cached = cache.get(key);
-  if (cached) {
-    // Reuse unless the generation failed or its asset was deleted since.
-    const asset = await cached.catch(() => null);
-    if (asset && world.assets.has(asset.id)) return asset;
-    cache.delete(key);
-  }
+  const running = pending.get(generationKey);
+  if (running) return await running;
 
-  const promise = runGeneration(world, resolved);
-  cache.set(key, promise);
-  return await promise;
+  const promise = runGeneration(world, resolved, generationKey);
+  pending.set(generationKey, promise);
+  try {
+    return await promise;
+  } finally {
+    pending.delete(generationKey);
+  }
 }
 
 async function resolveSpec(world: EngineWorld, spec: AssetSpecInput, memo: GenerationMemo): Promise<ResolvedSpec> {
@@ -169,12 +171,12 @@ function checkVideoConstraints(spec: Extract<ResolvedSpec, { type: "video" }>): 
   assert(spec.endFrameId === undefined || model.features.includes("end-frame"), `${spec.model} does not support an end frame`);
 }
 
-async function runGeneration(world: EngineWorld, spec: ResolvedSpec): Promise<Asset> {
+async function runGeneration(world: EngineWorld, spec: ResolvedSpec, generationKey: string): Promise<Asset> {
   const { name, results, generationId } = await requestGeneration(world, spec);
   assert(results.length > 0, "No results returned from the model");
 
   const folderId = await ensureGenerationFolder(world, name, 1);
-  return await loadAsset(world, results[0].url, { name, generationId, folderId });
+  return await loadAsset(world, results[0].url, { name, generationId, generationKey, folderId });
 }
 
 function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {

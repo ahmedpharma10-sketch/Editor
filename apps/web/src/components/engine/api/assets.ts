@@ -123,6 +123,7 @@ export function raiseIdCounter(world: EngineWorld, ids: Iterable<string>): void 
 type LoadAssetOptions = {
   name?: string;
   generationId?: string | null;
+  generationKey?: string | null;
   folderId?: string | null;
 };
 
@@ -264,6 +265,7 @@ export async function loadAsset(
     size: file.size,
     handle: fileHandle,
     generationId: options?.generationId ?? null,
+    generationKey: options?.generationKey ?? null,
     folderId: options?.folderId ?? null,
   }
 

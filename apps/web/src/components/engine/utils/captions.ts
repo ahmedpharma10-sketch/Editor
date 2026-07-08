@@ -4,7 +4,7 @@
 
 import { hasComponent, entityExists } from "bitecs";
 import { trpc } from "@/lib/trpc";
-import { PaintType, getEntityTree, getParentEntity, secondsToFrames, uploadBlob, loadAsset, saveAsset } from "@/components/engine";
+import { PaintType, getEntityTree, getParentEntity, secondsToFrames, uploadBlob, loadAsset } from "@/components/engine";
 import { createEncoder } from "@/components/engine/encode/encoder";
 import { resolveTranscript } from "@/components/engine/decoders/caption/utils";
 import { assert } from "@/utils";
@@ -107,9 +107,9 @@ export async function transcribeScene(
     throw new Error("No audio found. Add an audio or video clip to the scene to generate captions.");
   }
 
-  const sourceHash = sceneAudioFingerprint(world, sceneEid);
+  const generationKey = sceneAudioFingerprint(world, sceneEid);
   const cached = Array.from(world.assets.values())
-    .find(a => a.type === "TRANSCRIPT" && a.sourceHash === sourceHash);
+    .find(a => a.type === "TRANSCRIPT" && a.generationKey === generationKey);
 
   if (cached) {
     const transcript = await resolveTranscript(cached);
@@ -155,10 +155,9 @@ export async function transcribeScene(
   const name = nextCaptionsName(Array.from(world.assets.values()));
   const blob = new Blob([JSON.stringify(transcript)], { type: "application/json" });
   const file = new File([blob], `${name}.json`, { type: "application/json" });
-  const asset = await loadAsset(world, file, { name });
+  const asset = await loadAsset(world, file, { name, generationKey });
 
   assert(asset.type === "TRANSCRIPT", "Expected a transcript asset");
-  await saveAsset(world, { ...asset, sourceHash });
 
   return { asset: { id: asset.id, name: asset.name, type: asset.type }, trim: transcriptTrim(transcript) };
 }

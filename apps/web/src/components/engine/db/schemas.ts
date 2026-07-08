@@ -77,6 +77,7 @@ export const assetBaseSchema = z.object({
     z.instanceof(ElectronFileHandle),
   ]),
   generationId: z.string().nullable().optional(),
+  generationKey: z.string().nullable().optional(),
   folderId: z.string().nullable().optional(),
 });
 
@@ -114,7 +115,6 @@ export type VideoAsset = z.infer<typeof videoAssetSchema>;
 
 export const transcriptAssetSchema = assetBaseSchema.extend({
   type: z.literal('TRANSCRIPT'),
-  sourceHash: z.string().optional(),
 });
 
 export type TranscriptAsset = z.infer<typeof transcriptAssetSchema>;

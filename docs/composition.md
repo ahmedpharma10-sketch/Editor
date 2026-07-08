@@ -144,7 +144,7 @@ Run `dapi models <type>` for valid model ids and per-model constraints, `dapi vo
 
 Declarations are pure: nothing generates until the mount commits, and refs never used by a mounted element are dropped. Because `startFrame`/`endFrame`/`refs` take refs as values, dependencies generate in the right order and cycles are impossible.
 
-**Caching:** results are cached by content (model, prompt, resolved refs, seed, …) within a session: re-mounting an unchanged project reuses assets instead of regenerating, and identical declarations collapse to one asset. Set `seed` for reproducibility.
+**Caching:** results are cached by content (model, prompt, resolved refs, seed, …) in the asset library: re-mounting an unchanged project reuses its assets instead of regenerating, even across sessions, and identical declarations collapse to one asset. Deleting a generated asset clears its cache entry. Set `seed` for reproducibility.
 
 ## Captions
 
