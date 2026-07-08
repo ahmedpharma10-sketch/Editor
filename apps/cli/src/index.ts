@@ -15,6 +15,7 @@ import { cliAPI, waitForCliSocket } from "./cli-client";
 import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
 import { openFolder } from "./open-folder";
+import { fetchVideo } from "./ytdlp";
 import type { EncoderConfigInput } from "./protocol";
 
 const APP_NAME = "Diffusion Studio";
@@ -953,6 +954,20 @@ function listFonts(opts: ListFontsOptions): void {
   }
 }
 
+type FetchCliOptions = { output?: string; format?: string; audio?: boolean };
+
+// `raw` is every operand after `url` — the yt-dlp passthrough placed after `--`.
+// No spinner here: yt-dlp renders its own progress to the inherited stderr.
+async function fetch(url: string, opts: FetchCliOptions, raw: string[]): Promise<void> {
+  try {
+    const paths = await fetchVideo(url, { ...opts, raw });
+    for (const path of paths) console.log(JSON.stringify({ path }));
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
+}
+
 const program = new Command();
 
 // Appends the command's reference page to its help description.
@@ -1274,6 +1289,17 @@ program
   .option("-l, --limit <n>", "output at most <n> families")
   .option("-n, --names-only", "output only family names (one per line, no variant detail)")
   .action((opts: ListFontsOptions) => listFonts(opts));
+
+program
+  .command("fetch")
+  .description(`Download a video with yt-dlp (must be installed separately)${docs("fetch")}`)
+  .argument("<url>", "video or page URL to download")
+  .option("-o, --output <path>", "output file path or directory (yt-dlp -o template; default: yt-dlp's default)")
+  .option("-f, --format <selector>", `yt-dlp format selector, e.g. "bv*+ba/b"`)
+  .option("-a, --audio", "extract audio only (yt-dlp -x)")
+  .allowExcessArguments()
+  .addHelpText("after", `\nForward raw yt-dlp flags after --, e.g. dapi fetch <url> -- --sponsorblock-remove all`)
+  .action((url: string, opts: FetchCliOptions, cmd: Command) => fetch(url, opts, cmd.args.slice(1)));
 
 // Explicit argv convention: the packaged wrapper runs this bundle on
 // Electron in ELECTRON_RUN_AS_NODE mode, where commander would otherwise

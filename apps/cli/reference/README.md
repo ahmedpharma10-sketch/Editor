@@ -6,7 +6,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 
 ## Groups
 
-**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md).
+**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
@@ -93,6 +93,10 @@ How the surface is divided:
 
 - [`dapi fonts`](./fonts.md): list local fonts
 
+### Download
+
+- [`dapi fetch`](./fetch.md): download a video with yt-dlp (installed separately)
+
 ## Shared types
 
 ```ts
@@ -111,4 +115,4 @@ Time inputs take the `Time` format unless noted otherwise. Times in **outputs** 
 - **Unix-style names are canonical:** list/read is `ls`, delete is `rm`, duplicate is `cp`, move/reparent is `mv`, search is `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls`. Commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.
 - **Exit codes:** `0` on success, `1` on any error (missing file, app not running, invalid input, IPC error).
-- **App must be running:** every command except `open` and `fonts` talks to the open Diffusion Studio instance. If the app isn't running, the CLI prints an instruction to launch it and exits `1`.
+- **App must be running:** every command except `open`, `fonts`, and `fetch` talks to the open Diffusion Studio instance. If the app isn't running, the CLI prints an instruction to launch it and exits `1`.
