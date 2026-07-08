@@ -4,9 +4,11 @@ Renders a visual preview of an asset to a PNG, written to a file in the system t
 
 ## By media type
 
-- **audio**: an amplitude waveform with a time axis (tick labels along the bottom in `mm:ss`), drawn from decoded audio peaks.
-- **video**: a composite: a **filmstrip** of frames sampled at even intervals across the window, with the **waveform** of the video's audio track drawn beneath it, sharing one `mm:ss` (or milliseconds) time axis. Videos with no audio track render the filmstrip alone.
+- **audio**: an amplitude waveform with a time axis, drawn from decoded audio peaks.
+- **video**: a composite: a **filmstrip** of frames sampled at even intervals across the window, with the **waveform** of the video's audio track drawn beneath it, sharing one time axis. Videos with no audio track render the filmstrip alone.
 - **image**: a thumbnail of the image, auto-scaled.
+
+Tick labels use `HH:MM:SS:FF` timecode (hours, minutes, seconds, frame within the second) at every zoom level, so labels stay comparable regardless of the window's span. Frames count against the video's frame rate; the audio ruler has no video track and counts against a nominal 30 fps.
 
 ## Input
 

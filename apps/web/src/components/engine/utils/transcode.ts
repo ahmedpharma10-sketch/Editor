@@ -80,7 +80,7 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow) {
 
 const MAX_IMAGE_SIZE = 560 ** 2;
 const PATCH_SIZE = 28;
-const MAX_WIDTH_IN_TOKENS = 92;
+const MAX_WIDTH_IN_TOKENS = 52; // 92
 const MAX_HEIGHT_IN_TOKENS = 52;
 const THUMBNAIL_HEIGHT_IN_TOKENS = 5;
 const WAVEFORM_HEIGHT_IN_TOKENS = 3;
@@ -90,18 +90,17 @@ const AUDIO_COLUMN_WIDTH_IN_TOKENS = 6;
 const WAVEFORM_SAMPLE_WIDTH = 2; // pixels per peak; wider = less noisy
 const SILENCE_THRESHOLD = 12; // peak value (0-255) at/below which audio counts as silent
 const SILENCE_MIN_SECONDS = 0.4;
+const AUDIO_RULER_FRAME_RATE = 30;
 
-function formatTimestamp(seconds: number, secondsPerColumn: number): string {
-  if (secondsPerColumn <= 1) {
-    return Math.round(seconds * 1000) + 'ms';
-  }
-
-  const total = Math.floor(seconds);
-  const hh = Math.floor(total / 3600);
-  const mm = Math.floor((total % 3600) / 60);
-  const ss = total % 60;
-  const parts = [hh, mm, ss].map((v) => String(v).padStart(2, '0'));
-  return parts.join(':');
+function formatTimestamp(seconds: number, frameRate: number): string {
+  const fps = Math.max(1, Math.round(frameRate));
+  const totalFrames = Math.round(seconds * fps);
+  const frames = totalFrames % fps;
+  const totalSeconds = Math.floor(totalFrames / fps);
+  const hh = Math.floor(totalSeconds / 3600);
+  const mm = Math.floor((totalSeconds % 3600) / 60);
+  const ss = totalSeconds % 60;
+  return [hh, mm, ss, frames].map((v) => String(v).padStart(2, '0')).join(':');
 }
 
 export type AssetVisualization = {
@@ -240,6 +239,7 @@ export async function visualizeAsset(asset: Asset, options?: VisualizeOptions): 
       rowHeightInPixels,
       rulerHeight,
       secondsPerColumn,
+      frameRate,
       startOffset: windowStart,
     });
 
@@ -316,6 +316,7 @@ export async function visualizeAsset(asset: Asset, options?: VisualizeOptions): 
         rowHeightInPixels,
         rulerHeight,
         secondsPerColumn,
+        frameRate: AUDIO_RULER_FRAME_RATE,
         startOffset: windowStart,
       });
 
@@ -416,11 +417,12 @@ type RulerLayout = {
   rowHeightInPixels: number;
   rulerHeight: number;
   secondsPerColumn: number;
+  frameRate: number;
   startOffset?: number;
 };
 
 function drawRuler(ctx: CanvasRenderingContext2D, layout: RulerLayout) {
-  const { cells, columns, columnWidthInPixels, rowHeightInPixels, rulerHeight, secondsPerColumn, startOffset = 0 } = layout;
+  const { cells, columns, columnWidthInPixels, rowHeightInPixels, rulerHeight, secondsPerColumn, frameRate, startOffset = 0 } = layout;
 
   const baseFontSize = Math.round(rulerHeight * 0.8);
   const leadFontSize = Math.round(rulerHeight * 0.9);
@@ -459,7 +461,7 @@ function drawRuler(ctx: CanvasRenderingContext2D, layout: RulerLayout) {
     ctx.font = column === 0
       ? `bold ${leadFontSize}px sans-serif`
       : `${baseFontSize}px sans-serif`;
-    ctx.fillText(formatTimestamp(startOffset + i * secondsPerColumn, secondsPerColumn), columnX + paddingLeft, (rowTop + rulerHeight / 2) + paddingTop);
+    ctx.fillText(formatTimestamp(startOffset + i * secondsPerColumn, frameRate), columnX + paddingLeft, (rowTop + rulerHeight / 2) + paddingTop);
   }
 }
 
