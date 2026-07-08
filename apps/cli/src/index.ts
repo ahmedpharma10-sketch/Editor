@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { platform, tmpdir } from "node:os";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
-import { parseTime, TIME_FPS } from "@diffusionstudio/solid";
+import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
 import { cliAPI, waitForCliSocket } from "./cli-client";
 import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";

@@ -278,7 +278,7 @@ Deletes one or more entities and all their descendants. Alias: `remove`.
 
 ### `dapi node patch ([path] | --json <str>)`
 
-Assigns JSX props on one or more existing entities in a single call. Every patch entry takes the same properties, with the same value requirements, as a JSX element in [`mount`](#dapi-mount-path---code-str) — the full table lives in [jsx-spec.md](./jsx-spec.md#element-reference) and is not repeated here; the payload type is `PatchProps` from `@diffusionstudio/solid`. Patches are applied through the same setters as a render, so the two surfaces cannot diverge. Changes are tracked for undo like a UI edit.
+Assigns JSX props on one or more existing entities in a single call. Every patch entry takes the same properties, with the same value requirements, as a JSX element in [`mount`](#dapi-mount-path---code-str) — the full table lives in [jsx-spec.md](./jsx-spec.md#element-reference) and is not repeated here; the payload type is `PatchProps` from `@diffusionstudio/jsx`. Patches are applied through the same setters as a render, so the two surfaces cannot diverge. Changes are tracked for undo like a UI edit.
 
 Any live entity is addressable — not just nodes: paints and color stops can be patched too (`color`, `offset`, `opacity`, gradient `rotation`). There is no separate rename command: renaming a node is patching its `name`.
 

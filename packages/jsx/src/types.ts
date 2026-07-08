@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import type { JSX as SolidJSX } from "solid-js";
-import type { AssetRef } from "@diffusionstudio/ai";
+import type { AssetRef } from "./generate";
 
 /**
  * Composition-relative time: seconds (number), frames ("30f"), or a

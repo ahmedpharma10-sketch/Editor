@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { getAssetSpec, isAssetRef } from "@diffusionstudio/ai";
+import { getAssetSpec, isAssetRef } from "@diffusionstudio/jsx";
 import { loadAsset, uploadAsset } from "@/components/engine";
 import {
   PROMPT_INPUT_AUDIO_MODEL_OPTIONS,
@@ -15,7 +15,7 @@ import { assert } from "@/utils";
 import { ElectronFileHandle } from "@/lib/electron-file-handle";
 import { trpc } from "@/lib/trpc";
 
-import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/ai";
+import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
 import type { EngineWorld } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
 

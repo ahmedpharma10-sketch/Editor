@@ -1,7 +1,7 @@
 {
-  "name": "@diffusionstudio/solid",
+  "name": "@diffusionstudio/jsx",
   "version": "0.1.0",
-  "description": "Solid JSX runtime and types for authoring Diffusion Studio compositions — mounted into the editor via `dapi mount`.",
+  "description": "JSX runtime, types, and declarative generated assets (`generate.*`) for authoring Diffusion Studio compositions — mounted into the editor via `dapi mount`.",
   "license": "MPL-2.0",
   "type": "module",
   "sideEffects": false,
@@ -21,11 +21,9 @@
     "diffusion-studio",
     "solid-js",
     "jsx",
+    "generative-ai",
     "video-editing"
   ],
-  "dependencies": {
-    "@diffusionstudio/ai": "*"
-  },
   "peerDependencies": {
     "solid-js": "^1.9.0"
   },

@@ -14,7 +14,7 @@ export default function Project() {
 
 The module's default export is the project component. Solid's control flow (`<For>`, `<Show>`, …) and primitives (`createSignal`, `createMemo`, …) are available to *compose* the tree; the render is one-shot: after commit, the nodes belong to the document and signal changes no longer affect it. The update path is re-running the mount.
 
-**Dependencies:** `solid-js`, `@diffusionstudio/solid`, and `@diffusionstudio/ai` are provided by the app; everything else you import (npm packages, local files, JSON) is bundled by the CLI. Libraries must be browser-compatible.
+**Dependencies:** `solid-js` and `@diffusionstudio/jsx` are provided by the app; everything else you import (npm packages, local files, JSON) is bundled by the CLI. Libraries must be browser-compatible.
 
 ## Roots and keys
 
@@ -184,7 +184,7 @@ A node's fill is a **paint child**; the `fill` prop is shorthand for a solid pai
 Assets that don't exist yet are declared as values with the `generate` namespace and passed wherever a source is expected:
 
 ```tsx
-import { generate } from "@diffusionstudio/ai";
+import { generate } from "@diffusionstudio/jsx";
 
 const hero = generate.image({ prompt: "A neon city at night, cinematic", seed: 42 });
 const motion = generate.video({ prompt: "slow camera push-in", startFrame: hero, duration: 5 });
@@ -227,7 +227,7 @@ Declarations are pure: nothing generates until the mount commits, and refs never
 For IntelliSense and typechecking in a project folder:
 
 ```sh
-npm install --save-dev @diffusionstudio/solid @diffusionstudio/ai solid-js
+npm install --save-dev @diffusionstudio/jsx solid-js
 ```
 
 ```jsonc
@@ -235,7 +235,7 @@ npm install --save-dev @diffusionstudio/solid @diffusionstudio/ai solid-js
 {
   "compilerOptions": {
     "jsx": "preserve",
-    "jsxImportSource": "@diffusionstudio/solid"
+    "jsxImportSource": "@diffusionstudio/jsx"
   }
 }
 ```

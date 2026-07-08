@@ -16,7 +16,7 @@ component tree renders into it.
 
 1. **Compile** — the CLI bundles the entry file with esbuild + `babel-preset-solid`
    in `universal` mode, so JSX compiles against the editor's renderer runtime
-   (`@diffusionstudio/solid`) instead of the DOM. Compile errors fail here, before the
+   (`@diffusionstudio/jsx`) instead of the DOM. Compile errors fail here, before the
    app is contacted.
 2. **Ship** — the resulting single-file ESM bundle is sent to the running app over
    the local socket.
@@ -59,7 +59,7 @@ maps onto is declared in the JSX itself via `key` (see [Roots](#roots)).
 
 - **Provided by the host** (marked external at compile time, resolved in-app so the
   project shares the editor's reactive runtime): `solid-js`, `solid-js/store`,
-  `@diffusionstudio/solid`, `@diffusionstudio/ai`.
+  `@diffusionstudio/jsx`.
 - **Everything else is bundled** by the CLI at compile time — npm dependencies,
   local imports, JSON, etc. A project folder is an ordinary npm package: install
   any helper library (`date-fns`, `zod`, `d3-scale`, …) and import it; it is
@@ -465,13 +465,13 @@ prop; a missing or omitted entry falls back to the slot's default.
 ## Generated assets
 
 Assets that don't exist yet are **declared as values** with the `generate` namespace
-from `@diffusionstudio/ai`. A declaration returns an **`AssetRef`** that is passed
+from `@diffusionstudio/jsx`. A declaration returns an **`AssetRef`** that is passed
 wherever a source is expected — `src`, `startFrame`, `endFrame`, `refs`. This makes
 generative content declarative: the project describes the asset it wants and the
 editor produces it on mount.
 
 ```tsx
-import { generate } from "@diffusionstudio/ai";
+import { generate } from "@diffusionstudio/jsx";
 
 const hero = generate.image({
   prompt: "A neon city at night, cinematic",
@@ -618,15 +618,15 @@ declared in the JSX via the root elements' `key` (see [Roots](#roots)).
 
 ## Types and tooling
 
-`@diffusionstudio/solid` ships the JSX namespace (intrinsic elements and props)
-and `Time`; `@diffusionstudio/ai` ships `AssetRef` and the `generate` namespace. For editor IntelliSense and
+`@diffusionstudio/jsx` ships the JSX namespace (intrinsic elements and props),
+`Time`, `AssetRef`, and the `generate` namespace. For editor IntelliSense and
 typechecking in a project folder:
 
 ```json
 {
   "compilerOptions": {
     "jsx": "preserve",
-    "jsxImportSource": "@diffusionstudio/solid"
+    "jsxImportSource": "@diffusionstudio/jsx"
   }
 }
 ```
@@ -638,8 +638,7 @@ in the project folder for type safety.
 
 ```tsx
 import { For } from "solid-js";
-import { generate } from "@diffusionstudio/ai";
-import type { Time } from "@diffusionstudio/solid";
+import { generate, type Time } from "@diffusionstudio/jsx";
 
 const hero = generate.image({
   prompt: "A neon city at night, cinematic",

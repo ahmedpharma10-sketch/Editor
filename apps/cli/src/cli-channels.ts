@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import type { PatchProps } from "@diffusionstudio/solid";
+import type { PatchProps } from "@diffusionstudio/jsx";
 
 // Wire-level channels for the CLI-forwarding path. Main only knows these two —
 // it does not inspect logical channel names. The renderer mirrors requests
