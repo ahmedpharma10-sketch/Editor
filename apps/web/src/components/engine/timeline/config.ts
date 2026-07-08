@@ -15,10 +15,10 @@ export const TIMELINE_PADDING_LEFT = 8;
 export const CLICK_DISTANCE_THRESHOLD = 5;
 export const DOUBLE_CLICK_THRESHOLD = 500;
 
-export const RULER_HEIGHT = 32;
+export const RULER_HEIGHT = 36;
 export const RULER_TICK_HEIGHT_MAJOR = 9;
 export const RULER_TICK_HEIGHT_MINOR = 3;
-export const RULER_LABEL_Y = 16;
+export const RULER_LABEL_Y = 18;
 
 export const CLIP_CORNER_RADIUS = 4;
 export const CLIP_FONT = '11px Inter';

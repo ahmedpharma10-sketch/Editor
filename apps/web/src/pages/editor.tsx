@@ -7,11 +7,9 @@ import { Canvas } from "@/components/canvas";
 import { Timeline, Layers } from "@/components/timeline";
 import { Soundboard, Inspector } from "@/components/sidebar-right";
 import { FloatingProjectHeader, SidebarLeft } from "@/components/sidebar-left";
-import { Footer } from "@/components/footer";
 import { useLayout, MIN_TIMELINE_HEIGHT } from "@/context/layout";
 import { useElectron } from "@/context/electron";
 
-const FOOTER_HEIGHT = 28;
 const MIN_CANVAS_HEIGHT = 200;
 
 export function EditorPage() {
@@ -23,7 +21,7 @@ export function EditorPage() {
     if (!timelineVisible()) return;
 
     return {
-      'grid-template-rows': `1fr 1px ${timelineHeight()}px 1px ${FOOTER_HEIGHT}px`,
+      'grid-template-rows': `1fr 1px ${timelineHeight()}px`,
     };
   });
 
@@ -38,7 +36,7 @@ export function EditorPage() {
       const deltaY = startY - ev.clientY;
       const maxHeight = Math.max(
         MIN_TIMELINE_HEIGHT,
-        window.innerHeight - MIN_CANVAS_HEIGHT - FOOTER_HEIGHT - 2,
+        window.innerHeight - MIN_CANVAS_HEIGHT - 1,
       );
       const next = Math.max(MIN_TIMELINE_HEIGHT, Math.min(maxHeight, startHeight + deltaY));
       setTimelineHeight(next);
@@ -99,10 +97,6 @@ export function EditorPage() {
       <Show when={timelineVisible()}>
         <div class="bg-border" />
         <Soundboard />
-      </Show>
-      <Show when={timelineVisible()}>
-        <div class="col-span-full bg-border" />
-        <Footer />
       </Show>
       <Show when={!sidebarsVisible()}>
         <FloatingProjectHeader />

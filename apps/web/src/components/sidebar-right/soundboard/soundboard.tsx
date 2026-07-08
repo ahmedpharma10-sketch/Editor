@@ -122,16 +122,18 @@ export function Soundboard() {
   const layerName = (eid: number) => c.Name[eid] ?? `Layer ${eid}`;
 
   return (
-    <div class="flex items-center h-full w-full justify-between p-4">
-      <div class="flex h-full relative">
-        <VolumeControl
-          volume={leftMeterVolume()}
-          disabled={!leftMeterNode()}
-          onVolumeChange={handleLeftMeterVolumeChange}
-        />
-        <VolumeMeter audioNode={leftMeterNode()} />
-        <MeterScale />
-        <div class="absolute inset-x-0 -bottom-4 h-8 translate-y-full flex items-center justify-center">
+    <div class="flex items-stretch h-full w-full justify-between px-4 pt-4 pb-1">
+      <div class="flex flex-col items-center h-full gap-2">
+        <div class="flex flex-1 min-h-0">
+          <VolumeControl
+            volume={leftMeterVolume()}
+            disabled={!leftMeterNode()}
+            onVolumeChange={handleLeftMeterVolumeChange}
+          />
+          <VolumeMeter audioNode={leftMeterNode()} />
+          <MeterScale />
+        </div>
+        <div class="h-6 flex items-center justify-center shrink-0">
           <Show when={leftMeterEid() !== undefined}>
             <Select<number>
               value={leftMeterEid()}
@@ -152,15 +154,17 @@ export function Soundboard() {
           </Show>
         </div>
       </div>
-      <div class="flex h-full relative">
-        <VolumeControl
-          volume={rightMeterVolume()}
-          disabled={!rightMeterNode()}
-          onVolumeChange={handleRightMeterVolumeChange}
-        />
-        <VolumeMeter audioNode={rightMeterNode()} />
-        <MeterScale />
-        <div class="absolute inset-x-0 -bottom-4 h-8 translate-y-full flex items-center justify-center">
+      <div class="flex flex-col items-center h-full gap-2">
+        <div class="flex flex-1 min-h-0">
+          <VolumeControl
+            volume={rightMeterVolume()}
+            disabled={!rightMeterNode()}
+            onVolumeChange={handleRightMeterVolumeChange}
+          />
+          <VolumeMeter audioNode={rightMeterNode()} />
+          <MeterScale />
+        </div>
+        <div class="h-6 flex items-center justify-center shrink-0">
           <Show when={rightMeterEid() !== undefined}>
             <Select<number>
               value={rightMeterEid()}
@@ -181,15 +185,17 @@ export function Soundboard() {
           </Show>
         </div>
       </div>
-      <div class="flex h-full relative">
-        <VolumeControl
-          volume={masterVolume()}
-          disabled={!masterNode()}
-          onVolumeChange={handleMasterVolumeChange}
-        />
-        <VolumeMeter audioNode={masterNode()} />
-        <MeterScale />
-        <div class="absolute inset-x-0 -bottom-4 h-8 translate-y-full flex items-center justify-center">
+      <div class="flex flex-col items-center h-full gap-2">
+        <div class="flex flex-1 min-h-0">
+          <VolumeControl
+            volume={masterVolume()}
+            disabled={!masterNode()}
+            onVolumeChange={handleMasterVolumeChange}
+          />
+          <VolumeMeter audioNode={masterNode()} />
+          <MeterScale />
+        </div>
+        <div class="h-6 flex items-center justify-center shrink-0">
           <span class="text-base text-muted-foreground">Master</span>
         </div>
       </div>
