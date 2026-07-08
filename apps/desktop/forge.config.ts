@@ -40,7 +40,21 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerZIP({}, ['darwin']),
-    new MakerDMG({ name: `Diffusion-Studio-${process.arch}`, icon: './assets/icon.icns' }),
+    new MakerDMG({
+      name: `Diffusion-Studio-${process.arch}`,
+      icon: './assets/icon.icns',
+      // Dark, on-brand window; @2x sibling is picked up automatically for retina.
+      background: './assets/dmg-background.png',
+      iconSize: 120,
+      additionalDMGOptions: {
+        'background-color': '#1c1c1c',
+        window: { size: { width: 658, height: 498 } },
+      },
+      contents: (opts) => [
+        { x: 188, y: 344, type: 'file', path: opts.appPath },
+        { x: 470, y: 344, type: 'link', path: '/Applications' },
+      ],
+    }),
   ],
   publishers: [
     new PublisherGithub({

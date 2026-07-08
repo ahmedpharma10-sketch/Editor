@@ -29,6 +29,18 @@ Local equivalent without publishing: `npm run make --workspace=@diffusionstudio/
 
 The current icon is a placeholder. To replace it: overwrite `apps/desktop/assets/icon.png` with a 1024x1024 PNG (transparent background, artwork on the macOS icon grid, i.e. a rounded square of ~824px centered), then run `npm run make:icns --workspace=@diffusionstudio/desktop` and commit both files. The build uses `assets/icon.icns` for the app bundle and the DMG volume.
 
+## DMG window
+
+The installer window uses a dark, on-brand background with a glowing arrow pointing from the app to the Applications folder. The source is `apps/desktop/assets/dmg-background.svg` (658x498, matching the DMG window size). To regenerate the raster assets after editing the SVG:
+
+```sh
+cd apps/desktop/assets
+rsvg-convert -w 658 -h 498 dmg-background.svg -o dmg-background.png
+rsvg-convert -w 1316 -h 996 dmg-background.svg -o dmg-background@2x.png
+```
+
+`electron-installer-dmg` picks up the `@2x` sibling automatically for retina. Icon positions and window size live in `forge.config.ts` (the `MakerDMG` `contents` / `additionalDMGOptions`); keep them in sync with the arrow placement if you move things.
+
 ## Bundled CLI
 
 `dapi` lives at `Diffusion Studio.app/Contents/Resources/cli/bin/dapi`, a wrapper that runs the CLI bundle on the app's own Electron binary (`ELECTRON_RUN_AS_NODE`). Users get it on their PATH via:
