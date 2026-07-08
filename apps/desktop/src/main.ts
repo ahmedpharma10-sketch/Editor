@@ -7,12 +7,18 @@ import { join } from "node:path";
 import { open, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
+import { updateElectronApp } from "update-electron-app";
 import { startCliServer, stopCliServer, isHeadless } from "./cli-server";
+import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
 
 const DEV_URL = "http://localhost:5173";
 const AUTH_PROTOCOL = "diffusion";
+
+if (app.isPackaged && !process.argv.includes("--hidden")) {
+  updateElectronApp({ repo: "diffusionstudio/editor" });
+}
 
 const openWrites = new Map<string, { handle: FileHandle; path: string }>();
 
@@ -172,6 +178,7 @@ if (app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    setupAppMenu();
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true));
     session.defaultSession.setPermissionCheckHandler(() => true);
     session.defaultSession.setDevicePermissionHandler(() => true);

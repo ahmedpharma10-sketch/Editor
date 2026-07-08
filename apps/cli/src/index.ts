@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { platform, tmpdir } from "node:os";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
+import { version } from "../../../package.json";
 import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
 import { cliAPI, waitForCliSocket } from "./cli-client";
 import { compileProject } from "./compile-project";
@@ -32,7 +33,7 @@ function openApp(target?: string, background = false): void {
     if (isUrl) {
       args.push(target!);
     } else {
-      args.push("-a", APP_NAME);
+      args.push("-a", process.env.DIFFUSION_APP_PATH ?? APP_NAME);
       if (target) args.push(target);
     }
 
@@ -957,7 +958,7 @@ const program = new Command();
 program
   .name("dapi")
   .description("CLI for Diffusion Studio")
-  .version("0.0.0");
+  .version(version);
 
 program
   .command("context")
@@ -1270,4 +1271,7 @@ program
   .option("-n, --names-only", "output only family names (one per line, no variant detail)")
   .action((opts: ListFontsOptions) => listFonts(opts));
 
-program.parse();
+// Explicit argv convention: the packaged wrapper runs this bundle on
+// Electron in ELECTRON_RUN_AS_NODE mode, where commander would otherwise
+// detect Electron and drop the script path from argv.
+program.parse(process.argv, { from: "node" });

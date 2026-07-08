@@ -1,32 +1,38 @@
 {
   "name": "@diffusionstudio/desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.129.0",
   "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/diffusionstudio/editor.git"
+  },
   "main": "dist/main.js",
   "scripts": {
     "build:preload": "esbuild src/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/preload.js",
     "build:main": "esbuild src/main.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/main.js",
     "build": "npm run check && npm run build:main && npm run build:preload",
     "build:web": "npm --prefix ../web run build:desktop",
+    "stage:cli": "npm --prefix ../cli run build && node scripts/stage-cli.mjs",
     "check": "tsc --noEmit",
     "dev": "npm run build && electron-forge start",
-    "package": "npm run build && npm run build:web && electron-forge package",
-    "make": "npm run build && npm run build:web && electron-forge make",
-    "publish": "npm run build && npm run build:web && electron-forge publish"
+    "package": "npm run build && npm run build:web && npm run stage:cli && electron-forge package",
+    "make": "npm run build && npm run build:web && npm run stage:cli && electron-forge make",
+    "publish": "npm run build && npm run build:web && npm run stage:cli && electron-forge publish",
+    "make:icns": "sh scripts/make-icns.sh"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",
-    "@electron-forge/maker-deb": "^7.11.1",
     "@electron-forge/maker-dmg": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.11.1",
     "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/publisher-github": "^7.11.1",
     "@types/node": "^24.10.1",
     "electron": "^35.1.2",
     "esbuild": "^0.28.1",
     "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@diffusionstudio/cli": "*"
+    "@diffusionstudio/cli": "*",
+    "update-electron-app": "^3.0.0"
   }
 }
