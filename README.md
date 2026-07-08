@@ -107,6 +107,8 @@ git clone https://github.com/diffusionstudio/editor.git
 cd editor
 npm install
 
+cp apps/web/.env.example apps/web/.env   # required: the app won't run without it
+
 npm run dev            # editor in the browser (Vite dev server)
 npm run dev:desktop    # editor as a desktop app (Electron)
 ```
