@@ -31,7 +31,7 @@ export async function transcodeForTranscription(asset: Asset): Promise<File> {
   }
 }
 
-export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow) {
+export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & { stripVideo?: boolean }) {
   const blob = await asset.handle.getFile();
   const hasWindow = window?.start !== undefined || window?.end !== undefined;
 
@@ -39,7 +39,7 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow) {
     return { readable: blob.stream() as ReadableStream<Uint8Array<ArrayBuffer>> };
   }
 
-  const isVideo = asset.type === "VIDEO";
+  const isVideo = asset.type === "VIDEO" && !window?.stripVideo;
   const trim = hasWindow ? resolveWindow(asset.duration, window) : undefined;
 
   const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
@@ -64,7 +64,11 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow) {
 
   if (!conversion.isValid || conversion.utilizedTracks.length === 0) {
     input.dispose();
-    throw new Error("Nothing to analyze. The asset has no usable video or audio track.");
+    throw new Error(
+      window?.stripVideo
+        ? "Nothing to analyze. The asset has no audio track; retry without --strip-video."
+        : "Nothing to analyze. The asset has no usable video or audio track.",
+    );
   }
 
   const run = async () => {

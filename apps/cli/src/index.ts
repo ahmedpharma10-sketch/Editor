@@ -532,7 +532,7 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
   }
 }
 
-type AssetAnalyzeOptions = { prompt?: string; start?: string; end?: string };
+type AssetAnalyzeOptions = { prompt?: string; start?: string; end?: string; stripVideo?: boolean };
 
 async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
@@ -545,7 +545,7 @@ async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<voi
   const assetId = await resolveAssetRef(ref);
   const stop = startSpinner("Analyzing asset");
   try {
-    const result = await cliAPI.assetAnalyze(assetId, opts.prompt, start, end);
+    const result = await cliAPI.assetAnalyze(assetId, opts.prompt, start, end, opts.stripVideo);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -1097,6 +1097,7 @@ asset
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .option("--strip-video", "analyze only the audio track of a video; significantly faster since the video stream is not uploaded")
   .action((ref: string, opts: AssetAnalyzeOptions) => assetAnalyze(ref, opts));
 
 const folder = program

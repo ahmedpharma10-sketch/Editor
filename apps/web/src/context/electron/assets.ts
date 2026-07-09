@@ -399,7 +399,7 @@ export function handleAssetVisualize(engine: Accessor<Engine>) {
 }
 
 export function handleAssetAnalyze(engine: Accessor<Engine>) {
-  return async ({ id, prompt, start, end }: AssetAnalyzeRequest): Promise<AssetAnalyzeResult> => {
+  return async ({ id, prompt, start, end, stripVideo }: AssetAnalyzeRequest): Promise<AssetAnalyzeResult> => {
     const { world } = engine();
     const asset = world.assets.get(id);
     assert(asset, `Asset ${id} not found.`);
@@ -407,18 +407,23 @@ export function handleAssetAnalyze(engine: Accessor<Engine>) {
       asset.type === "IMAGE" || asset.type === "AUDIO" || asset.type === "VIDEO",
       `Asset ${id} is not an image, audio, or video asset.`,
     );
+    assert(
+      !stripVideo || asset.type === "AUDIO" || asset.type === "VIDEO",
+      `Asset ${id} is an image; --strip-video requires an audio or video asset.`,
+    );
 
     const hasWindow = start !== undefined || end !== undefined;
+    stripVideo = stripVideo === true && asset.type === "VIDEO";
 
     let contentType = asset.mimeType;
     if (asset.type === "VIDEO") {
-      contentType = "video/mp4";
+      contentType = stripVideo ? "audio/ogg" : "video/mp4";
     } else if (asset.type === "AUDIO") {
       contentType = "audio/ogg";
     }
 
     const window = hasWindow ? `-${start ?? 0}-${end ?? "end"}` : "";
-    const uploadId = `${world.projectId}-${asset.id}-analyze${window}`;
+    const uploadId = `${world.projectId}-${asset.id}-analyze${stripVideo ? "-audio" : ""}${window}`;
     const { uploadUrl, fileRef } = await trpc.getUploadUrl.mutate({
       action: "resumable",
       id: uploadId,
@@ -427,7 +432,7 @@ export function handleAssetAnalyze(engine: Accessor<Engine>) {
 
     // Transcoding pending
     if (uploadUrl) {
-      const transcoder = await transcodeForAnalysis(asset, { start, end });
+      const transcoder = await transcodeForAnalysis(asset, { start, end, stripVideo });
       const sessionUrl = await startResumableSession(uploadUrl, contentType);
       const uploadPromise = uploadResumableStream(transcoder.readable, sessionUrl);
       await transcoder.run?.();

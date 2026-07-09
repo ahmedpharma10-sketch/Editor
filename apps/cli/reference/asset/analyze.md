@@ -8,6 +8,7 @@ Analyzes an image, video, or audio asset with a multimodal model. With no prompt
 - `-p, --prompt <str>`: question or instruction about the asset (optional; defaults to a general description).
 - `-s, --start <time>`: start of the segment to analyze, a `Time` value (optional; default `0`). Timestamps in the analysis are relative to this point. Ignored for images.
 - `-e, --end <time>`: end of the segment to analyze, a `Time` value (optional; default the asset's duration). Ignored for images.
+- `--strip-video`: analyze only the audio track of a video asset (optional). Significantly faster, since the video stream is neither transcoded nor uploaded. No effect on audio assets; errors on images.
 
 ## Output
 

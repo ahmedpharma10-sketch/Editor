@@ -95,8 +95,8 @@ export const cliAPI = {
     cliRequest(CLI_CHANNELS.ASSET_TRANSCRIBE, { id, start, end }, GENERATE_TIMEOUT_MS),
   assetVisualize: (id: string, start?: number, end?: number, scale?: number) =>
     cliRequest(CLI_CHANNELS.ASSET_VISUALIZE, { id, start, end, scale }),
-  assetAnalyze: (id: string, prompt?: string, start?: number, end?: number) =>
-    cliRequest(CLI_CHANNELS.ASSET_ANALYZE, { id, prompt, start, end }, GENERATE_TIMEOUT_MS),
+  assetAnalyze: (id: string, prompt?: string, start?: number, end?: number, stripVideo?: boolean) =>
+    cliRequest(CLI_CHANNELS.ASSET_ANALYZE, { id, prompt, start, end, stripVideo }, GENERATE_TIMEOUT_MS),
   listSelection: () => cliRequest(CLI_CHANNELS.SELECTION_LIST, undefined),
   setSelection: (ids: number[]) => cliRequest(CLI_CHANNELS.SELECTION_SET, { ids }),
   focusSelection: () => cliRequest(CLI_CHANNELS.SELECTION_FOCUS, undefined),
