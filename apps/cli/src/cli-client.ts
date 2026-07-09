@@ -91,8 +91,8 @@ export const cliAPI = {
   deleteFolders: (ids: string[]) => cliRequest(CLI_CHANNELS.FOLDERS_DELETE, { ids }),
   assetProbe: (id: string) => cliRequest(CLI_CHANNELS.ASSET_PROBE, { id }),
   assetFrame: (id: string, times?: number[]) => cliRequest(CLI_CHANNELS.ASSET_FRAME, { id, times }),
-  assetTranscribe: (id: string) =>
-    cliRequest(CLI_CHANNELS.ASSET_TRANSCRIBE, { id }, GENERATE_TIMEOUT_MS),
+  assetTranscribe: (id: string, start?: number, end?: number) =>
+    cliRequest(CLI_CHANNELS.ASSET_TRANSCRIBE, { id, start, end }, GENERATE_TIMEOUT_MS),
   assetVisualize: (id: string, start?: number, end?: number, scale?: number) =>
     cliRequest(CLI_CHANNELS.ASSET_VISUALIZE, { id, start, end, scale }),
   assetAnalyze: (id: string, prompt?: string, start?: number, end?: number) =>

@@ -149,7 +149,7 @@ export type AssetProbeRequest = { id: string };
 export type AssetFrameRequest = { id: string; times?: number[] };
 export type AssetFrameResult = Array<{ time: number; base64: string }>;
 
-export type AssetTranscribeRequest = { id: string };
+export type AssetTranscribeRequest = { id: string; start?: number; end?: number };
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
 export type AssetTranscribeResult = { id: string; segments: TranscriptSegment[] };

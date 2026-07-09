@@ -510,11 +510,20 @@ async function assetProbe(ref: string): Promise<void> {
   }
 }
 
-async function assetTranscribe(ref: string): Promise<void> {
+type AssetTranscribeOptions = { start?: string; end?: string };
+
+async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promise<void> {
+  const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
+  const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
+  if (start !== undefined && end !== undefined && start >= end) {
+    console.error(`--start (${start}s) must be less than --end (${end}s).`);
+    process.exit(1);
+  }
+
   const assetId = await resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await cliAPI.assetTranscribe(assetId);
+    const result = await cliAPI.assetTranscribe(assetId, start, end);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -1058,7 +1067,9 @@ asset
   .command("transcribe")
   .description(`Transcribe the speech in a video or audio asset and print the timed transcript${docs("asset/transcribe")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to add and transcribe")
-  .action((ref: string) => assetTranscribe(ref));
+  .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
+  .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .action((ref: string, opts: AssetTranscribeOptions) => assetTranscribe(ref, opts));
 
 asset
   .command("frame")

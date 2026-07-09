@@ -20,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetsExportRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult } from "@diffusionstudio/cli/channels";
+import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -342,7 +342,7 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
 }
 
 export function handleAssetTranscribe(engine: Accessor<Engine>) {
-  return async ({ id }: { id: string }): Promise<AssetTranscribeResult> => {
+  return async ({ id, start, end }: AssetTranscribeRequest): Promise<AssetTranscribeResult> => {
     const { world } = engine();
     const asset = world.assets.get(id);
     assert(asset, `Asset ${id} not found.`);
@@ -351,24 +351,40 @@ export function handleAssetTranscribe(engine: Accessor<Engine>) {
       `Asset ${id} is not a video or audio asset.`,
     );
 
-    if (asset.transcript) {
-      return { id, segments: asset.transcript };
+    let transcript = asset.transcript;
+    if (!transcript) {
+      const uploadId = crypto.randomUUID();
+      const audioFile = await transcodeForTranscription(asset);
+      const fileRef = await uploadBlob(audioFile, uploadId);
+      if (!fileRef) throw new Error(`Failed to upload asset ${id} for transcription.`);
+
+      ({ results: transcript } = await trpc.transcribe.mutate({ audio: fileRef }));
+      if (!transcript.length || transcript.every((s) => s.words.length === 0)) {
+        throw new Error("No speech detected. The audio does not appear to contain recognizable speech.");
+      }
+
+      await saveAsset(world, { ...asset, transcript });
     }
 
-    const uploadId = crypto.randomUUID();
-    const audioFile = await transcodeForTranscription(asset);
-    const fileRef = await uploadBlob(audioFile, uploadId);
-    if (!fileRef) throw new Error(`Failed to upload asset ${id} for transcription.`);
-
-    const { results: transcript } = await trpc.transcribe.mutate({ audio: fileRef });
-    if (!transcript.length || transcript.every((s) => s.words.length === 0)) {
-      throw new Error("No speech detected. The audio does not appear to contain recognizable speech.");
-    }
-
-    await saveAsset(world, { ...asset, transcript });
-
-    return { id, segments: transcript };
+    return { id, segments: sliceTranscript(transcript, start, end) };
   };
+}
+
+function sliceTranscript(segments: TranscriptSegment[], start?: number, end?: number): TranscriptSegment[] {
+  if (start === undefined && end === undefined) return segments;
+  const from = start ?? 0;
+  const to = end ?? Infinity;
+  const sliced: TranscriptSegment[] = [];
+  for (const segment of segments) {
+    const words = segment.words.filter((w) => w.end > from && w.start < to);
+    if (!words.length) continue;
+    sliced.push(
+      words.length === segment.words.length
+        ? segment
+        : { text: words.map((w) => w.text).join(" "), words },
+    );
+  }
+  return sliced;
 }
 
 export function handleAssetVisualize(engine: Accessor<Engine>) {
