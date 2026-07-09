@@ -141,7 +141,15 @@ class CliBridge {
     } catch (err) {
       reply = { id: req.id, ok: false, error: (err as Error).message };
     }
-    window.desktop?.send(CLI_WIRE.FORWARD_REPLY, reply);
+    try {
+      window.desktop?.send(CLI_WIRE.FORWARD_REPLY, reply);
+    } catch (err) {
+      window.desktop?.send(CLI_WIRE.FORWARD_REPLY, {
+        id: req.id,
+        ok: false,
+        error: `Failed to serialize reply for ${req.channel}: ${(err as Error).message}`,
+      });
+    }
   }
 
   handle<C extends CliRequestChannel>(channel: C, handler: CliHandler<C>): () => void {

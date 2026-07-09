@@ -36,7 +36,7 @@ export function handleAssetsAdd(engine: Accessor<Engine>) {
     const results = settled.map((r, i) =>
       r.status === 'rejected'
         ? { status: "rejected", path: paths[i], error: (r.reason as Error)?.message ?? String(r.reason) }
-        : { status: "fulfilled", ...r.value }
+        : { status: "fulfilled", ...toAssetRecord(r.value) }
     );
     return results;
   }
