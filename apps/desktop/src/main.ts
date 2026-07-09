@@ -45,26 +45,19 @@ function deliverAuthUrl(url: string) {
 async function setFileInputFiles(selector: string, absolutePath: string) {
   if (!mainWindow) throw new Error("No main window");
   const wc = mainWindow.webContents;
-  const wasAttached = wc.debugger.isAttached();
-  if (!wasAttached) wc.debugger.attach("1.3");
-  try {
-    const { root } = await wc.debugger.sendCommand("DOM.getDocument");
-    const { nodeId } = await wc.debugger.sendCommand("DOM.querySelector", {
-      nodeId: root.nodeId,
-      selector,
-    });
-    if (!nodeId) throw new Error(`Selector not found: ${selector}`);
-    await wc.debugger.sendCommand("DOM.setFileInputFiles", {
-      files: [absolutePath],
-      nodeId,
-    });
-  } finally {
-    if (!wasAttached) {
-      try {
-        wc.debugger.detach();
-      } catch { /** ignore */ }
-    }
-  }
+  // Stay attached between calls — attach/detach dominates the cost of a
+  // transfer, and file materialization happens in bursts.
+  if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+  const { root } = await wc.debugger.sendCommand("DOM.getDocument");
+  const { nodeId } = await wc.debugger.sendCommand("DOM.querySelector", {
+    nodeId: root.nodeId,
+    selector,
+  });
+  if (!nodeId) throw new Error(`Selector not found: ${selector}`);
+  await wc.debugger.sendCommand("DOM.setFileInputFiles", {
+    files: [absolutePath],
+    nodeId,
+  });
 }
 
 function createWindow(show = true) {

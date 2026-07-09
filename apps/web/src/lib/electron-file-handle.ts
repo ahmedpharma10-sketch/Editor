@@ -65,17 +65,27 @@ export class ElectronFileHandle {
   readonly name: string;
   readonly path: string;
 
+  private filePromise: Promise<File> | null = null;
+
   constructor(path: string, name?: string) {
     this.path = path;
     this.name = name ?? basename(path);
   }
 
   async getFile(): Promise<File> {
-    // Serialize CDP round-trips: every call shares the same hidden input, and
-    // overlapping setFiles() calls would race on `input.files[0]`.
-    const next = inFlight.then(() => materializeFile(this.path));
-    inFlight = next.catch(() => {});
-    return next;
+    if (!this.filePromise) {
+      // Serialize CDP round-trips: every call shares the same hidden input,
+      // and overlapping setFiles() calls would race on `input.files[0]`.
+      const next = inFlight.then(() => materializeFile(this.path));
+      inFlight = next.catch(() => {});
+      this.filePromise = next;
+      next.catch(this.invalidate.bind(this));
+    }
+    return this.filePromise;
+  }
+
+  invalidate() {
+    this.filePromise = null;
   }
 
   // FileSystemFileHandle shape — ElectronFileHandle is always "granted" because
