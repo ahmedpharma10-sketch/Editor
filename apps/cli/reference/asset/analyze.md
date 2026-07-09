@@ -4,7 +4,7 @@ Analyzes an image, video, or audio asset with a multimodal model. With no prompt
 
 ## Input
 
-- `<id|path>`: an image, audio, or video asset id, or a local file to add and analyze (required).
+- `<id|path>`: an image, audio, or video asset id, or a local file to analyze in place without adding it to the library (required).
 - `-p, --prompt <str>`: question or instruction about the asset (optional; defaults to a general description).
 - `-s, --start <time>`: start of the segment to analyze, a `Time` value (optional; default `0`). Timestamps in the analysis are relative to this point. Ignored for images.
 - `-e, --end <time>`: end of the segment to analyze, a `Time` value (optional; default the asset's duration). Ignored for images.
@@ -15,7 +15,7 @@ Analyzes an image, video, or audio asset with a multimodal model. With no prompt
 One JSON object, the model's answer:
 
 ```ts
-{ id: string; analysis: string }   // id = the analyzed asset id
+{ analysis: string }
 ```
 
 ## Errors

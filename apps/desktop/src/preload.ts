@@ -7,15 +7,12 @@ import type { IpcRendererEvent } from "electron";
 import { MAIN_WIRE } from "./main-channels";
 import { CLI_WIRE } from "@diffusionstudio/cli/channels";
 
-const ALLOWED_RENDERER_TO_MAIN: ReadonlySet<string> = new Set([
-  MAIN_WIRE.REQUEST,
-  CLI_WIRE.FORWARD_REPLY,
-]);
+const ALLOWED_RENDERER_TO_MAIN: ReadonlySet<string> = new Set([MAIN_WIRE.REQUEST]);
 
 const ALLOWED_MAIN_TO_RENDERER: ReadonlySet<string> = new Set([
   MAIN_WIRE.RESPONSE,
   MAIN_WIRE.EVENT,
-  CLI_WIRE.FORWARD_REQ,
+  CLI_WIRE.CONNECT,
 ]);
 
 contextBridge.exposeInMainWorld("desktop", {

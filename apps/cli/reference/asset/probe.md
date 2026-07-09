@@ -4,7 +4,7 @@ Reads the container and per-track technical metadata of an asset; like `ffprobe`
 
 ## Input
 
-- `<id|path>`: an asset id, or a local file to add and probe (required). Any asset type is accepted.
+- `<id|path>`: an asset id, or a local file to probe in place without adding it to the library (required). Any asset type is accepted.
 
 ## Output
 

@@ -11,12 +11,15 @@ import { extname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
 import { version } from "../../../package.json";
 import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
-import { cliAPI, waitForCliSocket } from "./cli-client";
+import { editor, errnoCode, waitForCliSocket, GENERATE_TIMEOUT_MS } from "./cli-client";
 import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { EncoderConfigInput } from "./protocol";
+import type { AssetRef, EncoderConfigInput, NodePatch } from "./protocol";
+
+// Long-running commands (renders, AI generation) override the default 60s.
+const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
 
 const APP_NAME = "Diffusion Studio";
 const PROTOCOL = "diffusion";
@@ -98,7 +101,7 @@ async function openTarget(target: string | undefined, background: boolean): Prom
 }
 
 function handleSocketError(e: unknown): never {
-  const code = (e as NodeJS.ErrnoException).code;
+  const code = errnoCode(e);
   if (code === "ENOENT" || code === "ECONNREFUSED") {
     console.error(`${APP_NAME} is not running. Launch the app first, then retry.`);
   } else {
@@ -141,7 +144,7 @@ async function addAssets(paths: string[], opts: AssetAddOptions): Promise<void> 
   }
 
   try {
-    const results = await cliAPI.addAssets(absolutePaths, opts.folder);
+    const results = await editor.asset.add.mutate({ paths: absolutePaths, folderId: opts.folder });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -151,7 +154,7 @@ async function addAssets(paths: string[], opts: AssetAddOptions): Promise<void> 
 async function listAssets(ids: string[]): Promise<void> {
   try {
     // No ids → every asset in the library; with ids → those specific assets.
-    const results = await cliAPI.listAssets(ids.length ? ids : undefined);
+    const results = await editor.asset.list.query({ ids: ids.length ? ids : undefined });
     let failed = false;
     for (const result of results) {
       if (result.status === "fulfilled") {
@@ -181,7 +184,7 @@ async function assetTree(opts: AssetTreeOptions): Promise<void> {
   }
 
   try {
-    const results = await cliAPI.assetTree(opts.folder, depth);
+    const results = await editor.asset.tree.query({ folderId: opts.folder, depth });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -194,7 +197,7 @@ async function deleteAssets(ids: string[]): Promise<void> {
     process.exit(1);
   }
   try {
-    const results = await cliAPI.deleteAssets(ids);
+    const results = await editor.asset.delete.mutate({ ids });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -209,7 +212,7 @@ async function moveAssets(ids: string[], opts: MoveOptions): Promise<void> {
     process.exit(1);
   }
   try {
-    const results = await cliAPI.moveAssets(ids, opts.to);
+    const results = await editor.asset.move.mutate({ ids, to: opts.to });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -249,7 +252,7 @@ async function exportAssets(ids: string[], opts: AssetExportOptions): Promise<vo
 
   const stop = startSpinner(ids.length > 1 ? "Exporting assets" : "Exporting asset");
   try {
-    const results = await cliAPI.exportAssets(ids, output, isDir);
+    const results = await editor.asset.export.mutate({ ids, output, isDir }, GENERATE);
     stop();
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
@@ -260,7 +263,7 @@ async function exportAssets(ids: string[], opts: AssetExportOptions): Promise<vo
 
 async function listFolders(parentId: string | undefined): Promise<void> {
   try {
-    const results = await cliAPI.listFolders(parentId);
+    const results = await editor.folder.list.query({ parentId });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -271,7 +274,7 @@ type FolderCreateOptions = { parent?: string };
 
 async function createFolder(name: string, opts: FolderCreateOptions): Promise<void> {
   try {
-    const result = await cliAPI.createFolder(name, opts.parent);
+    const result = await editor.folder.create.mutate({ name, parentId: opts.parent });
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -280,7 +283,7 @@ async function createFolder(name: string, opts: FolderCreateOptions): Promise<vo
 
 async function renameFolder(id: string, name: string): Promise<void> {
   try {
-    const result = await cliAPI.renameFolder(id, name);
+    const result = await editor.folder.rename.mutate({ id, name });
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -293,7 +296,7 @@ async function moveFolders(ids: string[], opts: MoveOptions): Promise<void> {
     process.exit(1);
   }
   try {
-    const results = await cliAPI.moveFolders(ids, opts.to);
+    const results = await editor.folder.move.mutate({ ids, to: opts.to });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -306,7 +309,7 @@ async function deleteFolders(ids: string[]): Promise<void> {
     process.exit(1);
   }
   try {
-    const results = await cliAPI.deleteFolders(ids);
+    const results = await editor.folder.delete.mutate({ ids });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -315,7 +318,7 @@ async function deleteFolders(ids: string[]): Promise<void> {
 
 async function listSelection(): Promise<void> {
   try {
-    const results = await cliAPI.listSelection();
+    const results = await editor.selection.list.query();
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -324,7 +327,7 @@ async function listSelection(): Promise<void> {
 
 async function setSelection(ids: string[]): Promise<void> {
   try {
-    const results = await cliAPI.setSelection(parseNodeIds(ids));
+    const results = await editor.selection.set.mutate({ ids: parseNodeIds(ids) });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -333,7 +336,7 @@ async function setSelection(ids: string[]): Promise<void> {
 
 async function focusSelection(): Promise<void> {
   try {
-    const results = await cliAPI.focusSelection();
+    const results = await editor.selection.focus.mutate();
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -343,7 +346,7 @@ async function focusSelection(): Promise<void> {
 async function listNodes(ids: string[]): Promise<void> {
   try {
     // No ids → root scenes; with ids → those specific nodes.
-    const results = await cliAPI.listNodes(ids.length ? parseNodeIds(ids) : undefined);
+    const results = await editor.node.list.query({ ids: ids.length ? parseNodeIds(ids) : undefined });
     let failed = false;
     for (const result of results) {
       if (result.status === "fulfilled") {
@@ -375,7 +378,7 @@ async function nodeTree(id: string | undefined, opts: TreeOptions): Promise<void
   }
 
   try {
-    const results = await cliAPI.nodeTree(eid, depth);
+    const results = await editor.node.tree.query({ id: eid, depth });
     for (const result of results) {
       console.log(JSON.stringify(result));
     }
@@ -403,7 +406,7 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
 
   try {
-    const results = await cliAPI.grepNodes({
+    const results = await editor.node.grep.query({
       pattern,
       ignoreCase: opts.ignoreCase,
       id: eid,
@@ -438,7 +441,7 @@ async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): 
   }
 
   try {
-    const { base64 } = await cliAPI.nodeScreenshot(eid, frame);
+    const { base64 } = await editor.node.screenshot.query({ id: eid, frame });
     const path = join(tmpdir(), `${randomUUID()}.png`);
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path }));
@@ -464,10 +467,10 @@ async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
     }
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
   try {
-    const frames = await cliAPI.assetFrame(assetId, times, resolution);
+    const frames = await editor.asset.frame.query({ ...target, times, resolution });
     for (const { time, base64 } of frames) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -478,8 +481,8 @@ async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
   }
 }
 
-async function resolveAssetRef(ref: string): Promise<string> {
-  if (/^[A-Za-z0-9]+$/.test(ref)) return ref;
+function resolveAssetRef(ref: string): AssetRef {
+  if (/^[A-Za-z0-9]+$/.test(ref)) return { id: ref };
 
   const absPath = isAbsolute(ref) ? ref : resolve(process.cwd(), ref);
   if (!existsSync(absPath)) {
@@ -490,27 +493,14 @@ async function resolveAssetRef(ref: string): Promise<string> {
     console.error(`Not a file: ${absPath}`);
     process.exit(1);
   }
-
-  const stop = startSpinner("Adding asset");
-  try {
-    const [result] = await cliAPI.addAssets([absPath]);
-    stop();
-    if (!result || result.status !== "fulfilled" || typeof result.id !== "string") {
-      console.error(result?.error ?? `Failed to add asset: ${absPath}`);
-      process.exit(1);
-    }
-    return result.id;
-  } catch (e) {
-    stop();
-    handleSocketError(e);
-  }
+  return { path: absPath };
 }
 
 async function assetProbe(ref: string): Promise<void> {
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const stop = startSpinner("Probing asset");
   try {
-    const result = await cliAPI.assetProbe(assetId);
+    const result = await editor.asset.probe.query(target);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -529,10 +519,10 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
     process.exit(1);
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await cliAPI.assetTranscribe(assetId, start, end);
+    const result = await editor.asset.transcribe.query({ ...target, start, end }, GENERATE);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -551,10 +541,13 @@ async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<voi
     process.exit(1);
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const stop = startSpinner("Analyzing asset");
   try {
-    const result = await cliAPI.assetAnalyze(assetId, opts.prompt, start, end, opts.stripVideo);
+    const result = await editor.asset.analyze.query(
+      { ...target, prompt: opts.prompt, start, end, stripVideo: opts.stripVideo },
+      GENERATE,
+    );
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -593,11 +586,11 @@ async function assetVisualize(ref: string, opts: AssetVisualizeOptions): Promise
     }
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
   const stop = startSpinner("Rendering visualization");
   try {
-    const { base64, ...rest } = await cliAPI.assetVisualize(assetId, start, end, scale);
+    const { base64, ...rest } = await editor.asset.visualize.query({ ...target, start, end, scale });
     stop();
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path, ...rest }));
@@ -648,7 +641,7 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
 
   const stop = startSpinner("Mounting project");
   try {
-    const result = await cliAPI.mount({ code });
+    const result = await editor.mount.mutate({ code }, GENERATE);
     stop();
     if (result.status === "rejected") {
       console.error(result.error);
@@ -679,7 +672,7 @@ async function nodeInsert(parentId: string, path: string | undefined, opts: Node
 
   const stop = startSpinner("Inserting entities");
   try {
-    const result = await cliAPI.insertNode({ code, parentId: eid, index });
+    const result = await editor.node.insert.mutate({ code, parentId: eid, index }, GENERATE);
     stop();
     if (result.status === "rejected") {
       console.error(result.error);
@@ -697,7 +690,7 @@ async function deleteNodes(ids: string[]): Promise<void> {
     process.exit(1);
   }
   try {
-    const results = await cliAPI.deleteNodes(parseNodeIds(ids));
+    const results = await editor.node.delete.mutate({ ids: parseNodeIds(ids) });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -762,7 +755,7 @@ async function patchNodes(path: string | undefined, opts: JsonPayloadOptions): P
     process.exit(1);
   }
   try {
-    const results = await cliAPI.patchNodes(payload as Parameters<typeof cliAPI.patchNodes>[0]);
+    const results = await editor.node.patch.mutate({ patches: payload as NodePatch[] });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -775,7 +768,7 @@ async function duplicateNodes(ids: string[]): Promise<void> {
     process.exit(1);
   }
   try {
-    const results = await cliAPI.duplicateNodes(parseNodeIds(ids));
+    const results = await editor.node.duplicate.mutate({ ids: parseNodeIds(ids) });
     for (const result of results) console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -811,7 +804,7 @@ async function nodeRender(
 
   const stop = startSpinner("Rendering scene");
   try {
-    const { path } = await cliAPI.renderNode(output, eid, config);
+    const { path } = await editor.node.render.mutate({ id: eid, output, config }, GENERATE);
     stop();
     console.log(JSON.stringify({ path }));
   } catch (e) {
@@ -822,7 +815,7 @@ async function nodeRender(
 
 async function activeProject(): Promise<void> {
   try {
-    const result = await cliAPI.activeProject();
+    const result = await editor.project.active.query();
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -831,7 +824,7 @@ async function activeProject(): Promise<void> {
 
 async function listProjects(): Promise<void> {
   try {
-    const result = await cliAPI.listProjects();
+    const result = await editor.project.list.query();
     for (const project of result) console.log(JSON.stringify(project));
   } catch (e) {
     handleSocketError(e);
@@ -840,7 +833,7 @@ async function listProjects(): Promise<void> {
 
 async function createProject(name?: string): Promise<void> {
   try {
-    const result = await cliAPI.createProject(name);
+    const result = await editor.project.create.mutate({ name });
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -849,7 +842,7 @@ async function createProject(name?: string): Promise<void> {
 
 async function openProject(id: string): Promise<void> {
   try {
-    const result = await cliAPI.openProject(id);
+    const result = await editor.project.open.mutate({ id });
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -858,7 +851,7 @@ async function openProject(id: string): Promise<void> {
 
 async function deleteProject(id: string): Promise<void> {
   try {
-    const result = await cliAPI.deleteProject(id);
+    const result = await editor.project.delete.mutate({ id });
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -867,7 +860,7 @@ async function deleteProject(id: string): Promise<void> {
 
 async function context(): Promise<void> {
   try {
-    const result = await cliAPI.context();
+    const result = await editor.context.query();
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -876,7 +869,7 @@ async function context(): Promise<void> {
 
 async function whoami(): Promise<void> {
   try {
-    const result = await cliAPI.whoami();
+    const result = await editor.whoami.query();
     console.log(JSON.stringify(result));
   } catch (e) {
     handleSocketError(e);
@@ -910,7 +903,7 @@ async function listModels(type: string | undefined): Promise<void> {
     process.exit(1);
   }
   try {
-    const models = await cliAPI.models({ type: type as "image" | "video" | "audio" | undefined });
+    const models = await editor.models.query({ type: type as "image" | "video" | "audio" | undefined });
     for (const model of models) console.log(JSON.stringify(model));
   } catch (e) {
     handleSocketError(e);
@@ -919,7 +912,7 @@ async function listModels(type: string | undefined): Promise<void> {
 
 async function listVoices(): Promise<void> {
   try {
-    const voices = await cliAPI.voices();
+    const voices = await editor.voices.query();
     for (const voice of voices) console.log(JSON.stringify(voice));
   } catch (e) {
     handleSocketError(e);
@@ -1069,21 +1062,21 @@ asset
 asset
   .command("probe")
   .description(`Read the container and per-track technical metadata of an asset${docs("asset/probe")}`)
-  .argument("<id|path>", "asset id, or a local file to add and probe")
+  .argument("<id|path>", "asset id, or a local file")
   .action((ref: string) => assetProbe(ref));
 
 asset
   .command("transcribe")
   .description(`Transcribe the speech in a video or audio asset and print the timed transcript${docs("asset/transcribe")}`)
-  .argument("<id|path>", "video or audio asset id, or a local file to add and transcribe")
+  .argument("<id|path>", "video or audio asset id, or a local file")
   .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .action((ref: string, opts: AssetTranscribeOptions) => assetTranscribe(ref, opts));
 
 asset
-  .command("frame")
-  .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/frame")}`)
-  .argument("<id|path>", "video asset id, or a local file to add and grab frames from")
+  .command("grab")
+  .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/grab")}`)
+  .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
@@ -1093,7 +1086,7 @@ asset
   .command("visualize")
   .alias("viz")
   .description(`Render a visual preview of an asset (waveform, filmstrip, or thumbnail) to a PNG${docs("asset/visualize")}`)
-  .argument("<id|path>", "image, audio, or video asset id, or a local file to add and visualize")
+  .argument("<id|path>", "image, audio, or video asset id, or a local file to visualize")
   .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .option("-x, --scale <factor>", "scale factor for the thumbnails; smaller thumbnails fit more rows and columns, larger fit fewer (default: 1)")
@@ -1103,7 +1096,7 @@ asset
 asset
   .command("analyze")
   .description(`Analyze an image, audio, or video asset with AI and print a description of its contents${docs("asset/analyze")}`)
-  .argument("<id|path>", "image, audio, or video asset id, or a local file to add and analyze")
+  .argument("<id|path>", "image, audio, or video asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)

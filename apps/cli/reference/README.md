@@ -72,7 +72,7 @@ How the surface is divided:
 - [`dapi asset export`](./asset/export.md): write assets' original bytes to disk
 - [`dapi asset probe`](./asset/probe.md): container and track metadata
 - [`dapi asset transcribe`](./asset/transcribe.md): timed speech transcript
-- [`dapi asset frame`](./asset/frame.md): decode video frames to PNGs
+- [`dapi asset grab`](./asset/grab.md): decode video frames to PNGs
 - [`dapi asset visualize`](./asset/visualize.md): waveform / filmstrip / thumbnail PNG
 - [`dapi asset analyze`](./asset/analyze.md): AI description of an asset
 

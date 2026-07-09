@@ -4,60 +4,33 @@
 
 import type { PatchProps } from "@diffusionstudio/jsx";
 
-// Wire-level channels for the CLI-forwarding path. Main only knows these two —
-// it does not inspect logical channel names. The renderer mirrors requests
-// back onto FORWARD_REPLY, correlated by envelope id.
+// Wire-level channel for the CLI handshake. Each CLI command hosts a
+// short-lived WebSocket server; main's only job is to relay the connect
+// info to the renderer, which then dials the CLI directly. Main never sees
+// request payloads.
 export const CLI_WIRE = {
-  FORWARD_REQ: "cli:fwd:req",
-  FORWARD_REPLY: "cli:fwd:reply",
+  CONNECT: "cli:connect",
 } as const;
 
-// Logical channels — known only to the CLI and renderer. `cli:ping` is a
-// built-in: the renderer's bridge auto-registers it so `waitForCliSocket`
-// can probe end-to-end without depending on an app-level handler.
-export const CLI_CHANNELS = {
-  PING: "cli:ping",
-  CONTEXT: "cli:context",
-  ASSETS_ADD: "cli:assets:add",
-  ASSETS_LIST: "cli:assets:list",
-  ASSET_TREE: "cli:asset:tree",
-  ASSETS_DELETE: "cli:assets:delete",
-  ASSETS_MOVE: "cli:assets:move",
-  ASSETS_EXPORT: "cli:assets:export",
-  FOLDERS_LIST: "cli:folders:list",
-  FOLDER_CREATE: "cli:folder:create",
-  FOLDER_RENAME: "cli:folder:rename",
-  FOLDERS_MOVE: "cli:folders:move",
-  FOLDERS_DELETE: "cli:folders:delete",
-  ASSET_PROBE: "cli:asset:probe",
-  ASSET_FRAME: "cli:asset:frame",
-  ASSET_TRANSCRIBE: "cli:asset:transcribe",
-  ASSET_VISUALIZE: "cli:asset:visualize",
-  ASSET_ANALYZE: "cli:asset:analyze",
-  SELECTION_LIST: "cli:selection:list",
-  SELECTION_SET: "cli:selection:set",
-  SELECTION_FOCUS: "cli:selection:focus",
-  NODE_LIST: "cli:node:list",
-  NODE_TREE: "cli:node:tree",
-  NODE_GREP: "cli:node:grep",
-  NODE_SCREENSHOT: "cli:node:screenshot",
-  MOUNT: "cli:mount",
-  NODE_INSERT: "cli:node:insert",
-  NODE_DELETE: "cli:node:delete",
-  NODE_PATCH: "cli:node:patch",
-  NODE_DUPLICATE: "cli:node:duplicate",
-  NODE_RENDER: "cli:node:render",
-  PROJECT_ACTIVE: "cli:project:active",
-  PROJECT_LIST: "cli:project:list",
-  PROJECT_CREATE: "cli:project:create",
-  PROJECT_DELETE: "cli:project:delete",
-  PROJECT_OPEN: "cli:project:open",
-  MODELS: "cli:models",
-  VOICES: "cli:voices",
-  WHOAMI: "cli:whoami",
-} as const;
+// Sent by the CLI to main over the unix socket, relayed verbatim to the
+// renderer. The token guards the loopback WebSocket server against other
+// local processes racing to connect first.
+export type CliHandshake = { port: number; token: string };
 
-export type CliChannel = (typeof CLI_CHANNELS)[keyof typeof CLI_CHANNELS];
+export type CliHandshakeReply = { ok: true } | { ok: false; error: string };
+
+// One tRPC request/reply pair per WebSocket connection. `path` is the
+// dot-joined procedure path in the renderer's router (e.g. "asset.frame");
+// procedure inputs and outputs are typed end-to-end via the AppRouter type,
+// so the wire envelope stays untyped.
+export type CliRequest = {
+  path: string;
+  input: unknown;
+};
+
+export type CliReply =
+  | { ok: true; data: unknown }
+  | { ok: false; error: string };
 
 export type NodeRef = { id: number; name: string; type: string };
 
@@ -144,23 +117,25 @@ export type EncoderConfigInput = {
 export type NodeRenderRequest = { id?: number; output: string; config?: EncoderConfigInput };
 export type NodeRenderResult = { path: string };
 
-export type AssetProbeRequest = { id: string };
+export type AssetRef = { id: string } | { path: string };
 
-export type AssetFrameRequest = { id: string; times?: number[]; resolution?: number };
+export type AssetProbeRequest = AssetRef;
+
+export type AssetFrameRequest = AssetRef & { times?: number[]; resolution?: number };
 export type AssetFrameResult = Array<{ time: number; base64: string }>;
 
-export type AssetTranscribeRequest = { id: string; start?: number; end?: number };
+export type AssetTranscribeRequest = AssetRef & { start?: number; end?: number };
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
-export type AssetTranscribeResult = { id: string; segments: TranscriptSegment[] };
+export type AssetTranscribeResult = { segments: TranscriptSegment[] };
 
-export type AssetVisualizeRequest = { id: string; start?: number; end?: number; scale?: number };
+export type AssetVisualizeRequest = AssetRef & { start?: number; end?: number; scale?: number };
 export type AssetVisualizeResult = {
   base64: string;
 } & Record<string, unknown>;
 
-export type AssetAnalyzeRequest = { id: string; prompt?: string; start?: number; end?: number; stripVideo?: boolean };
-export type AssetAnalyzeResult = { id: string; analysis?: string; start?: number; end?: number };
+export type AssetAnalyzeRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
+export type AssetAnalyzeResult = { analysis?: string; start?: number; end?: number };
 
 export type GeneratedAsset = { id: string; name: string; type: string };
 
@@ -212,158 +187,3 @@ export type ProjectSummary = {
   lastAccessedAt: string;
 };
 
-export type CliRequestMap = {
-  [CLI_CHANNELS.PING]: { request: void; response: void };
-  [CLI_CHANNELS.CONTEXT]: { request: void; response: any };
-  [CLI_CHANNELS.ASSETS_ADD]: {
-    request: { paths: string[]; folderId?: string };
-    response: any;
-  };
-  [CLI_CHANNELS.ASSETS_LIST]: {
-    request: { ids?: string[] };
-    response: AssetListResult[];
-  };
-  [CLI_CHANNELS.ASSET_TREE]: {
-    request: { folderId?: string; depth?: number };
-    response: AssetTreeEntry[];
-  };
-  [CLI_CHANNELS.ASSETS_DELETE]: { request: { ids: string[] }; response: any };
-  [CLI_CHANNELS.ASSETS_MOVE]: {
-    request: { ids: string[]; to?: string };
-    response: AssetMoveResult[];
-  };
-  [CLI_CHANNELS.ASSETS_EXPORT]: {
-    request: AssetsExportRequest;
-    response: AssetExportResult[];
-  };
-  [CLI_CHANNELS.FOLDERS_LIST]: {
-    request: { parentId?: string };
-    response: FolderInfo[];
-  };
-  [CLI_CHANNELS.FOLDER_CREATE]: {
-    request: { name: string; parentId?: string };
-    response: FolderInfo;
-  };
-  [CLI_CHANNELS.FOLDER_RENAME]: {
-    request: { id: string; name: string };
-    response: FolderInfo;
-  };
-  [CLI_CHANNELS.FOLDERS_MOVE]: {
-    request: { ids: string[]; to?: string };
-    response: FolderMoveResult[];
-  };
-  [CLI_CHANNELS.FOLDERS_DELETE]: {
-    request: { ids: string[] };
-    response: FolderDeleteResult[];
-  };
-  [CLI_CHANNELS.ASSET_PROBE]: {
-    request: AssetProbeRequest;
-    response: unknown;
-  };
-  [CLI_CHANNELS.ASSET_FRAME]: {
-    request: AssetFrameRequest;
-    response: AssetFrameResult;
-  };
-  [CLI_CHANNELS.ASSET_TRANSCRIBE]: {
-    request: AssetTranscribeRequest;
-    response: AssetTranscribeResult;
-  };
-  [CLI_CHANNELS.ASSET_VISUALIZE]: {
-    request: AssetVisualizeRequest;
-    response: AssetVisualizeResult;
-  };
-  [CLI_CHANNELS.ASSET_ANALYZE]: {
-    request: AssetAnalyzeRequest;
-    response: AssetAnalyzeResult;
-  };
-  [CLI_CHANNELS.SELECTION_LIST]: { request: void; response: NodeRef[] };
-  [CLI_CHANNELS.SELECTION_SET]: {
-    request: { ids: number[] };
-    response: NodeRef[];
-  };
-  [CLI_CHANNELS.SELECTION_FOCUS]: { request: void; response: NodeRef[] };
-  [CLI_CHANNELS.NODE_LIST]: {
-    request: { ids?: number[] };
-    response: NodeListResult[];
-  };
-  [CLI_CHANNELS.NODE_TREE]: {
-    request: { id?: number; depth?: number };
-    response: NodeTree[];
-  };
-  [CLI_CHANNELS.NODE_GREP]: {
-    request: NodeGrepRequest;
-    response: NodeGrepResult[];
-  };
-  [CLI_CHANNELS.NODE_SCREENSHOT]: {
-    request: { id?: number; frame?: number };
-    response: { base64: string };
-  };
-  [CLI_CHANNELS.MOUNT]: {
-    request: MountRequest;
-    response: MountResult;
-  };
-  [CLI_CHANNELS.NODE_INSERT]: {
-    request: NodeInsertRequest;
-    response: MountResult;
-  };
-  [CLI_CHANNELS.NODE_DELETE]: {
-    request: { ids: number[] };
-    response: NodeDeleteResult[];
-  };
-  [CLI_CHANNELS.NODE_PATCH]: {
-    request: { patches: NodePatch[] };
-    response: NodePatchResult[];
-  };
-  [CLI_CHANNELS.NODE_DUPLICATE]: {
-    request: { ids: number[] };
-    response: NodeDuplicateResult[];
-  };
-  [CLI_CHANNELS.NODE_RENDER]: {
-    request: NodeRenderRequest;
-    response: NodeRenderResult;
-  };
-  [CLI_CHANNELS.PROJECT_ACTIVE]: {
-    request: void;
-    response: { id: string; name: string } | null;
-  };
-  [CLI_CHANNELS.PROJECT_LIST]: {
-    request: void;
-    response: ProjectSummary[];
-  };
-  [CLI_CHANNELS.PROJECT_CREATE]: {
-    request: { name?: string };
-    response: { id: string; name: string };
-  };
-  [CLI_CHANNELS.PROJECT_DELETE]: {
-    request: { id: string };
-    response: { id: string; name: string };
-  };
-  [CLI_CHANNELS.PROJECT_OPEN]: {
-    request: { id: string };
-    response: { id: string; name: string } | null;
-  };
-  [CLI_CHANNELS.MODELS]: {
-    request: ModelsRequest;
-    response: ModelInfo[];
-  };
-  [CLI_CHANNELS.VOICES]: {
-    request: void;
-    response: VoiceInfo[];
-  };
-  [CLI_CHANNELS.WHOAMI]: {
-    request: void;
-    response: { id: string; email: string; provider: string } | null;
-  };
-};
-
-export type CliRequestChannel = keyof CliRequestMap;
-
-export type CliRequest = {
-  id: string;
-  channel: CliRequestChannel;
-  data: unknown;
-};
-
-export type CliReply =
-  | { id: string; ok: true; data: unknown }
-  | { id: string; ok: false; error: string };

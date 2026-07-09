@@ -293,22 +293,25 @@ export async function loadAsset(
       duration,
       directoryHandle: handle,
     });
-  } else if (mimeType.match(/^image\//)) {
+  }
+
+  const metadata = await probeMediaMetadata(file, mimeType);
+  return saveAsset(world, { ...baseAsset, ...metadata });
+}
+
+/**
+ * Derives the type-specific asset properties (dimensions, duration, tracks)
+ * of a media file.
+ */
+async function probeMediaMetadata(file: Blob, mimeType: string) {
+  if (mimeType.match(/^image\//)) {
     const { width, height } = mimeType === 'image/svg+xml'
       ? await getSvgDimensions(file)
       : await getRasterDimensions(file);
 
-    return saveAsset(world, {
-      ...baseAsset,
-      type: 'IMAGE',
-      width,
-      height,
-    });
+    return { type: 'IMAGE', width, height } as const;
   } else if (mimeType === 'application/json') {
-    return saveAsset(world, {
-      ...baseAsset,
-      type: 'TRANSCRIPT',
-    });
+    return { type: 'TRANSCRIPT' } as const;
   } else if (mimeType.match(/^(audio\/|video\/)/)) {
     const input = new Input({
       formats: ALL_FORMATS,
@@ -325,13 +328,7 @@ export async function loadAsset(
 
       const duration = await trackContentDuration(audioTrack);
 
-      return saveAsset(world, {
-        ...baseAsset,
-        type: 'AUDIO',
-        duration,
-        sampleRate,
-        channels,
-      });
+      return { type: 'AUDIO', duration, sampleRate, channels } as const;
     }
 
     const videoTrack = await input.getPrimaryVideoTrack();
@@ -339,8 +336,7 @@ export async function loadAsset(
     const stats = await videoTrack.computePacketStats();
     const duration = await trackContentDuration(videoTrack);
 
-    return saveAsset(world, {
-      ...baseAsset,
+    return {
       type: 'VIDEO',
       width: videoTrack.displayWidth,
       height: videoTrack.displayHeight,
@@ -349,10 +345,36 @@ export async function loadAsset(
       sampleRate,
       duration,
       channels,
-    });
+    } as const;
   }
 
   assert(false, 'Unsupported file type');
+}
+
+/**
+ * Describes a local file as an ephemeral Asset: full metadata, but no id
+ * allocation and no persistence — the library is never touched. The path
+ * doubles as the id so errors and results name the file.
+ */
+export async function describeFileAsset(handle: ElectronFileHandle): Promise<Asset> {
+  const file = await handle.getFile();
+  const mimeType = await detectMimeType(handle);
+  assert(mimeType, 'Could not detect MIME type');
+
+  return {
+    id: handle.path,
+    hash: `${file.name}-${file.size}-${file.lastModified}`,
+    createdAt: new Date().toISOString(),
+    lastModified: file.lastModified,
+    name: handle.name,
+    mimeType,
+    size: file.size,
+    handle,
+    generationId: null,
+    generationKey: null,
+    folderId: null,
+    ...(await probeMediaMetadata(file, mimeType)),
+  };
 }
 
 /**

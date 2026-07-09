@@ -31,4 +31,4 @@ The canonical internal unit is frames at **30 fps**; all formats are converted o
 | `"MM:SS"` | `"02:30"` | Minutes and seconds. |
 | `"HH:MM:SS"` | `"01:02:30"` | Hours, minutes, seconds. |
 
-CLI flags documented as taking a `Time` value (e.g. `--time` on [`node screenshot`](../node/screenshot.md) and [`asset frame`](../asset/frame.md)) accept the same formats.
+CLI flags documented as taking a `Time` value (e.g. `--time` on [`node screenshot`](../node/screenshot.md) and [`asset grab`](../asset/grab.md)) accept the same formats.
