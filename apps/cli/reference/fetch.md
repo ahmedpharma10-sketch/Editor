@@ -11,8 +11,8 @@ This writes the file to disk only. To pull a downloaded file into the open proje
 ## Options
 
 - `-o, --output <path>`: output file path or directory (yt-dlp `-o` template). Default: yt-dlp's own default template in the current directory.
-- `-f, --format <selector>`: yt-dlp format selector, e.g. `"bv*+ba/b"`.
-- `-a, --audio`: extract audio only (yt-dlp `-x`).
+- `-f, --format <selector>`: yt-dlp format selector, e.g. `"bv*+ba/b"`. Default: prefer mp4/m4a streams and remux the result to `.mp4` (`--merge-output-format mp4`), falling back to the best available if no mp4 source exists.
+- `-a, --audio`: extract audio only (yt-dlp `-x`). Takes precedence over the mp4 default.
 
 ## Passthrough
 

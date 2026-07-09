@@ -1295,7 +1295,7 @@ program
   .description(`Download a video with yt-dlp (must be installed separately)${docs("fetch")}`)
   .argument("<url>", "video or page URL to download")
   .option("-o, --output <path>", "output file path or directory (yt-dlp -o template; default: yt-dlp's default)")
-  .option("-f, --format <selector>", `yt-dlp format selector, e.g. "bv*+ba/b"`)
+  .option("-f, --format <selector>", `yt-dlp format selector (default: prefer mp4), e.g. "bv*+ba/b"`)
   .option("-a, --audio", "extract audio only (yt-dlp -x)")
   .allowExcessArguments()
   .addHelpText("after", `\nForward raw yt-dlp flags after --, e.g. dapi fetch <url> -- --sponsorblock-remove all`)

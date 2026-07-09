@@ -44,7 +44,14 @@ export function fetchVideo(url: string, opts: FetchOptions = {}): Promise<string
 
   const args = ["--quiet", "--no-warnings", "--progress", "--print", "after_move:filepath"];
   if (opts.output) args.push("-o", opts.output);
-  if (opts.format) args.push("-f", opts.format);
+  if (opts.format) {
+    args.push("-f", opts.format);
+  } else if (!opts.audio) {
+    // Default to mp4: prefer mp4/m4a streams, then remux the merged result so
+    // the landed file is a .mp4 even when only WebM/mkv sources were available.
+    // An explicit -f or --audio opts out.
+    args.push("-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b", "--merge-output-format", "mp4");
+  }
   if (opts.audio) args.push("-x");
   if (opts.raw?.length) args.push(...opts.raw);
   args.push(url);
