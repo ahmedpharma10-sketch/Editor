@@ -20,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetFrameRequest, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -297,8 +297,12 @@ export function handleAssetProbe(engine: Accessor<Engine>) {
   };
 }
 
+// Default cap on the pixel count of each decoded frame (384x384). Keeps frames
+// small enough for vision models without the caller having to know the aspect ratio.
+export const DEFAULT_FRAME_PIXEL_BUDGET = 384 * 384;
+
 export function handleAssetFrame(engine: Accessor<Engine>) {
-  return async ({ id, times }: { id: string; times?: number[] }) => {
+  return async ({ id, times, resolution }: AssetFrameRequest) => {
     const { world } = engine();
     const asset = world.assets.get(id);
     assert(asset, `Asset ${id} not found.`);
@@ -309,6 +313,9 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
       assert(t <= asset.duration, `--time ${t}s is past the asset's duration (${asset.duration.toFixed(2)}s).`);
     }
 
+    // A budget of 0 means "native resolution"; anything else caps the pixel count.
+    const budget = resolution ?? DEFAULT_FRAME_PIXEL_BUDGET;
+
     const blob = await asset.handle.getFile();
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
     try {
@@ -318,13 +325,22 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
       // Track timestamps may not start at 0; offset content time by the first.
       const firstTimestamp = (await track.getFirstTimestamp()) ?? 0;
 
+      // Downscale to fit the pixel budget while preserving aspect ratio; setting
+      // only the width lets the sink derive a matching height.
+      const displayWidth = await track.getDisplayWidth();
+      const displayHeight = await track.getDisplayHeight();
+      let width: number | undefined;
+      if (budget > 0 && displayWidth * displayHeight > budget) {
+        width = Math.max(1, Math.round(displayWidth * Math.sqrt(budget / (displayWidth * displayHeight))));
+      }
+
       // Decode in ascending order (the sink's fast path), remember each
       // entry's original slot so output mirrors the requested order.
       const ordered = requested.map((time, index) => ({ time, index })).sort((a, b) => a.time - b.time);
 
       // No pool: each yielded canvas is fresh, so converting to PNG can't race
       // the generator's read-ahead reusing a pooled canvas.
-      const sink = new CanvasSink(track);
+      const sink = new CanvasSink(track, width !== undefined ? { width } : undefined);
       const timestamps = ordered.map(({ time }) => firstTimestamp + time);
 
       const result: Array<{ time: number; base64: string }> = new Array(requested.length);

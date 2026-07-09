@@ -90,7 +90,8 @@ export const cliAPI = {
   moveFolders: (ids: string[], to?: string) => cliRequest(CLI_CHANNELS.FOLDERS_MOVE, { ids, to }),
   deleteFolders: (ids: string[]) => cliRequest(CLI_CHANNELS.FOLDERS_DELETE, { ids }),
   assetProbe: (id: string) => cliRequest(CLI_CHANNELS.ASSET_PROBE, { id }),
-  assetFrame: (id: string, times?: number[]) => cliRequest(CLI_CHANNELS.ASSET_FRAME, { id, times }),
+  assetFrame: (id: string, times?: number[], resolution?: number) =>
+    cliRequest(CLI_CHANNELS.ASSET_FRAME, { id, times, resolution }),
   assetTranscribe: (id: string, start?: number, end?: number) =>
     cliRequest(CLI_CHANNELS.ASSET_TRANSCRIBE, { id, start, end }, GENERATE_TIMEOUT_MS),
   assetVisualize: (id: string, start?: number, end?: number, scale?: number) =>

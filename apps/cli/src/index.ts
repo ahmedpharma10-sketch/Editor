@@ -447,7 +447,7 @@ async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): 
   }
 }
 
-type AssetFrameOptions = { time?: string[]; output?: string };
+type AssetFrameOptions = { time?: string[]; resolution?: string; output?: string };
 
 async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
   let times: number[] | undefined;
@@ -455,10 +455,19 @@ async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
     times = opts.time.map((t) => parseTimeArg(t, "--time"));
   }
 
+  let resolution: number | undefined;
+  if (opts.resolution !== undefined) {
+    resolution = Number(opts.resolution);
+    if (!Number.isInteger(resolution) || resolution < 0) {
+      console.error(`--resolution must be a non-negative integer pixel count, or 0 for native (got "${opts.resolution}")`);
+      process.exit(1);
+    }
+  }
+
   const assetId = await resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
   try {
-    const frames = await cliAPI.assetFrame(assetId, times);
+    const frames = await cliAPI.assetFrame(assetId, times, resolution);
     for (const { time, base64 } of frames) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -1076,6 +1085,7 @@ asset
   .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/frame")}`)
   .argument("<id|path>", "video asset id, or a local file to add and grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
+  .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
   .action((ref: string, opts: AssetFrameOptions) => assetFrame(ref, opts));
 

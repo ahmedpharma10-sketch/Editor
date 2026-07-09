@@ -146,7 +146,7 @@ export type NodeRenderResult = { path: string };
 
 export type AssetProbeRequest = { id: string };
 
-export type AssetFrameRequest = { id: string; times?: number[] };
+export type AssetFrameRequest = { id: string; times?: number[]; resolution?: number };
 export type AssetFrameResult = Array<{ time: number; base64: string }>;
 
 export type AssetTranscribeRequest = { id: string; start?: number; end?: number };
