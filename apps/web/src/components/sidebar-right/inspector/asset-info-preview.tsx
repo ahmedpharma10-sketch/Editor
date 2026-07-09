@@ -10,7 +10,7 @@ import { Icon } from "@/components/ui/icon";
 import { formatDuration } from "@/utils/formatters";
 import { getAudioPeaksAsync } from "@/components/engine/decoders/audio-peaks";
 import { useEngine } from "@/context/engine";
-import { assetsVersion } from "@/components/engine";
+import { assetsVersion, getAssetFile } from "@/components/engine";
 
 import type { Asset, AudioAsset, VideoAsset } from '@/components/engine/db';
 
@@ -30,7 +30,7 @@ export function AssetInfoPreview(props: { asset: Asset }) {
       }
 
       try {
-        const file = await props.asset.handle.getFile();
+        const file = await getAssetFile(props.asset);
         prevObjectUrl = URL.createObjectURL(file);
         return prevObjectUrl;
       } catch {

@@ -7,6 +7,7 @@ import { AsyncMutex } from '@/utils';
 import { assert } from '@/utils';
 import { TimeStretcher } from './time-stretcher';
 import { addComponent } from '../api/events';
+import { getAssetFile } from '../api/assets';
 
 import type { EngineWorld } from '../api/world';
 import type { AudioAsset, VideoAsset } from '../db';
@@ -28,7 +29,7 @@ export function getAudioTrack(source: AudioAsset | VideoAsset) {
 
 	promise = (async () => {
 		try {
-			const blob = await source.handle.getFile();
+			const blob = await getAssetFile(source);
 			const input = new Input({
 				formats: ALL_FORMATS,
 				source: new BlobSource(blob),

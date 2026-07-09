@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { useEngine } from "@/context/engine";
-import { loadAsset } from "@/components/engine";
+import { loadAsset, getAssetFile } from "@/components/engine";
 import { Toolbar } from "./toolbar";
 import { DrawOverlay } from "./draw-overlay";
 import { toast } from "somoto"
@@ -62,7 +62,7 @@ export function Canvas() {
       // one synchronous, undoable transaction.
       let transcriptTrim: { start: number; end: number } | null = null;
       if (asset.type === 'TRANSCRIPT') {
-        const file = await asset.handle.getFile();
+        const file = await getAssetFile(asset);
         const transcript = JSON.parse(await file.text()) as Transcript;
         const lastWord = transcript.at(-1)?.words.at(-1);
         const firstWord = transcript.at(0)?.words.at(0);

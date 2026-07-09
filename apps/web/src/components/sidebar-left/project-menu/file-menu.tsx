@@ -19,7 +19,7 @@ import { nanoid } from "nanoid";
 import { toast } from "somoto";
 import { deleteProject, duplicateProject, DEFAULT_PROJECT_ID } from "@/components/engine/db";
 import { Not } from "bitecs";
-import { ChildOf, isScene, useQuery, loadAsset, changeAssetDirectory, removeAsset } from "@/components/engine";
+import { ChildOf, isScene, useQuery, loadAsset, changeAssetDirectory, removeAsset, getAssetFile } from "@/components/engine";
 import { useProjectId } from "@/hooks/use-project-id";
 import { useEngine } from "@/context/engine";
 import { useExport } from "@/context/export";
@@ -185,7 +185,7 @@ export function FileAssetMenu() {
       const usedNames = new Set<string>();
       await Promise.all(
         all.map(async (asset) => {
-          const file = await asset.handle.getFile();
+          const file = await getAssetFile(asset);
           const base = asset.name.match(/\.[^.]+$/)
             ? asset.name
             : asset.name + mimeTypeToExtension(asset.mimeType);

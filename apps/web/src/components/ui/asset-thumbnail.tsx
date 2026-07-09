@@ -7,7 +7,7 @@ import { Show, For, createResource } from 'solid-js';
 import { cx } from '@/lib/cva';
 import { getAudioPeaksAsync } from '@/components/engine/decoders/audio-peaks';
 import { useEngine } from '@/context/engine';
-import { assetsVersion } from '@/components/engine';
+import { assetsVersion, getAssetFile } from '@/components/engine';
 
 import type { AudioAsset, ImageAsset, VideoAsset } from '@/components/engine/db';
 import type { Asset } from '@/components/engine/db';
@@ -27,7 +27,7 @@ function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
   const [url] = createResource(
     () => `${props.asset.id}:${assetsVersion(engine.world)}`,
     async () => {
-      const objectUrl = URL.createObjectURL(await props.asset.handle.getFile());
+      const objectUrl = URL.createObjectURL(await getAssetFile(props.asset));
       try {
         const image = await new Promise<HTMLImageElement>((resolve, reject) => {
           const img = new Image();
@@ -82,7 +82,7 @@ function VideoThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
     () => `${props.asset.id}:${assetsVersion(engine.world)}`,
     async () => {
       try {
-        const file = await props.asset.handle.getFile();
+        const file = await getAssetFile(props.asset);
 
         const input = new Input({
           formats: ALL_FORMATS,

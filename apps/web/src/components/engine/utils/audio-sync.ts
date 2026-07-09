@@ -4,6 +4,7 @@
 
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
 import { assert } from '@/utils';
+import { getAssetFile } from '../api/assets';
 
 import type { Asset } from '../db';
 
@@ -26,7 +27,7 @@ export type AudioSyncResult = {
 
 // RMS energy envelope of an asset's primary audio track, at `rate` bins/sec.
 async function extractAudioEnvelope(asset: Asset, rate: number): Promise<Float32Array> {
-  const blob = await asset.handle.getFile();
+  const blob = await getAssetFile(asset);
   const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
   try {
     const track = await input.getPrimaryAudioTrack();

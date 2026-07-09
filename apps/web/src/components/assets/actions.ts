@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { toast } from "somoto";
+import { getAssetFile } from "@/components/engine";
 
 import type { Asset } from "@/components/engine/db";
 
@@ -13,7 +14,7 @@ export async function downloadAsset(asset: Asset): Promise<void> {
   let url: string | null = null;
 
   try {
-    const file = await asset.handle.getFile();
+    const file = await getAssetFile(asset);
     url = URL.createObjectURL(file);
 
     const anchor = document.createElement("a");

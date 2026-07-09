@@ -4,11 +4,12 @@
 
 import { ALL_FORMATS, AudioSampleSink, BlobSource, BufferTarget, CanvasSink, Conversion, Input, InputAudioTrack, Mp4OutputFormat, OggOutputFormat, Output, StreamTarget } from 'mediabunny';
 import { assert } from '@/utils';
+import { getAssetFile } from '../api/assets';
 import type { StreamTargetChunk } from 'mediabunny';
 import type { Asset } from '../db';
 
 export async function transcodeForTranscription(asset: Asset): Promise<File> {
-  const blob = await asset.handle.getFile();
+  const blob = await getAssetFile(asset);
   const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
   try {
     const output = new Output({ format: new OggOutputFormat(), target: new BufferTarget() });
@@ -32,7 +33,7 @@ export async function transcodeForTranscription(asset: Asset): Promise<File> {
 }
 
 export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & { stripVideo?: boolean }) {
-  const blob = await asset.handle.getFile();
+  const blob = await getAssetFile(asset);
   const hasWindow = window?.start !== undefined || window?.end !== undefined;
 
   if (!(asset.type === "VIDEO" || asset.type === "AUDIO")) {
@@ -134,7 +135,7 @@ function resolveWindow(duration: number, window?: TimeWindow): { start: number; 
 }
 
 export async function visualizeAsset(asset: Asset, options?: VisualizeOptions): Promise<AssetVisualization> {
-  const blob = await asset.handle.getFile();
+  const blob = await getAssetFile(asset);
   const scale = resolveScale(options?.scale);
 
   if (asset.type === "IMAGE") {

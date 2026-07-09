@@ -6,7 +6,7 @@
 import { onCleanup, onMount } from 'solid-js';
 import { toast } from 'somoto';
 import { useEngine } from '@/context/engine';
-import { secondsToFrames, getNextName, GeometryType, PaintType, createEntity, switchActiveScene, addComponent, appendChild, setComponent, resizeEntity } from '@/components/engine';
+import { secondsToFrames, getNextName, GeometryType, PaintType, createEntity, switchActiveScene, addComponent, appendChild, setComponent, resizeEntity, getAssetFile } from '@/components/engine';
 import { loadAsset } from "@/components/engine";
 import { useTimeline } from '@/context/timeline';
 
@@ -99,7 +99,7 @@ export function Timeline() {
       // must not interleave inside a shared transaction.
       let transcriptTrim: { start: number; end: number } | null = null;
       if (asset.type === 'TRANSCRIPT') {
-        const file = await asset.handle.getFile();
+        const file = await getAssetFile(asset);
         const transcript = JSON.parse(await file.text()) as Transcript;
         const lastWord = transcript.at(-1)?.words.at(-1);
         const firstWord = transcript.at(0)?.words.at(0);

@@ -4,6 +4,7 @@
 
 import { framesToPixels, getRelativeViewport } from "../utils";
 import { CLIP_BREAKPOINTS, CLIP_LABEL_HEIGHT, MAX_CLIP_HEIGHT } from '../config';
+import { getAssetFile } from '../../api/assets';
 
 import type { EngineWorld } from "../../api/world";
 import type { TimelineContext } from "../world";
@@ -140,7 +141,7 @@ async function updateThumbnailCache(asset: ThumbnailAsset, options: ThumbnailOpt
   try {
     if (hash != thumbnailCache.get(asset)?.hash && !decoding) {
       decoding = true;
-      const blob = await asset.handle.getFile();
+      const blob = await getAssetFile(asset);
       const bitmap = await createImageBitmap(blob);
 
       const dpr = window.devicePixelRatio;

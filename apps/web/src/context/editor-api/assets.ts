@@ -6,7 +6,7 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { ElectronWritableFileHandle } from '@/lib/electron-file-writable';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, visualizeAsset, loadAsset, removeAsset, describeFileAsset } from '@/components/engine';
+import { uploadBlob, visualizeAsset, loadAsset, removeAsset, describeFileAsset, getAssetFile } from '@/components/engine';
 import { assert, mimeTypeToExtension } from '@/utils';
 import {
   transcodeForTranscription,
@@ -152,7 +152,7 @@ export function handleAssetsExport(engine: Accessor<Engine>) {
         const asset = world.assets.get(id);
         assert(asset, `Asset ${id} not found.`);
         assert(asset.type !== "SEQUENCE", `Asset ${id} is an image sequence; export is not supported.`);
-        const blob = await asset.handle.getFile();
+        const blob = await getAssetFile(asset);
         const path = isDir
           ? await streamBlobToDir(blob, output, exportFileName(asset))
           : await streamBlobToFile(blob, output);
@@ -249,7 +249,7 @@ export function handleAssetProbe(engine: Accessor<Engine>) {
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
 
-    const blob = await asset.handle.getFile();
+    const blob = await getAssetFile(asset);
     const base = {
       id: asset.id,
       name: asset.name,
@@ -328,7 +328,7 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
     // A budget of 0 means "native resolution"; anything else caps the pixel count.
     const budget = resolution ?? DEFAULT_FRAME_PIXEL_BUDGET;
 
-    const blob = await asset.handle.getFile();
+    const blob = await getAssetFile(asset);
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
     try {
       const track = await input.getPrimaryVideoTrack();

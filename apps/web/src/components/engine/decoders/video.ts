@@ -4,6 +4,7 @@
 
 import { BlobSource, ALL_FORMATS, Input, InputVideoTrack, EncodedPacketSink, EncodedPacket, CanvasSink, type WrappedCanvas } from 'mediabunny';
 import { addComponent } from '../api/events';
+import { getAssetFile } from '../api/assets';
 import { assert } from '@/utils/common';
 import { FrameCache } from './frame-cache';
 
@@ -427,7 +428,7 @@ export class VideoExporter {
 
 	private async initialize() {
 		try {
-			const blob = await this.asset.handle.getFile();
+			const blob = await getAssetFile(this.asset);
 			this.input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
 			const track = await this.input.getPrimaryVideoTrack();
 			assert(track, 'Video track not found');
@@ -510,7 +511,7 @@ export function getVideoTrack(source: VideoAsset) {
 
 	promise = (async () => {
 		try {
-			const blob = await source.handle.getFile();
+			const blob = await getAssetFile(source);
 			const input = new Input({
 				formats: ALL_FORMATS,
 				source: new BlobSource(blob)

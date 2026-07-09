@@ -481,12 +481,36 @@ export async function restoreAssets(world: EngineWorld): Promise<void> {
   invalidateAssets(world);
 }
 
+/** The file-backing handle shared by every asset variant. */
+type AssetHandle = Asset['handle'];
+
+const assetFileCache = new WeakMap<AssetHandle, Promise<File>>();
+
+/**
+ * Returns the File backing an asset, reusing an in-flight or already-resolved
+ * read for the same handle.
+ */
+export function getAssetFile(asset: Pick<Asset, 'handle'>): Promise<File> {
+  const { handle } = asset;
+  const cached = assetFileCache.get(handle);
+  if (cached) return cached;
+
+  const promise = handle.getFile();
+  assetFileCache.set(handle, promise);
+  promise.catch(() => {
+    if (assetFileCache.get(handle) === promise) {
+      assetFileCache.delete(handle);
+    }
+  });
+  return promise;
+}
+
 /** Returns the File/Blob backing an asset, or null if the asset is missing. */
 export async function getAssetBlob(world: EngineWorld, id: string): Promise<Blob | null> {
   const asset = world.assets.get(id);
   if (!asset) return null;
 
-  return await asset.handle.getFile();
+  return await getAssetFile(asset);
 }
 
 /**
@@ -682,7 +706,7 @@ export async function insertAssetInTimeline(world: EngineWorld, asset: Asset, mo
   let transcriptTrim: { start: number; end: number } | null = null;
   if (asset.type === "TRANSCRIPT") {
     // Transcript should be trimmed to the span of recognized words
-    const file = await asset.handle.getFile();
+    const file = await getAssetFile(asset);
     const transcript = JSON.parse(await file.text()) as Transcript;
     const lastWord = transcript.at(-1)?.words.at(-1);
     const firstWord = transcript.at(0)?.words.at(0);

@@ -5,6 +5,7 @@
 import { query } from 'bitecs';
 import { ChildOf } from '../../components/relations';
 import { deleteEntity } from '../../api/entities';
+import { getAssetFile } from '../../api/assets';
 
 import type { Transcript, WordGroup } from '@diffusionstudio/api-contract';
 import type { EngineWorld } from '../../api/world';
@@ -107,7 +108,7 @@ export function splitSequence(sequence: WordGroup): [WordGroup, WordGroup] {
  */
 export async function resolveTranscript(asset: Asset): Promise<Transcript> {
   if (asset.type === 'TRANSCRIPT') {
-    const file = await asset.handle.getFile();
+    const file = await getAssetFile(asset);
     const text = await file.text();
     return JSON.parse(text);
   }

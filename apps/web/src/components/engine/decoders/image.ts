@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { addComponent } from '../api/events';
+import { getAssetFile } from '../api/assets';
 import type { EngineWorld } from '../api/world';
 import type { ImageAsset } from '../db';
 
@@ -37,7 +38,7 @@ export class BitmapImageDecoder implements ImageDecoder {
 		if (this.disposed) return;
 
 		try {
-			const file = await this.asset.handle.getFile();
+			const file = await getAssetFile(this.asset);
 			const result = await createImageBitmap(file);
 			if (this.disposed) {
 				result.close();
@@ -98,7 +99,7 @@ export class ElementImageDecoder implements ImageDecoder {
 		if (this.disposed) return;
 
 		try {
-			const file = await this.asset.handle.getFile();
+			const file = await getAssetFile(this.asset);
 			const url = URL.createObjectURL(file);
 
 			await new Promise<void>((resolve) => {
