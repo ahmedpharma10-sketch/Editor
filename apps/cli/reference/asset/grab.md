@@ -1,10 +1,10 @@
-# `dapi asset frame <id|path>`
+# `dapi asset grab <id|path>`
 
 Decodes one or more frames of a video asset at the given times and writes each to a PNG file; like [`node screenshot`](../node/screenshot.md), but grabs the asset's own pixels at full resolution (unlike `node screenshot`, which captures the composited canvas). Renders locally; no credits.
 
 ## Input
 
-- `<id|path>`: a video asset id, or a local video file to add and grab frames from (required).
+- `<id|path>`: a video asset id, or a local video file to grab frames from in place without adding it to the library (required).
 - `-t, --time <time...>`: one or more timestamps to grab, `Time` values in source/content time (optional; default `0`). Order is preserved in the output regardless of the order given.
 - `-o, --output <dir>`: directory to write the PNGs into (optional; default the system temp directory). Each frame is written as a uuid-named `.png`.
 

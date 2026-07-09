@@ -16,7 +16,7 @@ import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { EncoderConfigInput, NodePatch } from "./protocol";
+import type { AssetRef, EncoderConfigInput, NodePatch } from "./protocol";
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
@@ -467,10 +467,10 @@ async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
     }
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
   try {
-    const frames = await editor.asset.frame.query({ id: assetId, times, resolution });
+    const frames = await editor.asset.frame.query({ ...target, times, resolution });
     for (const { time, base64 } of frames) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -481,8 +481,8 @@ async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
   }
 }
 
-async function resolveAssetRef(ref: string): Promise<string> {
-  if (/^[A-Za-z0-9]+$/.test(ref)) return ref;
+function resolveAssetRef(ref: string): AssetRef {
+  if (/^[A-Za-z0-9]+$/.test(ref)) return { id: ref };
 
   const absPath = isAbsolute(ref) ? ref : resolve(process.cwd(), ref);
   if (!existsSync(absPath)) {
@@ -493,32 +493,14 @@ async function resolveAssetRef(ref: string): Promise<string> {
     console.error(`Not a file: ${absPath}`);
     process.exit(1);
   }
-
-  const stop = startSpinner("Adding asset");
-  try {
-    // The handler types per-item results as a loose union; narrow by hand.
-    const [result] = (await editor.asset.add.mutate({ paths: [absPath] })) as Array<{
-      status: string;
-      id?: unknown;
-      error?: string;
-    }>;
-    stop();
-    if (!result || result.status !== "fulfilled" || typeof result.id !== "string") {
-      console.error(result?.error ?? `Failed to add asset: ${absPath}`);
-      process.exit(1);
-    }
-    return result.id;
-  } catch (e) {
-    stop();
-    handleSocketError(e);
-  }
+  return { path: absPath };
 }
 
 async function assetProbe(ref: string): Promise<void> {
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const stop = startSpinner("Probing asset");
   try {
-    const result = await editor.asset.probe.query({ id: assetId });
+    const result = await editor.asset.probe.query(target);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -537,10 +519,10 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
     process.exit(1);
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await editor.asset.transcribe.query({ id: assetId, start, end }, GENERATE);
+    const result = await editor.asset.transcribe.query({ ...target, start, end }, GENERATE);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -559,11 +541,11 @@ async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<voi
     process.exit(1);
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const stop = startSpinner("Analyzing asset");
   try {
     const result = await editor.asset.analyze.query(
-      { id: assetId, prompt: opts.prompt, start, end, stripVideo: opts.stripVideo },
+      { ...target, prompt: opts.prompt, start, end, stripVideo: opts.stripVideo },
       GENERATE,
     );
     stop();
@@ -604,11 +586,11 @@ async function assetVisualize(ref: string, opts: AssetVisualizeOptions): Promise
     }
   }
 
-  const assetId = await resolveAssetRef(ref);
+  const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
   const stop = startSpinner("Rendering visualization");
   try {
-    const { base64, ...rest } = await editor.asset.visualize.query({ id: assetId, start, end, scale });
+    const { base64, ...rest } = await editor.asset.visualize.query({ ...target, start, end, scale });
     stop();
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path, ...rest }));
@@ -1080,21 +1062,21 @@ asset
 asset
   .command("probe")
   .description(`Read the container and per-track technical metadata of an asset${docs("asset/probe")}`)
-  .argument("<id|path>", "asset id, or a local file to add and probe")
+  .argument("<id|path>", "asset id, or a local file")
   .action((ref: string) => assetProbe(ref));
 
 asset
   .command("transcribe")
   .description(`Transcribe the speech in a video or audio asset and print the timed transcript${docs("asset/transcribe")}`)
-  .argument("<id|path>", "video or audio asset id, or a local file to add and transcribe")
+  .argument("<id|path>", "video or audio asset id, or a local file")
   .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .action((ref: string, opts: AssetTranscribeOptions) => assetTranscribe(ref, opts));
 
 asset
-  .command("frame")
-  .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/frame")}`)
-  .argument("<id|path>", "video asset id, or a local file to add and grab frames from")
+  .command("grab")
+  .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/grab")}`)
+  .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
@@ -1104,7 +1086,7 @@ asset
   .command("visualize")
   .alias("viz")
   .description(`Render a visual preview of an asset (waveform, filmstrip, or thumbnail) to a PNG${docs("asset/visualize")}`)
-  .argument("<id|path>", "image, audio, or video asset id, or a local file to add and visualize")
+  .argument("<id|path>", "image, audio, or video asset id, or a local file to visualize")
   .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .option("-x, --scale <factor>", "scale factor for the thumbnails; smaller thumbnails fit more rows and columns, larger fit fewer (default: 1)")
@@ -1114,7 +1096,7 @@ asset
 asset
   .command("analyze")
   .description(`Analyze an image, audio, or video asset with AI and print a description of its contents${docs("asset/analyze")}`)
-  .argument("<id|path>", "image, audio, or video asset id, or a local file to add and analyze")
+  .argument("<id|path>", "image, audio, or video asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)

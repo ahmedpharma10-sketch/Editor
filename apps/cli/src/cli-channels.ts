@@ -117,23 +117,25 @@ export type EncoderConfigInput = {
 export type NodeRenderRequest = { id?: number; output: string; config?: EncoderConfigInput };
 export type NodeRenderResult = { path: string };
 
-export type AssetProbeRequest = { id: string };
+export type AssetRef = { id: string } | { path: string };
 
-export type AssetFrameRequest = { id: string; times?: number[]; resolution?: number };
+export type AssetProbeRequest = AssetRef;
+
+export type AssetFrameRequest = AssetRef & { times?: number[]; resolution?: number };
 export type AssetFrameResult = Array<{ time: number; base64: string }>;
 
-export type AssetTranscribeRequest = { id: string; start?: number; end?: number };
+export type AssetTranscribeRequest = AssetRef & { start?: number; end?: number };
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
-export type AssetTranscribeResult = { id: string; segments: TranscriptSegment[] };
+export type AssetTranscribeResult = { segments: TranscriptSegment[] };
 
-export type AssetVisualizeRequest = { id: string; start?: number; end?: number; scale?: number };
+export type AssetVisualizeRequest = AssetRef & { start?: number; end?: number; scale?: number };
 export type AssetVisualizeResult = {
   base64: string;
 } & Record<string, unknown>;
 
-export type AssetAnalyzeRequest = { id: string; prompt?: string; start?: number; end?: number; stripVideo?: boolean };
-export type AssetAnalyzeResult = { id: string; analysis?: string; start?: number; end?: number };
+export type AssetAnalyzeRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
+export type AssetAnalyzeResult = { analysis?: string; start?: number; end?: number };
 
 export type GeneratedAsset = { id: string; name: string; type: string };
 

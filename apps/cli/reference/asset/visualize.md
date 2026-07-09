@@ -12,7 +12,7 @@ Tick labels use `HH:MM:SS:FF` timecode (hours, minutes, seconds, frame within th
 
 ## Input
 
-- `<id|path>`: an image, audio, or video asset id, or a local file to add and visualize (required).
+- `<id|path>`: an image, audio, or video asset id, or a local file to visualize in place without adding it to the library (required).
 - `-s, --start <time>`: start of the window to visualize, a `Time` value in source/content time (optional; default `0`). Ignored for images.
 - `-e, --end <time>`: end of the window to visualize, a `Time` value (optional; default the asset's duration). Ignored for images.
 - `-x, --scale <factor>`: scale factor for the thumbnails (optional; default `1`, clamped to `0.25`-`4`). The overall canvas size stays fixed, so smaller thumbnails fit **more rows and columns** (a denser grid sampling more moments) and larger thumbnails fit fewer but show more detail each. For images, scales the output resolution instead (never above the source size).
