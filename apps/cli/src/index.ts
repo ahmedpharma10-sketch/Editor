@@ -987,7 +987,11 @@ const docs = (page: string) => `\nReference: ${DOCS_BASE}/${page}.md`;
 
 program
   .name("dapi")
-  .description(`CLI for Diffusion Studio${docs("README")}`)
+  .description(
+    `CLI for Diffusion Studio — understand, generate, and edit footage.
+Analyze video/audio/images, generate them with AI, and compose video compositions.
+Use for any media analysis, media generation, or video editing task. No ffmpeg needed.${docs("README")}`,
+  )
   .version(version);
 
 program
@@ -1014,7 +1018,9 @@ program
 const asset = program
   .command("asset")
   .alias("a")
-  .description("Manage assets in the open project");
+  .description(
+    "Manage, analyze, and generate assets in the open project — probe and export files, transcribe speech, decode frames, render visual previews, and analyze with VLMs.",
+  );
 
 asset
   .command("add")
