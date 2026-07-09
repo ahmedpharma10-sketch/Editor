@@ -12,19 +12,16 @@ import type {
   MainRequestChannel,
   MainRequestMap,
 } from "@desktop/main-channels";
-import { CLI_CHANNELS, CLI_WIRE } from "@diffusionstudio/cli/channels";
-import type {
-  CliReply,
-  CliRequest,
-  CliRequestChannel,
-  CliRequestMap,
-} from "@diffusionstudio/cli/channels";
+import { CLI_WIRE } from "@diffusionstudio/cli/channels";
+import type { CliHandshake, CliReply, CliRequest } from "@diffusionstudio/cli/channels";
 
 type EventHandler<C extends MainEventChannel> = (data: MainEventMap[C]) => void;
 
-type CliHandler<C extends CliRequestChannel> = (
-  data: CliRequestMap[C]["request"],
-) => CliRequestMap[C]["response"] | Promise<CliRequestMap[C]["response"]>;
+export type ProcedureCaller = (input: unknown) => Promise<unknown>;
+
+// Resolves a dot-joined tRPC procedure path to an invocable, or undefined
+// when the router doesn't own that path.
+export type RouterCaller = (path: string) => ProcedureCaller | undefined;
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -98,73 +95,73 @@ class MainBridge {
 
 export const mainBridge = new MainBridge();
 
-// CLI bridge — answers forwarded CLI requests. Main is opaque to channel names
-// here; it just delivers FORWARD_REQ envelopes and routes our FORWARD_REPLY
-// back to the originating socket by id. Requests for channels whose handler
-// isn't registered yet are queued per-channel and drained on the first
-// `handle()` call — this is how we wait for handlers that mount lazily
-// (e.g. asset/project handlers that only register after sign-in) without an
-// explicit ready signal.
+type PendingCliRequest = { req: CliRequest; ws: WebSocket };
+
+// CLI bridge — answers CLI requests. Each CLI command hosts a short-lived
+// WebSocket server; main relays only the connect info (CLI_WIRE.CONNECT) and
+// we dial the CLI directly, so payloads never pass through main. One request
+// and one reply per connection. The bridge is transport-only: the tRPC
+// router registers as a path resolver, and requests arriving before it
+// mounts (or between remounts on project switches) are held and retried on
+// the next registration — no explicit ready signal needed.
 class CliBridge {
-  private handlers = new Map<CliRequestChannel, CliHandler<CliRequestChannel>>();
-  private queue = new Map<CliRequestChannel, CliRequest[]>();
+  private router: RouterCaller | null = null;
+  private pending: PendingCliRequest[] = [];
 
   constructor() {
-    // Built-in: lets `waitForCliSocket` probe the round-trip without depending
-    // on any app-level handler being registered.
-    this.handlers.set(CLI_CHANNELS.PING, (() => undefined) as CliHandler<CliRequestChannel>);
-
-    // Bind eagerly so FORWARD_REQ arrivals during page bootstrap are caught
-    // rather than silently dropped before any handler registers.
+    // Bind eagerly so CONNECT arrivals during page bootstrap are caught
+    // rather than silently dropped before any router registers.
     if (window.desktop) {
-      window.desktop.on(CLI_WIRE.FORWARD_REQ, (payload) => {
-        void this.dispatch(payload as CliRequest);
+      window.desktop.on(CLI_WIRE.CONNECT, (payload) => {
+        const { port, token } = payload as CliHandshake;
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${token}`);
+        ws.onmessage = (event) => {
+          try {
+            const req = JSON.parse(event.data as string) as CliRequest;
+            void this.dispatch({ req, ws });
+          } catch (err) {
+            console.error("[cli-bridge] malformed CLI request", err);
+            ws.close();
+          }
+        };
       });
     }
   }
 
-  private async dispatch(req: CliRequest): Promise<void> {
-    const handler = this.handlers.get(req.channel);
-    if (!handler) {
-      let q = this.queue.get(req.channel);
-      if (!q) {
-        q = [];
-        this.queue.set(req.channel, q);
-      }
-      q.push(req);
+  private async dispatch(pending: PendingCliRequest): Promise<void> {
+    const { req, ws } = pending;
+    const proc = this.router?.(req.path);
+    if (!proc) {
+      this.pending.push(pending);
       return;
     }
     let reply: CliReply;
     try {
-      const data = await handler(req.data as never);
-      reply = { id: req.id, ok: true, data };
+      const data = await proc(req.input);
+      reply = { ok: true, data };
     } catch (err) {
-      reply = { id: req.id, ok: false, error: (err as Error).message };
+      reply = { ok: false, error: (err as Error).message };
     }
     try {
-      window.desktop?.send(CLI_WIRE.FORWARD_REPLY, reply);
+      ws.send(JSON.stringify(reply));
     } catch (err) {
-      window.desktop?.send(CLI_WIRE.FORWARD_REPLY, {
-        id: req.id,
-        ok: false,
-        error: `Failed to serialize reply for ${req.channel}: ${(err as Error).message}`,
-      });
+      ws.send(
+        JSON.stringify({
+          ok: false,
+          error: `Failed to serialize reply for ${req.path}: ${(err as Error).message}`,
+        }),
+      );
     }
   }
 
-  handle<C extends CliRequestChannel>(channel: C, handler: CliHandler<C>): () => void {
+  register(router: RouterCaller): () => void {
     if (!window.desktop) return () => {};
-    const stored = handler as unknown as CliHandler<CliRequestChannel>;
-    this.handlers.set(channel, stored);
-    const queued = this.queue.get(channel);
-    if (queued) {
-      this.queue.delete(channel);
-      for (const req of queued) void this.dispatch(req);
-    }
+    this.router = router;
+    const held = this.pending;
+    this.pending = [];
+    for (const pending of held) void this.dispatch(pending);
     return () => {
-      if (this.handlers.get(channel) === stored) {
-        this.handlers.delete(channel);
-      }
+      if (this.router === router) this.router = null;
     };
   }
 }

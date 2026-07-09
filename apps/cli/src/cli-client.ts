@@ -3,42 +3,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { connect } from "node:net";
-import { randomUUID } from "node:crypto";
-import { CLI_CHANNELS, SOCKET_PATH } from "./protocol";
-import type {
-  CliReply,
-  CliRequest,
-  CliRequestChannel,
-  CliRequestMap,
-  ModelsRequest,
-  EncoderConfigInput,
-  MountRequest,
-  NodeGrepRequest,
-  NodeInsertRequest,
-  NodePatch,
-} from "./protocol";
+import { randomBytes } from "node:crypto";
+import type { AddressInfo } from "node:net";
+import { WebSocketServer } from "ws";
+import { createTRPCClient, TRPCClientError } from "@trpc/client";
+import type { TRPCLink } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
+import { SOCKET_PATH } from "./protocol";
+import type { CliHandshake, CliHandshakeReply, CliReply, CliRequest } from "./protocol";
+import type { AppRouter } from "../../web/src/context/electron/router";
 
 const DEFAULT_TIMEOUT_MS = 60000;
-const GENERATE_TIMEOUT_MS = 600000;
+export const GENERATE_TIMEOUT_MS = 600000;
 
-export function cliRequest<C extends CliRequestChannel>(
-  channel: C,
-  data: CliRequestMap[C]["request"],
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
-): Promise<CliRequestMap[C]["response"]> {
+// Asks the app (via the unix socket) to have the renderer dial our WebSocket
+// server. Main replies once the connect info has been delivered, so a
+// rejection here means the app is down or the renderer never became ready.
+function requestConnection(handshake: CliHandshake, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const sock = connect(SOCKET_PATH);
     let buf = "";
     let settled = false;
-    const envelope: CliRequest = {
-      id: randomUUID(),
-      channel,
-      data,
-    };
-
-    // Destroy the socket explicitly on completion. Without this, lingering
-    // socket handles (idle timer, half-closed state) can keep the Node event
-    // loop alive past `console.log(result)`, preventing the CLI from exiting.
     const settle = (fn: () => void) => {
       if (settled) return;
       settled = true;
@@ -48,97 +33,129 @@ export function cliRequest<C extends CliRequestChannel>(
 
     sock.setEncoding("utf8");
     sock.setTimeout(timeoutMs, () =>
-      settle(() => reject(new Error("Timed out waiting for response"))),
+      settle(() => reject(new Error("Timed out waiting for the app to accept the connection"))),
     );
-    sock.on("connect", () => sock.end(JSON.stringify(envelope)));
+    sock.on("connect", () => sock.end(JSON.stringify(handshake)));
     sock.on("data", (chunk) => {
       buf += chunk;
     });
     sock.on("end", () => {
-      let reply: CliReply;
+      let reply: CliHandshakeReply;
       try {
-        reply = JSON.parse(buf) as CliReply;
+        reply = JSON.parse(buf) as CliHandshakeReply;
       } catch (e) {
         settle(() => reject(e instanceof Error ? e : new Error(String(e))));
         return;
       }
-      if (reply.ok) {
-        settle(() => resolve(reply.data as CliRequestMap[C]["response"]));
-      } else {
-        settle(() => reject(new Error(reply.error)));
-      }
+      if (reply.ok) settle(resolve);
+      else settle(() => reject(new Error(reply.error)));
     });
     sock.on("error", (err) => settle(() => reject(err)));
   });
 }
 
-export const cliAPI = {
-  context: () => cliRequest(CLI_CHANNELS.CONTEXT, undefined),
-  addAssets: (paths: string[], folderId?: string) =>
-    cliRequest(CLI_CHANNELS.ASSETS_ADD, { paths, folderId }),
-  listAssets: (ids?: string[]) => cliRequest(CLI_CHANNELS.ASSETS_LIST, { ids }),
-  assetTree: (folderId?: string, depth?: number) =>
-    cliRequest(CLI_CHANNELS.ASSET_TREE, { folderId, depth }),
-  deleteAssets: (ids: string[]) => cliRequest(CLI_CHANNELS.ASSETS_DELETE, { ids }),
-  moveAssets: (ids: string[], to?: string) => cliRequest(CLI_CHANNELS.ASSETS_MOVE, { ids, to }),
-  exportAssets: (ids: string[], output: string, isDir: boolean) =>
-    cliRequest(CLI_CHANNELS.ASSETS_EXPORT, { ids, output, isDir }, GENERATE_TIMEOUT_MS),
-  listFolders: (parentId?: string) => cliRequest(CLI_CHANNELS.FOLDERS_LIST, { parentId }),
-  createFolder: (name: string, parentId?: string) =>
-    cliRequest(CLI_CHANNELS.FOLDER_CREATE, { name, parentId }),
-  renameFolder: (id: string, name: string) => cliRequest(CLI_CHANNELS.FOLDER_RENAME, { id, name }),
-  moveFolders: (ids: string[], to?: string) => cliRequest(CLI_CHANNELS.FOLDERS_MOVE, { ids, to }),
-  deleteFolders: (ids: string[]) => cliRequest(CLI_CHANNELS.FOLDERS_DELETE, { ids }),
-  assetProbe: (id: string) => cliRequest(CLI_CHANNELS.ASSET_PROBE, { id }),
-  assetFrame: (id: string, times?: number[], resolution?: number) =>
-    cliRequest(CLI_CHANNELS.ASSET_FRAME, { id, times, resolution }),
-  assetTranscribe: (id: string, start?: number, end?: number) =>
-    cliRequest(CLI_CHANNELS.ASSET_TRANSCRIBE, { id, start, end }, GENERATE_TIMEOUT_MS),
-  assetVisualize: (id: string, start?: number, end?: number, scale?: number) =>
-    cliRequest(CLI_CHANNELS.ASSET_VISUALIZE, { id, start, end, scale }),
-  assetAnalyze: (id: string, prompt?: string, start?: number, end?: number, stripVideo?: boolean) =>
-    cliRequest(CLI_CHANNELS.ASSET_ANALYZE, { id, prompt, start, end, stripVideo }, GENERATE_TIMEOUT_MS),
-  listSelection: () => cliRequest(CLI_CHANNELS.SELECTION_LIST, undefined),
-  setSelection: (ids: number[]) => cliRequest(CLI_CHANNELS.SELECTION_SET, { ids }),
-  focusSelection: () => cliRequest(CLI_CHANNELS.SELECTION_FOCUS, undefined),
-  listNodes: (ids?: number[]) => cliRequest(CLI_CHANNELS.NODE_LIST, { ids }),
-  nodeTree: (id?: number, depth?: number) => cliRequest(CLI_CHANNELS.NODE_TREE, { id, depth }),
-  grepNodes: (req: NodeGrepRequest) => cliRequest(CLI_CHANNELS.NODE_GREP, req),
-  nodeScreenshot: (id?: number, frame?: number) => cliRequest(CLI_CHANNELS.NODE_SCREENSHOT, { id, frame }),
-  mount: (req: MountRequest) => cliRequest(CLI_CHANNELS.MOUNT, req, GENERATE_TIMEOUT_MS),
-  insertNode: (req: NodeInsertRequest) =>
-    cliRequest(CLI_CHANNELS.NODE_INSERT, req, GENERATE_TIMEOUT_MS),
-  deleteNodes: (ids: number[]) => cliRequest(CLI_CHANNELS.NODE_DELETE, { ids }),
-  patchNodes: (patches: NodePatch[]) => cliRequest(CLI_CHANNELS.NODE_PATCH, { patches }),
-  duplicateNodes: (ids: number[]) => cliRequest(CLI_CHANNELS.NODE_DUPLICATE, { ids }),
-  renderNode: (output: string, id?: number, config?: EncoderConfigInput) =>
-    cliRequest(CLI_CHANNELS.NODE_RENDER, { id, output, config }, GENERATE_TIMEOUT_MS),
-  activeProject: () => cliRequest(CLI_CHANNELS.PROJECT_ACTIVE, undefined),
-  listProjects: () => cliRequest(CLI_CHANNELS.PROJECT_LIST, undefined),
-  createProject: (name?: string) => cliRequest(CLI_CHANNELS.PROJECT_CREATE, { name }),
-  deleteProject: (id: string) => cliRequest(CLI_CHANNELS.PROJECT_DELETE, { id }),
-  openProject: (id: string) => cliRequest(CLI_CHANNELS.PROJECT_OPEN, { id }),
-  models: (req: ModelsRequest) => cliRequest(CLI_CHANNELS.MODELS, req),
-  voices: () => cliRequest(CLI_CHANNELS.VOICES, undefined),
-  ping: () => cliRequest(CLI_CHANNELS.PING, undefined),
-  whoami: () => cliRequest(CLI_CHANNELS.WHOAMI, undefined),
-};
+async function transport(request: CliRequest, timeoutMs: number): Promise<unknown> {
+  const token = randomBytes(16).toString("hex");
+  // Frame batches and other base64 replies can exceed ws's 100 MiB default,
+  // so disable the payload cap; the server only lives for one request.
+  const wss = new WebSocketServer({ host: "127.0.0.1", port: 0, maxPayload: 0 });
 
-// Bridges the cold-start gap after launching the app. The `cli:ping` channel
-// is handled by the renderer-side bridge and only completes once main has
-// forwarded the request to a ready renderer — so a single round-trip is
-// enough once the socket is up. The retry loop only handles the brief window
-// before the socket itself binds (ENOENT/ECONNREFUSED).
+  try {
+    const reply = await new Promise<CliReply>((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        settle(() => reject(new Error("Timed out waiting for response")));
+      }, timeoutMs);
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+
+      wss.on("error", (err) => settle(() => reject(err)));
+      wss.on("connection", (ws, req) => {
+        const url = new URL(req.url ?? "/", "ws://127.0.0.1");
+        if (url.searchParams.get("token") !== token) {
+          ws.terminate();
+          return;
+        }
+        ws.on("message", (raw) => {
+          try {
+            const parsed = JSON.parse(raw.toString()) as CliReply;
+            settle(() => resolve(parsed));
+          } catch (e) {
+            settle(() => reject(e instanceof Error ? e : new Error(String(e))));
+          }
+        });
+        ws.on("close", () =>
+          settle(() => reject(new Error("App disconnected before replying"))),
+        );
+        ws.on("error", (err) => settle(() => reject(err)));
+        ws.send(JSON.stringify(request));
+      });
+
+      wss.once("listening", () => {
+        const { port } = wss.address() as AddressInfo;
+        requestConnection({ port, token }, timeoutMs).catch((err) =>
+          settle(() => reject(err instanceof Error ? err : new Error(String(err)))),
+        );
+      });
+    });
+
+    if (reply.ok) return reply.data;
+    throw new Error(reply.error);
+  } finally {
+    // Tear down explicitly so no lingering handles keep the Node event loop
+    // alive past `console.log(result)` and block the CLI from exiting.
+    for (const client of wss.clients) client.terminate();
+    wss.close();
+  }
+}
+
+// Terminating link: each operation runs over its own short-lived WebSocket
+// server that the renderer dials in to. Long-running procedures pass
+// { context: { timeoutMs } } at the call site.
+const cliLink: TRPCLink<AppRouter> =
+  () =>
+  ({ op }) =>
+    observable((observer) => {
+      const timeoutMs =
+        typeof op.context.timeoutMs === "number" ? op.context.timeoutMs : DEFAULT_TIMEOUT_MS;
+      transport({ path: op.path, input: op.input }, timeoutMs)
+        .then((data) => {
+          observer.next({ result: { data } });
+          observer.complete();
+        })
+        .catch((err) => observer.error(TRPCClientError.from(err as Error)));
+      // No cancellation: the CLI process exits when the command settles.
+      return () => {};
+    });
+
+export const editor = createTRPCClient<AppRouter>({ links: [cliLink] });
+
+// Transport failures surface as TRPCClientError wrapping the socket error;
+// unwrap to reach errno codes like ENOENT/ECONNREFUSED.
+export function errnoCode(e: unknown): string | undefined {
+  const cause = (e as { cause?: unknown }).cause;
+  return ((cause ?? e) as NodeJS.ErrnoException).code;
+}
+
+// Bridges the cold-start gap after launching the app. Main only delivers the
+// handshake once the renderer has finished loading, and `ping` is answered
+// by the always-mounted auth router, so a single round-trip proves the app is
+// fully up. The retry loop only handles the brief window before the handshake
+// socket itself binds (ENOENT/ECONNREFUSED).
 export async function waitForCliSocket(timeoutMs = 30000): Promise<void> {
   const start = Date.now();
   let lastError: unknown = null;
   while (Date.now() - start < timeoutMs) {
     try {
-      await cliAPI.ping();
+      await editor.ping.query();
       return;
     } catch (e) {
       lastError = e;
-      const code = (e as NodeJS.ErrnoException).code;
+      const code = errnoCode(e);
       if (code !== "ENOENT" && code !== "ECONNREFUSED") throw e;
       await new Promise((r) => setTimeout(r, 200));
     }

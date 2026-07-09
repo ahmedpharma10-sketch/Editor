@@ -16,12 +16,11 @@ import {
 import { toast } from 'somoto';
 import type { Session, User } from '@supabase/supabase-js';
 import { FREE_CREDITS_QUOTA, type UserData } from '@diffusionstudio/api-contract';
-import { CLI_CHANNELS } from '@diffusionstudio/cli/channels';
 
 import { supabase } from '@/lib/supabase';
 import { trpc } from '@/lib/trpc';
 import { identify, resetIdentity, track } from '@/lib/analytics';
-import { cliBridge, mainBridge } from '@/lib/ipc';
+import { mainBridge } from '@/lib/ipc';
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from '@/utils';
 
@@ -133,22 +132,6 @@ export function AuthProvider(props: { children: JSX.Element }) {
       return data as UserDataSubset;
     },
   );
-
-  onMount(() => {
-    if (!window.desktop) return;
-    // Can't be moved to engine provider otherwise the handler
-    // would not be present if the user is signed out.
-    const unsubscribe = cliBridge.handle(CLI_CHANNELS.WHOAMI, () => {
-      const user = session()?.user;
-      if (!user) return null;
-      return {
-        id: user.id,
-        email: user.email ?? "",
-        provider: user.app_metadata?.provider ?? "unknown",
-      };
-    });
-    onCleanup(unsubscribe);
-  });
 
   onMount(() => {
     if (!window.desktop) return;
