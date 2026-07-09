@@ -4,7 +4,7 @@
 
 import { Assets } from "./assets";
 import { useLayout } from "@/context/layout";
-import { useElectron } from "@/context/electron";
+import { useEditorApi } from "@/context/editor-api";
 import { createSignal, Show } from "solid-js";
 import { Button } from "../ui/button";
 import { Icon } from "../ui/icon";
@@ -26,7 +26,7 @@ export function SidebarLeft() {
 }
 
 export function ElectronHeader() {
-  const { isDesktop, isFullscreen } = useElectron();
+  const { isDesktop, isFullscreen } = useEditorApi();
   const { toggleTimeline, toggleUI } = useLayout();
 
   return (
@@ -111,7 +111,7 @@ export function ProjectHeader(props: ProjectHeaderProps) {
 }
 
 export function FloatingProjectHeader() {
-  const { isDesktop } = useElectron();
+  const { isDesktop } = useEditorApi();
   const { toggleUI } = useLayout();
 
   return (

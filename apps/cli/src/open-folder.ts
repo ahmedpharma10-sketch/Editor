@@ -99,7 +99,7 @@ async function collectSupportedAssets(folderPath: string) {
   return results;
 }
 
-async function ensureFolder(segments: string[], cache: Map<string, string>) {
+async function ensureFolder(segments: string[], cache: Map<string, string>): Promise<string | undefined> {
   if (segments.length === 0) return undefined; // the library root
   const key = segments.join("/");
   const cached = cache.get(key);

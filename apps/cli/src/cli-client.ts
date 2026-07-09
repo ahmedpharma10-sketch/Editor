@@ -11,7 +11,7 @@ import type { TRPCLink } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { SOCKET_PATH } from "./protocol";
 import type { CliHandshake, CliHandshakeReply, CliReply, CliRequest } from "./protocol";
-import type { AppRouter } from "../../web/src/context/electron/router";
+import type { AppRouter } from "../../web/src/context/editor-api";
 
 const DEFAULT_TIMEOUT_MS = 60000;
 export const GENERATE_TIMEOUT_MS = 600000;

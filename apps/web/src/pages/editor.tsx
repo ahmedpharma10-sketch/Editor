@@ -8,13 +8,13 @@ import { Timeline, Layers } from "@/components/timeline";
 import { Soundboard, Inspector } from "@/components/sidebar-right";
 import { FloatingProjectHeader, SidebarLeft } from "@/components/sidebar-left";
 import { useLayout, MIN_TIMELINE_HEIGHT } from "@/context/layout";
-import { useElectron } from "@/context/electron";
+import { useEditorApi } from "@/context/editor-api";
 
 const MIN_CANVAS_HEIGHT = 200;
 
 export function EditorPage() {
   const { sidebarsVisible, timelineVisible, timelineHeight, setTimelineHeight } = useLayout();
-  const { isDesktop, isFullscreen } = useElectron();
+  const { isDesktop, isFullscreen } = useEditorApi();
   const [resizing, setResizing] = createSignal(false);
 
   const timelineStyles = createMemo(() => {
