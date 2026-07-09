@@ -221,7 +221,8 @@ export async function visualizeAsset(asset: Asset, options?: VisualizeOptions): 
       );
     }
 
-    if (audioTrack) {
+    // Skip the waveform when the browser's AudioDecoder can't handle the codec
+    if (audioTrack && await audioTrack.canDecode()) {
       const peaksPerSecond = Math.round(thumbnailWidthInPixels / secondsPerColumn / WAVEFORM_SAMPLE_WIDTH);
       const audioPeaks = await downsampleAudio(audioTrack, { peaksPerSecond, range: [windowStart, windowStart + duration] });
 
@@ -267,6 +268,10 @@ export async function visualizeAsset(asset: Asset, options?: VisualizeOptions): 
     try {
       const audioTrack = await input.getPrimaryAudioTrack();
       assert(audioTrack, "Audio track not found");
+      assert(
+        await audioTrack.canDecode(),
+        `This browser's audio decoder can't handle the "${audioTrack.getCodec() ?? "unknown"}" codec, so no waveform can be rendered.`,
+      );
       const { start: windowStart, duration } = resolveWindow(asset.duration, options);
 
       const waveformHeightInTokens = Math.min(
