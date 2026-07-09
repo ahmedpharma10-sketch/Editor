@@ -8,7 +8,7 @@ import { LayoutProvider } from "@/context/layout";
 import { Dashboard } from '@/components/dashboard';
 import { PromptInputProvider } from "@/context/prompt-input";
 import { EngineProvider } from '@/context/engine';
-import { ElectronProvider } from '@/context/electron';
+import { EditorApiProvider } from '@/context/editor-api';
 import { ExportProvider } from '@/context/export';
 import { useProjectId } from '@/hooks/use-project-id';
 import { useSearchParams } from '@solidjs/router';
@@ -26,7 +26,7 @@ export function HomePage() {
     <Show when={projectId()} keyed>
       {(id) => (
         <EngineProvider projectId={id}>
-          <ElectronProvider>
+          <EditorApiProvider>
             <TimelineProvider>
               <ECSProvider>
                 <ExportProvider>
@@ -41,7 +41,7 @@ export function HomePage() {
                 </ExportProvider>
               </ECSProvider>
             </TimelineProvider>
-          </ElectronProvider>
+          </EditorApiProvider>
         </EngineProvider>
       )}
     </Show>

@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
-import { cliAPI } from "./cli-client";
+import { editor } from "./cli-client";
 
 const MARKER_FILENAME = ".dapi";
 const MARKER_VERSION = 1;
@@ -99,13 +99,13 @@ async function collectSupportedAssets(folderPath: string) {
   return results;
 }
 
-async function ensureFolder(segments: string[], cache: Map<string, string>) {
+async function ensureFolder(segments: string[], cache: Map<string, string>): Promise<string | undefined> {
   if (segments.length === 0) return undefined; // the library root
   const key = segments.join("/");
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
   const parentId = await ensureFolder(segments.slice(0, -1), cache);
-  const folder = await cliAPI.createFolder(segments[segments.length - 1], parentId);
+  const folder = await editor.folder.create.mutate({ name: segments[segments.length - 1]!, parentId });
   cache.set(key, folder.id);
   return folder.id;
 }
@@ -113,7 +113,7 @@ async function ensureFolder(segments: string[], cache: Map<string, string>) {
 async function waitForActiveProject(expectedId: string, timeoutMs = 10000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const active = await cliAPI.activeProject().catch(() => null);
+    const active = await editor.project.active.query().catch(() => null);
     if (active?.id === expectedId) return;
     await new Promise((r) => setTimeout(r, 50));
   }
@@ -131,7 +131,7 @@ export async function openFolder(folderPath: string): Promise<OpenFolderResult> 
   const marker = readMarker(folderPath);
 
   if (marker) {
-    const opened = await cliAPI.openProject(marker.projectId);
+    const opened = await editor.project.open.mutate({ id: marker.projectId });
     if (opened) {
       await waitForActiveProject(opened.id);
       return { project: opened, created: false, imported: 0 };
@@ -140,14 +140,14 @@ export async function openFolder(folderPath: string): Promise<OpenFolderResult> 
   }
 
   const assetDirs = await collectSupportedAssets(folderPath);
-  const project = await cliAPI.createProject(basename(folderPath));
+  const project = await editor.project.create.mutate({ name: basename(folderPath) });
   await waitForActiveProject(project.id);
 
   let imported = 0;
   const folderIds = new Map<string, string>();
   for (const { segments, paths } of assetDirs) {
     const folderId = await ensureFolder(segments, folderIds);
-    const results = await cliAPI.addAssets(paths, folderId);
+    const results = await editor.asset.add.mutate({ paths, folderId });
     if (Array.isArray(results)) {
       imported += results.filter(
         (r: { status?: string }) => r?.status === "fulfilled",

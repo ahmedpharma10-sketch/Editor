@@ -6,7 +6,7 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { ElectronWritableFileHandle } from '@/lib/electron-file-writable';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, visualizeAsset, loadAsset, removeAsset, saveAsset } from '@/components/engine';
+import { uploadBlob, visualizeAsset, loadAsset, removeAsset, describeFileAsset } from '@/components/engine';
 import { assert, mimeTypeToExtension } from '@/utils';
 import {
   transcodeForTranscription,
@@ -20,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetFrameRequest, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetFrameRequest, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetRef, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -217,7 +217,7 @@ async function pumpBlob(
   const reader = blob.stream().getReader();
   let position = 0;
   try {
-    for (;;) {
+    for (; ;) {
       const { done, value } = await reader.read();
       if (done) break;
       await writer.write({ type: "write", data: value, position });
@@ -225,22 +225,33 @@ async function pumpBlob(
     }
     await writer.close();
   } catch (e) {
-    await handle.dispose().catch(() => {});
+    await handle.dispose().catch(() => { });
     throw e;
   }
+}
+
+/**
+ * Resolves a command target: an id looks up the project's asset library, a
+ * path describes the file in place as an ephemeral asset (never added to the
+ * library). Ephemeral assets carry the path as their id.
+ */
+async function resolveAssetRef(world: Engine["world"], ref: AssetRef): Promise<Asset> {
+  if ("path" in ref) return describeFileAsset(new ElectronFileHandle(ref.path));
+  const asset = world.assets.get(ref.id);
+  assert(asset, `Asset ${ref.id} not found.`);
+  return asset;
 }
 
 const PROBE_SAMPLE_PACKETS = 200;
 
 export function handleAssetProbe(engine: Accessor<Engine>) {
-  return async ({ id }: AssetProbeRequest): Promise<unknown> => {
+  return async (req: AssetProbeRequest): Promise<unknown> => {
     const { world } = engine();
-    const asset = world.assets.get(id);
-    assert(asset, `Asset ${id} not found.`);
+    const asset = await resolveAssetRef(world, req);
 
     const blob = await asset.handle.getFile();
     const base = {
-      id,
+      id: asset.id,
       name: asset.name,
       type: asset.type,
       mimeType: asset.mimeType,
@@ -302,10 +313,11 @@ export function handleAssetProbe(engine: Accessor<Engine>) {
 export const DEFAULT_FRAME_PIXEL_BUDGET = 384 * 384;
 
 export function handleAssetFrame(engine: Accessor<Engine>) {
-  return async ({ id, times, resolution }: AssetFrameRequest) => {
+  return async (req: AssetFrameRequest) => {
+    const { times, resolution } = req;
     const { world } = engine();
-    const asset = world.assets.get(id);
-    assert(asset, `Asset ${id} not found.`);
+    const asset = await resolveAssetRef(world, req);
+    const id = asset.id;
     assert(asset.type === "VIDEO", `Asset ${id} is not a video.`);
 
     const requested = times && times.length ? times : [0];
@@ -357,17 +369,20 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
   };
 }
 
+const transcripts = new Map<string, TranscriptSegment[]>();
+
 export function handleAssetTranscribe(engine: Accessor<Engine>) {
-  return async ({ id, start, end }: AssetTranscribeRequest): Promise<AssetTranscribeResult> => {
+  return async (req: AssetTranscribeRequest): Promise<AssetTranscribeResult> => {
+    const { start, end } = req;
     const { world } = engine();
-    const asset = world.assets.get(id);
-    assert(asset, `Asset ${id} not found.`);
+    const asset = await resolveAssetRef(world, req);
+    const id = asset.id;
     assert(
       asset.type === "AUDIO" || asset.type === "VIDEO",
       `Asset ${id} is not a video or audio asset.`,
     );
 
-    let transcript = asset.transcript;
+    let transcript = transcripts.get(asset.hash);
     if (!transcript) {
       const uploadId = crypto.randomUUID();
       const audioFile = await transcodeForTranscription(asset);
@@ -379,10 +394,10 @@ export function handleAssetTranscribe(engine: Accessor<Engine>) {
         throw new Error("No speech detected. The audio does not appear to contain recognizable speech.");
       }
 
-      await saveAsset(world, { ...asset, transcript });
+      transcripts.set(asset.hash, transcript);
     }
 
-    return { id, segments: sliceTranscript(transcript, start, end) };
+    return { segments: sliceTranscript(transcript, start, end) };
   };
 }
 
@@ -406,8 +421,7 @@ function sliceTranscript(segments: TranscriptSegment[], start?: number, end?: nu
 export function handleAssetVisualize(engine: Accessor<Engine>) {
   return async (req: AssetVisualizeRequest): Promise<AssetVisualizeResult> => {
     const { world } = engine();
-    const asset = world.assets.get(req.id);
-    assert(asset, `Asset ${req.id} not found.`);
+    const asset = await resolveAssetRef(world, req);
     const { dataUrl, ...rest } = await visualizeAsset(asset, { start: req.start, end: req.end, scale: req.scale });
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
     return { base64, ...rest };
@@ -415,10 +429,12 @@ export function handleAssetVisualize(engine: Accessor<Engine>) {
 }
 
 export function handleAssetAnalyze(engine: Accessor<Engine>) {
-  return async ({ id, prompt, start, end, stripVideo }: AssetAnalyzeRequest): Promise<AssetAnalyzeResult> => {
+  return async (req: AssetAnalyzeRequest): Promise<AssetAnalyzeResult> => {
+    const { prompt, start, end } = req;
+    let { stripVideo } = req;
     const { world } = engine();
-    const asset = world.assets.get(id);
-    assert(asset, `Asset ${id} not found.`);
+    const asset = await resolveAssetRef(world, req);
+    const id = asset.id;
     assert(
       asset.type === "IMAGE" || asset.type === "AUDIO" || asset.type === "VIDEO",
       `Asset ${id} is not an image, audio, or video asset.`,
@@ -439,7 +455,9 @@ export function handleAssetAnalyze(engine: Accessor<Engine>) {
     }
 
     const window = hasWindow ? `-${start ?? 0}-${end ?? "end"}` : "";
-    const uploadId = `${world.projectId}-${asset.id}-analyze${stripVideo ? "-audio" : ""}${window}`;
+    const key = world.assets.has(id) ? id : asset.hash;
+    const uploadId = `${world.projectId}-${key}-analyze${stripVideo ? "-audio" : ""}${window}`
+      .replace(/[^A-Za-z0-9._-]/g, "_");
     const { uploadUrl, fileRef } = await trpc.getUploadUrl.mutate({
       action: "resumable",
       id: uploadId,
@@ -457,7 +475,7 @@ export function handleAssetAnalyze(engine: Accessor<Engine>) {
 
     const { analysis } = await trpc.analyze.mutate({ media: fileRef, prompt });
 
-    return { id, analysis, start, end };
+    return { analysis, start, end };
   };
 }
 

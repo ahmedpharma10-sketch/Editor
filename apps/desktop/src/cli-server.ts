@@ -5,15 +5,16 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { createServer } from "node:net";
 import type { Server, Socket } from "node:net";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow } from "electron";
 import { CLI_WIRE, SOCKET_PATH } from "@diffusionstudio/cli/protocol";
-import type { CliReply, CliRequest } from "@diffusionstudio/cli/protocol";
+import type { CliHandshake, CliHandshakeReply } from "@diffusionstudio/cli/protocol";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
 
 let cliServer: Server | null = null;
 let currentWindow: BrowserWindow | null = null;
 let headless = false;
+let windowLifecycleBound = false;
 
 export function isHeadless(): boolean {
   return headless;
@@ -25,17 +26,6 @@ function enableHeadless(): void {
   if (currentWindow && !currentWindow.isDestroyed()) {
     mainBridge.emit(currentWindow, MAIN_CHANNELS.HEADLESS_MODE, { active: true });
   }
-}
-
-const pending = new Map<string, Socket>();
-let forwardListenerBound = false;
-let windowLifecycleBound = false;
-
-function resetRenderer(reason: string): void {
-  for (const [id, sock] of pending) {
-    finish(id, { id, ok: false, error: reason }, sock);
-  }
-  pending.clear();
 }
 
 // Resolves once the current window has finished loading.
@@ -78,69 +68,40 @@ function waitForRendererReady(timeoutMs = 30000): Promise<void> {
   });
 }
 
-function attachWindowLifecycle(window: BrowserWindow): void {
-  currentWindow = window;
-
-  window.webContents.on("did-start-loading", () => resetRenderer("Renderer reloading"));
-  window.webContents.on("render-process-gone", () => resetRenderer("Renderer crashed"));
-  window.on("closed", () => {
-    if (currentWindow === window) {
-      currentWindow = null;
-    }
-    resetRenderer("Window closed");
-  });
-}
-
 function bindWindowLifecycle(): void {
   if (windowLifecycleBound) return;
   windowLifecycleBound = true;
-  app.on("browser-window-created", (_event, window) => attachWindowLifecycle(window));
+  app.on("browser-window-created", (_event, window) => {
+    currentWindow = window;
+    window.on("closed", () => {
+      if (currentWindow === window) currentWindow = null;
+    });
+  });
   // Catch any window that was created before the server started.
-  for (const window of BrowserWindow.getAllWindows()) {
-    attachWindowLifecycle(window);
-  }
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) currentWindow = windows[windows.length - 1]!;
 }
 
-function finish(id: string, reply: CliReply, sock?: Socket): void {
-  const target = sock ?? pending.get(id);
-  if (!target) return;
-  pending.delete(id);
-  if (!target.destroyed) target.end(JSON.stringify(reply));
-}
-
-function bindForwardListener(): void {
-  if (forwardListenerBound) return;
-  forwardListenerBound = true;
-  ipcMain.on(CLI_WIRE.FORWARD_REPLY, (_event, reply: CliReply) => {
-    finish(reply.id, reply);
-  });
-}
-
-async function forwardToRenderer(req: CliRequest, sock: Socket): Promise<void> {
-  pending.set(req.id, sock);
-  sock.once("close", () => {
-    // CLI hung up before we could reply — drop the entry so a late reply is
-    // discarded rather than written to a destroyed socket.
-    if (pending.get(req.id) === sock) {
-      pending.delete(req.id);
-    }
-  });
-
+// Relays the CLI's connect info to the renderer, which dials the CLI's
+// WebSocket server directly. The reply confirms delivery only; from there
+// the request/response traffic bypasses main entirely.
+async function deliverHandshake(handshake: CliHandshake, sock: Socket): Promise<void> {
+  let reply: CliHandshakeReply;
   try {
     await waitForRendererReady();
     if (!currentWindow || currentWindow.isDestroyed()) {
       throw new Error("No window");
     }
-
-    currentWindow.webContents.send(CLI_WIRE.FORWARD_REQ, req);
+    currentWindow.webContents.send(CLI_WIRE.CONNECT, handshake);
+    reply = { ok: true };
   } catch (err) {
-    finish(req.id, { id: req.id, ok: false, error: (err as Error).message });
+    reply = { ok: false, error: (err as Error).message };
   }
+  if (!sock.destroyed) sock.end(JSON.stringify(reply));
 }
 
 export function startCliServer() {
   cleanupStaleSocket();
-  bindForwardListener();
   bindWindowLifecycle();
 
   cliServer = createServer({ allowHalfOpen: true }, (sock: Socket) => {
@@ -153,14 +114,17 @@ export function startCliServer() {
     });
     sock.on("end", async () => {
       sock.setTimeout(0);
-      let req: CliRequest;
+      let handshake: CliHandshake;
       try {
-        req = JSON.parse(buf) as CliRequest;
+        handshake = JSON.parse(buf) as CliHandshake;
+        if (typeof handshake.port !== "number" || typeof handshake.token !== "string") {
+          throw new Error("Malformed handshake");
+        }
       } catch {
-        sock.end(JSON.stringify({ id: "unknown", ok: false, error: "Invalid JSON request" }));
+        sock.end(JSON.stringify({ ok: false, error: "Invalid handshake" }));
         return;
       }
-      await forwardToRenderer(req, sock);
+      await deliverHandshake(handshake, sock);
     });
     sock.on("error", () => {
       // Client hung up; nothing to do.
