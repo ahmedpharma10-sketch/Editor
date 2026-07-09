@@ -50,10 +50,10 @@ rsvg-convert -w 1316 -h 996 dmg-background.svg -o dmg-background@2x.png
 
 ## Homebrew cask
 
-Lives in a tap repo (e.g. `diffusionstudio/homebrew-tap`, file `Casks/diffusion-studio.rb`). Update `version` and `sha256` (`shasum -a 256 <dmg>`) per release, or wire up a bump automation later.
+Lives in a tap repo (e.g. `diffusionstudio/homebrew-tap`, file `Casks/editor.rb`). Update `version` and `sha256` (`shasum -a 256 <dmg>`) per release, or wire up a bump automation later.
 
 ```ruby
-cask "diffusion-studio" do
+cask "editor" do
   version "0.129.0"
   sha256 "REPLACE_WITH_DMG_SHA256"
 
@@ -77,4 +77,4 @@ cask "diffusion-studio" do
 end
 ```
 
-Install: `brew install --cask diffusionstudio/tap/diffusion-studio`.
+Install: `brew install --cask diffusionstudio/tap/editor`.
