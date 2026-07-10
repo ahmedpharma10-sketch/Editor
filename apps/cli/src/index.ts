@@ -531,7 +531,7 @@ async function mediaTranscribe(ref: string, opts: MediaTranscribeOptions): Promi
   }
 }
 
-type MediaListenOptions = { prompt?: string; start?: string; end?: string };
+type MediaListenOptions = { prompt?: string; start?: string; end?: string; keepVideo?: boolean };
 
 async function mediaListen(ref: string, opts: MediaListenOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
@@ -545,7 +545,7 @@ async function mediaListen(ref: string, opts: MediaListenOptions): Promise<void>
   const stop = startSpinner("Analyzing asset");
   try {
     const result = await editor.media.listen.query(
-      { ...target, prompt: opts.prompt, start, end, stripVideo: true },
+      { ...target, prompt: opts.prompt, start, end, stripVideo: !opts.keepVideo },
       GENERATE,
     );
     stop();
@@ -1108,11 +1108,13 @@ media
 
 media
   .command("listen")
-  .description(`Audio-only: prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video, but only the audio track is analyzed${docs("media/listen")}`)
+  .alias("watch")
+  .description(`Prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video, by default only the audio track is analyzed${docs("media/listen")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
-  .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: media duration)`)
+  .option("--keep-video", "keep the video track instead of stripping it to audio (expensive: requires a full video upload)")
   .action((ref: string, opts: MediaListenOptions) => mediaListen(ref, opts));
 
 const folder = program
