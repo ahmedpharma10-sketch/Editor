@@ -72,7 +72,7 @@ export class VideoBuffer {
 
 			this.cache.rotation = videoTrack.rotation;
 			this.packetSink = new EncodedPacketSink(videoTrack);
-			this.firstPacketTimestamp = await videoTrack.getFirstTimestamp() ?? 0;
+			this.firstPacketTimestamp = Math.max(0, await videoTrack.getFirstTimestamp() ?? 0);
 			this.lastFrameIndex = Math.max(0, Math.round(this.asset.duration * this.asset.frameRate) - 1);
 			this.isDirty = true;
 		} catch (e) {
@@ -432,7 +432,9 @@ export class VideoExporter {
 			this.input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
 			const track = await this.input.getPrimaryVideoTrack();
 			assert(track, 'Video track not found');
-			this.firstTimestamp = await track.getFirstTimestamp() ?? 0;
+			// See VideoBuffer.initialize: clamp so an edit-list head trim (negative first
+			// timestamp) doesn't offset every exported frame relative to the audio.
+			this.firstTimestamp = Math.max(0, await track.getFirstTimestamp() ?? 0);
 			this.canvasSink = new CanvasSink(track, { poolSize: 2 });
 		} catch (e) {
 			console.error('Error initializing video exporter', e);

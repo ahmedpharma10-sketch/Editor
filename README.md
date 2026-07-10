@@ -76,7 +76,7 @@ dapi node screenshot                                     # see the canvas itself
 | `dapi open` | Launch the app, open a file, or turn a folder of footage into a project |
 | `dapi context` | Summary of the open project: scenes, playhead, fonts |
 | `dapi mount` | Compile and mount a JSX composition |
-| `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `export` |
+| `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `render` |
 | `dapi asset …` | The media library: `add`, `ls`, `tree`, `mv`, `rm`, `export` |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |

@@ -920,9 +920,15 @@ export async function fetchMimeType(handle: string): Promise<string | null> {
 
 /**
  * Playable content length of a media track, in seconds: the end timestamp
- * minus the track's first timestamp. A track may carry a global time offset
- * (a non-zero first timestamp); using the raw end timestamp as the duration
- * would over-report the length by that offset. Clamped to >= 0.
+ * minus the track's first *presented* timestamp. A track may carry a global
+ * time offset (a non-zero first timestamp); using the raw end timestamp as the
+ * duration would over-report the length by that offset.
+ *
+ * A negative first timestamp means the head has been trimmed by an edit list
+ * (e.g. a QuickTime `elst` with a non-zero media_time); those pre-roll samples
+ * "should not be presented", so the presented content is [0, end]. Clamp the
+ * start to 0 — otherwise `end - start` counts the trimmed region and
+ * over-reports the duration by the trim amount. Clamped to >= 0.
  */
 async function trackContentDuration(track?: InputTrack | null): Promise<number> {
   if (!track) return 0;
@@ -931,5 +937,5 @@ async function trackContentDuration(track?: InputTrack | null): Promise<number> 
     track.getFirstTimestamp(),
     track.computeDuration(),
   ]);
-  return Math.max(0, end - start);
+  return Math.max(0, end - Math.max(0, start));
 }
