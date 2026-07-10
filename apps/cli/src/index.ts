@@ -16,7 +16,7 @@ import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { AssetRef, EncoderConfigInput, NodePatch } from "./protocol";
+import type { AssetRef, EncoderConfigInput, FrameQuality, NodePatch } from "./protocol";
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
@@ -450,27 +450,72 @@ async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): 
   }
 }
 
-type MediaFrameOptions = { time?: string[]; resolution?: string; output?: string };
+const FRAME_QUALITIES: FrameQuality[] = ["small", "medium", "large", "fullres"];
+
+// Guardrail against accidentally decoding a huge number of frames; --uncapped lifts it.
+const FRAME_CAP = 100;
+
+type MediaFrameOptions = {
+  time?: string[];
+  count?: string;
+  start?: string;
+  end?: string;
+  quality?: string;
+  timestamp?: boolean;
+  uncapped?: boolean;
+  output?: string;
+};
 
 async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
-  let times: number[] | undefined;
-  if (opts.time !== undefined) {
-    times = opts.time.map((t) => parseTimeArg(t, "--time"));
+  if (opts.time !== undefined && opts.count !== undefined) {
+    console.error("Pass either --time or --count, not both.");
+    process.exit(1);
   }
 
-  let resolution: number | undefined;
-  if (opts.resolution !== undefined) {
-    resolution = Number(opts.resolution);
-    if (!Number.isInteger(resolution) || resolution < 0) {
-      console.error(`--resolution must be a non-negative integer pixel count, or 0 for native (got "${opts.resolution}")`);
+  let times: number[] | undefined;
+  if (opts.time !== undefined) {
+    times = opts.time.map((t) => parseTimeArg(t, "--time", true));
+  }
+
+  let count: number | undefined;
+  if (opts.count !== undefined) {
+    count = Number(opts.count);
+    if (!Number.isInteger(count) || count < 1) {
+      console.error(`--count must be a positive integer (got "${opts.count}")`);
       process.exit(1);
     }
+  }
+
+  const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
+  const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
+  if (start !== undefined && end !== undefined && start >= end) {
+    console.error(`--start (${start}s) must be less than --end (${end}s).`);
+    process.exit(1);
+  }
+  if ((start !== undefined || end !== undefined) && count === undefined) {
+    console.error("--start and --end only apply together with --count.");
+    process.exit(1);
+  }
+
+  const requested = count ?? times?.length ?? 1;
+  if (!opts.uncapped && requested > FRAME_CAP) {
+    console.error(`Grabbing ${requested} frames exceeds the ${FRAME_CAP}-frame cap; pass --uncapped to override.`);
+    process.exit(1);
+  }
+
+  let quality: FrameQuality | undefined;
+  if (opts.quality !== undefined) {
+    if (!FRAME_QUALITIES.includes(opts.quality as FrameQuality)) {
+      console.error(`--quality must be one of ${FRAME_QUALITIES.join(", ")} (got "${opts.quality}")`);
+      process.exit(1);
+    }
+    quality = opts.quality as FrameQuality;
   }
 
   const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
   try {
-    const frames = await editor.media.frame.query({ ...target, times, resolution });
+    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp });
     for (const { time, base64 } of frames) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -558,11 +603,11 @@ async function mediaListen(ref: string, opts: MediaListenOptions): Promise<void>
 
 type MediaPreviewOptions = { start?: string; end?: string; scale?: string; output?: string };
 
-function parseTimeArg(value: string, flag: string): number {
+function parseTimeArg(value: string, flag: string, allowNegative = false): number {
   const seconds = parseTime(value);
-  if (seconds === undefined || seconds < 0) {
+  if (seconds === undefined || (!allowNegative && seconds < 0)) {
     console.error(
-      `${flag} must be a non-negative Time — seconds ("1.5"), frames ("45f"), or "MM:SS" (got "${value}")`,
+      `${flag} must be a ${allowNegative ? "" : "non-negative "}Time — seconds ("1.5"), frames ("45f"), or "MM:SS" (got "${value}")`,
     );
     process.exit(1);
   }
@@ -1111,17 +1156,22 @@ media
 media
   .command("grab")
   .alias("sample")
-  .description(`Decode one or more frames of a video file and write them as high-res PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Best for inspecting individual frames in detail where a filmstrip is too coarse: seeks to the exact requested time with frame-level precision${docs("media/grab")}`)
+  .description(`Decode frames of a video file and write them as PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Grab explicit moments with --time, or a fixed number of evenly-spaced frames with --count. The recommended tool for understanding a video at the frame level${docs("media/grab")}`)
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
-  .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
-  .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
+  .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
+  .option("-c, --count <n>", "instead of --time, grab this many frames evenly spaced across the clip (or across the --start/--end window)")
+  .option("-s, --start <time>", `with --count, start of the window to sample (seconds, "45f" frames, or "MM:SS"; default: 0)`)
+  .option("-e, --end <time>", `with --count, end of the window to sample (seconds, "45f" frames, or "MM:SS"; default: asset duration)`)
+  .option("-q, --quality <preset>", "frame resolution: small (384x384, default), medium (768x768), large (1536x1536), or fullres (native)")
+  .option("--no-timestamp", "don't stamp each frame with its HH:MM:SS:FF timestamp label")
+  .option("--uncapped", "lift the 100-frame safety cap (grabbing many frames is slow and token-heavy)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
   .action((ref: string, opts: MediaFrameOptions) => mediaFrame(ref, opts));
 
 media
   .command("filmstrip")
   .alias("film")
-  .description(`Start here for any video: render a grid of thumbnails sampled across the timeline to a PNG, each row stamped with timestamps. Fast and token-efficient; narrow the window to zoom into a region of interest. Video only, no audio — use \`waveform\` to inspect the audio track${docs("media/filmstrip")}`)
+  .description(`Render a grid of thumbnails sampled across the timeline to a PNG, each row stamped with timestamps. It's a fast and token-efficient video track preview; narrow the window to zoom into a region of interest${docs("media/filmstrip")}`)
   .argument("<id|path>", "video asset id, or a local video file to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1132,7 +1182,7 @@ media
 media
   .command("waveform")
   .alias("wave")
-  .description(`Render the audio track of a video or audio file as a waveform PNG with a timestamp ruler. Shows loudness over time and highlights the silent stretches in red, which are also returned as [start, end] second ranges in the JSON. Fast and token-efficient; narrow the window to zoom into a region of interest${docs("media/waveform")}`)
+  .description(`Render the audio track of a video or audio file as a waveform PNG with a timestamp ruler. It's a fast and token-efficient audio track preview; shows loudness over time and highlights the silent stretches in red, which are also returned as [start, end] second ranges in the JSON${docs("media/waveform")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1142,13 +1192,11 @@ media
 
 media
   .command("listen")
-  .alias("watch")
   .description(`Prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video, by default only the audio track is analyzed${docs("media/listen")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: media duration)`)
-  .option("--keep-video", "keep the video track instead of stripping it to audio (expensive: requires a full video upload)")
   .action((ref: string, opts: MediaListenOptions) => mediaListen(ref, opts));
 
 const folder = program

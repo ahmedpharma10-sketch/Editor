@@ -121,7 +121,15 @@ export type AssetRef = { id: string } | { path: string };
 
 export type MediaProbeRequest = AssetRef;
 
-export type MediaFrameRequest = AssetRef & { times?: number[]; resolution?: number };
+export type FrameQuality = "small" | "medium" | "large" | "fullres";
+export type MediaFrameRequest = AssetRef & {
+  times?: number[];
+  count?: number;
+  start?: number;
+  end?: number;
+  quality?: FrameQuality;
+  timestamp?: boolean;
+};
 export type MediaFrameResult = Array<{ time: number; base64: string }>;
 
 export type MediaTranscribeRequest = AssetRef & { start?: number; end?: number };

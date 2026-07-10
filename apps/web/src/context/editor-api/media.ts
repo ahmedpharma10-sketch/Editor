@@ -97,25 +97,49 @@ export function handleMediaProbe(engine: Accessor<Engine>) {
   };
 }
 
-// Default cap on the pixel count of each decoded frame (384x384). Keeps frames
-// small enough for vision models without the caller having to know the aspect ratio.
-export const DEFAULT_FRAME_PIXEL_BUDGET = 384 * 384;
+// Named quality presets mapped to a per-frame total-pixel budget (aspect ratio
+// preserved). A budget of 0 means native resolution. `small` keeps frames small
+// enough for vision models and is the default.
+const FRAME_QUALITY_BUDGETS = {
+  small: 384 * 384,    // 147,456
+  medium: 768 * 768,   // 589,824
+  large: 1536 * 1536,  // 2,359,296
+  fullres: 0,          // native
+} as const;
 
 export function handleMediaFrame(engine: Accessor<Engine>) {
   return async (req: MediaFrameRequest) => {
-    const { times, resolution } = req;
+    const { times, count, start, end, quality, timestamp } = req;
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
     assert(asset.type === "VIDEO", `Asset ${id} is not a video.`);
 
-    const requested = times && times.length ? times : [0];
-    for (const t of requested) {
-      assert(t <= asset.duration, `--time ${t}s is past the asset's duration (${asset.duration.toFixed(2)}s).`);
+    // `count` samples evenly across a window (default the whole clip); otherwise
+    // grab the explicit `times` (falling back to a single frame at 0).
+    let requested: number[];
+    if (count !== undefined) {
+      const from = Math.min(Math.max(start ?? 0, 0), asset.duration);
+      const to = Math.min(Math.max(end ?? asset.duration, from), asset.duration);
+      assert(to > from, `The requested window is empty; start (${from.toFixed(2)}s) is at or past end (${to.toFixed(2)}s).`);
+      const interval = (to - from) / count;
+      requested = Array.from({ length: count }, (_, i) => from + i * interval);
+    } else {
+      const raw = times && times.length ? times : [0];
+      // A negative time is an offset back from the end of the clip: -1 is one
+      // second before the end, -1f one frame before it.
+      requested = raw.map((t) => {
+        if (t >= 0) {
+          assert(t <= asset.duration, `--time ${t}s is past the asset's duration (${asset.duration.toFixed(2)}s).`);
+          return t;
+        }
+        const resolved = asset.duration + t;
+        assert(resolved >= 0, `--time ${t} counts past the start of the clip (duration ${asset.duration.toFixed(2)}s).`);
+        return resolved;
+      });
     }
 
-    // A budget of 0 means "native resolution"; anything else caps the pixel count.
-    const budget = resolution ?? DEFAULT_FRAME_PIXEL_BUDGET;
+    const budget = FRAME_QUALITY_BUDGETS[quality ?? "small"];
 
     const blob = await getAssetFile(asset);
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
@@ -152,7 +176,7 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
 
         const ctx = wrapped.canvas.getContext("2d");
 
-        if (ctx) {
+        if (ctx && timestamp !== false) {
           const label = formatTimestamp(time, asset.frameRate)
           const bandHeight = Math.max(20, Math.round(wrapped.canvas.height * 0.06));
           const fontSize = Math.round(bandHeight * 0.72);
