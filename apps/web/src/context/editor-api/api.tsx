@@ -8,7 +8,7 @@ import { useEngine } from '@/context/engine';
 import { useAuth } from '@/context/auth';
 import { t, q, m, q0, m0 } from "@/lib/cli-rpc";
 import { handleContextGet } from "./context";
-import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscribe, handleAssetVisualize, handleAssetAnalyze } from "./assets";
+import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscribe, handleAssetVisualize, handleAssetListen } from "./assets";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
@@ -108,7 +108,7 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
       frame: q(handleAssetFrame(getEngine)),
       transcribe: q(handleAssetTranscribe(getEngine)),
       visualize: q(handleAssetVisualize(getEngine)),
-      analyze: q(requireAuth(handleAssetAnalyze(getEngine))),
+      listen: q(requireAuth(handleAssetListen(getEngine))),
     }),
     folder: t.router({
       list: q(handleFoldersList(getEngine)),

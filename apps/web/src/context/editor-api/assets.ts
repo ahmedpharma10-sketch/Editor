@@ -20,7 +20,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetAnalyzeRequest, AssetAnalyzeResult, AssetExportResult, AssetFrameRequest, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetRef, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+import type { AssetListenRequest, AssetListenResult, AssetExportResult, AssetFrameRequest, AssetListResult, AssetMoveResult, AssetProbeRequest, AssetRecord, AssetRef, AssetsExportRequest, AssetTranscribeRequest, AssetTranscribeResult, AssetTreeEntry, AssetVisualizeRequest, AssetVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
@@ -450,8 +450,8 @@ export function handleAssetVisualize(engine: Accessor<Engine>) {
   };
 }
 
-export function handleAssetAnalyze(engine: Accessor<Engine>) {
-  return async (req: AssetAnalyzeRequest): Promise<AssetAnalyzeResult> => {
+export function handleAssetListen(engine: Accessor<Engine>) {
+  return async (req: AssetListenRequest): Promise<AssetListenResult> => {
     const { prompt, start, end } = req;
     let { stripVideo } = req;
     const { world } = engine();

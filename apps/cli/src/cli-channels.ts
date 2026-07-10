@@ -134,8 +134,8 @@ export type AssetVisualizeResult = {
   base64: string;
 } & Record<string, unknown>;
 
-export type AssetAnalyzeRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
-export type AssetAnalyzeResult = { analysis?: string; start?: number; end?: number };
+export type AssetListenRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
+export type AssetListenResult = { analysis?: string; start?: number; end?: number };
 
 export type GeneratedAsset = { id: string; name: string; type: string };
 

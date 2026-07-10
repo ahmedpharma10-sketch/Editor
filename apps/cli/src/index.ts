@@ -531,9 +531,9 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
   }
 }
 
-type AssetAnalyzeOptions = { prompt?: string; start?: string; end?: string; keepVideo?: boolean };
+type AssetListenOptions = { prompt?: string; start?: string; end?: string };
 
-async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<void> {
+async function assetListen(ref: string, opts: AssetListenOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
   const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
   if (start !== undefined && end !== undefined && start >= end) {
@@ -544,8 +544,8 @@ async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<voi
   const target = resolveAssetRef(ref);
   const stop = startSpinner("Analyzing asset");
   try {
-    const result = await editor.asset.analyze.query(
-      { ...target, prompt: opts.prompt, start, end, stripVideo: !opts.keepVideo },
+    const result = await editor.asset.listen.query(
+      { ...target, prompt: opts.prompt, start, end, stripVideo: true },
       GENERATE,
     );
     stop();
@@ -1107,14 +1107,13 @@ media
   .action((ref: string, opts: AssetVisualizeOptions) => assetVisualize(ref, opts));
 
 media
-  .command("analyze")
-  .description(`Audio-first and expensive: prompt a multimodal model for a semantic analysis of a video or audio file and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). For a video this analyzes only the audio track by default; if the footage is silent or you need what is on screen, use \`visualize\` first or pass --keep-video to upload the video stream${docs("media/analyze")}`)
+  .command("listen")
+  .description(`Audio-only: prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video, but only the audio track is analyzed${docs("media/listen")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
-  .option("--keep-video", "include the video stream when analyzing a video; by default only the audio track is analyzed, which is significantly faster since the video stream is not uploaded")
-  .action((ref: string, opts: AssetAnalyzeOptions) => assetAnalyze(ref, opts));
+  .action((ref: string, opts: AssetListenOptions) => assetListen(ref, opts));
 
 const folder = program
   .command("folder")

@@ -64,7 +64,7 @@ dapi media probe clip.mp4                                # container + codec met
 dapi media grab clip.mp4 -t 0 12 45                      # decode frames to PNGs
 dapi media visualize track.mp3                           # waveform / filmstrip previews
 dapi media transcribe interview.wav                      # timed, word-level transcript
-dapi media analyze b-roll.mp4 -p "when is the product shown?"   # ask a vision model
+dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
 dapi node screenshot                                     # see the canvas itself
 ```
 
@@ -77,7 +77,7 @@ dapi node screenshot                                     # see the canvas itself
 | `dapi mount` | Compile and mount a JSX composition |
 | `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `export` |
 | `dapi asset …` | The media library: `add`, `ls`, `tree`, `mv`, `rm`, `export` |
-| `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `visualize`, `transcribe`, `analyze` |
+| `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `visualize`, `transcribe`, `listen` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
 

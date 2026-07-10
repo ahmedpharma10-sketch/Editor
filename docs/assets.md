@@ -1,6 +1,6 @@
 # Working with media
 
-The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain under `dapi media` (probe, grab, visualize, transcribe, analyze) so an agent can *look at* footage before cutting it. All of it runs locally except `analyze` and `transcribe`, which use hosted models.
+The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain under `dapi media` (probe, grab, visualize, transcribe, listen) so an agent can *look at* footage before cutting it. All of it runs locally except `listen` and `transcribe`, which use hosted models.
 
 **Id or path:** every inspection command takes either an asset id or a local file path. A path is read directly, so `dapi media probe clip.mp4` works on a file that isn't in the project yet.
 
@@ -64,13 +64,13 @@ dapi media transcribe <id|path>
 
 Transcribes speech in a video or audio file. Returns segments with **word-level start/end times in seconds**: the raw material for caption timing, jump cuts, and content search.
 
-### `media analyze`
+### `media listen`
 
 ```sh
-dapi media analyze <id|path> [-p <prompt>] [-s <start>] [-e <end>]
+dapi media listen <id|path> [-p <prompt>] [-s <start>] [-e <end>]
 ```
 
-Puts a multimodal model in front of an image, video, or audio asset. Without a prompt, returns a general description; with one, answers it ("what's the dominant color?", "when is the product shown?"). `-s`/`-e` scope the analyzed segment; timestamps in the answer are relative to `-s`.
+Puts a multimodal model in front of an audio track. Without a prompt, returns a general description of what is heard; with one, answers it ("who is speaking?", "what music is playing?"). Accepts an audio file or a video, but only the audio track is analyzed. `-s`/`-e` scope the analyzed segment; timestamps in the answer are relative to `-s`.
 
 
 ## A typical agent pass
@@ -81,7 +81,7 @@ dapi asset tree --depth 1                             # what's here?
 dapi media probe gbHJ                                 # what format is it?
 dapi media visualize gbHJ                             # what does it look like over time?
 dapi media transcribe gbHJ                            # what is said, and when?
-dapi media analyze gbHJ -p "best moment for a thumbnail?"
+dapi media listen gbHJ -p "what is said in the intro?"
 dapi mount cut.tsx                                    # compose the edit
 dapi node screenshot                                  # verify visually
 dapi node render -o cut.mp4                           # ship it

@@ -21,7 +21,7 @@ How the surface is divided:
 - Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx/](./jsx/README.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots.
 - Scenes are created declaratively via `mount` (`<scene key="...">`); there is no imperative scene command.
 - AI asset generation (image / video / speech / audio) is declared in the project module (`generate.*`, see [jsx/generate.md](./jsx/generate.md)) and produced on mount. `models` and `voices` list what those declarations can reference.
-- Inspecting an existing asset (probe / transcribe / analyze / visualize / frame) lives under `asset`; writing an asset's original file back to disk is `asset export`.
+- Inspecting an existing asset (probe / transcribe / listen / visualize / frame) lives under `asset`; writing an asset's original file back to disk is `asset export`.
 - Organizing the library lives under `folder`; moving assets between folders is `asset mv`.
 
 ## Commands
@@ -77,7 +77,7 @@ How the surface is divided:
 - [`dapi media transcribe`](./media/transcribe.md): timed speech transcript
 - [`dapi media grab`](./media/grab.md): decode video frames to PNGs
 - [`dapi media visualize`](./media/visualize.md): waveform / filmstrip / thumbnail PNG
-- [`dapi media analyze`](./media/analyze.md): AI description of a media file
+- [`dapi media listen`](./media/listen.md): AI description of an audio track
 
 ### Folders
 
