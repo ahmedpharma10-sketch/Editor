@@ -1132,7 +1132,7 @@ media
 media
   .command("waveform")
   .alias("wave")
-  .description(`Render the audio track of a video or audio file as a waveform PNG with a timestamp ruler. Shows loudness over time and highlights the silent stretches in red. Fast and token-efficient; narrow the window to zoom into a region of interest${docs("media/waveform")}`)
+  .description(`Render the audio track of a video or audio file as a waveform PNG with a timestamp ruler. Shows loudness over time and highlights the silent stretches in red, which are also returned as [start, end] second ranges in the JSON. Fast and token-efficient; narrow the window to zoom into a region of interest${docs("media/waveform")}`)
   .argument("<id|path>", "video or audio asset id, or a local file to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)

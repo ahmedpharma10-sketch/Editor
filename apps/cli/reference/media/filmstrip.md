@@ -14,13 +14,11 @@ Tick labels use `HH:MM:SS:FF` timecode (hours, minutes, seconds, frame within th
 
 ## Output
 
-One JSON object, the absolute path to the written PNG plus the grid geometry:
+One JSON object, the absolute path to the written PNG:
 
 ```ts
 {
   path: string,   // e.g. "/tmp/3f2c1a8e-....png", or the --output path
-  column: { width: number, count: number, duration: number },
-  row: { height: number, count: number, duration: number },
 }
 ```
 

@@ -14,13 +14,12 @@ Tick labels use `HH:MM:SS:FF` timecode (hours, minutes, seconds, frame within th
 
 ## Output
 
-One JSON object, the absolute path to the written PNG plus the grid geometry:
+One JSON object, the absolute path to the written PNG plus the silent stretches (the red spans on the waveform) as `[start, end]` second ranges, in absolute seconds (offset by `--start` when a window is used):
 
 ```ts
 {
   path: string,   // e.g. "/tmp/3f2c1a8e-....png", or the --output path
-  column: { width: number, count: number, duration: number },
-  row: { height: number, count: number, duration: number },
+  silences: Array<{ start: number, end: number }>,
 }
 ```
 

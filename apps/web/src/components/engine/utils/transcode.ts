@@ -100,7 +100,11 @@ export function formatTimestamp(seconds: number, frameRate: number): string {
 
 export type RenderedPreview = {
   dataUrl: string;
-} & Record<string, unknown>;
+};
+
+export type RenderedWaveform = RenderedPreview & {
+  silences: Array<{ start: number; end: number }>;
+};
 
 export type TimeWindow = { start?: number; end?: number };
 
@@ -165,7 +169,6 @@ async function renderFilmstrip(asset: VideoAsset, input: Input, window: TimeWind
   const cells = rows * columns;
 
   const secondsPerColumn = Math.max(duration / cells, 1 / frameRate);
-  const secondsPerRow = secondsPerColumn * columns;
 
   const canvas = document.createElement('canvas');
   canvas.width = columnWidthInTokens * columns * PATCH_SIZE;
@@ -213,24 +216,12 @@ async function renderFilmstrip(asset: VideoAsset, input: Input, window: TimeWind
     startOffset: windowStart,
   });
 
-  return {
-    dataUrl: canvas.toDataURL('image/png'),
-    column: {
-      width: thumbnailWidthInPixels,
-      count: columns,
-      duration: secondsPerColumn,
-    },
-    row: {
-      height: rowHeightInPixels,
-      count: rows,
-      duration: secondsPerRow,
-    },
-  };
+  return { dataUrl: canvas.toDataURL('image/png') };
 }
 
 // Render the audio track of a video or audio file as a loudness-over-time
 // waveform with a timestamp ruler and silent stretches highlighted.
-export async function waveformAsset(asset: Asset, options?: PreviewOptions): Promise<RenderedPreview> {
+export async function waveformAsset(asset: Asset, options?: PreviewOptions): Promise<RenderedWaveform> {
   assert(asset.type === "VIDEO" || asset.type === "AUDIO", "The waveform needs a video or audio asset.");
   const blob = await getAssetFile(asset);
   const scale = resolveScale(options?.scale);
@@ -242,7 +233,7 @@ export async function waveformAsset(asset: Asset, options?: PreviewOptions): Pro
   }
 }
 
-async function renderWaveform(asset: VideoAsset | AudioAsset, input: Input, window: TimeWindow | undefined, scale: number): Promise<RenderedPreview> {
+async function renderWaveform(asset: VideoAsset | AudioAsset, input: Input, window: TimeWindow | undefined, scale: number): Promise<RenderedWaveform> {
   const audioTrack = await input.getPrimaryAudioTrack();
   assert(audioTrack, "No audio track found, so no waveform can be rendered.");
   assert(
@@ -267,7 +258,6 @@ async function renderWaveform(asset: VideoAsset | AudioAsset, input: Input, wind
   const cells = rows * columns;
 
   const secondsPerColumn = duration / cells;
-  const secondsPerRow = secondsPerColumn * columns;
 
   const columnWidthInPixels = columnWidthInTokens * PATCH_SIZE;
   const rowHeightInPixels = rowHeightInTokens * PATCH_SIZE;
@@ -286,13 +276,18 @@ async function renderWaveform(asset: VideoAsset | AudioAsset, input: Input, wind
   const peaksPerSecond = Math.round(columnWidthInPixels / secondsPerColumn / WAVEFORM_SAMPLE_WIDTH);
   const audioPeaks = await downsampleAudio(audioTrack, { peaksPerSecond, range: [windowStart, windowStart + duration] });
 
-  drawWaveform(ctx, audioPeaks, {
+  const silentSpans = findSilentSpans(audioPeaks, peaksPerSecond);
+  const silences = silentSpans.map((span) => ({
+    start: windowStart + span.start / peaksPerSecond,
+    end: windowStart + span.end / peaksPerSecond,
+  }));
+
+  drawWaveform(ctx, audioPeaks, silentSpans, {
     rows,
     rowWidth,
     rowHeightInPixels,
     waveformOffset: rulerHeight,
     waveformHeight,
-    peaksPerSecond,
   });
 
   drawRuler(ctx, {
@@ -306,19 +301,7 @@ async function renderWaveform(asset: VideoAsset | AudioAsset, input: Input, wind
     startOffset: windowStart,
   });
 
-  return {
-    dataUrl: canvas.toDataURL('image/png'),
-    column: {
-      width: columnWidthInPixels,
-      count: columns,
-      duration: secondsPerColumn,
-    },
-    row: {
-      height: rowHeightInPixels,
-      count: rows,
-      duration: secondsPerRow,
-    },
-  };
+  return { dataUrl: canvas.toDataURL('image/png'), silences };
 }
 
 type WaveformLayout = {
@@ -327,12 +310,31 @@ type WaveformLayout = {
   rowHeightInPixels: number;
   waveformOffset: number; // y offset within a row where the waveform begins
   waveformHeight: number;
-  peaksPerSecond: number;
 };
 
-// Draws a center-aligned waveform, then overlays the silent stretches in red.
-function drawWaveform(ctx: CanvasRenderingContext2D, audioPeaks: Uint8ClampedArray, layout: WaveformLayout) {
-  const { rows, rowWidth, rowHeightInPixels, waveformOffset, waveformHeight, peaksPerSecond } = layout;
+// Scan the peaks for runs at/below the silence threshold that last at least
+// SILENCE_MIN_SECONDS, returned as [start, end) peak-index spans.
+function findSilentSpans(audioPeaks: Uint8ClampedArray, peaksPerSecond: number): Array<{ start: number; end: number }> {
+  const minSilencePeaks = Math.round(SILENCE_MIN_SECONDS * peaksPerSecond);
+  const silentSpans: Array<{ start: number; end: number }> = [];
+  let runStart = -1;
+  for (let i = 0; i <= audioPeaks.length; i++) {
+    const silent = i < audioPeaks.length && audioPeaks[i] <= SILENCE_THRESHOLD;
+    if (silent && runStart === -1) {
+      runStart = i;
+    } else if (!silent && runStart !== -1) {
+      if (i - runStart >= minSilencePeaks) {
+        silentSpans.push({ start: runStart, end: i });
+      }
+      runStart = -1;
+    }
+  }
+  return silentSpans;
+}
+
+// Draws a center-aligned waveform, then overlays the given silent stretches in red.
+function drawWaveform(ctx: CanvasRenderingContext2D, audioPeaks: Uint8ClampedArray, silentSpans: Array<{ start: number; end: number }>, layout: WaveformLayout) {
+  const { rows, rowWidth, rowHeightInPixels, waveformOffset, waveformHeight } = layout;
   const peaksPerRow = Math.floor(rowWidth / WAVEFORM_SAMPLE_WIDTH);
   const halfHeight = waveformHeight / 2;
 
@@ -350,21 +352,6 @@ function drawWaveform(ctx: CanvasRenderingContext2D, audioPeaks: Uint8ClampedArr
       const x = col * WAVEFORM_SAMPLE_WIDTH;
       const centerY = top + halfHeight;
       ctx.fillRect(x, centerY - amplitude, WAVEFORM_SAMPLE_WIDTH, Math.max(amplitude * 2, 1));
-    }
-  }
-
-  const minSilencePeaks = Math.round(SILENCE_MIN_SECONDS * peaksPerSecond);
-  const silentSpans: Array<{ start: number; end: number }> = [];
-  let runStart = -1;
-  for (let i = 0; i <= audioPeaks.length; i++) {
-    const silent = i < audioPeaks.length && audioPeaks[i] <= SILENCE_THRESHOLD;
-    if (silent && runStart === -1) {
-      runStart = i;
-    } else if (!silent && runStart !== -1) {
-      if (i - runStart >= minSilencePeaks) {
-        silentSpans.push({ start: runStart, end: i });
-      }
-      runStart = -1;
     }
   }
 

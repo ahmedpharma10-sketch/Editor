@@ -130,14 +130,13 @@ export type TranscriptSegment = { text: string; words: TranscriptWord[] };
 export type MediaTranscribeResult = { segments: TranscriptSegment[] };
 
 export type MediaFilmstripRequest = AssetRef & { start?: number; end?: number; scale?: number };
-export type MediaFilmstripResult = {
-  base64: string;
-} & Record<string, unknown>;
+export type MediaFilmstripResult = { base64: string };
 
 export type MediaWaveformRequest = AssetRef & { start?: number; end?: number; scale?: number };
 export type MediaWaveformResult = {
   base64: string;
-} & Record<string, unknown>;
+  silences: Array<{ start: number; end: number }>;
+};
 
 export type MediaListenRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
 export type MediaListenResult = { result?: string; start?: number; end?: number };
