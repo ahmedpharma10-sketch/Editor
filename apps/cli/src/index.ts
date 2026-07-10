@@ -1147,7 +1147,7 @@ media
 
 media
   .command("transcribe")
-  .description(`Transcribe the speech in a video or audio file and print the timed transcript. Commonly useful for footage with speakers (talking head, interview), where the word-level times let you cut on a line. Note a transcript marks only speech; the gaps are not necessarily silent (music, score, applause)${docs("media/transcribe")}`)
+  .description(`Transcribe the speech in a video or audio file and print the timed transcript, with ultra-precise millisecond-level timestamps for every word. Commonly useful for footage with speakers (talking head, interview), where the word-level times let you cut on a line. Note a transcript marks only speech; the gaps are not necessarily silent (music, score, applause)${docs("media/transcribe")}`)
   .argument("<id|path>", "video or audio asset id, or a local file")
   .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
