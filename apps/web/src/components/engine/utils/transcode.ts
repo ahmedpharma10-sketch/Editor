@@ -32,7 +32,7 @@ export async function transcodeForTranscription(asset: Asset): Promise<File> {
   }
 }
 
-export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & { stripVideo?: boolean }) {
+export async function transcodeForAnalysis(asset: VideoAsset | AudioAsset, window?: TimeWindow & { stripVideo?: boolean }) {
   const blob = await getAssetFile(asset);
   const hasWindow = window?.start !== undefined || window?.end !== undefined;
 
@@ -76,9 +76,9 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & {
 }
 
 const PATCH_SIZE = 28;
-const MAX_WIDTH_IN_TOKENS = 52; // 92
+const MAX_WIDTH_IN_TOKENS = 64; // 92
 const MAX_HEIGHT_IN_TOKENS = 52;
-const THUMBNAIL_HEIGHT_IN_TOKENS = 5;
+const THUMBNAIL_HEIGHT_IN_TOKENS = 7;
 const RULER_HEIGHT_IN_TOKENS = 1;
 const AUDIO_WAVEFORM_HEIGHT_IN_TOKENS = 6;
 const AUDIO_COLUMN_WIDTH_IN_TOKENS = 6;
@@ -404,18 +404,6 @@ function drawRuler(ctx: CanvasRenderingContext2D, layout: RulerLayout) {
   const paddingLeft = 5;
   const paddingTop = 2;
   const tickHeight = Math.round(rulerHeight * 0.4);
-
-  const rows = Math.ceil(cells / columns);
-  const fullWidth = columns * columnWidthInPixels;
-  ctx.strokeStyle = 'rgba(255, 64, 64, 1)';
-  ctx.lineWidth = 2;
-  for (let row = 1; row < rows; row++) {
-    const y = row * rowHeightInPixels + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(fullWidth, y);
-    ctx.stroke();
-  }
 
   ctx.fillStyle = '#FFF';
   ctx.strokeStyle = '#FFF';
