@@ -1,4 +1,4 @@
-# `dapi asset analyze <id|path>`
+# `dapi media analyze <id|path>`
 
 Analyzes an image, video, or audio asset with a multimodal model. With no prompt it returns a general description of the asset; with `--prompt` it answers that question about the asset (e.g. "what's the dominant color?", "summarize what happens").
 

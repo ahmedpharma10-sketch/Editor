@@ -70,11 +70,14 @@ How the surface is divided:
 - [`dapi asset rm`](./asset/rm.md): delete assets
 - [`dapi asset mv`](./asset/mv.md): move assets into a folder
 - [`dapi asset export`](./asset/export.md): write assets' original bytes to disk
-- [`dapi asset probe`](./asset/probe.md): container and track metadata
-- [`dapi asset transcribe`](./asset/transcribe.md): timed speech transcript
-- [`dapi asset grab`](./asset/grab.md): decode video frames to PNGs
-- [`dapi asset visualize`](./asset/visualize.md): waveform / filmstrip / thumbnail PNG
-- [`dapi asset analyze`](./asset/analyze.md): AI description of an asset
+
+### Media
+
+- [`dapi media probe`](./media/probe.md): container and track metadata
+- [`dapi media transcribe`](./media/transcribe.md): timed speech transcript
+- [`dapi media grab`](./media/grab.md): decode video frames to PNGs
+- [`dapi media visualize`](./media/visualize.md): waveform / filmstrip / thumbnail PNG
+- [`dapi media analyze`](./media/analyze.md): AI description of a media file
 
 ### Folders
 

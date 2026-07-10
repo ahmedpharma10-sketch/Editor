@@ -1019,7 +1019,7 @@ const asset = program
   .command("asset")
   .alias("a")
   .description(
-    "Manage, analyze, and generate assets in the open project — probe and export files, transcribe speech, decode frames, render visual previews, and analyze with VLMs.",
+    "Manage the asset library of the open project — add local files, list and organize records, and export original bytes.",
   );
 
 asset
@@ -1065,33 +1065,40 @@ asset
   .option("-o, --output <path>", "directory to write into, or an exact file path for a single id (default: system temp dir)")
   .action((ids: string[], opts: AssetExportOptions) => exportAssets(ids, opts));
 
-asset
+const media = program
+  .command("media")
+  .alias("m")
+  .description(
+    "Inspect a media file by asset id or local path, without adding it to the project — probe metadata, transcribe speech, grab frames, render visual previews, and analyze with multimodal models.",
+  );
+
+media
   .command("probe")
-  .description(`Read the container and per-track technical metadata of an asset. Commonly useful for a quick, free technical read (container, duration, per-track codec params), e.g. checking codec compatibility or duration before cutting${docs("asset/probe")}`)
+  .description(`Read the container and per-track technical metadata of a media file. Commonly useful for a quick, free technical read (container, duration, per-track codec params), e.g. checking codec compatibility or duration before cutting${docs("media/probe")}`)
   .argument("<id|path>", "asset id, or a local file")
   .action((ref: string) => assetProbe(ref));
 
-asset
+media
   .command("transcribe")
-  .description(`Transcribe the speech in a video or audio asset and print the timed transcript. Commonly useful for footage with speakers (talking head, interview), where the word-level times let you cut on a line. Note a transcript marks only speech; the gaps are not necessarily silent (music, score, applause)${docs("asset/transcribe")}`)
+  .description(`Transcribe the speech in a video or audio file and print the timed transcript. Commonly useful for footage with speakers (talking head, interview), where the word-level times let you cut on a line. Note a transcript marks only speech; the gaps are not necessarily silent (music, score, applause)${docs("media/transcribe")}`)
   .argument("<id|path>", "video or audio asset id, or a local file")
   .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .action((ref: string, opts: AssetTranscribeOptions) => assetTranscribe(ref, opts));
 
-asset
+media
   .command("grab")
-  .description(`Decode one or more frames of a video asset and write them as high-res PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Best for inspecting individual frames in detail where a filmstrip is too coarse: seeks to the exact requested time with frame-level precision${docs("asset/grab")}`)
+  .description(`Decode one or more frames of a video file and write them as high-res PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Best for inspecting individual frames in detail where a filmstrip is too coarse: seeks to the exact requested time with frame-level precision${docs("media/grab")}`)
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
   .action((ref: string, opts: AssetFrameOptions) => assetFrame(ref, opts));
 
-asset
+media
   .command("visualize")
   .alias("viz")
-  .description(`Render a compact visual preview of an asset to a PNG: a waveform for audio, a filmstrip plus waveform for video, or a thumbnail for an image. The primary tool for understanding a video; you can narrow the window to zoom into a region of interest. Fast and token-efficient. The waveform shows loudness over time and marks the silent stretches${docs("asset/visualize")}`)
+  .description(`Render a compact visual preview of a media file to a PNG: a waveform for audio, a filmstrip plus waveform for video, or a thumbnail for an image. The primary tool for understanding a video; you can narrow the window to zoom into a region of interest. Fast and token-efficient. The waveform shows loudness over time and marks the silent stretches${docs("media/visualize")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to visualize")
   .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1099,9 +1106,9 @@ asset
   .option("-o, --output <path>", "write the PNG here instead of a temp file")
   .action((ref: string, opts: AssetVisualizeOptions) => assetVisualize(ref, opts));
 
-asset
+media
   .command("analyze")
-  .description(`Prompt a multimodal model for a semantic analysis of an asset and print its answer. Handles images, audio, and video, but shines on the semantics of audio: what it actually contains (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps)${docs("asset/analyze")}`)
+  .description(`Prompt a multimodal model for a semantic analysis of a media file and print its answer. Handles images, audio, and video, but shines on the semantics of audio: what it actually contains (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps)${docs("media/analyze")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)

@@ -60,11 +60,11 @@ Everything a mount produces stays a first-class editor node, so a person can pic
 Cutting footage requires looking at it. The CLI ships the inspection tools an agent needs to work with media it cannot watch:
 
 ```sh
-dapi asset probe clip.mp4                                # container + codec metadata, like ffprobe
-dapi asset frame clip.mp4 -t 0 12 45                     # decode frames to PNGs
-dapi asset visualize track.mp3                           # waveform / filmstrip previews
-dapi asset transcribe interview.wav                      # timed, word-level transcript
-dapi asset analyze b-roll.mp4 -p "when is the product shown?"   # ask a vision model
+dapi media probe clip.mp4                                # container + codec metadata, like ffprobe
+dapi media grab clip.mp4 -t 0 12 45                      # decode frames to PNGs
+dapi media visualize track.mp3                           # waveform / filmstrip previews
+dapi media transcribe interview.wav                      # timed, word-level transcript
+dapi media analyze b-roll.mp4 -p "when is the product shown?"   # ask a vision model
 dapi node screenshot                                     # see the canvas itself
 ```
 
@@ -76,7 +76,8 @@ dapi node screenshot                                     # see the canvas itself
 | `dapi context` | Summary of the open project: scenes, playhead, fonts |
 | `dapi mount` | Compile and mount a JSX composition |
 | `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `export` |
-| `dapi asset …` | The media library: `add`, `ls`, `probe`, `frame`, `visualize`, `analyze`, `transcribe`, `export` |
+| `dapi asset …` | The media library: `add`, `ls`, `tree`, `mv`, `rm`, `export` |
+| `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `visualize`, `transcribe`, `analyze` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
 

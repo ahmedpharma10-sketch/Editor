@@ -1,4 +1,4 @@
-# `dapi asset visualize <id|path>`
+# `dapi media visualize <id|path>`
 
 Renders a visual preview of an asset to a PNG, written to a file in the system temp directory. The visualization is chosen by the asset's media type, so a single command covers the whole library. Renders locally; no credits. Alias: `viz`.
 

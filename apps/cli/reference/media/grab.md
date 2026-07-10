@@ -1,4 +1,4 @@
-# `dapi asset grab <id|path>`
+# `dapi media grab <id|path>`
 
 Decodes one or more frames of a video asset at the given times and writes each to a PNG file; like [`node screenshot`](../node/screenshot.md), but grabs the asset's own pixels at full resolution (unlike `node screenshot`, which captures the composited canvas). Renders locally; no credits.
 

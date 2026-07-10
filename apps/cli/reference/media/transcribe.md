@@ -1,4 +1,4 @@
-# `dapi asset transcribe [options] <id|path>`
+# `dapi media transcribe [options] <id|path>`
 
 Transcribes the speech in a video or audio asset and returns the timed transcript. Word-level start/end times are in **seconds** (source/content time).
 
