@@ -450,9 +450,9 @@ async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): 
   }
 }
 
-type AssetFrameOptions = { time?: string[]; resolution?: string; output?: string };
+type MediaFrameOptions = { time?: string[]; resolution?: string; output?: string };
 
-async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
+async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
   let times: number[] | undefined;
   if (opts.time !== undefined) {
     times = opts.time.map((t) => parseTimeArg(t, "--time"));
@@ -470,7 +470,7 @@ async function assetFrame(ref: string, opts: AssetFrameOptions): Promise<void> {
   const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
   try {
-    const frames = await editor.asset.frame.query({ ...target, times, resolution });
+    const frames = await editor.media.frame.query({ ...target, times, resolution });
     for (const { time, base64 } of frames) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -496,11 +496,11 @@ function resolveAssetRef(ref: string): AssetRef {
   return { path: absPath };
 }
 
-async function assetProbe(ref: string): Promise<void> {
+async function mediaProbe(ref: string): Promise<void> {
   const target = resolveAssetRef(ref);
   const stop = startSpinner("Probing asset");
   try {
-    const result = await editor.asset.probe.query(target);
+    const result = await editor.media.probe.query(target);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -509,9 +509,9 @@ async function assetProbe(ref: string): Promise<void> {
   }
 }
 
-type AssetTranscribeOptions = { start?: string; end?: string };
+type MediaTranscribeOptions = { start?: string; end?: string };
 
-async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promise<void> {
+async function mediaTranscribe(ref: string, opts: MediaTranscribeOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
   const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
   if (start !== undefined && end !== undefined && start >= end) {
@@ -522,7 +522,7 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
   const target = resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await editor.asset.transcribe.query({ ...target, start, end }, GENERATE);
+    const result = await editor.media.transcribe.query({ ...target, start, end }, GENERATE);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -531,9 +531,9 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
   }
 }
 
-type AssetListenOptions = { prompt?: string; start?: string; end?: string };
+type MediaListenOptions = { prompt?: string; start?: string; end?: string };
 
-async function assetListen(ref: string, opts: AssetListenOptions): Promise<void> {
+async function mediaListen(ref: string, opts: MediaListenOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
   const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
   if (start !== undefined && end !== undefined && start >= end) {
@@ -544,7 +544,7 @@ async function assetListen(ref: string, opts: AssetListenOptions): Promise<void>
   const target = resolveAssetRef(ref);
   const stop = startSpinner("Analyzing asset");
   try {
-    const result = await editor.asset.listen.query(
+    const result = await editor.media.listen.query(
       { ...target, prompt: opts.prompt, start, end, stripVideo: true },
       GENERATE,
     );
@@ -556,7 +556,7 @@ async function assetListen(ref: string, opts: AssetListenOptions): Promise<void>
   }
 }
 
-type AssetVisualizeOptions = { start?: string; end?: string; scale?: string; output?: string };
+type MediaVisualizeOptions = { start?: string; end?: string; scale?: string; output?: string };
 
 function parseTimeArg(value: string, flag: string): number {
   const seconds = parseTime(value);
@@ -569,7 +569,7 @@ function parseTimeArg(value: string, flag: string): number {
   return seconds;
 }
 
-async function assetVisualize(ref: string, opts: AssetVisualizeOptions): Promise<void> {
+async function mediaVisualize(ref: string, opts: MediaVisualizeOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
   const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
   if (start !== undefined && end !== undefined && start >= end) {
@@ -590,7 +590,7 @@ async function assetVisualize(ref: string, opts: AssetVisualizeOptions): Promise
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
   const stop = startSpinner("Rendering visualization");
   try {
-    const { base64, ...rest } = await editor.asset.visualize.query({ ...target, start, end, scale });
+    const { base64, ...rest } = await editor.media.visualize.query({ ...target, start, end, scale });
     stop();
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path, ...rest }));
@@ -1076,7 +1076,7 @@ media
   .command("probe")
   .description(`Read the container and per-track technical metadata of a media file. Commonly useful for a quick, free technical read (container, duration, per-track codec params), e.g. checking codec compatibility or duration before cutting${docs("media/probe")}`)
   .argument("<id|path>", "asset id, or a local file")
-  .action((ref: string) => assetProbe(ref));
+  .action((ref: string) => mediaProbe(ref));
 
 media
   .command("transcribe")
@@ -1084,7 +1084,7 @@ media
   .argument("<id|path>", "video or audio asset id, or a local file")
   .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
-  .action((ref: string, opts: AssetTranscribeOptions) => assetTranscribe(ref, opts));
+  .action((ref: string, opts: MediaTranscribeOptions) => mediaTranscribe(ref, opts));
 
 media
   .command("grab")
@@ -1093,7 +1093,7 @@ media
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
-  .action((ref: string, opts: AssetFrameOptions) => assetFrame(ref, opts));
+  .action((ref: string, opts: MediaFrameOptions) => mediaFrame(ref, opts));
 
 media
   .command("visualize")
@@ -1104,7 +1104,7 @@ media
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .option("-x, --scale <factor>", "scale factor for the thumbnails; smaller thumbnails fit more rows and columns, larger fit fewer (default: 1)")
   .option("-o, --output <path>", "write the PNG here instead of a temp file")
-  .action((ref: string, opts: AssetVisualizeOptions) => assetVisualize(ref, opts));
+  .action((ref: string, opts: MediaVisualizeOptions) => mediaVisualize(ref, opts));
 
 media
   .command("listen")
@@ -1113,7 +1113,7 @@ media
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
-  .action((ref: string, opts: AssetListenOptions) => assetListen(ref, opts));
+  .action((ref: string, opts: MediaListenOptions) => mediaListen(ref, opts));
 
 const folder = program
   .command("folder")

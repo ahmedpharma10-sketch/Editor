@@ -8,7 +8,8 @@ import { useEngine } from '@/context/engine';
 import { useAuth } from '@/context/auth';
 import { t, q, m, q0, m0 } from "@/lib/cli-rpc";
 import { handleContextGet } from "./context";
-import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport, handleAssetProbe, handleAssetFrame, handleAssetTranscribe, handleAssetVisualize, handleAssetListen } from "./assets";
+import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport } from "./assets";
+import { handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaVisualize, handleMediaListen } from "./media";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
@@ -104,11 +105,13 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
       delete: m(handleAssetsDelete(getEngine)),
       move: m(handleAssetsMove(getEngine)),
       export: m(handleAssetsExport(getEngine)),
-      probe: q(handleAssetProbe(getEngine)),
-      frame: q(handleAssetFrame(getEngine)),
-      transcribe: q(handleAssetTranscribe(getEngine)),
-      visualize: q(handleAssetVisualize(getEngine)),
-      listen: q(requireAuth(handleAssetListen(getEngine))),
+    }),
+    media: t.router({
+      probe: q(handleMediaProbe(getEngine)),
+      frame: q(handleMediaFrame(getEngine)),
+      transcribe: q(handleMediaTranscribe(getEngine)),
+      visualize: q(handleMediaVisualize(getEngine)),
+      listen: q(requireAuth(handleMediaListen(getEngine))),
     }),
     folder: t.router({
       list: q(handleFoldersList(getEngine)),

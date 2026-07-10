@@ -20,7 +20,7 @@ export type CliHandshake = { port: number; token: string };
 export type CliHandshakeReply = { ok: true } | { ok: false; error: string };
 
 // One tRPC request/reply pair per WebSocket connection. `path` is the
-// dot-joined procedure path in the renderer's router (e.g. "asset.frame");
+// dot-joined procedure path in the renderer's router (e.g. "media.frame");
 // procedure inputs and outputs are typed end-to-end via the AppRouter type,
 // so the wire envelope stays untyped.
 export type CliRequest = {
@@ -119,23 +119,23 @@ export type NodeRenderResult = { path: string };
 
 export type AssetRef = { id: string } | { path: string };
 
-export type AssetProbeRequest = AssetRef;
+export type MediaProbeRequest = AssetRef;
 
-export type AssetFrameRequest = AssetRef & { times?: number[]; resolution?: number };
-export type AssetFrameResult = Array<{ time: number; base64: string }>;
+export type MediaFrameRequest = AssetRef & { times?: number[]; resolution?: number };
+export type MediaFrameResult = Array<{ time: number; base64: string }>;
 
-export type AssetTranscribeRequest = AssetRef & { start?: number; end?: number };
+export type MediaTranscribeRequest = AssetRef & { start?: number; end?: number };
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
-export type AssetTranscribeResult = { segments: TranscriptSegment[] };
+export type MediaTranscribeResult = { segments: TranscriptSegment[] };
 
-export type AssetVisualizeRequest = AssetRef & { start?: number; end?: number; scale?: number };
-export type AssetVisualizeResult = {
+export type MediaVisualizeRequest = AssetRef & { start?: number; end?: number; scale?: number };
+export type MediaVisualizeResult = {
   base64: string;
 } & Record<string, unknown>;
 
-export type AssetListenRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
-export type AssetListenResult = { analysis?: string; start?: number; end?: number };
+export type MediaListenRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
+export type MediaListenResult = { analysis?: string; start?: number; end?: number };
 
 export type GeneratedAsset = { id: string; name: string; type: string };
 
