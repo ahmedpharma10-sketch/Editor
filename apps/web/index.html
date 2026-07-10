@@ -3,6 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+    <script>
+      (function () {
+        try {
+          var apply = function (mode) {
+            var resolved =
+              mode === "system"
+                ? window.matchMedia("(prefers-color-scheme: dark)").matches
+                  ? "dark"
+                  : "light"
+                : mode;
+            var root = document.documentElement;
+            root.style.colorScheme = resolved;
+            root.dataset.kbTheme = resolved;
+            return mode;
+          };
+          var stored = localStorage.getItem("kb-color-mode");
+          if (stored) apply(stored);
+          else localStorage.setItem("kb-color-mode", apply("dark"));
+        } catch (e) {}
+      })();
+    </script>
     <link href="/src/index.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Diffusion Studio</title>
