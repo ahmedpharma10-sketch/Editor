@@ -36,10 +36,6 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & {
   const blob = await getAssetFile(asset);
   const hasWindow = window?.start !== undefined || window?.end !== undefined;
 
-  if (!(asset.type === "VIDEO" || asset.type === "AUDIO")) {
-    return { readable: blob.stream() as ReadableStream<Uint8Array<ArrayBuffer>> };
-  }
-
   const isVideo = asset.type === "VIDEO" && !window?.stripVideo;
   const trim = hasWindow ? resolveWindow(asset.duration, window) : undefined;
 

@@ -1097,8 +1097,8 @@ media
 
 media
   .command("visualize")
-  .alias("viz")
-  .description(`Render a compact visual preview of a media file to a PNG: a waveform for audio, a filmstrip plus waveform for video, or a thumbnail for an image. The primary tool for understanding a video; you can narrow the window to zoom into a region of interest. Fast and token-efficient. The waveform shows loudness over time and marks the silent stretches${docs("media/visualize")}`)
+  .aliases(["viz", "filmstrip"])
+  .description(`Start here for any video: render a compact visual preview of a media file to a PNG — a filmstrip plus waveform for video, a waveform for audio, or a thumbnail for an image. Fast and token-efficient; narrow the window to zoom into a region of interest. The waveform shows loudness over time and marks the silent stretches${docs("media/visualize")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to visualize")
   .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1108,8 +1108,8 @@ media
 
 media
   .command("analyze")
-  .description(`Prompt a multimodal model for a semantic analysis of a media file and print its answer. Handles images, audio, and video, but shines on the semantics of audio: what it actually contains (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps)${docs("media/analyze")}`)
-  .argument("<id|path>", "image, audio, or video asset id, or a local file to analyze")
+  .description(`Audio-first and expensive: prompt a multimodal model for a semantic analysis of a video or audio file and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). For a video this analyzes only the audio track by default; if the footage is silent or you need what is on screen, use \`visualize\` first or pass --keep-video to upload the video stream${docs("media/analyze")}`)
+  .argument("<id|path>", "video or audio asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)

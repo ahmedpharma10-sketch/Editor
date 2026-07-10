@@ -458,19 +458,15 @@ export function handleAssetAnalyze(engine: Accessor<Engine>) {
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
     assert(
-      asset.type === "IMAGE" || asset.type === "AUDIO" || asset.type === "VIDEO",
-      `Asset ${id} is not an image, audio, or video asset.`,
+      asset.type === "AUDIO" || asset.type === "VIDEO",
+      `Asset ${id} is not a video or audio asset.`,
     );
 
     const hasWindow = start !== undefined || end !== undefined;
     stripVideo = stripVideo !== false && asset.type === "VIDEO";
 
-    let contentType = asset.mimeType;
-    if (asset.type === "VIDEO") {
-      contentType = stripVideo ? "audio/ogg" : "video/mp4";
-    } else if (asset.type === "AUDIO") {
-      contentType = "audio/ogg";
-    }
+    const contentType =
+      asset.type === "VIDEO" ? (stripVideo ? "audio/ogg" : "video/mp4") : "audio/ogg";
 
     const window = hasWindow ? `-${start ?? 0}-${end ?? "end"}` : "";
     const key = world.assets.has(id) ? id : asset.hash;
