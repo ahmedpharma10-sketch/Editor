@@ -439,13 +439,9 @@ export function handleAssetAnalyze(engine: Accessor<Engine>) {
       asset.type === "IMAGE" || asset.type === "AUDIO" || asset.type === "VIDEO",
       `Asset ${id} is not an image, audio, or video asset.`,
     );
-    assert(
-      !stripVideo || asset.type === "AUDIO" || asset.type === "VIDEO",
-      `Asset ${id} is an image; --strip-video requires an audio or video asset.`,
-    );
 
     const hasWindow = start !== undefined || end !== undefined;
-    stripVideo = stripVideo === true && asset.type === "VIDEO";
+    stripVideo = stripVideo !== false && asset.type === "VIDEO";
 
     let contentType = asset.mimeType;
     if (asset.type === "VIDEO") {

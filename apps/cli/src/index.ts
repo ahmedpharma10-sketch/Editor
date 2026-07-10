@@ -531,7 +531,7 @@ async function assetTranscribe(ref: string, opts: AssetTranscribeOptions): Promi
   }
 }
 
-type AssetAnalyzeOptions = { prompt?: string; start?: string; end?: string; stripVideo?: boolean };
+type AssetAnalyzeOptions = { prompt?: string; start?: string; end?: string; keepVideo?: boolean };
 
 async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<void> {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
@@ -545,7 +545,7 @@ async function assetAnalyze(ref: string, opts: AssetAnalyzeOptions): Promise<voi
   const stop = startSpinner("Analyzing asset");
   try {
     const result = await editor.asset.analyze.query(
-      { ...target, prompt: opts.prompt, start, end, stripVideo: opts.stripVideo },
+      { ...target, prompt: opts.prompt, start, end, stripVideo: !opts.keepVideo },
       GENERATE,
     );
     stop();
@@ -1067,13 +1067,13 @@ asset
 
 asset
   .command("probe")
-  .description(`Read the container and per-track technical metadata of an asset${docs("asset/probe")}`)
+  .description(`Read the container and per-track technical metadata of an asset. Commonly useful for a quick, free technical read (container, duration, per-track codec params), e.g. checking codec compatibility or duration before cutting${docs("asset/probe")}`)
   .argument("<id|path>", "asset id, or a local file")
   .action((ref: string) => assetProbe(ref));
 
 asset
   .command("transcribe")
-  .description(`Transcribe the speech in a video or audio asset and print the timed transcript${docs("asset/transcribe")}`)
+  .description(`Transcribe the speech in a video or audio asset and print the timed transcript. Commonly useful for footage with speakers (talking head, interview), where the word-level times let you cut on a line. Note a transcript marks only speech; the gaps are not necessarily silent (music, score, applause)${docs("asset/transcribe")}`)
   .argument("<id|path>", "video or audio asset id, or a local file")
   .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1081,7 +1081,7 @@ asset
 
 asset
   .command("grab")
-  .description(`Decode one or more frames of a video asset and write them as PNGs${docs("asset/grab")}`)
+  .description(`Decode one or more frames of a video asset and write them as PNGs. Commonly useful for pinning down scene transitions and exact cut timestamps or to sample visuals at the given timestamps${docs("asset/grab")}`)
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
@@ -1091,7 +1091,7 @@ asset
 asset
   .command("visualize")
   .alias("viz")
-  .description(`Render a visual preview of an asset (waveform, filmstrip, or thumbnail) to a PNG${docs("asset/visualize")}`)
+  .description(`Render a compact visual preview of an asset to a PNG: a waveform for audio, a filmstrip plus waveform for video, or a thumbnail for an image. The primary tool for understanding a video; you can narrow the window to zoom into a region of interest. Fast and token-efficient. The waveform shows loudness over time and marks the silent stretches${docs("asset/visualize")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to visualize")
   .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1101,12 +1101,12 @@ asset
 
 asset
   .command("analyze")
-  .description(`Analyze an image, audio, or video asset with AI and print a description of its contents${docs("asset/analyze")}`)
+  .description(`Prompt a multimodal model for a semantic analysis of an asset and print its answer. Handles images, audio, and video, but shines on the semantics of audio: what it actually contains (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps)${docs("asset/analyze")}`)
   .argument("<id|path>", "image, audio, or video asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
-  .option("--strip-video", "analyze only the audio track of a video; significantly faster since the video stream is not uploaded")
+  .option("--keep-video", "include the video stream when analyzing a video; by default only the audio track is analyzed, which is significantly faster since the video stream is not uploaded")
   .action((ref: string, opts: AssetAnalyzeOptions) => assetAnalyze(ref, opts));
 
 const folder = program
@@ -1205,7 +1205,7 @@ node
 
 node
   .command("screenshot")
-  .description(`Focus a node on the canvas and capture a screenshot as a PNG${docs("node/screenshot")}`)
+  .description(`Focus a node on the canvas and capture a screenshot as a PNG. Commonly useful to confirm what the viewer actually sees at a moment (layout, overlaps, text, timing), since the composited canvas is the truest "what plays at time T" check${docs("node/screenshot")}`)
   .argument("[id]", "node id to capture (optional; defaults to the canvas)")
   .option("-t, --time <time>", `timeline position to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
   .action((id: string | undefined, opts: ScreenshotOptions) => nodeScreenshot(id, opts));

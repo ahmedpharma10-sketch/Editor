@@ -65,11 +65,7 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & {
 
   if (!conversion.isValid || conversion.utilizedTracks.length === 0) {
     input.dispose();
-    throw new Error(
-      window?.stripVideo
-        ? "Nothing to analyze. The asset has no audio track; retry without --strip-video."
-        : "Nothing to analyze. The asset has no usable video or audio track.",
-    );
+    throw new Error("Nothing to analyze. The asset has no usable video or audio track.");
   }
 
   const run = async () => {
