@@ -6,7 +6,7 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { ElectronWritableFileHandle } from '@/lib/electron-file-writable';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, visualizeAsset, loadAsset, removeAsset, describeFileAsset, getAssetFile } from '@/components/engine';
+import { uploadBlob, visualizeAsset, loadAsset, removeAsset, describeFileAsset, getAssetFile, formatTimestamp } from '@/components/engine';
 import { assert, mimeTypeToExtension } from '@/utils';
 import {
   transcodeForTranscription,
@@ -360,6 +360,28 @@ export function handleAssetFrame(engine: Accessor<Engine>) {
       for await (const wrapped of sink.canvasesAtTimestamps(timestamps)) {
         const { time, index } = ordered[i++];
         assert(wrapped, `No frame found at ${time}s.`);
+
+        const ctx = wrapped.canvas.getContext("2d");
+
+        if (ctx) {
+          const label = formatTimestamp(time, asset.frameRate)
+          const bandHeight = Math.max(20, Math.round(wrapped.canvas.height * 0.06));
+          const fontSize = Math.round(bandHeight * 0.72);
+          const paddingLeft = Math.round(bandHeight * 0.4);
+          const y = paddingLeft + bandHeight / 2;
+
+          ctx.font = `normal ${fontSize}px sans-serif`;
+          ctx.textBaseline = "middle";
+          ctx.textAlign = "left";
+
+          ctx.lineJoin = "round";
+          ctx.lineWidth = Math.max(2, Math.round(fontSize / 3));
+          ctx.strokeStyle = "#000";
+          ctx.strokeText(label, paddingLeft, y);
+          ctx.fillStyle = "#FFF";
+          ctx.fillText(label, paddingLeft, y);
+        }
+
         result[index] = { time, base64: await canvasToPngBase64(wrapped.canvas) };
       }
       return result;

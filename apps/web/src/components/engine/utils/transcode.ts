@@ -93,7 +93,7 @@ const SILENCE_THRESHOLD = 12; // peak value (0-255) at/below which audio counts 
 const SILENCE_MIN_SECONDS = 0.4;
 const AUDIO_RULER_FRAME_RATE = 30;
 
-function formatTimestamp(seconds: number, frameRate: number): string {
+export function formatTimestamp(seconds: number, frameRate: number): string {
   const fps = Math.max(1, Math.round(frameRate));
   const totalFrames = Math.round(seconds * fps);
   const frames = totalFrames % fps;

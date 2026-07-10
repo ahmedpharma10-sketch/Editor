@@ -1081,7 +1081,7 @@ asset
 
 asset
   .command("grab")
-  .description(`Decode one or more frames of a video asset and write them as PNGs. Commonly useful for pinning down scene transitions and exact cut timestamps or to sample visuals at the given timestamps${docs("asset/grab")}`)
+  .description(`Decode one or more frames of a video asset and write them as high-res PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Best for inspecting individual frames in detail where a filmstrip is too coarse: seeks to the exact requested time with frame-level precision${docs("asset/grab")}`)
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
   .option("-r, --resolution <pixels>", "cap each frame to this many total pixels, preserving aspect ratio; 0 for native (default: 147456, i.e. 384x384)")
