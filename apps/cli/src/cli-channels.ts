@@ -129,13 +129,18 @@ export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
 export type MediaTranscribeResult = { segments: TranscriptSegment[] };
 
-export type MediaVisualizeRequest = AssetRef & { start?: number; end?: number; scale?: number };
-export type MediaVisualizeResult = {
+export type MediaFilmstripRequest = AssetRef & { start?: number; end?: number; scale?: number };
+export type MediaFilmstripResult = {
+  base64: string;
+} & Record<string, unknown>;
+
+export type MediaWaveformRequest = AssetRef & { start?: number; end?: number; scale?: number };
+export type MediaWaveformResult = {
   base64: string;
 } & Record<string, unknown>;
 
 export type MediaListenRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
-export type MediaListenResult = { analysis?: string; start?: number; end?: number };
+export type MediaListenResult = { result?: string; start?: number; end?: number };
 
 export type GeneratedAsset = { id: string; name: string; type: string };
 

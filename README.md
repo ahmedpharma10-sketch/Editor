@@ -62,7 +62,8 @@ Cutting footage requires looking at it. The CLI ships the inspection tools an ag
 ```sh
 dapi media probe clip.mp4                                # container + codec metadata, like ffprobe
 dapi media grab clip.mp4 -t 0 12 45                      # decode frames to PNGs
-dapi media visualize track.mp3                           # waveform / filmstrip previews
+dapi media filmstrip clip.mp4                            # grid of video frames
+dapi media waveform track.mp3                            # audio waveform, silence flagged
 dapi media transcribe interview.wav                      # timed, word-level transcript
 dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
 dapi node screenshot                                     # see the canvas itself
@@ -77,7 +78,7 @@ dapi node screenshot                                     # see the canvas itself
 | `dapi mount` | Compile and mount a JSX composition |
 | `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `export` |
 | `dapi asset …` | The media library: `add`, `ls`, `tree`, `mv`, `rm`, `export` |
-| `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `visualize`, `transcribe`, `listen` |
+| `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
 

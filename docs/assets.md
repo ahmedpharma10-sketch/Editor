@@ -1,6 +1,6 @@
 # Working with media
 
-The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain under `dapi media` (probe, grab, visualize, transcribe, listen) so an agent can *look at* footage before cutting it. All of it runs locally except `listen` and `transcribe`, which use hosted models.
+The asset library holds a project's media. Beyond storage, the CLI ships an inspection toolchain under `dapi media` (probe, grab, filmstrip, waveform, transcribe, listen) so an agent can *look at* footage before cutting it. All of it runs locally except `listen` and `transcribe`, which use hosted models.
 
 **Id or path:** every inspection command takes either an asset id or a local file path. A path is read directly, so `dapi media probe clip.mp4` works on a file that isn't in the project yet.
 
@@ -48,13 +48,21 @@ dapi media grab <id|path> [-t <time...>] [-o <dir>]
 
 Decodes video frames at the given timestamps to PNGs, at the asset's full resolution. Prints `{ time, path }` per frame. (For the *composited* canvas instead of the raw asset, use `dapi node screenshot`.)
 
-### `media visualize`
+### `media filmstrip`
 
 ```sh
-dapi media visualize <id|path> [-s <start>] [-e <end>] [-x <scale>] [-o <path>]
+dapi media filmstrip <id|path> [-s <start>] [-e <end>] [-x <scale>] [-o <path>]
 ```
 
-Renders a one-image preview chosen by media type: audio gets an amplitude **waveform** with a time axis, video gets a **filmstrip** of evenly sampled frames with the audio waveform beneath it, and images get a thumbnail. `-s`/`-e` window the preview; `-x` trades thumbnail size against grid density. Prints `{ path }`.
+Renders a video to a **filmstrip**: a grid of evenly sampled frames with a per-row timestamp ruler. Video only. `-s`/`-e` window the preview; `-x` trades thumbnail size against grid density. Prints `{ path }`.
+
+### `media waveform`
+
+```sh
+dapi media waveform <id|path> [-s <start>] [-e <end>] [-x <scale>] [-o <path>]
+```
+
+Renders the audio track of a video or audio file as an amplitude **waveform** with a time axis, **highlighting silent stretches in red**. `-s`/`-e` window the preview; `-x` trades row height against grid density. Prints `{ path }`.
 
 ### `media transcribe`
 
@@ -79,7 +87,7 @@ Puts a multimodal model in front of an audio track. Without a prompt, returns a 
 dapi open -b ./shoot                                  # project from footage
 dapi asset tree --depth 1                             # what's here?
 dapi media probe gbHJ                                 # what format is it?
-dapi media visualize gbHJ                             # what does it look like over time?
+dapi media filmstrip gbHJ                             # what does it look like over time?
 dapi media transcribe gbHJ                            # what is said, and when?
 dapi media listen gbHJ -p "what is said in the intro?"
 dapi mount cut.tsx                                    # compose the edit

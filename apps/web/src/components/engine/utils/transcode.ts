@@ -6,7 +6,7 @@ import { ALL_FORMATS, AudioSampleSink, BlobSource, BufferTarget, CanvasSink, Con
 import { assert } from '@/utils';
 import { getAssetFile } from '../api/assets';
 import type { StreamTargetChunk } from 'mediabunny';
-import type { Asset } from '../db';
+import type { Asset, VideoAsset, AudioAsset } from '../db';
 
 export async function transcodeForTranscription(asset: Asset): Promise<File> {
   const blob = await getAssetFile(asset);
@@ -75,12 +75,10 @@ export async function transcodeForAnalysis(asset: Asset, window?: TimeWindow & {
   return { readable, run };
 }
 
-const MAX_IMAGE_SIZE = 560 ** 2;
 const PATCH_SIZE = 28;
 const MAX_WIDTH_IN_TOKENS = 52; // 92
 const MAX_HEIGHT_IN_TOKENS = 52;
 const THUMBNAIL_HEIGHT_IN_TOKENS = 5;
-const WAVEFORM_HEIGHT_IN_TOKENS = 3;
 const RULER_HEIGHT_IN_TOKENS = 1;
 const AUDIO_WAVEFORM_HEIGHT_IN_TOKENS = 6;
 const AUDIO_COLUMN_WIDTH_IN_TOKENS = 6;
@@ -100,13 +98,13 @@ export function formatTimestamp(seconds: number, frameRate: number): string {
   return [hh, mm, ss, frames].map((v) => String(v).padStart(2, '0')).join(':');
 }
 
-export type AssetVisualization = {
+export type RenderedPreview = {
   dataUrl: string;
 } & Record<string, unknown>;
 
 export type TimeWindow = { start?: number; end?: number };
 
-export type VisualizeOptions = TimeWindow & { scale?: number };
+export type PreviewOptions = TimeWindow & { scale?: number };
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 4;
@@ -126,221 +124,201 @@ function resolveWindow(duration: number, window?: TimeWindow): { start: number; 
   return { start, end, duration: end - start };
 }
 
-export async function visualizeAsset(asset: Asset, options?: VisualizeOptions): Promise<AssetVisualization> {
+// Render a video as a grid of thumbnails sampled across the window, each row
+// stamped with a timestamp ruler. Video only; no audio.
+export async function filmstripAsset(asset: Asset, options?: PreviewOptions): Promise<RenderedPreview> {
+  assert(asset.type === "VIDEO", "The filmstrip needs a video asset; use `waveform` for audio.");
   const blob = await getAssetFile(asset);
   const scale = resolveScale(options?.scale);
+  const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
+  try {
+    return await renderFilmstrip(asset, input, options, scale);
+  } finally {
+    input.dispose();
+  }
+}
 
-  if (asset.type === "IMAGE") {
-    const pixelCount = asset.width * asset.height;
-    const factor = Math.min(1, Math.sqrt(MAX_IMAGE_SIZE / pixelCount) * scale);
+async function renderFilmstrip(asset: VideoAsset, input: Input, window: TimeWindow | undefined, scale: number): Promise<RenderedPreview> {
+  const videoTrack = await input.getPrimaryVideoTrack();
+  assert(videoTrack, "Video track not found");
+  const { start: windowStart, duration } = resolveWindow(asset.duration, window);
+  const aspect = asset.width / asset.height;
+  const frameRate = asset.frameRate;
 
-    const outputWidth = Math.floor(asset.width * factor);
-    const outputHeight = Math.floor(asset.height * factor);
+  const thumbnailHeightInTokens = Math.min(
+    Math.max(Math.round(THUMBNAIL_HEIGHT_IN_TOKENS * scale), 1),
+    MAX_HEIGHT_IN_TOKENS - RULER_HEIGHT_IN_TOKENS,
+  );
+  const rowHeightInTokens = thumbnailHeightInTokens + RULER_HEIGHT_IN_TOKENS;
 
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement('canvas');
-    canvas.width = outputWidth;
-    canvas.height = outputHeight;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(bitmap, 0, 0, outputWidth, outputHeight);
-    bitmap.close();
-    return { dataUrl: canvas.toDataURL('image/png') };
+  const columnWidthInTokens = Math.min(
+    Math.max(Math.floor(thumbnailHeightInTokens * aspect), 1),
+    MAX_WIDTH_IN_TOKENS,
+  );
+
+  const thumbnailWidthInPixels = columnWidthInTokens * PATCH_SIZE;
+  const thumbnailHeightInPixels = thumbnailHeightInTokens * PATCH_SIZE;
+  const rowHeightInPixels = rowHeightInTokens * PATCH_SIZE;
+
+  const rows = Math.floor(MAX_HEIGHT_IN_TOKENS / rowHeightInTokens);
+  const columns = Math.floor(MAX_WIDTH_IN_TOKENS / columnWidthInTokens);
+  const cells = rows * columns;
+
+  const secondsPerColumn = Math.max(duration / cells, 1 / frameRate);
+  const secondsPerRow = secondsPerColumn * columns;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = columnWidthInTokens * columns * PATCH_SIZE;
+  canvas.height = rowHeightInTokens * rows * PATCH_SIZE;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const sink = new CanvasSink(videoTrack, {
+    width: thumbnailWidthInPixels,
+    height: thumbnailHeightInPixels,
+    fit: 'cover',
+    poolSize: 1,
+  });
+
+  const rulerHeight = RULER_HEIGHT_IN_TOKENS * PATCH_SIZE;
+
+  const timestamps = Array.from({ length: cells }, (_, i) => windowStart + i * secondsPerColumn);
+  const interator = sink.canvasesAtTimestamps(timestamps);
+  for (let i = 0; i < cells; i++) {
+    const wrapped = await interator.next();
+    if (!wrapped.value?.canvas) continue;
+
+    const column = i % columns;
+    const row = Math.floor(i / columns);
+
+    ctx.drawImage(
+      wrapped.value.canvas,
+      column * columnWidthInTokens * PATCH_SIZE,
+      rulerHeight + row * rowHeightInTokens * PATCH_SIZE,
+      thumbnailWidthInPixels,
+      thumbnailHeightInPixels
+    );
   }
 
-  if (asset.type === "VIDEO") {
-    const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
-    const videoTrack = await input.getPrimaryVideoTrack();
-    assert(videoTrack, "Video track not found");
-    const audioTrack = await input.getPrimaryAudioTrack();
-    const { start: windowStart, duration } = resolveWindow(asset.duration, options);
-    const aspect = asset.width / asset.height;
-    const frameRate = asset.frameRate;
+  drawRuler(ctx, {
+    cells,
+    columns,
+    columnWidthInPixels: columnWidthInTokens * PATCH_SIZE,
+    rowHeightInPixels,
+    rulerHeight,
+    secondsPerColumn,
+    frameRate,
+    startOffset: windowStart,
+  });
 
-    const fixedRowTokens = RULER_HEIGHT_IN_TOKENS + (audioTrack ? WAVEFORM_HEIGHT_IN_TOKENS : 0);
-    const thumbnailHeightInTokens = Math.min(
-      Math.max(Math.round(THUMBNAIL_HEIGHT_IN_TOKENS * scale), 1),
-      MAX_HEIGHT_IN_TOKENS - fixedRowTokens,
-    );
-    const rowHeightInTokens = thumbnailHeightInTokens + fixedRowTokens;
-
-    const columnWidthInTokens = Math.min(
-      Math.max(Math.floor(thumbnailHeightInTokens * aspect), 1),
-      MAX_WIDTH_IN_TOKENS,
-    );
-
-    const thumbnailWidthInPixels = columnWidthInTokens * PATCH_SIZE;
-    const thumbnailHeightInPixels = thumbnailHeightInTokens * PATCH_SIZE;
-    const rowHeightInPixels = rowHeightInTokens * PATCH_SIZE;
-
-    const rows = Math.floor(MAX_HEIGHT_IN_TOKENS / rowHeightInTokens);
-    const columns = Math.floor(MAX_WIDTH_IN_TOKENS / columnWidthInTokens);
-    const cells = rows * columns;
-
-    const secondsPerColumn = Math.max(duration / cells, 1 / frameRate);
-    const secondsPerRow = secondsPerColumn * columns;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = columnWidthInTokens * columns * PATCH_SIZE;
-    canvas.height = rowHeightInTokens * rows * PATCH_SIZE;
-    const ctx = canvas.getContext('2d')!;
-
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const sink = new CanvasSink(videoTrack, {
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    column: {
       width: thumbnailWidthInPixels,
-      height: thumbnailHeightInPixels,
-      fit: 'cover',
-      poolSize: 1,
-    });
+      count: columns,
+      duration: secondsPerColumn,
+    },
+    row: {
+      height: rowHeightInPixels,
+      count: rows,
+      duration: secondsPerRow,
+    },
+  };
+}
 
-    const rulerHeight = RULER_HEIGHT_IN_TOKENS * PATCH_SIZE;
-
-    const timestamps = Array.from({ length: cells }, (_, i) => windowStart + i * secondsPerColumn);
-    const interator = sink.canvasesAtTimestamps(timestamps);
-    for (let i = 0; i < cells; i++) {
-      const wrapped = await interator.next();
-      if (!wrapped.value?.canvas) continue;
-
-      const column = i % columns;
-      const row = Math.floor(i / columns);
-
-      ctx.drawImage(
-        wrapped.value.canvas,
-        column * columnWidthInTokens * PATCH_SIZE,
-        rulerHeight + row * rowHeightInTokens * PATCH_SIZE,
-        thumbnailWidthInPixels,
-        thumbnailHeightInPixels
-      );
-    }
-
-    // Skip the waveform when the browser's AudioDecoder can't handle the codec
-    if (audioTrack && await audioTrack.canDecode()) {
-      const peaksPerSecond = Math.round(thumbnailWidthInPixels / secondsPerColumn / WAVEFORM_SAMPLE_WIDTH);
-      const audioPeaks = await downsampleAudio(audioTrack, { peaksPerSecond, range: [windowStart, windowStart + duration] });
-
-      drawWaveform(ctx, audioPeaks, {
-        rows,
-        rowWidth: columns * thumbnailWidthInPixels,
-        rowHeightInPixels,
-        waveformOffset: rulerHeight + thumbnailHeightInPixels,
-        waveformHeight: WAVEFORM_HEIGHT_IN_TOKENS * PATCH_SIZE,
-        peaksPerSecond,
-        align: 'bottom',
-      });
-    }
-
-    drawRuler(ctx, {
-      cells,
-      columns,
-      columnWidthInPixels: columnWidthInTokens * PATCH_SIZE,
-      rowHeightInPixels,
-      rulerHeight,
-      secondsPerColumn,
-      frameRate,
-      startOffset: windowStart,
-    });
-
-    return {
-      dataUrl: canvas.toDataURL('image/png'),
-      column: {
-        width: thumbnailWidthInPixels,
-        count: columns,
-        duration: secondsPerColumn,
-      },
-      row: {
-        height: rowHeightInPixels,
-        count: rows,
-        duration: secondsPerRow,
-      },
-    };
+// Render the audio track of a video or audio file as a loudness-over-time
+// waveform with a timestamp ruler and silent stretches highlighted.
+export async function waveformAsset(asset: Asset, options?: PreviewOptions): Promise<RenderedPreview> {
+  assert(asset.type === "VIDEO" || asset.type === "AUDIO", "The waveform needs a video or audio asset.");
+  const blob = await getAssetFile(asset);
+  const scale = resolveScale(options?.scale);
+  const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
+  try {
+    return await renderWaveform(asset, input, options, scale);
+  } finally {
+    input.dispose();
   }
+}
 
-  if (asset.type === "AUDIO") {
-    const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
-    try {
-      const audioTrack = await input.getPrimaryAudioTrack();
-      assert(audioTrack, "Audio track not found");
-      assert(
-        await audioTrack.canDecode(),
-        `This browser's audio decoder can't handle the "${audioTrack.getCodec() ?? "unknown"}" codec, so no waveform can be rendered.`,
-      );
-      const { start: windowStart, duration } = resolveWindow(asset.duration, options);
+async function renderWaveform(asset: VideoAsset | AudioAsset, input: Input, window: TimeWindow | undefined, scale: number): Promise<RenderedPreview> {
+  const audioTrack = await input.getPrimaryAudioTrack();
+  assert(audioTrack, "No audio track found, so no waveform can be rendered.");
+  assert(
+    await audioTrack.canDecode(),
+    `This browser's audio decoder can't handle the "${audioTrack.getCodec() ?? "unknown"}" codec, so no waveform can be rendered.`,
+  );
+  const { start: windowStart, duration } = resolveWindow(asset.duration, window);
+  const rulerFrameRate = asset.type === "VIDEO" ? asset.frameRate : AUDIO_RULER_FRAME_RATE;
 
-      const waveformHeightInTokens = Math.min(
-        Math.max(Math.round(AUDIO_WAVEFORM_HEIGHT_IN_TOKENS * scale), 1),
-        MAX_HEIGHT_IN_TOKENS - RULER_HEIGHT_IN_TOKENS,
-      );
-      const rowHeightInTokens = waveformHeightInTokens + RULER_HEIGHT_IN_TOKENS;
-      const columnWidthInTokens = Math.min(
-        Math.max(Math.round(AUDIO_COLUMN_WIDTH_IN_TOKENS * scale), 1),
-        MAX_WIDTH_IN_TOKENS,
-      );
+  const waveformHeightInTokens = Math.min(
+    Math.max(Math.round(AUDIO_WAVEFORM_HEIGHT_IN_TOKENS * scale), 1),
+    MAX_HEIGHT_IN_TOKENS - RULER_HEIGHT_IN_TOKENS,
+  );
+  const rowHeightInTokens = waveformHeightInTokens + RULER_HEIGHT_IN_TOKENS;
+  const columnWidthInTokens = Math.min(
+    Math.max(Math.round(AUDIO_COLUMN_WIDTH_IN_TOKENS * scale), 1),
+    MAX_WIDTH_IN_TOKENS,
+  );
 
-      const rows = Math.floor(MAX_HEIGHT_IN_TOKENS / rowHeightInTokens);
-      const columns = Math.floor(MAX_WIDTH_IN_TOKENS / columnWidthInTokens);
-      const cells = rows * columns;
+  const rows = Math.floor(MAX_HEIGHT_IN_TOKENS / rowHeightInTokens);
+  const columns = Math.floor(MAX_WIDTH_IN_TOKENS / columnWidthInTokens);
+  const cells = rows * columns;
 
-      const secondsPerColumn = duration / cells;
-      const secondsPerRow = secondsPerColumn * columns;
+  const secondsPerColumn = duration / cells;
+  const secondsPerRow = secondsPerColumn * columns;
 
-      const columnWidthInPixels = columnWidthInTokens * PATCH_SIZE;
-      const rowHeightInPixels = rowHeightInTokens * PATCH_SIZE;
-      const rulerHeight = RULER_HEIGHT_IN_TOKENS * PATCH_SIZE;
-      const waveformHeight = waveformHeightInTokens * PATCH_SIZE;
-      const rowWidth = columns * columnWidthInPixels;
+  const columnWidthInPixels = columnWidthInTokens * PATCH_SIZE;
+  const rowHeightInPixels = rowHeightInTokens * PATCH_SIZE;
+  const rulerHeight = RULER_HEIGHT_IN_TOKENS * PATCH_SIZE;
+  const waveformHeight = waveformHeightInTokens * PATCH_SIZE;
+  const rowWidth = columns * columnWidthInPixels;
 
-      const canvas = document.createElement('canvas');
-      canvas.width = rowWidth;
-      canvas.height = rowHeightInPixels * rows;
-      const ctx = canvas.getContext('2d')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = rowWidth;
+  canvas.height = rowHeightInPixels * rows;
+  const ctx = canvas.getContext('2d')!;
 
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const peaksPerSecond = Math.round(columnWidthInPixels / secondsPerColumn / WAVEFORM_SAMPLE_WIDTH);
-      const audioPeaks = await downsampleAudio(audioTrack, { peaksPerSecond, range: [windowStart, windowStart + duration] });
+  const peaksPerSecond = Math.round(columnWidthInPixels / secondsPerColumn / WAVEFORM_SAMPLE_WIDTH);
+  const audioPeaks = await downsampleAudio(audioTrack, { peaksPerSecond, range: [windowStart, windowStart + duration] });
 
-      drawWaveform(ctx, audioPeaks, {
-        rows,
-        rowWidth,
-        rowHeightInPixels,
-        waveformOffset: rulerHeight,
-        waveformHeight,
-        peaksPerSecond,
-        align: 'center',
-      });
+  drawWaveform(ctx, audioPeaks, {
+    rows,
+    rowWidth,
+    rowHeightInPixels,
+    waveformOffset: rulerHeight,
+    waveformHeight,
+    peaksPerSecond,
+  });
 
-      drawRuler(ctx, {
-        cells,
-        columns,
-        columnWidthInPixels,
-        rowHeightInPixels,
-        rulerHeight,
-        secondsPerColumn,
-        frameRate: AUDIO_RULER_FRAME_RATE,
-        startOffset: windowStart,
-      });
+  drawRuler(ctx, {
+    cells,
+    columns,
+    columnWidthInPixels,
+    rowHeightInPixels,
+    rulerHeight,
+    secondsPerColumn,
+    frameRate: rulerFrameRate,
+    startOffset: windowStart,
+  });
 
-      return {
-        dataUrl: canvas.toDataURL('image/png'),
-        column: {
-          width: columnWidthInPixels,
-          count: columns,
-          duration: secondsPerColumn,
-        },
-        row: {
-          height: rowHeightInPixels,
-          count: rows,
-          duration: secondsPerRow,
-        },
-      };
-    } finally {
-      input.dispose();
-    }
-  }
-
-  throw new Error(`Unsupported asset type: ${asset.type}`);
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    column: {
+      width: columnWidthInPixels,
+      count: columns,
+      duration: secondsPerColumn,
+    },
+    row: {
+      height: rowHeightInPixels,
+      count: rows,
+      duration: secondsPerRow,
+    },
+  };
 }
 
 type WaveformLayout = {
@@ -350,13 +328,13 @@ type WaveformLayout = {
   waveformOffset: number; // y offset within a row where the waveform begins
   waveformHeight: number;
   peaksPerSecond: number;
-  align: 'center' | 'bottom';
 };
 
+// Draws a center-aligned waveform, then overlays the silent stretches in red.
 function drawWaveform(ctx: CanvasRenderingContext2D, audioPeaks: Uint8ClampedArray, layout: WaveformLayout) {
-  const { rows, rowWidth, rowHeightInPixels, waveformOffset, waveformHeight, peaksPerSecond, align } = layout;
+  const { rows, rowWidth, rowHeightInPixels, waveformOffset, waveformHeight, peaksPerSecond } = layout;
   const peaksPerRow = Math.floor(rowWidth / WAVEFORM_SAMPLE_WIDTH);
-  const fullHeight = align === 'bottom' ? waveformHeight : waveformHeight / 2;
+  const halfHeight = waveformHeight / 2;
 
   const waveformTopOf = (row: number) => row * rowHeightInPixels + waveformOffset;
 
@@ -368,15 +346,10 @@ function drawWaveform(ctx: CanvasRenderingContext2D, audioPeaks: Uint8ClampedArr
       const peakIndex = row * peaksPerRow + col;
       if (peakIndex >= audioPeaks.length) break;
 
-      const amplitude = (audioPeaks[peakIndex] / 255) * fullHeight;
+      const amplitude = (audioPeaks[peakIndex] / 255) * halfHeight;
       const x = col * WAVEFORM_SAMPLE_WIDTH;
-      if (align === 'bottom') {
-        const barHeight = Math.max(amplitude, 1);
-        ctx.fillRect(x, top + waveformHeight - barHeight, WAVEFORM_SAMPLE_WIDTH, barHeight);
-      } else {
-        const centerY = top + fullHeight;
-        ctx.fillRect(x, centerY - amplitude, WAVEFORM_SAMPLE_WIDTH, Math.max(amplitude * 2, 1));
-      }
+      const centerY = top + halfHeight;
+      ctx.fillRect(x, centerY - amplitude, WAVEFORM_SAMPLE_WIDTH, Math.max(amplitude * 2, 1));
     }
   }
 

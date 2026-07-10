@@ -5,7 +5,7 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, visualizeAsset, describeFileAsset, getAssetFile, formatTimestamp } from '@/components/engine';
+import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp } from '@/components/engine';
 import { assert } from '@/utils';
 import {
   transcodeForTranscription,
@@ -16,7 +16,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaProbeRequest, AssetRef, MediaTranscribeRequest, MediaTranscribeResult, MediaVisualizeRequest, MediaVisualizeResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaProbeRequest, AssetRef, MediaTranscribeRequest, MediaTranscribeResult, MediaFilmstripRequest, MediaFilmstripResult, MediaWaveformRequest, MediaWaveformResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 /**
@@ -229,11 +229,21 @@ function sliceTranscript(segments: TranscriptSegment[], start?: number, end?: nu
   return sliced;
 }
 
-export function handleMediaVisualize(engine: Accessor<Engine>) {
-  return async (req: MediaVisualizeRequest): Promise<MediaVisualizeResult> => {
+export function handleMediaFilmstrip(engine: Accessor<Engine>) {
+  return async (req: MediaFilmstripRequest): Promise<MediaFilmstripResult> => {
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
-    const { dataUrl, ...rest } = await visualizeAsset(asset, { start: req.start, end: req.end, scale: req.scale });
+    const { dataUrl, ...rest } = await filmstripAsset(asset, { start: req.start, end: req.end, scale: req.scale });
+    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    return { base64, ...rest };
+  };
+}
+
+export function handleMediaWaveform(engine: Accessor<Engine>) {
+  return async (req: MediaWaveformRequest): Promise<MediaWaveformResult> => {
+    const { world } = engine();
+    const asset = await resolveAssetRef(world, req);
+    const { dataUrl, ...rest } = await waveformAsset(asset, { start: req.start, end: req.end, scale: req.scale });
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
     return { base64, ...rest };
   };
@@ -278,7 +288,7 @@ export function handleMediaListen(engine: Accessor<Engine>) {
 
     const { analysis } = await trpc.analyze.mutate({ media: fileRef, prompt });
 
-    return { analysis, start, end };
+    return { result: analysis, start, end };
   };
 }
 

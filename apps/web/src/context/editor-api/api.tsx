@@ -9,7 +9,7 @@ import { useAuth } from '@/context/auth';
 import { t, q, m, q0, m0 } from "@/lib/cli-rpc";
 import { handleContextGet } from "./context";
 import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport } from "./assets";
-import { handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaVisualize, handleMediaListen } from "./media";
+import { handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaFilmstrip, handleMediaWaveform, handleMediaListen } from "./media";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
@@ -110,7 +110,8 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
       probe: q(handleMediaProbe(getEngine)),
       frame: q(handleMediaFrame(getEngine)),
       transcribe: q(handleMediaTranscribe(getEngine)),
-      visualize: q(handleMediaVisualize(getEngine)),
+      filmstrip: q(handleMediaFilmstrip(getEngine)),
+      waveform: q(handleMediaWaveform(getEngine)),
       listen: q(requireAuth(handleMediaListen(getEngine))),
     }),
     folder: t.router({

@@ -556,7 +556,7 @@ async function mediaListen(ref: string, opts: MediaListenOptions): Promise<void>
   }
 }
 
-type MediaVisualizeOptions = { start?: string; end?: string; scale?: string; output?: string };
+type MediaPreviewOptions = { start?: string; end?: string; scale?: string; output?: string };
 
 function parseTimeArg(value: string, flag: string): number {
   const seconds = parseTime(value);
@@ -569,7 +569,8 @@ function parseTimeArg(value: string, flag: string): number {
   return seconds;
 }
 
-async function mediaVisualize(ref: string, opts: MediaVisualizeOptions): Promise<void> {
+// Parse the window/scale flags shared by `filmstrip` and `waveform`.
+function parsePreviewWindow(opts: MediaPreviewOptions): { start?: number; end?: number; scale?: number } {
   const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
   const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
   if (start !== undefined && end !== undefined && start >= end) {
@@ -586,11 +587,32 @@ async function mediaVisualize(ref: string, opts: MediaVisualizeOptions): Promise
     }
   }
 
+  return { start, end, scale };
+}
+
+async function mediaFilmstrip(ref: string, opts: MediaPreviewOptions): Promise<void> {
+  const { start, end, scale } = parsePreviewWindow(opts);
   const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
-  const stop = startSpinner("Rendering visualization");
+  const stop = startSpinner("Rendering filmstrip");
   try {
-    const { base64, ...rest } = await editor.media.visualize.query({ ...target, start, end, scale });
+    const { base64, ...rest } = await editor.media.filmstrip.query({ ...target, start, end, scale });
+    stop();
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ path, ...rest }));
+  } catch (e) {
+    stop();
+    handleSocketError(e);
+  }
+}
+
+async function mediaWaveform(ref: string, opts: MediaPreviewOptions): Promise<void> {
+  const { start, end, scale } = parsePreviewWindow(opts);
+  const target = resolveAssetRef(ref);
+  const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
+  const stop = startSpinner("Rendering waveform");
+  try {
+    const { base64, ...rest } = await editor.media.waveform.query({ ...target, start, end, scale });
     stop();
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path, ...rest }));
@@ -1088,6 +1110,7 @@ media
 
 media
   .command("grab")
+  .alias("sample")
   .description(`Decode one or more frames of a video file and write them as high-res PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Best for inspecting individual frames in detail where a filmstrip is too coarse: seeks to the exact requested time with frame-level precision${docs("media/grab")}`)
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0)`)
@@ -1096,15 +1119,26 @@ media
   .action((ref: string, opts: MediaFrameOptions) => mediaFrame(ref, opts));
 
 media
-  .command("visualize")
-  .aliases(["viz", "filmstrip"])
-  .description(`Start here for any video: render a compact visual preview of a media file to a PNG — a filmstrip plus waveform for video, a waveform for audio, or a thumbnail for an image. Fast and token-efficient; narrow the window to zoom into a region of interest. The waveform shows loudness over time and marks the silent stretches${docs("media/visualize")}`)
-  .argument("<id|path>", "image, audio, or video asset id, or a local file to visualize")
-  .option("-s, --start <time>", `start of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: 0)`)
-  .option("-e, --end <time>", `end of the window to visualize — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .command("filmstrip")
+  .alias("film")
+  .description(`Start here for any video: render a grid of thumbnails sampled across the timeline to a PNG, each row stamped with timestamps. Fast and token-efficient; narrow the window to zoom into a region of interest. Video only, no audio — use \`waveform\` to inspect the audio track${docs("media/filmstrip")}`)
+  .argument("<id|path>", "video asset id, or a local video file to preview")
+  .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
+  .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .option("-x, --scale <factor>", "scale factor for the thumbnails; smaller thumbnails fit more rows and columns, larger fit fewer (default: 1)")
   .option("-o, --output <path>", "write the PNG here instead of a temp file")
-  .action((ref: string, opts: MediaVisualizeOptions) => mediaVisualize(ref, opts));
+  .action((ref: string, opts: MediaPreviewOptions) => mediaFilmstrip(ref, opts));
+
+media
+  .command("waveform")
+  .alias("wave")
+  .description(`Render the audio track of a video or audio file as a waveform PNG with a timestamp ruler. Shows loudness over time and highlights the silent stretches in red. Fast and token-efficient; narrow the window to zoom into a region of interest${docs("media/waveform")}`)
+  .argument("<id|path>", "video or audio asset id, or a local file to preview")
+  .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
+  .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
+  .option("-x, --scale <factor>", "scale factor for the waveform; smaller fits more rows and columns, larger fits fewer (default: 1)")
+  .option("-o, --output <path>", "write the PNG here instead of a temp file")
+  .action((ref: string, opts: MediaPreviewOptions) => mediaWaveform(ref, opts));
 
 media
   .command("listen")
