@@ -1104,7 +1104,7 @@ asset
 
 asset
   .command("ls")
-  .alias("get")
+  .aliases(["list", "get"])
   .description(
     `Print raw asset records: every persisted property except the file handles (name, type, mimeType, size, createdAt, folderId, per-type media metadata, any stored transcript).`,
   )
@@ -1278,7 +1278,7 @@ const selection = program
 
 selection
   .command("ls")
-  .alias("get")
+  .aliases(["list", "get"])
   .description(
     `List the currently selected nodes. \`set\` and \`focus\` return the resulting selection in the same shape.`,
   )
@@ -1302,7 +1302,7 @@ const node = program
 
 node
   .command("ls")
-  .alias("get")
+  .aliases(["list", "get"])
   .description(
     `Print raw entity records, exactly as persisted: every component the entity carries, keyed by component name (Name, Size, Position, Paint, Trim, ChildOf, ...). With no ids, lists the top-level nodes. Values are raw engine units: times are frames at 30 fps, colors packed 0xRRGGBB, volume in dB.`,
   )
