@@ -285,7 +285,7 @@ function sceneOfNode(world: EngineWorld, eid: number): number | null {
 }
 
 export function handleNodeCapture(engine: Accessor<Engine>) {
-  return async ({ id, frame }: { id?: number; frame?: number }): Promise<{ base64: string }> => {
+  return async ({ id, frames }: { id?: number; frames?: number[] }): Promise<{ base64: string }[]> => {
     const e = engine();
     const w = e.world;
     const c = w.components;
@@ -296,12 +296,6 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
     const sceneEid = eid !== undefined ? sceneOfNode(w, eid) : w.selection.scene;
     if (sceneEid !== null && sceneEid !== w.selection.scene) {
       switchActiveScene(w, sceneEid);
-    }
-
-    if (frame !== undefined && sceneEid !== null) {
-      c.Playback.playing[sceneEid] = 0;
-      c.Computed.localTime[sceneEid] = frame;
-      c.Computed.localTimeInSeconds[sceneEid] = frame / w.frameRate;
     }
 
     // Select the captured node so the capture shows its bounds.
@@ -317,16 +311,27 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
       else e.camera.focusEntities([eid]);
     }
 
-    // Realtime decoder seeks are fire-and-forget — give video paints time to
-    // decode the new frame before capturing.
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // `undefined` means the current playhead; each explicit frame is captured in order.
+    const shots = frames !== undefined && frames.length > 0 ? frames : [undefined];
+    const results: { base64: string }[] = [];
+    for (const frame of shots) {
+      if (frame !== undefined && sceneEid !== null) {
+        c.Playback.playing[sceneEid] = 0;
+        c.Computed.localTime[sceneEid] = frame;
+        c.Computed.localTimeInSeconds[sceneEid] = frame / w.frameRate;
+      }
 
-    const canvas = w.canvas;
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new Error("Canvas is not ready");
+      // Realtime decoder seeks are fire-and-forget — give video paints time to
+      // decode the new frame before capturing.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const canvas = w.canvas;
+      if (!(canvas instanceof HTMLCanvasElement)) {
+        throw new Error("Canvas is not ready");
+      }
+      results.push({ base64: canvas.toDataURL("image/png").split(",")[1] ?? "" });
     }
-    const base64 = canvas.toDataURL("image/png").split(",")[1] ?? "";
-    return { base64 };
+    return results;
   };
 }
 
