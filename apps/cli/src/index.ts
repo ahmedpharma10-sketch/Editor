@@ -1052,28 +1052,28 @@ async function fetch(url: string, opts: FetchCliOptions, raw: string[]): Promise
 
 const program = new Command();
 
-// Appends the command's reference page to its help description.
-const DOCS_BASE = "https://github.com/diffusionstudio/editor/blob/main/apps/cli/reference";
-const docs = (page: string) => `\nReference: ${DOCS_BASE}/${page}.md`;
-
 program
   .name("dapi")
   .description(
-    `CLI for Diffusion Studio — understand, generate, and edit footage.
-Analyze video/audio/images, generate them with AI, and compose video compositions.
-Use for any media analysis, media generation, or video editing task. No ffmpeg needed.${docs("README")}`,
+    `The Diffusion Studio CLI: understand, generate, and edit footage.
+Analyze video/audio/images, generate them with AI, and compose assets.
+Use for any media analysis, media generation, or video editing task. No ffmpeg needed.`,
   )
   .version(version);
 
 program
   .command("context")
   .alias("ctx")
-  .description(`Print essential context about the open project${docs("context")}`)
+  .description(
+    `Print essential context about the open project (project, entity count, scenes, active scene, playhead, font families); call this first to orient.`,
+  )
   .action(() => context());
 
 program
   .command("open")
-  .description(`Open Diffusion Studio${docs("open")}`)
+  .description(
+    `Launch Diffusion Studio, or open a target (does not require the app to be running). With no target, launches the app; a "${PROTOCOL}://" URL follows the deep link; a file path opens the file; a folder path creates a project from its contents (importing supported assets, mirroring subfolders) or reopens the one recorded in its .dapi marker.`,
+  )
   .argument("[target]", `file path, folder path, or "${PROTOCOL}://" URL to open`)
   .option("-b, --background", "launch with the window hidden (headless)")
   .action((target: string | undefined, opts: { background?: boolean }) =>
@@ -1081,7 +1081,9 @@ program
 
 program
   .command("mount")
-  .description(`Compile a Solid JSX project module and mount it into the canvas${docs("mount")}`)
+  .description(
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+  )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
   .action((path: string | undefined, opts: MountOptions) => mountProject(path, opts));
@@ -1090,77 +1092,89 @@ const asset = program
   .command("asset")
   .alias("a")
   .description(
-    "Manage the asset library of the open project — add local files, list and organize records, and export original bytes.",
+    "Manage the asset library of the open project: add local files, list and organize records, and export original bytes.",
   );
 
 asset
   .command("add")
-  .description(`Add one or more local files as assets in the open project${docs("asset/add")}`)
+  .description(`Add one or more local files as assets in the open project (paths resolve against CWD).`)
   .argument("<paths...>", "absolute or relative file paths to add")
-  .option("--folder <id>", "folder to place the new assets in (default: the library root)")
+  .option("--folder <id>", "folder to place the new assets in (default: the library root); fails before importing anything if it doesn't resolve to a folder")
   .action((paths: string[], opts: AssetAddOptions) => addAssets(paths, opts));
 
 asset
   .command("ls")
   .alias("get")
-  .description(`Print raw asset records — every persisted property except the file handles; with no ids, lists every asset${docs("asset/ls")}`)
-  .argument("[ids...]", "asset ids to list (optional)")
+  .description(
+    `Print raw asset records: every persisted property except the file handles (name, type, mimeType, size, createdAt, folderId, per-type media metadata, any stored transcript).`,
+  )
+  .argument("[ids...]", "asset ids to list (optional). With no ids, lists every asset in the library.")
   .action((ids: string[]) => listAssets(ids));
 
 asset
   .command("tree")
-  .description(`Print the asset library of the open project as its folder tree${docs("asset/tree")}`)
-  .option("--folder <id>", "folder whose contents to list (default: the library root)")
+  .description(
+    `Print the asset library as its folder tree: folders and assets interleaved, each folder carrying its contents (assets never do).`,
+  )
+  .option("--folder <id>", "folder whose contents to list (default: the library root); fails if it doesn't resolve to a folder")
   .option("--depth <n>", "max depth to descend (positive integer; default = full tree)")
   .action((opts: AssetTreeOptions) => assetTree(opts));
 
 asset
   .command("rm")
   .alias("remove")
-  .description(`Delete one or more assets from the open project by id${docs("asset/rm")}`)
+  .description(`Delete one or more assets from the open project by id.`)
   .argument("<ids...>", "asset ids to delete")
   .action((ids: string[]) => deleteAssets(ids));
 
 asset
   .command("mv")
   .alias("move")
-  .description(`Move one or more assets into a folder${docs("asset/mv")}`)
+  .description(`Move one or more assets into a folder.`)
   .argument("<ids...>", "asset ids to move")
-  .option("--to <folderId>", "destination folder (default: the library root)")
+  .option("--to <folderId>", "destination folder (default: the library root); fails before moving anything if it doesn't resolve to a folder")
   .action((ids: string[], opts: MoveOptions) => moveAssets(ids, opts));
 
 asset
   .command("export")
-  .description(`Write one or more assets' original file bytes to disk (no re-encode)${docs("asset/export")}`)
+  .description(
+    `Write one or more assets' original stored bytes to disk (no re-encode, no credits; any asset type except image sequences).`,
+  )
   .argument("<ids...>", "asset ids to export")
-  .option("-o, --output <path>", "directory to write into, or an exact file path for a single id (default: system temp dir)")
+  .option("-o, --output <path>", "where to write (default: system temp dir); a directory when it exists as one, ends with a path separator, or multiple ids are given (each asset written under its own name), otherwise an exact file path for a single id")
   .action((ids: string[], opts: AssetExportOptions) => exportAssets(ids, opts));
 
 const media = program
   .command("media")
   .alias("m")
   .description(
-    "Inspect a media file by asset id or local path, without adding it to the project — probe metadata, transcribe speech, grab frames, render visual previews, and analyze with multimodal models.",
+    "Inspect a media file by asset id or local path, without adding it to the project: probe metadata, transcribe speech, grab frames, render visual previews, and analyze with multimodal models.",
   );
 
 media
   .command("probe")
-  .description(`Read the container and per-track technical metadata of a media file. Commonly useful for a quick, free technical read (container, duration, per-track codec params), e.g. checking codec compatibility or duration before cutting${docs("media/probe")}`)
+  .description(
+    `Read the container and per-track technical metadata of a media file (local read, no credits): container format, duration, tags, and each track's codec params, without decoding. Commonly useful for a quick technical read, e.g. checking codec compatibility or duration before cutting. Packet stats (fps, bitrate) are estimated from a leading sample; images and transcripts report file-level info only.`,
+  )
   .argument("<id|path>", "asset id, or a local file")
   .action((ref: string) => mediaProbe(ref));
 
 media
   .command("transcribe")
-  .description(`Transcribe the speech in a video or audio file and print the timed transcript, with ultra-precise millisecond-level timestamps for every word. Commonly useful for footage with speakers (talking head, interview), where the word-level times let you cut on a line. Note a transcript marks only speech; the gaps are not necessarily silent (music, score, applause)${docs("media/transcribe")}`)
+  .description(
+    `Transcribe the speech in a video or audio file and print the timed transcript, with word-level start/end times in seconds. Commonly useful for footage with speakers (talking head, interview), where the word times let you cut on a line. A transcript marks only speech; the gaps are not necessarily silent (music, score, applause).`,
+  )
   .argument("<id|path>", "video or audio asset id, or a local file")
-  .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0)`)
+  .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0); --start/--end only limit which words print, the whole asset is always transcribed`)
   .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .action((ref: string, opts: MediaTranscribeOptions) => mediaTranscribe(ref, opts));
 
 media
   .command("grab")
   .alias("sample")
-  .description(`Decode frames of a video file and write them as PNGs, each stamped in the top-left with its HH:MM:SS:FF timestamp. Grab explicit moments with --time, or a fixed number of evenly-spaced frames with --count. The recommended tool for understanding a video at the frame level${docs("media/grab")}`)
+  .description(
+    `Decode frames of a video file and write them as PNGs (local render, no credits), each stamped in the top-left with its HH:MM:SS:FF timestamp. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which captures the composited canvas. The recommended tool for understanding a video at the frame level.`,
+  )
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
   .option("-c, --count <n>", "instead of --time, grab this many frames evenly spaced across the clip (or across the --start/--end window)")
@@ -1175,7 +1189,9 @@ media
 media
   .command("filmstrip")
   .alias("film")
-  .description(`Render a grid of thumbnails sampled across the timeline to a PNG, each row stamped with timestamps. It's a fast and token-efficient video track preview; narrow the window to zoom into a region of interest${docs("media/filmstrip")}`)
+  .description(
+    `Render a grid of thumbnails sampled across the timeline to a PNG (local render, no credits), each row stamped with an HH:MM:SS:FF ruler. A fast, token-efficient video track preview; narrow the window to zoom into a region of interest. Video only (use \`media waveform\` for audio).`,
+  )
   .argument("<id|path>", "video asset id, or a local video file to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1186,7 +1202,9 @@ media
 media
   .command("waveform")
   .alias("wave")
-  .description(`Render the audio track of a video or audio file as a waveform PNG with a timestamp ruler. It's a fast and token-efficient audio track preview; shows loudness over time and highlights the silent stretches in red, which are also returned as [start, end] second ranges in the JSON${docs("media/waveform")}`)
+  .description(
+    `Render the audio track of a video or audio file as a waveform PNG (local render, no credits) with a timestamp ruler: loudness over time, with silent stretches highlighted in red. A fast, token-efficient audio track preview; the silent spans are also returned as second ranges.`,
+  )
   .argument("<id|path>", "video or audio asset id, or a local file to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
@@ -1196,11 +1214,14 @@ media
 
 media
   .command("listen")
-  .description(`Prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on the semantics of audio (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video, by default only the audio track is analyzed${docs("media/listen")}`)
+  .description(
+    `Prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on audio semantics (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video; by default only the audio track is analyzed.`,
+  )
   .argument("<id|path>", "video or audio asset id, or a local file to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: media duration)`)
+  .option("--keep-video", "for a video asset, keep the video track instead of stripping to audio, so the model also reads what is on screen (expensive: uploads the full video)")
   .action((ref: string, opts: MediaListenOptions) => mediaListen(ref, opts));
 
 const folder = program
@@ -1211,20 +1232,22 @@ const folder = program
 folder
   .command("ls")
   .aliases(["list", "get"])
-  .description(`List the direct child folders of a parent folder; with no id, the root-level folders${docs("folder/ls")}`)
-  .argument("[parentId]", "parent folder id (optional; omitted = the library root)")
+  .description(
+    `List the direct child folders of a parent folder, sorted by name; with no id, the root-level folders. Folders nest arbitrarily, and assets reference their folder via folderId (null = library root).`,
+  )
+  .argument("[parentId]", "parent folder id (optional; omitted = the library root); fails if it doesn't resolve to a folder")
   .action((parentId: string | undefined) => listFolders(parentId));
 
 folder
   .command("create")
-  .description(`Create a folder${docs("folder/create")}`)
+  .description(`Create a folder.`)
   .argument("<name>", "folder name")
-  .option("-p, --parent <id>", "parent folder (default: the library root)")
+  .option("-p, --parent <id>", "parent folder (default: the library root); fails if it doesn't resolve to a folder")
   .action((name: string, opts: FolderCreateOptions) => createFolder(name, opts));
 
 folder
   .command("rename")
-  .description(`Rename a folder${docs("folder/rename")}`)
+  .description(`Rename a folder.`)
   .argument("<id>", "folder id")
   .argument("<name>", "new name")
   .action((id: string, name: string) => renameFolder(id, name));
@@ -1232,15 +1255,19 @@ folder
 folder
   .command("mv")
   .alias("move")
-  .description(`Move one or more folders under a new parent${docs("folder/mv")}`)
+  .description(
+    `Move one or more folders under a new parent. A folder cannot move into itself or a descendant; such a move rejects that id.`,
+  )
   .argument("<ids...>", "folder ids to move")
-  .option("--to <folderId>", "destination parent folder (default: the library root)")
+  .option("--to <folderId>", "destination parent folder (default: the library root); fails before moving anything if it doesn't resolve to a folder")
   .action((ids: string[], opts: MoveOptions) => moveFolders(ids, opts));
 
 folder
   .command("rm")
   .alias("remove")
-  .description(`Delete one or more folders, including all nested folders and the assets inside${docs("folder/rm")}`)
+  .description(
+    `Delete one or more folders. Deletion cascades: every nested folder and every asset inside is deleted too (the result reports how many of each were removed).`,
+  )
   .argument("<ids...>", "folder ids to delete")
   .action((ids: string[]) => deleteFolders(ids));
 
@@ -1252,18 +1279,20 @@ const selection = program
 selection
   .command("ls")
   .alias("get")
-  .description(`List the currently selected nodes${docs("selection/ls")}`)
+  .description(
+    `List the currently selected nodes. \`set\` and \`focus\` return the resulting selection in the same shape.`,
+  )
   .action(() => listSelection());
 
 selection
   .command("set")
-  .description(`Replace the current selection with exactly the given node ids; none = clear${docs("selection/set")}`)
+  .description(`Replace the current selection with exactly the given node ids (none = clear).`)
   .argument("[ids...]", "node ids to select")
   .action((ids: string[]) => setSelection(ids));
 
 selection
   .command("focus")
-  .description(`Pan and zoom the canvas to fit the current selection in view${docs("selection/focus")}`)
+  .description(`Pan and zoom the canvas to fit the current selection in view (no-op if nothing is selected).`)
   .action(() => focusSelection());
 
 const node = program
@@ -1274,20 +1303,26 @@ const node = program
 node
   .command("ls")
   .alias("get")
-  .description(`Print raw entity records — every component, as persisted; with no ids, lists the root scenes${docs("node/ls")}`)
+  .description(
+    `Print raw entity records, exactly as persisted: every component the entity carries, keyed by component name (Name, Size, Position, Paint, Trim, ChildOf, ...). With no ids, lists the top-level nodes. Values are raw engine units: times are frames at 30 fps, colors packed 0xRRGGBB, volume in dB.`,
+  )
   .argument("[ids...]", "entity ids to list (optional)")
   .action((ids: string[]) => listNodes(ids));
 
 node
   .command("tree")
-  .description(`Print an entity's subtree as a nested JSON object, sub-entities included; with no id, prints every top-level node's tree${docs("node/tree")}`)
+  .description(
+    `Print an entity's subtree as a nested JSON object: structure and ids only, with each node's key traits folded into a compact \`description\` string (use \`node ls\` for exact values). Sub-entities (masks, paints, strokes, keyframes, ...) nest under named arrays. With no id, prints one tree per top-level node.`,
+  )
   .argument("[id]", "root entity id (optional; omitted = every top-level node)")
   .option("--depth <n>", "max depth to descend (default: 3; 0 = full subtree)")
   .action((id: string | undefined, opts: TreeOptions) => nodeTree(id, opts));
 
 node
   .command("grep")
-  .description(`Search entity records for a regex and print the matching entities with the components that matched — the search corpus is the raw records node ls emits${docs("node/grep")}`)
+  .description(
+    `Search entity records for a regex and print the matching entities with the components that matched. The search corpus is the raw records \`node ls\` emits (stringified, so raw engine units), scoped to a subtree when [id] is given. The way to find ids to then read, select, or patch. Common case (find by name): \`dapi node grep -k Name Title\`.`,
+  )
   .argument("<pattern>", "regex to match against stringified component values")
   .argument("[id]", "root entity id to scope the search to a subtree (optional; omitted = the whole document)")
   .option("-i, --ignore-case", "case-insensitive matching")
@@ -1299,7 +1334,9 @@ node
 
 node
   .command("capture")
-  .description(`Focus a node on the canvas and capture it as a PNG, one per timeline position, each stamped in the top-left with its HH:MM:SS:FF timestamp. Commonly useful to confirm what the viewer actually sees at a moment (layout, overlaps, text, timing), since the composited canvas is the truest "what plays at time T" check${docs("node/capture")}`)
+  .description(
+    `Focus a node on the canvas and capture it as a PNG, one per timeline position, each stamped in the top-left with its HH:MM:SS:FF timestamp. Captures the composited canvas (the truest "what plays at time T" check: layout, overlaps, text, timing); for a video asset's own full-resolution pixels use \`media grab\`.`,
+  )
   .argument("[id]", "node id to capture (optional; defaults to the canvas)")
   .option("-t, --time <time...>", `one or more timeline positions to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
   .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
@@ -1307,7 +1344,9 @@ node
 
 node
   .command("insert")
-  .description(`Compile a Solid JSX project module and insert the rendered entities into a parent entity${docs("node/insert")}`)
+  .description(
+    `Compile a Solid JSX project module and insert its rendered roots as children of an existing entity: the same pipeline as \`mount\` (including AI asset generation), but it inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
+  )
   .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
@@ -1317,30 +1356,34 @@ node
 node
   .command("rm")
   .alias("remove")
-  .description(`Delete one or more entities and all their descendants${docs("node/rm")}`)
+  .description(`Delete one or more entities and all their descendants.`)
   .argument("<ids...>", "entity ids to delete")
   .action((ids: string[]) => deleteNodes(ids));
 
 node
   .command("cp")
   .alias("duplicate")
-  .description(`Deep-clone one or more nodes, including all descendants${docs("node/cp")}`)
+  .description(`Deep-clone one or more nodes, including all descendants.`)
   .argument("<ids...>", "node ids to duplicate")
   .action((ids: string[]) => duplicateNodes(ids));
 
 node
   .command("patch")
-  .description(`Assign JSX props on one or more existing entities in a single call — the same properties, with the same value requirements, as mount. Renaming a node is patching its name${docs("node/patch")}`)
+  .description(
+    `Assign JSX props on one or more existing entities in a single call: the same properties, with the same value requirements, as \`mount\` (payload is an array of { id, ...props }, all optional; type PatchProps). Any live entity is addressable, not just nodes (paints and color stops too); renaming a node is patching its \`name\`, and \`fill\` recolors or creates the entity's solid fill.`,
+  )
   .argument("[path]", "path to a .json file containing the patch array")
   .option("--json <str>", "inline JSON array of { id, ...jsx props }")
   .action((path: string | undefined, opts: JsonPayloadOptions) => patchNodes(path, opts));
 
 node
   .command("render")
-  .description(`Render a scene to a video file${docs("node/render")}`)
+  .description(
+    `Render a scene to a video file (local, no credits, no account needed); long-running, with a progress spinner on stderr so stdout stays clean. The optional encode config (EncoderConfig) sets the container and codecs; omit it for the defaults: mp4/H.264, 1080p, 10 Mbps video, AAC 128 kbps stereo audio, the scene's fps.`,
+  )
   .argument("[id]", "scene node id (optional; defaults to the active scene)")
-  .argument("[config]", "path to a .json encode config (EncoderConfig)")
-  .option("-o, --output <path>", "write the video here (default: a temp file)")
+  .argument("[config]", "path to a .json encode config (EncoderConfig); its `format` may be mp4, webm, ogg, or mov, and `trim.end` caps the encode")
+  .option("-o, --output <path>", "write the video here (default: a temp file); the extension follows the config's format")
   .option("--json <str>", "inline JSON encode config (EncoderConfig)")
   .action((id: string | undefined, config: string | undefined, opts: NodeRenderOptions) =>
     nodeRender(id, config, opts));
@@ -1352,53 +1395,57 @@ const project = program
 
 project
   .command("active")
-  .description(`Print the currently active project, or null if none is open${docs("project/active")}`)
+  .description(`Print the currently active project, or null if none is open.`)
   .action(() => activeProject());
 
 project
   .command("ls")
   .alias("list")
-  .description(`List all projects, most recently accessed first${docs("project/ls")}`)
+  .description(`List all projects, most recently accessed first.`)
   .action(() => listProjects());
 
 project
   .command("create")
-  .description(`Create a new project and open it${docs("project/create")}`)
+  .description(`Create a new project and open it.`)
   .argument("[name]", "optional project name")
   .action((name?: string) => createProject(name));
 
 project
   .command("set")
-  .description(`Set the active project by id, or null if no project has that id${docs("project/set")}`)
-  .argument("<id>", "project id to set active")
+  .description(`Set the active project by id, opening it.`)
+  .argument("<id>", "project id to set active (null result if no project has this id)")
   .action((id: string) => openProject(id));
 
 project
   .command("rm")
   .alias("remove")
-  .description(`Delete a project by id${docs("project/rm")}`)
+  .description(`Delete a project by id.`)
   .argument("<id>", "project id to delete")
   .action((id: string) => deleteProject(id));
 
 program
   .command("models")
-  .description(`List available AI generation models and their constraints (for generate.* declarations — see the JSX API)${docs("models")}`)
-  .argument("[type]", `filter to one of "image", "video", "audio"`)
+  .description(
+    `List available AI generation models and their per-model constraints (durations, aspect ratios, features), for \`generate.*\` asset declarations in a project module (there is no CLI generate command; generation happens on mount).`,
+  )
+  .argument("[type]", `filter to one of "image", "video", "audio" (default: all three)`)
   .action((type: string | undefined) => listModels(type));
 
 program
   .command("voices")
-  .description(`List the speech voices available for generate.voice declarations (see the JSX API)${docs("voices")}`)
+  .description(`List the speech voices available for \`generate.voice\` declarations in a project module.`)
   .action(() => listVoices());
 
 program
   .command("whoami")
-  .description(`Print the authenticated account, or null if signed out${docs("whoami")}`)
+  .description(`Print the authenticated account, or null if signed out.`)
   .action(() => whoami());
 
 program
   .command("fonts")
-  .description(`List the local fonts available on this machine${docs("fonts")}`)
+  .description(
+    `List the local fonts available on this machine (macOS only; does not require the app). These family names are valid \`fontFamily\` values on <text>; each family lists its variants.`,
+  )
   .option("-f, --family <pattern>", "filter to families whose name contains <pattern> (case-insensitive)")
   .option("-w, --weight <weights...>", "filter to variants with the given CSS weight(s), e.g. -w 400 700")
   .option("-s, --style <style>", `filter to variants with the given style: "normal" or "italic"`)
@@ -1408,7 +1455,9 @@ program
 
 program
   .command("fetch")
-  .description(`Download a video with yt-dlp (must be installed separately)${docs("fetch")}`)
+  .description(
+    `Download a video with yt-dlp (installed separately; does not require the app). Writes files to disk only (a single URL can yield several, e.g. a playlist); pull one into the project afterwards with \`dapi asset add <path>\`.`,
+  )
   .argument("<url>", "video or page URL to download")
   .option("-o, --output <path>", "output file path or directory (yt-dlp -o template; default: yt-dlp's default)")
   .option("-f, --format <selector>", `yt-dlp format selector (default: prefer mp4), e.g. "bv*+ba/b"`)
