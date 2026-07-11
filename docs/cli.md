@@ -106,10 +106,10 @@ Searches entity records by regex and prints matching entities with the component
 ### `node capture`
 
 ```sh
-dapi node capture [id] [-t, --time <time...>]
+dapi node capture [id] [-t, --time <time...>] [--no-timestamp]
 ```
 
-Focuses the node (or the active scene, if omitted) and captures it to a PNG at each given timeline position. Prints one `{ time, path }` JSON line per capture.
+Focuses the node (or the active scene, if omitted) and captures it to a PNG at each given timeline position, each stamped in the top-left with its `HH:MM:SS:FF` timestamp (disable with `--no-timestamp`). Prints one `{ time, path }` JSON line per capture.
 
 ### `selection`
 

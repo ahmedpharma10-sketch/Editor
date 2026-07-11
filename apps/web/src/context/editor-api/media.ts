@@ -5,7 +5,7 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp } from '@/components/engine';
+import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp, stampTimestampLabel } from '@/components/engine';
 import { assert } from '@/utils';
 import {
   transcodeForTranscription,
@@ -177,22 +177,7 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
         const ctx = wrapped.canvas.getContext("2d");
 
         if (ctx && timestamp !== false) {
-          const label = formatTimestamp(time, asset.frameRate)
-          const bandHeight = Math.max(20, Math.round(wrapped.canvas.height * 0.06));
-          const fontSize = Math.round(bandHeight * 0.72);
-          const paddingLeft = Math.round(bandHeight * 0.4);
-          const y = paddingLeft + bandHeight / 2;
-
-          ctx.font = `normal ${fontSize}px sans-serif`;
-          ctx.textBaseline = "middle";
-          ctx.textAlign = "left";
-
-          ctx.lineJoin = "round";
-          ctx.lineWidth = Math.max(2, Math.round(fontSize / 3));
-          ctx.strokeStyle = "#000";
-          ctx.strokeText(label, paddingLeft, y);
-          ctx.fillStyle = "#FFF";
-          ctx.fillText(label, paddingLeft, y);
+          stampTimestampLabel(ctx, wrapped.canvas.height, formatTimestamp(time, asset.frameRate));
         }
 
         result[index] = { time, base64: await canvasToPngBase64(wrapped.canvas) };

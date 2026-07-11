@@ -18,6 +18,8 @@ import {
   getEntityTree,
   cloneSubtree,
   serializeEntity,
+  formatTimestamp,
+  stampTimestampLabel,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
 import { WorldDocument } from "@/utils/jsx";
@@ -285,7 +287,7 @@ function sceneOfNode(world: EngineWorld, eid: number): number | null {
 }
 
 export function handleNodeCapture(engine: Accessor<Engine>) {
-  return async ({ id, frames }: { id?: number; frames?: number[] }): Promise<{ base64: string }[]> => {
+  return async ({ id, frames, timestamp }: { id?: number; frames?: number[]; timestamp?: boolean }): Promise<{ base64: string }[]> => {
     const e = engine();
     const w = e.world;
     const c = w.components;
@@ -329,10 +331,30 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
       if (!(canvas instanceof HTMLCanvasElement)) {
         throw new Error("Canvas is not ready");
       }
-      results.push({ base64: canvas.toDataURL("image/png").split(",")[1] ?? "" });
+
+      // The effective frame is the one we just seeked to, or the live playhead.
+      const shotFrame = frame ?? (sceneEid !== null ? c.Computed.localTime[sceneEid] : undefined);
+      results.push({ base64: stampedPng(canvas, timestamp !== false && shotFrame !== undefined ? formatTimestamp(shotFrame / w.frameRate, w.frameRate) : undefined) });
     }
     return results;
   };
+}
+
+// Composites the live canvas onto a fresh one so the timestamp label can't leak
+// into the on-screen editor, and returns it as base64 PNG (no data-url prefix).
+function stampedPng(source: HTMLCanvasElement, label: string | undefined): string {
+  const toBase64 = (c: HTMLCanvasElement) => c.toDataURL("image/png").split(",")[1] ?? "";
+  if (label === undefined) return toBase64(source);
+
+  const out = document.createElement("canvas");
+  out.width = source.width;
+  out.height = source.height;
+  const ctx = out.getContext("2d");
+  if (!ctx) return toBase64(source);
+
+  ctx.drawImage(source, 0, 0);
+  stampTimestampLabel(ctx, out.height, label);
+  return toBase64(out);
 }
 
 export function handleNodeRender(engine: Accessor<Engine>) {

@@ -98,6 +98,30 @@ export function formatTimestamp(seconds: number, frameRate: number): string {
   return [hh, mm, ss, frames].map((v) => String(v).padStart(2, '0')).join(':');
 }
 
+// Draws a timestamp label into the top-left corner of a canvas: white text with
+// a black outline, sized relative to the canvas so it reads at any resolution.
+export function stampTimestampLabel(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  height: number,
+  label: string,
+): void {
+  const bandHeight = Math.max(20, Math.round(height * 0.06));
+  const fontSize = Math.round(bandHeight * 0.72);
+  const paddingLeft = Math.round(bandHeight * 0.4);
+  const y = paddingLeft + bandHeight / 2;
+
+  ctx.font = `normal ${fontSize}px sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, Math.round(fontSize / 3));
+  ctx.strokeStyle = '#000';
+  ctx.strokeText(label, paddingLeft, y);
+  ctx.fillStyle = '#FFF';
+  ctx.fillText(label, paddingLeft, y);
+}
+
 export type RenderedPreview = {
   dataUrl: string;
 };

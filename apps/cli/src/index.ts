@@ -430,7 +430,7 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type CaptureOptions = { time?: string[] };
+type CaptureOptions = { time?: string[]; timestamp?: boolean };
 
 async function nodeCapture(id: string | undefined, opts: CaptureOptions): Promise<void> {
   const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
@@ -443,7 +443,7 @@ async function nodeCapture(id: string | undefined, opts: CaptureOptions): Promis
   }
 
   try {
-    const shots = await editor.node.capture.query({ id: eid, frames });
+    const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp });
     for (const [i, { base64 }] of shots.entries()) {
       const path = join(tmpdir(), `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -1299,9 +1299,10 @@ node
 
 node
   .command("capture")
-  .description(`Focus a node on the canvas and capture it as a PNG, one per timeline position. Commonly useful to confirm what the viewer actually sees at a moment (layout, overlaps, text, timing), since the composited canvas is the truest "what plays at time T" check${docs("node/capture")}`)
+  .description(`Focus a node on the canvas and capture it as a PNG, one per timeline position, each stamped in the top-left with its HH:MM:SS:FF timestamp. Commonly useful to confirm what the viewer actually sees at a moment (layout, overlaps, text, timing), since the composited canvas is the truest "what plays at time T" check${docs("node/capture")}`)
   .argument("[id]", "node id to capture (optional; defaults to the canvas)")
   .option("-t, --time <time...>", `one or more timeline positions to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
+  .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
   .action((id: string | undefined, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node
