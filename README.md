@@ -111,15 +111,18 @@ npm install
 
 cp apps/web/.env.example apps/web/.env   # required: the app won't run without it
 
-npm run dev            # editor in the browser (Vite dev server)
-npm run dev:desktop    # editor as a desktop app (Electron)
+npm run dev:web        # editor in the browser (Vite dev server)
+# or
+npm run dev:desktop    # editor as a desktop app (Electron): builds the CLI, starts the web server, launches the app
 ```
 
-To build the CLI and put `dapi` on your PATH (macOS/Homebrew layout; adjust the link target for other setups):
+To put `dapi` on your PATH (macOS/Homebrew layout; adjust the link target for other setups), link it once:
 
 ```sh
 npm run symlink:create --workspace=@diffusionstudio/cli
 ```
+
+The link points at the CLI build, which `npm run dev:desktop` refreshes on every start, so the linked `dapi` always runs the latest code.
 
 Before sending a PR:
 

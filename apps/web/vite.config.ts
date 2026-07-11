@@ -19,6 +19,8 @@ export default defineConfig({
     APP_VERSION: JSON.stringify(pkg.version),
   },
   server: {
+    port: 5173,
+    strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'credentialless',
