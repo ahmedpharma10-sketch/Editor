@@ -11,15 +11,21 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import { get } from "node:http";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const BIN = join(ROOT, "node_modules", ".bin");
 const DEV_URL = "http://localhost:5173";
 const children = [];
 let shuttingDown = false;
 
-function run(name, args) {
-  // Own process group (detached) so we can signal the npm process *and* its
-  // grandchildren (vite, electron) in one shot on teardown.
-  const child = spawn("npm", args, { stdio: "inherit", detached: true });
+function run(name, bin, args, cwd) {
+  // Spawn the tool binary directly rather than via `npm run`, so the teardown
+  // SIGTERM isn't dressed up as a "Lifecycle script failed" error by an npm
+  // wrapper. Own process group (detached) so we can signal the tool *and* its
+  // children (esbuild, electron) in one shot on teardown.
+  const child = spawn(join(BIN, bin), args, { cwd, stdio: "inherit", detached: true });
   child.on("exit", (code) => {
     if (shuttingDown) return;
     // A child dying on its own (e.g. Vite crashed) should bring the rest down.
@@ -77,14 +83,17 @@ execFileSync("npm", ["run", "build", "--workspace=@diffusionstudio/cli"], { stdi
 
 // 2. Start the web dev server.
 console.log("[dev:desktop] starting web dev server…");
-run("web", ["run", "dev", "--workspace=@diffusionstudio/web"]);
+run("web", "vite", [], join(ROOT, "apps", "web"));
 
-// 3. Once it is up, launch Electron (its own build runs first, loads :5173).
+// 3. Once it is up, build the desktop app (blocking, mirrors its `dev`
+// script) and launch Electron, which loads :5173.
 try {
   await waitForServer(DEV_URL);
 } catch (err) {
   console.error(`[dev:desktop] ${err.message}`);
   shutdown(1);
 }
+console.log("[dev:desktop] building desktop app…");
+execFileSync("npm", ["run", "build", "--workspace=@diffusionstudio/desktop"], { stdio: "inherit" });
 console.log("[dev:desktop] starting desktop app…");
-run("desktop", ["run", "dev", "--workspace=@diffusionstudio/desktop"]);
+run("desktop", "electron-forge", ["start"], join(ROOT, "apps", "desktop"));

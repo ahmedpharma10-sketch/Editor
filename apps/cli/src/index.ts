@@ -468,11 +468,16 @@ type MediaFrameOptions = {
   timestamp?: boolean;
   uncapped?: boolean;
   output?: string;
+  auto?: boolean;
 };
 
 async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
   if (opts.time !== undefined && opts.count !== undefined) {
     console.error("Pass either --time or --count, not both.");
+    process.exit(1);
+  }
+  if (opts.auto && opts.time !== undefined) {
+    console.error("--auto picks its own timestamps; it cannot be combined with --time.");
     process.exit(1);
   }
 
@@ -496,8 +501,8 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
     console.error(`--start (${start}s) must be less than --end (${end}s).`);
     process.exit(1);
   }
-  if ((start !== undefined || end !== undefined) && count === undefined) {
-    console.error("--start and --end only apply together with --count.");
+  if ((start !== undefined || end !== undefined) && count === undefined && !opts.auto) {
+    console.error("--start and --end only apply together with --count or --auto.");
     process.exit(1);
   }
 
@@ -519,7 +524,7 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
   const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
   try {
-    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp });
+    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp, auto: opts.auto });
     for (const { time, base64 } of frames) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
@@ -1178,8 +1183,9 @@ media
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
   .option("-c, --count <n>", "instead of --time, grab this many frames evenly spaced across the clip (or across the --start/--end window)")
-  .option("-s, --start <time>", `with --count, start of the window to sample (seconds, "45f" frames, or "MM:SS"; default: 0)`)
-  .option("-e, --end <time>", `with --count, end of the window to sample (seconds, "45f" frames, or "MM:SS"; default: asset duration)`)
+  .option("-a, --auto", "scan the clip at 2fps and keep a frame each time the footage settles into a new visual state (transitions are waited out, so picks stay sharp); returns at most --count frames (default cap: 30), static footage like screen recordings returns far fewer; requires WebGPU")
+  .option("-s, --start <time>", `with --count or --auto, start of the window to sample (seconds, "45f" frames, or "MM:SS"; default: 0)`)
+  .option("-e, --end <time>", `with --count or --auto, end of the window to sample (seconds, "45f" frames, or "MM:SS"; default: asset duration)`)
   .option("-q, --quality <preset>", "frame resolution: small (384x384, default), medium (768x768), large (1536x1536), or fullres (native)")
   .option("--no-timestamp", "don't stamp each frame with its HH:MM:SS:FF timestamp label")
   .option("--uncapped", "lift the 100-frame safety cap (grabbing many frames is slow and token-heavy)")

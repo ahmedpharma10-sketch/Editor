@@ -4,6 +4,7 @@
 
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
+import { pickInformativeTimes } from './frame-triage';
 import { trpc } from '@/lib/trpc';
 import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp, stampTimestampLabel } from '@/components/engine';
 import { assert } from '@/utils';
@@ -107,23 +108,30 @@ const FRAME_QUALITY_BUDGETS = {
   fullres: 0,          // native
 } as const;
 
+// Default cap on frames returned by auto selection when `count` is not given.
+const AUTO_MAX_FRAMES = 30;
+
 export function handleMediaFrame(engine: Accessor<Engine>) {
   return async (req: MediaFrameRequest) => {
-    const { times, count, start, end, quality, timestamp } = req;
+    const { times, count, start, end, quality, timestamp, auto } = req;
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
     assert(asset.type === "VIDEO", `Asset ${id} is not a video.`);
 
-    // `count` samples evenly across a window (default the whole clip); otherwise
-    // grab the explicit `times` (falling back to a single frame at 0).
-    let requested: number[];
-    if (count !== undefined) {
-      const from = Math.min(Math.max(start ?? 0, 0), asset.duration);
-      const to = Math.min(Math.max(end ?? asset.duration, from), asset.duration);
+    // `count` samples evenly across a window (default the whole clip); `auto`
+    // scans the window and keeps frames where the footage settles into a new
+    // visual state, capped at `count` (resolved once the track is open).
+    // Otherwise grab the explicit `times` (falling back to a single frame at 0).
+    const from = Math.min(Math.max(start ?? 0, 0), asset.duration);
+    const to = Math.min(Math.max(end ?? asset.duration, from), asset.duration);
+    let requested: number[] = [];
+    if (auto || count !== undefined) {
       assert(to > from, `The requested window is empty; start (${from.toFixed(2)}s) is at or past end (${to.toFixed(2)}s).`);
-      const interval = (to - from) / count;
-      requested = Array.from({ length: count }, (_, i) => from + i * interval);
+      if (!auto && count !== undefined) {
+        const interval = (to - from) / count;
+        requested = Array.from({ length: count }, (_, i) => from + i * interval);
+      }
     } else {
       const raw = times && times.length ? times : [0];
       // A negative time is an offset back from the end of the clip: -1 is one
@@ -150,6 +158,15 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
       // Track timestamps may not start at 0; offset content time by the first.
       const firstTimestamp = (await track.getFirstTimestamp()) ?? 0;
 
+      if (auto) {
+        const picked = await pickInformativeTimes(track, {
+          from: firstTimestamp + from,
+          to: firstTimestamp + to,
+          max: count ?? AUTO_MAX_FRAMES,
+        });
+        requested = picked.map((t) => Math.max(0, t - firstTimestamp));
+      }
+
       // Downscale to fit the pixel budget while preserving aspect ratio; setting
       // only the width lets the sink derive a matching height.
       const displayWidth = await track.getDisplayWidth();
@@ -174,7 +191,8 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
         const { time, index } = ordered[i++];
         assert(wrapped, `No frame found at ${time}s.`);
 
-        const ctx = wrapped.canvas.getContext("2d");
+        // The webgpu getContext overload muddies inference on the canvas union.
+        const ctx = wrapped.canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
 
         if (ctx && timestamp !== false) {
           stampTimestampLabel(ctx, wrapped.canvas.height, formatTimestamp(time, asset.frameRate));

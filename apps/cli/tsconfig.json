@@ -17,7 +17,8 @@
       "vite-plugin-solid-svg/types-component-solid",
       "vite/client",
       "@types/audioworklet",
-      "@types/wicg-file-system-access"
+      "@types/wicg-file-system-access",
+      "@webgpu/types"
     ],
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,

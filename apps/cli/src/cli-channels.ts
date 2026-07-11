@@ -129,6 +129,7 @@ export type MediaFrameRequest = AssetRef & {
   end?: number;
   quality?: FrameQuality;
   timestamp?: boolean;
+  auto?: boolean;
 };
 export type MediaFrameResult = Array<{ time: number; base64: string }>;
 
