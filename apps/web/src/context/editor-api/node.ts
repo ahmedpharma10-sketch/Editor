@@ -5,6 +5,11 @@
 import { entityExists, hasComponent, query, Not, Or } from "bitecs";
 
 import { createEncoder } from "@/components/engine/encode/encoder";
+import { playbackSystem } from "@/components/engine/systems/playback";
+import { motionSystem } from "@/components/engine/systems/motion";
+import { transformSystem } from "@/components/engine/systems/transform";
+import { renderSystem } from "@/components/engine/systems/render";
+import { hudSystem } from "@/components/engine/systems/hud";
 import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
 
 import {
@@ -292,6 +297,11 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
     const w = e.world;
     const c = w.components;
 
+    const canvas = w.canvas;
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      throw new Error("Canvas is not ready");
+    }
+
     const eid = id !== undefined ? resolveNodeEid(w, id) : undefined;
 
     // Capture in the node's own scene so its timeline frame is meaningful.
@@ -308,10 +318,17 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
       addComponent(w, eid, c.Selected, false);
     }
 
-    if (eid !== undefined) {
-      if (isScene(w, eid)) e.camera.fitToActiveScene();
-      else e.camera.focusEntities([eid]);
-    }
+    // Renders one pipeline pass onto the on-screen canvas. We drive the systems
+    // directly rather than relying on the rAF loop: it's throttled or paused
+    // whenever the app isn't the foreground window (i.e. every CLI capture), so
+    // the canvas would otherwise stay frozen on a stale frame with no selection.
+    const renderPass = () => {
+      playbackSystem(w);
+      motionSystem(w);
+      transformSystem(w);
+      renderSystem(w);
+      hudSystem(w);
+    };
 
     // `undefined` means the current playhead; each explicit frame is captured in order.
     const shots = frames !== undefined && frames.length > 0 ? frames : [undefined];
@@ -323,18 +340,20 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
         c.Computed.localTimeInSeconds[sceneEid] = frame / w.frameRate;
       }
 
-      // Realtime decoder seeks are fire-and-forget — give video paints time to
-      // decode the new frame before capturing.
+      renderPass();
       await new Promise((resolve) => setTimeout(resolve, 2000));
+      renderPass();
 
-      const canvas = w.canvas;
-      if (!(canvas instanceof HTMLCanvasElement)) {
-        throw new Error("Canvas is not ready");
+      if (isScene(w, eid!)) {
+        e.camera.fitToActiveScene();
+      } else {
+        e.camera.focusEntities([eid!]);
       }
 
       // The effective frame is the one we just seeked to, or the live playhead.
-      const shotFrame = frame ?? (sceneEid !== null ? c.Computed.localTime[sceneEid] : undefined);
-      results.push({ base64: stampedPng(canvas, timestamp !== false && shotFrame !== undefined ? formatTimestamp(shotFrame / w.frameRate, w.frameRate) : undefined) });
+      const shotFrame = frame ?? c.Computed.localTime[sceneEid ?? 0] ?? 0;
+      const label = formatTimestamp(shotFrame / w.frameRate, w.frameRate);
+      results.push({ base64: stampedPng(canvas, timestamp !== false ? label : undefined) });
     }
     return results;
   };
