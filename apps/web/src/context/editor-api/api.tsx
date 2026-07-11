@@ -12,7 +12,7 @@ import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete,
 import { handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaFilmstrip, handleMediaWaveform, handleMediaListen } from "./media";
 import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
 import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
-import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeScreenshot, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
+import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeCapture, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
 import { handleMount, handleNodeInsert } from "./mount";
 import { handleProjectActive, handleProjectList, handleProjectCreate, handleProjectDelete, handleProjectOpen } from "./project";
 import { handleModels } from "./models";
@@ -130,7 +130,7 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
       list: q(handleNodeList(getEngine)),
       tree: q(handleNodeTree(getEngine)),
       grep: q(handleNodeGrep(getEngine)),
-      screenshot: q(handleNodeScreenshot(getEngine)),
+      capture: q(handleNodeCapture(getEngine)),
       insert: m(handleNodeInsert(getEngine)),
       delete: m(handleNodeDelete(getEngine)),
       patch: m(handleNodePatch(getEngine)),

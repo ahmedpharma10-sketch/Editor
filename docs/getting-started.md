@@ -60,7 +60,7 @@ The `key` is the scene's stable identity: re-running the mount rebuilds that sce
 Check the result visually:
 
 ```sh
-dapi node screenshot     # prints { "path": "/tmp/….png" }
+dapi node capture        # prints { "path": "/tmp/….png" }
 ```
 
 ## Render

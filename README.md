@@ -66,7 +66,7 @@ dapi media filmstrip clip.mp4                            # grid of video frames
 dapi media waveform track.mp3                            # audio waveform, silence flagged
 dapi media transcribe interview.wav                      # timed, word-level transcript
 dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
-dapi node screenshot                                     # see the canvas itself
+dapi node capture                                        # see the canvas itself
 ```
 
 ## CLI at a glance
@@ -76,7 +76,7 @@ dapi node screenshot                                     # see the canvas itself
 | `dapi open` | Launch the app, open a file, or turn a folder of footage into a project |
 | `dapi context` | Summary of the open project: scenes, playhead, fonts |
 | `dapi mount` | Compile and mount a JSX composition |
-| `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `screenshot`, `render` |
+| `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `capture`, `render` |
 | `dapi asset …` | The media library: `add`, `ls`, `tree`, `mv`, `rm`, `export` |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |

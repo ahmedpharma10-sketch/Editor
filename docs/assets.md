@@ -46,7 +46,7 @@ Container and per-track technical metadata (format, duration, codec parameters),
 dapi media grab <id|path> [-t <time...>] [-o <dir>]
 ```
 
-Decodes video frames at the given timestamps to PNGs, at the asset's full resolution. Prints `{ time, path }` per frame. (For the *composited* canvas instead of the raw asset, use `dapi node screenshot`.)
+Decodes video frames at the given timestamps to PNGs, at the asset's full resolution. Prints `{ time, path }` per frame. (For the *composited* canvas instead of the raw asset, use `dapi node capture`.)
 
 ### `media filmstrip`
 
@@ -91,6 +91,6 @@ dapi media filmstrip gbHJ                             # what does it look like o
 dapi media transcribe gbHJ                            # what is said, and when?
 dapi media listen gbHJ -p "what is said in the intro?"
 dapi mount cut.tsx                                    # compose the edit
-dapi node screenshot                                  # verify visually
+dapi node capture                                     # verify visually
 dapi node render -o cut.mp4                           # ship it
 ```

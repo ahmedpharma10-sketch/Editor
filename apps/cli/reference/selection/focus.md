@@ -1,6 +1,6 @@
 # `dapi selection focus`
 
-Pans and zooms the canvas to fit the currently selected nodes in view, framing them with padding; the same focus [`node screenshot`](../node/screenshot.md) uses before it captures. No-op if nothing is selected (the canvas is left unchanged).
+Pans and zooms the canvas to fit the currently selected nodes in view, framing them with padding; the same focus [`node capture`](../node/capture.md) uses before it captures. No-op if nothing is selected (the canvas is left unchanged).
 
 ## Input
 

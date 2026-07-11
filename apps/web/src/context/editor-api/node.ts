@@ -284,7 +284,7 @@ function sceneOfNode(world: EngineWorld, eid: number): number | null {
   return null;
 }
 
-export function handleNodeScreenshot(engine: Accessor<Engine>) {
+export function handleNodeCapture(engine: Accessor<Engine>) {
   return async ({ id, frame }: { id?: number; frame?: number }): Promise<{ base64: string }> => {
     const e = engine();
     const w = e.world;
@@ -304,7 +304,7 @@ export function handleNodeScreenshot(engine: Accessor<Engine>) {
       c.Computed.localTimeInSeconds[sceneEid] = frame / w.frameRate;
     }
 
-    // Select the captured node so the screenshot shows its bounds.
+    // Select the captured node so the capture shows its bounds.
     if (eid !== undefined) {
       for (const sel of query(w, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer)])) {
         removeComponent(w, sel, c.Selected, false);

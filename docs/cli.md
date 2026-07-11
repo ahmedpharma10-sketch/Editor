@@ -103,10 +103,10 @@ dapi node grep <pattern> [id] [-i] [-t <types...>] [-k <components...>] [-l] [-c
 
 Searches entity records by regex and prints matching entities with the components that matched. `[id]` scopes to a subtree. `-t` filters by node type, `-k` restricts to specific components, `-l` prints refs only, `-c` prints a count. Find nodes by name with `dapi node grep -k Name Title`; find every entity with a `Trim` component with `dapi node grep -k Trim .`.
 
-### `node screenshot`
+### `node capture`
 
 ```sh
-dapi node screenshot [id] [-t, --time <time>]
+dapi node capture [id] [-t, --time <time>]
 ```
 
 Focuses the node (or the active scene, if omitted) and captures it to a PNG at the given timeline position. Prints `{ path }`.

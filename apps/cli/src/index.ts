@@ -430,9 +430,9 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type ScreenshotOptions = { time?: string };
+type CaptureOptions = { time?: string };
 
-async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): Promise<void> {
+async function nodeCapture(id: string | undefined, opts: CaptureOptions): Promise<void> {
   const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
 
   let frame: number | undefined;
@@ -441,7 +441,7 @@ async function nodeScreenshot(id: string | undefined, opts: ScreenshotOptions): 
   }
 
   try {
-    const { base64 } = await editor.node.screenshot.query({ id: eid, frame });
+    const { base64 } = await editor.node.capture.query({ id: eid, frame });
     const path = join(tmpdir(), `${randomUUID()}.png`);
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path }));
@@ -1294,11 +1294,11 @@ node
   .action((pattern: string, id: string | undefined, opts: NodeGrepOptions) => grepNodes(pattern, id, opts));
 
 node
-  .command("screenshot")
-  .description(`Focus a node on the canvas and capture a screenshot as a PNG. Commonly useful to confirm what the viewer actually sees at a moment (layout, overlaps, text, timing), since the composited canvas is the truest "what plays at time T" check${docs("node/screenshot")}`)
+  .command("capture")
+  .description(`Focus a node on the canvas and capture it as a PNG. Commonly useful to confirm what the viewer actually sees at a moment (layout, overlaps, text, timing), since the composited canvas is the truest "what plays at time T" check${docs("node/capture")}`)
   .argument("[id]", "node id to capture (optional; defaults to the canvas)")
   .option("-t, --time <time>", `timeline position to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
-  .action((id: string | undefined, opts: ScreenshotOptions) => nodeScreenshot(id, opts));
+  .action((id: string | undefined, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node
   .command("insert")

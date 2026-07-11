@@ -1,6 +1,6 @@
-# `dapi node screenshot [id] [-t, --time <time>]`
+# `dapi node capture [id] [-t, --time <time>]`
 
-Focuses the node on the canvas and captures a screenshot, written to a PNG file in the system temp directory. If `[id]` is omitted, captures the canvas (the active scene). To grab a video asset's own pixels at full resolution instead of the composited canvas, use [`media grab`](../media/grab.md).
+Focuses the node on the canvas and captures it, written to a PNG file in the system temp directory. If `[id]` is omitted, captures the canvas (the active scene). To grab a video asset's own pixels at full resolution instead of the composited canvas, use [`media grab`](../media/grab.md).
 
 ## Input
 
