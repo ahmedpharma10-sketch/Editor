@@ -639,22 +639,18 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
       case "volume": {
         if (Array.isArray(value)) {
           const keyframes = parseKeyframes(name, value, (v) => {
-            assert(typeof v === "number", "`volume` must be a number" + `, value: ${v}`);
-            assert(v >= 0, "`volume` must be >= 0");
+            assert(typeof v === "number", "`volume` must be a number (dB)" + `, value: ${v}`);
             // Keyframed silence floors at -60 dB so segments toward it
             // interpolate over finite values.
-            return Math.max(v <= 0 ? -Infinity : 20 * Math.log10(v), -60);
+            return Math.max(v, -60);
           });
           setComponent(world, eid, c.Volume, keyframes[0].value);
           setKeyframeTrack(world, eid, "volume", keyframes);
           break;
         }
         setKeyframeTrack(world, eid, "volume", []);
-        assert(typeof value === "number", "`volume` must be a number" + `, value: ${value}`);
-        assert(value >= 0, "`volume` must be >= 0");
-        // Convert linear volume to decibels
-        const db = value <= 0 ? -Infinity : 20 * Math.log10(value);
-        setComponent(world, eid, c.Volume, db);
+        assert(typeof value === "number", "`volume` must be a number (dB)" + `, value: ${value}`);
+        setComponent(world, eid, c.Volume, value);
         break;
       } case "muted": {
         assert(typeof value === "boolean", "`muted` must be a boolean" + `, value: ${value}`);

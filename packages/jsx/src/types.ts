@@ -126,7 +126,7 @@ export type PatchProps = {
   src?: string | AssetRef;
   /** How the source maps into the box. Default "cover" on `<video>`, "contain" on `<image>`. */
   objectFit?: Fit;
-  /** 0–1; 1 = unity gain. Animatable. */
+  /** Decibels: 0 = unity gain, negative attenuates (-6 ≈ half as loud), -Infinity = silence. Use `muted` to silence. Animatable. */
   volume?: Animatable<number>;
   /** Excludes the node's audio from the mix; independent of `volume`. */
   muted?: boolean;

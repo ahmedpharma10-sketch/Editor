@@ -1310,7 +1310,7 @@ node
   .command("ls")
   .aliases(["list", "get"])
   .description(
-    `Print raw entity records, exactly as persisted: every component the entity carries, keyed by component name (Name, Size, Position, Paint, Trim, ChildOf, ...). With no ids, lists the top-level nodes. Values are raw engine units: times are frames at 30 fps, colors packed 0xRRGGBB, volume in dB.`,
+    `Print raw entity records, exactly as persisted: every component the entity carries, keyed by component name (Name, Size, Position, Paint, Trim, ChildOf, ...). With no ids, lists the top-level nodes. Values are raw engine units: times are frames at 30 fps, colors packed 0xRRGGBB, volume in dB (0 = unity).`,
   )
   .argument("[ids...]", "entity ids to list (optional)")
   .action((ids: string[]) => listNodes(ids));

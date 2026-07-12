@@ -148,7 +148,7 @@ function describeEntity(world: EngineWorld, eid: number): string {
   }
   if (hasComponent(world, eid, c.Volume)) {
     const db = c.Volume[eid] ?? 0;
-    parts.push(`volume: ${db === -Infinity ? 0 : Math.round(10 ** (db / 20) * 100) / 100}`);
+    parts.push(`volume: ${db === -Infinity ? "-inf" : Math.round(db * 10) / 10} dB`);
   }
   if (hasComponent(world, eid, c.AssetId)) parts.push(`asset: ${c.AssetId[eid]}`);
   if (hasComponent(world, eid, c.TextStyle)) {

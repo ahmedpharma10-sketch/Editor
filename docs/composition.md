@@ -68,9 +68,9 @@ Animatable props also take a keyframe list — see [Animation](#animation).
 
 - **`<scene>`**: `key`, `width`, `height` (all required), `name`, `fill`. No timing or transform props.
 - **`<rect>` / `<group>`**: `fill` (any CSS color; alpha is ignored, use `opacity`).
-- **`<video>`**: `src` (required), `objectFit` (`"cover"` | `"contain"` | `"fill"`, default `"cover"`), `volume` (`0`–`1`), `muted`, `syncTo` (see [Audio sync](#audio-sync)).
+- **`<video>`**: `src` (required), `objectFit` (`"cover"` | `"contain"` | `"fill"`, default `"cover"`), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo` (see [Audio sync](#audio-sync)).
 - **`<image>`**: `src` (required), `objectFit` (default `"contain"`).
-- **`<audio>`**: `src` (required), `volume`, `muted`, `syncTo`, timing props.
+- **`<audio>`**: `src` (required), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo`, timing props.
 - **`<text>`**: string children (required), `fontFamily` (see `dapi fonts`), `fontSize`, `fontWeight`, `fontStyle`, `fill`, `textAlign`, `textBaseline`.
 
 These same props are what `dapi node patch` assigns on existing nodes.

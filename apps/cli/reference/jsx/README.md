@@ -95,7 +95,7 @@ export default function Project() {
         src="https://my.videoarchive.com/audio/video-xyz.wav"
         sourceIn={6}
         sourceOut={16}
-        volume={0.5}
+        volume={-6}
       />
 
       <captions />
