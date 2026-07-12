@@ -53,6 +53,7 @@ type AssetState = {
 };
 
 const assetStates = new WeakMap<object, AssetState>();
+const inflightLoads = new WeakMap<EngineWorld, Map<string, Promise<Asset>>>();
 
 /**
  * Initializes the asset subsystem for a world. Call once, right after the
@@ -180,6 +181,37 @@ export async function loadAsset(
     return existingAsset;
   };
 
+  // Dedup against a concurrent, still-in-flight load of the same source.
+  let pending = inflightLoads.get(world);
+  if (!pending) {
+    pending = new Map();
+    inflightLoads.set(world, pending);
+  }
+
+  const running = pending.get(hash);
+  if (running) return await running;
+
+  const promise = createAsset(world, handle, options, hash, state);
+  pending.set(hash, promise);
+  try {
+    return await promise;
+  } finally {
+    pending.delete(hash);
+  }
+}
+
+/**
+ * Creates and persists a brand-new asset for a source whose hash was not found
+ * among the existing or in-flight assets. Split out of `loadAsset` so a single
+ * promise per hash can be memoized around it (see `inflightLoads`).
+ */
+async function createAsset(
+  world: EngineWorld,
+  handle: MediaInput,
+  options: LoadAssetOptions | undefined,
+  hash: string,
+  state: AssetState,
+): Promise<Asset> {
   // Step 2: Generate a unique ID for the asset
   const id = allocateId(world);
   const createdAt = new Date().toISOString();
