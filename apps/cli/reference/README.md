@@ -2,7 +2,7 @@
 
 Reference for `dapi`, the Diffusion Studio CLI. Every canvas and project command talks to the running app over a local socket. Responses are JSON written to stdout; errors are human-readable messages on stderr with a non-zero exit.
 
-Each feature command has its own file (linked below). The JSX code syntax consumed by [`mount`](./mount.md) and [`node insert`](./node/insert.md) is specified in [jsx/](./jsx/README.md).
+Each feature command has its own file (linked below). The JSX code syntax consumed by [`mount`](./mount.md) and [`node insert`](./node/insert.md) is specified in [jsx/](./jsx/README.md); the markup is **pseudo-SVG**, mirroring SVG's shape-and-paint model with the editor's own tags and props rather than the SVG spec.
 
 ## Groups
 

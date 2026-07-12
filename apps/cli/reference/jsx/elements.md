@@ -5,7 +5,7 @@ Lowercase intrinsic elements map 1:1 onto internal node types:
 | Element | Internal node | Notes |
 | ------- | ------------- | ----- |
 | [`<scene>`](./scene.md) | **Geometry with Scene tag** | Clips its children to `width`×`height`. Document root only. |
-| [`<group>`](./group.md) | **Geometry with Group tag** | Container with a transform; give it `fill` to draw a rectangle. |
+| [`<group>`](./group.md) | **Geometry with Group tag** | Container with a transform; auto-fits its size from its children. Takes no `fill` or explicit size. |
 | [`<rect>`](./rect.md) | **Geometry with Solid paint** | A filled rectangle; takes only paint children. |
 | [`<video>`](./video.md) | **Geometry with Video paint** | `src` resolves to a video asset. |
 | [`<image>`](./image.md) | **Geometry with Image paint** | `src` resolves to an image asset. |

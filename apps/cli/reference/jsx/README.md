@@ -4,6 +4,8 @@ The JSX API defines the code contract for injecting content into the editor via 
 
 A project is structured like a SolidJS app: a **root** is established on the canvas (typically a Scene, identified by its key and created if absent) and the project's component tree renders into it. **All positioning is explicit** (`x`, `y`, `width`, `height` in pixels).
 
+The markup is **pseudo-SVG**: elements like `<rect>`, `<text>`, `<linearGradientPaint>`, and `<colorStop>` mirror SVG's shape-and-paint model, but the tags and props are the editor's own (see [elements.md](./elements.md)), not the SVG spec.
+
 The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the project's roots into the document, and [`dapi node insert`](../node/insert.md) runs the same pipeline into an existing parent entity. [`dapi node patch`](../node/patch.md) assigns the same props on existing nodes.
 
 ## Contents
@@ -64,7 +66,7 @@ function Title(props: { text: string; start: Time; end: Time }) {
     <text
       textAlign="center"
       textBaseline="middle"
-      color="#FFFFFF"
+      fill="#FFFFFF"
       fontSize={128}
       fontWeight="bold"
       height={1080}
