@@ -16,4 +16,4 @@ All [common props](./elements.md#common-props), plus:
 | ---- | ---- | ------- | ------- |
 | `fill` | `string` | none | Any CSS color, applied to the node's fill; alpha is ignored (use `opacity`). |
 
-Also accepts [paint children](./paints.md). When `inPoint`/`outPoint` are omitted, a group auto-fits its children (see [timing.md](./timing.md)).
+Also accepts [paint children](./paints.md). When timing is omitted, a group auto-fits its children (see [timing.md](./timing.md)).

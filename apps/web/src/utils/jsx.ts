@@ -46,9 +46,10 @@ import type { GenerationMemo } from "@/utils/jsx-generation";
 type DocumentNode = {
   kind: "element";
   eid: number;
-  inPoint?: number;
-  outPoint?: number;
-  startTime?: number;
+  start?: number;
+  end?: number;
+  sourceIn?: number;
+  sourceOut?: number;
   objectFit?: keyof typeof SCALE_MODE_MAP;
   parent?: DocumentNode;
   children?: DocumentNode[];
@@ -264,17 +265,24 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         const parentDelay = parentEid !== null ? (c.Computed.delay[parentEid] ?? 0) : 0;
         const delay = (c.Computed.delay[targetEid] ?? 0) + offsetFrames - parentDelay;
 
-        node.startTime = delay;
         setComponent(world, node.eid, c.Delay, delay);
 
         const targetStart = (c.Computed.start[targetEid] ?? 0) - parentDelay;
         const targetEnd = (c.Computed.end[targetEid] ?? 0) - parentDelay;
         const duration = findAssetDuration(world, node.eid);
 
-        const start = node.inPoint ?? Math.max(delay, targetStart);
-        const end = node.outPoint ?? Math.min(duration !== null ? delay + duration : targetEnd, targetEnd);
-        assert(end > start, `syncTo: the aligned clip does not overlap the window of "${targetKey}"`);
-        setComponent(world, node.eid, c.Trim, { start: start - delay, end: end - delay });
+        // `sourceIn`/`sourceOut` are source-relative; default to the overlap
+        // with the target window. `end` (timeline) converts through `delay`.
+        const trimStart = node.sourceIn ?? Math.max(0, targetStart - delay);
+        const trimEnd = node.sourceOut
+          ?? (node.end !== undefined
+            ? node.end - delay
+            : (duration !== null ? Math.min(duration, targetEnd - delay) : targetEnd - delay));
+        assert(trimEnd > trimStart, `syncTo: the aligned clip does not overlap the window of "${targetKey}"`);
+        setComponent(world, node.eid, c.Trim, { start: trimStart, end: trimEnd });
+        node.sourceIn = trimStart;
+        node.sourceOut = trimEnd;
+        node.start = delay + trimStart;
       }
     }
 
@@ -401,21 +409,50 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
    * Wraps an existing entity so props can be applied to it through the same
    * `setProperty` path a fresh render uses (e.g. `dapi node patch`). Timing
    * state is hydrated from the entity's components so a partial patch (say,
-   * only `inPoint`) composes with its existing delay/trim like a full render.
+   * only `sourceIn`) composes with its existing delay/trim like a full render.
    */
   public element(eid: number): DocumentNode {
     const world = this.world;
     const c = world.components;
     const node: DocumentNode = { kind: "element", eid };
-    if (hasComponent(world, eid, c.Delay)) node.startTime = c.Delay[eid];
+    const delay = hasComponent(world, eid, c.Delay) ? c.Delay[eid] : 0;
     if (hasComponent(world, eid, c.Trim)) {
-      const delay = node.startTime ?? 0;
       const start = c.Trim.start[eid];
       const end = c.Trim.end[eid];
-      if (start !== undefined) node.inPoint = start + delay;
-      if (end !== undefined) node.outPoint = end + delay;
+      if (start !== undefined) {
+        node.sourceIn = start;
+      }
+      if (end !== undefined) {
+        node.sourceOut = end;
+      }
+    }
+    // start = timeline placement of source-0 (Delay) shifted by the source in point.
+    if (hasComponent(world, eid, c.Delay) || node.sourceIn !== undefined) {
+      node.start = delay + (node.sourceIn ?? 0);
     }
     return node;
+  }
+
+  private reconcileTiming(node: DocumentNode) {
+    if (node.kind !== "element") return;
+    const world = this.world;
+    const c = world.components;
+    const eid = node.eid;
+    const sourceIn = node.sourceIn ?? 0;
+    const start = node.start ?? 0;
+    const delay = start - sourceIn;
+    setComponent(world, eid, c.Delay, delay);
+
+    if (node.sourceIn !== undefined) {
+      setComponent(world, eid, c.Trim, { start: node.sourceIn });
+    }
+    if (node.sourceOut !== undefined) {
+      setComponent(world, eid, c.Trim, { end: node.sourceOut });
+    } else if (node.end !== undefined) {
+      const trimEnd = node.end - delay;
+      assert(trimEnd > sourceIn, `\`end\` must be after \`start\`, got start=${start}, end=${node.end}`);
+      setComponent(world, eid, c.Trim, { end: trimEnd });
+    }
   }
 
   public replaceText(node: DocumentNode, text: string) {
@@ -551,32 +588,32 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         assert(value >= 0, "`cornerRadius` must be >= 0");
         setComponent(world, eid, c.CornerRadius, Math.round(value));
         break;
-      } case "inPoint": {
+      } case "start": {
         const parsed = parseFrames(String(value), 30);
-        assert(typeof parsed === "number", "`inPoint` must be a string or number" + `, value: ${value}`);
-        node.inPoint = parsed;
-        const delay = node.startTime ?? 0;
-        setComponent(world, eid, c.Trim, { start: node.inPoint - delay });
+        assert(typeof parsed === "number", "`start` must be a string or number" + `, value: ${value}`);
+        node.start = parsed;
+        this.reconcileTiming(node);
         break;
-      } case "outPoint": {
+      } case "end": {
         const parsed = parseFrames(String(value), 30);
-        assert(typeof parsed === "number", "`outPoint` must be a string or number" + `, value: ${value}`);
-        node.outPoint = parsed;
-        const delay = node.startTime ?? 0;
-        setComponent(world, eid, c.Trim, { end: node.outPoint - delay });
+        assert(typeof parsed === "number", "`end` must be a string or number" + `, value: ${value}`);
+        node.end = parsed;
+        // `end` and `sourceOut` are two spellings of the clip's out edge.
+        node.sourceOut = undefined;
+        this.reconcileTiming(node);
         break;
-      }
-      case "startTime": {
+      } case "sourceIn": {
         const parsed = parseFrames(String(value), 30);
-        assert(typeof parsed === "number", "`startTime` must be a string or number" + `, value: ${value}`);
-        node.startTime = parsed;
-        setComponent(world, eid, c.Delay, node.startTime);
-        if (node.inPoint !== undefined) {
-          setComponent(world, eid, c.Trim, { start: node.inPoint - node.startTime });
-        }
-        if (node.outPoint !== undefined) {
-          setComponent(world, eid, c.Trim, { end: node.outPoint - node.startTime });
-        }
+        assert(typeof parsed === "number", "`sourceIn` must be a string or number" + `, value: ${value}`);
+        node.sourceIn = parsed;
+        this.reconcileTiming(node);
+        break;
+      } case "sourceOut": {
+        const parsed = parseFrames(String(value), 30);
+        assert(typeof parsed === "number", "`sourceOut` must be a string or number" + `, value: ${value}`);
+        node.sourceOut = parsed;
+        node.end = undefined;
+        this.reconcileTiming(node);
         break;
       }
       case "fill": {

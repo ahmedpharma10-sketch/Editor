@@ -22,8 +22,8 @@ const hero = generate.image({ prompt: "A neon city at night, cinematic" });
 const motion = generate.video({ prompt: "slow camera push-in", startFrame: hero });
 
 const TITLES = [
-  { text: "The Grid", inPoint: 0, outPoint: 2.5 },
-  { text: "Neon Nights", inPoint: 2.5, outPoint: 5 },
+  { text: "The Grid", start: 0, end: 2.5 },
+  { text: "Neon Nights", start: 2.5, end: 5 },
 ];
 
 export default function Project() {
@@ -40,8 +40,8 @@ export default function Project() {
               width={1920}
               height={1080}
               fill="white"
-              inPoint={t.inPoint}
-              outPoint={t.outPoint}
+              start={t.start}
+              end={t.end}
             >
               {t.text}
             </text>

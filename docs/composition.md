@@ -36,7 +36,7 @@ The first rendered root becomes the active scene. New roots are auto-placed on t
 | `<text>` | Editable text. |
 | `<video>` / `<image>` | Media; `src` is required. |
 | `<audio>` | Sound only, no spatial props. |
-| `<sequence>` | Lays children out back-to-back in time. |
+| `<sequence>` | Track container for back-to-back clips (positions are explicit); hosts transitions. |
 | `<captions>` | Transcribes the scene's audio into styled captions. |
 | `<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`, `<colorStop>` | Fills, declared as children; see [Paints](#paints). |
 
@@ -53,7 +53,7 @@ User-defined components are ordinary Solid components; only intrinsic elements p
 | `rotation` | `0` | Degrees. Animatable. |
 | `opacity` | `1` | `0`–`1`. Animatable. |
 | `cornerRadius` | `0` | Px. Animatable. |
-| `inPoint`, `outPoint`, `startTime` | see [Timing](#timing) | Temporal placement. |
+| `start`, `end`, `sourceIn`, `sourceOut` | see [Timing](#timing) | Temporal placement. |
 | `transition` | none | Cut into the next clip; `<sequence>` children only. See [Transitions](#transitions). |
 
 Animatable props also take a keyframe list — see [Animation](#animation).
@@ -86,30 +86,33 @@ These same props are what `dapi node patch` assigns on existing nodes.
 
 ## Timing
 
-Composition-relative, Lottie-inspired. Values take any [time format](cli.md#time-values) (seconds, `"45f"` frames, `"MM:SS"`).
+`start`/`end` place a clip on the parent timeline; `sourceIn`/`sourceOut` select which part of its source plays. The two are independent. Values take any [time format](cli.md#time-values) (seconds, `"45f"` frames, `"MM:SS"`).
 
 | Prop | Meaning |
 | --- | --- |
-| `inPoint` / `outPoint` | The window on the parent timeline where the node is visible/audible. Omitted: media fits its natural duration, groups auto-fit their children. |
-| `startTime` | Where source time 0 sits on the composition timeline (defaults to the in point). May be negative to skip into the source. |
+| `start` / `end` | Parent-timeline window. `start` defaults to 0; omit both and media fits its natural duration, groups auto-fit their children. |
+| `sourceIn` / `sourceOut` | The source window to play. Default: the source's natural extent. `end` and `sourceOut` are the same out edge in timeline vs. source time. |
 
 ```tsx
-<video src="/Movies/clip.mp4" inPoint={0} outPoint={16} startTime="-30f" />
-// plays from composition 0-16 s, starting 1 s (30 frames) into the source
+<video src="/Movies/clip.mp4" start={5} sourceIn={10} sourceOut={20} />
+// plays source seconds 10-20 (a 10 s clip), beginning at timeline second 5
+
+<rect start={2} end={5} fill="red" />
+// a sourceless node placed straight on the timeline: on screen from 2 s to 5 s
 ```
 
-`<sequence>` removes the arithmetic for back-to-back cuts: children are placed sequentially and non-overlapping in document order.
+`<sequence>` groups a track of back-to-back clips and hosts clip [transitions](#transitions). It does not position clips at mount — give each an explicit `start` (the next clip's `start` is the previous clip's end). In the editor it keeps children from overlapping as you drag or regroup them.
 
 ### Audio sync
 
-`syncTo` computes a node's `startTime` by cross-correlating its audio against another element's audio (named by `key`), so two recordings of the same take coincide on the timeline: a lav track against camera audio, two cameras, two microphones. Any pairing with audio tracks works (audio-to-video, audio-to-audio, video-to-video). `muted` silences the side that shouldn't be heard; alignment reads source content regardless of `muted` or `volume`.
+`syncTo` computes a node's `start` by cross-correlating its audio against another element's audio (named by `key`), so two recordings of the same take coincide on the timeline: a lav track against camera audio, two cameras, two microphones. Any pairing with audio tracks works (audio-to-video, audio-to-audio, video-to-video). `muted` silences the side that shouldn't be heard; alignment reads source content regardless of `muted` or `volume`.
 
 ```tsx
-<video key="camera" src="/Movies/take-3.mp4" inPoint={0} outPoint={45} muted />
+<video key="camera" src="/Movies/take-3.mp4" sourceOut={45} muted />
 <audio src="/Movies/lav.wav" syncTo="camera" />
 ```
 
-`syncTo` and `startTime` are mutually exclusive; `inPoint`/`outPoint` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; an alignment too weak to trust fails the mount and the node keeps its default placement.
+`syncTo` and `start` are mutually exclusive; `sourceIn`/`sourceOut` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; an alignment too weak to trust fails the mount and the node keeps its default placement.
 
 ## Transitions
 
@@ -117,8 +120,8 @@ A clip inside a `<sequence>` takes a `transition` prop rendering the cut into th
 
 ```tsx
 <sequence>
-  <video src="/Movies/a.mp4" outPoint={8} transition={{ type: "fadeToBlack", duration: 0.5 }} />
-  <video src="/Movies/b.mp4" />
+  <video src="/Movies/a.mp4" start={0} end={8} transition={{ type: "fadeToBlack", duration: 0.5 }} />
+  <video src="/Movies/b.mp4" start={8} />
 </sequence>
 ```
 
@@ -141,7 +144,7 @@ Animatable props (`x`, `y`, `width`, `height`, `rotation`, `opacity`, `cornerRad
 ```tsx
 <image
   src="/photo.jpg"
-  inPoint={0} outPoint={5}
+  start={0} end={5}
   x={[
     { time: 0, value: -400 },
     { time: 1, value: 200, easing: "easeOut" },

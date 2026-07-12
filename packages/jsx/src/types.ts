@@ -34,7 +34,7 @@ export type Easing =
   | `steps(${string})`;
 
 export type Keyframe<T> = {
-  /** Node-local time: 0 is the node's in point. Any `Time` format. */
+  /** Node-local time: 0 is where the clip begins (its `start`). Any `Time` format. */
   time: Time;
   value: T;
   /** Shapes the segment to the next keyframe; ignored on the last. Default "linear". */
@@ -100,16 +100,18 @@ export type PatchProps = {
   opacity?: Animatable<number>;
   /** Uniform corner radius, px. Animatable. */
   cornerRadius?: Animatable<number>;
-  /** Composition time at which the node becomes visible/audible. */
-  inPoint?: Time;
-  /** Composition time at which the node stops. */
-  outPoint?: Time;
-  /** Composition time at which the node's source time 0 is placed. Defaults to the in point. */
-  startTime?: Time;
+  /** Parent-timeline time at which the node begins. Default 0. */
+  start?: Time;
+  /** Parent-timeline time at which the node ends. Alternative to `sourceOut`. */
+  end?: Time;
+  /** Source in point: where playback begins within the source, trimming the head. Default 0. */
+  sourceIn?: Time;
+  /** Source out point: where playback ends within the source. Defaults to the natural end. Alternative to `end`. */
+  sourceOut?: Time;
   /**
-   * Key of another element carrying an audio track. Derives `startTime` by
-   * cross-correlating the two audio signals so the recordings coincide on the
-   * timeline. Mutually exclusive with `startTime`.
+   * Key of another element carrying an audio track. Derives the timeline
+   * placement (`start`) by cross-correlating the two audio signals so the
+   * recordings coincide on the timeline. Mutually exclusive with `start`.
    */
   syncTo?: string;
   /**
@@ -160,9 +162,10 @@ export const PATCH_PROP_KEYS = Object.keys({
   rotation: true,
   opacity: true,
   cornerRadius: true,
-  inPoint: true,
-  outPoint: true,
-  startTime: true,
+  start: true,
+  end: true,
+  sourceIn: true,
+  sourceOut: true,
   syncTo: true,
   transition: true,
   fill: true,
@@ -182,7 +185,7 @@ export const PATCH_PROP_KEYS = Object.keys({
   colors: true,
 } satisfies Record<keyof PatchProps, true>) as ReadonlyArray<keyof PatchProps>;
 
-type TimingProps = Pick<PatchProps, "inPoint" | "outPoint" | "startTime">;
+type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
 
 type CommonProps = TimingProps &
   Pick<
