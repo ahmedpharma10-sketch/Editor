@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { entityExists, hasComponent, query, Not, Or } from "bitecs";
+import { entityExists, hasComponent, query, Not } from "bitecs";
 
 import { createEncoder } from "@/components/engine/encode/encoder";
 import { playbackSystem } from "@/components/engine/systems/playback";
@@ -25,6 +25,7 @@ import {
   serializeEntity,
   formatTimestamp,
   stampTimestampLabel,
+  clearComponent,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
 import { WorldDocument } from "@/utils/jsx";
@@ -46,6 +47,7 @@ import type {
   NodeRenderRequest,
   NodeRenderResult,
 } from "@diffusionstudio/cli/channels";
+import { assert } from "@/utils";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
 
@@ -292,30 +294,23 @@ function sceneOfNode(world: EngineWorld, eid: number): number | null {
 }
 
 export function handleNodeCapture(engine: Accessor<Engine>) {
-  return async ({ id, frames, timestamp }: { id?: number; frames?: number[]; timestamp?: boolean }): Promise<{ base64: string }[]> => {
+  return async ({ id, frames, timestamp }: { id: number; frames?: number[]; timestamp?: boolean }): Promise<{ base64: string }[]> => {
     const e = engine();
     const w = e.world;
     const c = w.components;
-
     const canvas = w.canvas;
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new Error("Canvas is not ready");
-    }
 
-    const eid = id !== undefined ? resolveNodeEid(w, id) : undefined;
+    assert(canvas instanceof HTMLCanvasElement, "Canvas is not ready");
 
-    // Capture in the node's own scene so its timeline frame is meaningful.
-    const sceneEid = eid !== undefined ? sceneOfNode(w, eid) : w.selection.scene;
-    if (sceneEid !== null && sceneEid !== w.selection.scene) {
-      switchActiveScene(w, sceneEid);
-    }
+    const eid = resolveNodeEid(w, id);
+    const sceneEid = sceneOfNode(w, eid);
+    assert(sceneEid !== null, "Node is not in a scene");
+    switchActiveScene(w, sceneEid);
+    clearComponent(w, c.Selected, false);
+    addComponent(w, eid, c.Selected, false);
 
-    // Select the captured node so the capture shows its bounds.
-    if (eid !== undefined) {
-      for (const sel of query(w, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer)])) {
-        removeComponent(w, sel, c.Selected, false);
-      }
-      addComponent(w, eid, c.Selected, false);
+    for (const treeEid of getEntityTree(w, eid)) {
+      removeComponent(w, treeEid, c.Culled, false);
     }
 
     // Renders one pipeline pass onto the on-screen canvas. We drive the systems
@@ -330,6 +325,8 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
       hudSystem(w);
     };
 
+    e.camera.focusEntities([eid]);
+
     // `undefined` means the current playhead; each explicit frame is captured in order.
     const shots = frames !== undefined && frames.length > 0 ? frames : [undefined];
     const results: { base64: string }[] = [];
@@ -343,12 +340,6 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
       renderPass();
       await new Promise((resolve) => setTimeout(resolve, 2000));
       renderPass();
-
-      if (isScene(w, eid!)) {
-        e.camera.fitToActiveScene();
-      } else {
-        e.camera.focusEntities([eid!]);
-      }
 
       // The effective frame is the one we just seeked to, or the live playhead.
       const shotFrame = frame ?? c.Computed.localTime[sceneEid ?? 0] ?? 0;

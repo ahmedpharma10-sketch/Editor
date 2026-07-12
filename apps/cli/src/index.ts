@@ -432,8 +432,8 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
 
 type CaptureOptions = { time?: string[]; timestamp?: boolean };
 
-async function nodeCapture(id: string | undefined, opts: CaptureOptions): Promise<void> {
-  const eid = id !== undefined ? parseNodeIds([id])[0] : undefined;
+async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
+  const eid = parseNodeIds([id])[0];
 
   let times: number[] | undefined;
   let frames: number[] | undefined;
@@ -1343,10 +1343,10 @@ node
   .description(
     `Focus a node on the canvas and capture it as a PNG, one per timeline position, each stamped in the top-left with its HH:MM:SS:FF timestamp. Captures the composited canvas (the truest "what plays at time T" check: layout, overlaps, text, timing); for a video asset's own full-resolution pixels use \`media grab\`.`,
   )
-  .argument("[id]", "node id to capture (optional; defaults to the canvas)")
+  .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more timeline positions to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
   .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
-  .action((id: string | undefined, opts: CaptureOptions) => nodeCapture(id, opts));
+  .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node
   .command("insert")
