@@ -199,8 +199,6 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   public promises: Promise<void>[] = [];
   public stage: DocumentNode;
   public rootEid: number | null = null;
-  /** Whether the root was created fresh rather than reconciled onto an existing keyed node. */
-  public rootCreated = false;
   public engine: Engine;
 
   private queue: GenaiQueueItem[] = [];
@@ -823,8 +821,6 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         // Find and replace node with the same key
         const existing = query(this.world, [c.Key, Not(c.Deleted)])
           .find((eid) => eid !== node.eid && c.Key[eid] === key);
-
-        this.rootCreated = existing === undefined;
 
         if (existing === undefined) {
           const width = c.Computed.width[node.eid] ?? 0;

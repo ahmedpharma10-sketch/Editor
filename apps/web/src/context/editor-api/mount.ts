@@ -22,7 +22,7 @@ export function handleMount(engine: Accessor<Engine>) {
     const e = engine();
     const world = e.world;
     const c = world.components;
-    let dispose = () => {};
+    let dispose = () => { };
 
     try {
       // Evaluate — top-level code (including top-level await) runs here.
@@ -50,7 +50,7 @@ export function handleMount(engine: Accessor<Engine>) {
 
       if (document.rootEid && hasComponent(world, document.rootEid, c.Scene)) {
         switchActiveScene(world, document.rootEid);
-        if (document.rootCreated) e.camera.fitToActiveScene();
+        e.camera.fitToActiveScene();
       }
     } catch (error) {
       return { status: "rejected", error: error instanceof Error ? error.message : String(error) };
@@ -73,7 +73,7 @@ export function handleNodeInsert(engine: Accessor<Engine>) {
   return async ({ code, parentId, index }: NodeInsertRequest): Promise<MountResult> => {
     const e = engine();
     const world = e.world;
-    let dispose = () => {};
+    let dispose = () => { };
 
     try {
       const parentEid = resolveEntityEid(world, parentId);
