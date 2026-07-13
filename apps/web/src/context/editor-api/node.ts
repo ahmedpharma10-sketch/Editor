@@ -5,27 +5,17 @@
 import { entityExists, hasComponent, query, Not } from "bitecs";
 
 import { createEncoder } from "@/components/engine/encode/encoder";
-import { playbackSystem } from "@/components/engine/systems/playback";
-import { motionSystem } from "@/components/engine/systems/motion";
-import { transformSystem } from "@/components/engine/systems/transform";
-import { renderSystem } from "@/components/engine/systems/render";
-import { hudSystem } from "@/components/engine/systems/hud";
+import { createImageEncoder } from "@/components/engine/encode/image-encoder";
 import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
 
 import {
   deleteEntity,
-  addComponent,
-  removeComponent,
   getParentEntity,
   isText,
   isScene,
-  switchActiveScene,
   getEntityTree,
   cloneSubtree,
   serializeEntity,
-  formatTimestamp,
-  stampTimestampLabel,
-  clearComponent,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
 import { WorldDocument } from "@/utils/jsx";
@@ -47,7 +37,7 @@ import type {
   NodeRenderRequest,
   NodeRenderResult,
 } from "@diffusionstudio/cli/channels";
-import { assert } from "@/utils";
+import { clamp } from "@/utils";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
 
@@ -298,73 +288,32 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
     const e = engine();
     const w = e.world;
     const c = w.components;
-    const canvas = w.canvas;
-
-    assert(canvas instanceof HTMLCanvasElement, "Canvas is not ready");
 
     const eid = resolveNodeEid(w, id);
-    const sceneEid = sceneOfNode(w, eid);
-    assert(sceneEid !== null, "Node is not in a scene");
-    switchActiveScene(w, sceneEid);
-    clearComponent(w, c.Selected, false);
-    addComponent(w, eid, c.Selected, false);
 
-    for (const treeEid of getEntityTree(w, eid)) {
-      removeComponent(w, treeEid, c.Culled, false);
+    // `undefined` means the current playhead, mapped into the node's local
+    // timeline (the encoder's frame 0 is the node's first visible frame).
+    let shots = frames;
+    if (shots === undefined || shots.length === 0) {
+      const sceneEid = sceneOfNode(w, eid);
+      const sceneFrame = sceneEid !== null ? c.Computed.localTime[sceneEid] ?? 0 : 0;
+      const start = c.Computed.start[eid] ?? 0;
+      const duration = c.Computed.duration[eid] ?? 0;
+      shots = [clamp(sceneFrame - start, 0, Math.max(0, duration - 1))];
     }
 
-    // Renders one pipeline pass onto the on-screen canvas. We drive the systems
-    // directly rather than relying on the rAF loop: it's throttled or paused
-    // whenever the app isn't the foreground window (i.e. every CLI capture), so
-    // the canvas would otherwise stay frozen on a stale frame with no selection.
-    const renderPass = () => {
-      playbackSystem(w);
-      motionSystem(w);
-      transformSystem(w);
-      renderSystem(w);
-      hudSystem(w);
-    };
+    const encoder = await createImageEncoder(w, {
+      eid,
+      frames: shots,
+      timestamp: timestamp !== false,
+    });
+    const result = await encoder.render();
 
-    e.camera.focusEntities([eid]);
+    if (result.type === "canceled") throw new Error("Capture canceled");
+    if (result.type === "error") throw result.error;
 
-    // `undefined` means the current playhead; each explicit frame is captured in order.
-    const shots = frames !== undefined && frames.length > 0 ? frames : [undefined];
-    const results: { base64: string }[] = [];
-    for (const frame of shots) {
-      if (frame !== undefined && sceneEid !== null) {
-        c.Playback.playing[sceneEid] = 0;
-        c.Computed.localTime[sceneEid] = frame;
-        c.Computed.localTimeInSeconds[sceneEid] = frame / w.frameRate;
-      }
-
-      renderPass();
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      renderPass();
-
-      // The effective frame is the one we just seeked to, or the live playhead.
-      const shotFrame = frame ?? c.Computed.localTime[sceneEid ?? 0] ?? 0;
-      const label = formatTimestamp(shotFrame / w.frameRate, w.frameRate);
-      results.push({ base64: stampedPng(canvas, timestamp !== false ? label : undefined) });
-    }
-    return results;
+    return result.data.map((base64) => ({ base64 }));
   };
-}
-
-// Composites the live canvas onto a fresh one so the timestamp label can't leak
-// into the on-screen editor, and returns it as base64 PNG (no data-url prefix).
-function stampedPng(source: HTMLCanvasElement, label: string | undefined): string {
-  const toBase64 = (c: HTMLCanvasElement) => c.toDataURL("image/png").split(",")[1] ?? "";
-  if (label === undefined) return toBase64(source);
-
-  const out = document.createElement("canvas");
-  out.width = source.width;
-  out.height = source.height;
-  const ctx = out.getContext("2d");
-  if (!ctx) return toBase64(source);
-
-  ctx.drawImage(source, 0, 0);
-  stampTimestampLabel(ctx, out.height, label);
-  return toBase64(out);
 }
 
 export function handleNodeRender(engine: Accessor<Engine>) {

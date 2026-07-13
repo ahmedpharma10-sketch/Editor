@@ -1178,7 +1178,7 @@ media
   .command("grab")
   .alias("sample")
   .description(
-    `Decode frames of a video file and write them as PNGs (local render, no credits), each stamped in the top-left with its HH:MM:SS:FF timestamp. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which captures the composited canvas. The recommended tool for understanding a video at the frame level.`,
+    `Decode frames of a video file and write them as PNGs (local render, no credits), each stamped in the top-left with its HH:MM:SS:FF timestamp. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
   )
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
@@ -1341,10 +1341,10 @@ node
 node
   .command("capture")
   .description(
-    `Focus a node on the canvas and capture it as a PNG, one per timeline position, each stamped in the top-left with its HH:MM:SS:FF timestamp. Captures the composited canvas (the truest "what plays at time T" check: layout, overlaps, text, timing); for a video asset's own full-resolution pixels use \`media grab\`.`,
+    `Render a node in isolation to PNGs, one per position, each stamped in the top-left with its HH:MM:SS:FF timestamp. The node is drawn offscreen, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
-  .option("-t, --time <time...>", `one or more timeline positions to record at — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the current playhead)`)
+  .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the node's frame under the current playhead)`)
   .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
