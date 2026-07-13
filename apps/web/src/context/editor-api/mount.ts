@@ -50,6 +50,7 @@ export function handleMount(engine: Accessor<Engine>) {
 
       if (document.rootEid && hasComponent(world, document.rootEid, c.Scene)) {
         switchActiveScene(world, document.rootEid);
+        if (document.rootCreated) e.camera.fitToActiveScene();
       }
     } catch (error) {
       return { status: "rejected", error: error instanceof Error ? error.message : String(error) };

@@ -1087,7 +1087,7 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
