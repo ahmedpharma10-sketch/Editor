@@ -1341,7 +1341,7 @@ node
 node
   .command("capture")
   .description(
-    `Render a node in isolation to PNGs, one per position, each stamped in the top-left with its HH:MM:SS:FF timestamp. The node is drawn offscreen, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
+    `Render a node in isolation to PNGs, one per position, each stamped in the top-left with its HH:MM:SS:FF timestamp. The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the node's frame under the current playhead)`)

@@ -306,6 +306,7 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
       eid,
       frames: shots,
       timestamp: timestamp !== false,
+      resolution: 720,
     });
     const result = await encoder.render();
 

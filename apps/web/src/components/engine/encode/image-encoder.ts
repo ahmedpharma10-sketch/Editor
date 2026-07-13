@@ -28,6 +28,8 @@ type ImageEncoderConfig = {
   frames: number[];
   /** Stamp each capture with its HH:MM:SS:FF label (frame-relative). */
   timestamp?: boolean;
+  /** Target output height in px (default: the entity's native size). */
+  resolution?: number;
 };
 
 export type ImageExportResult =
@@ -154,9 +156,15 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   }
   assert(Number.isFinite(bounds.minX), 'Entity is not visible at any of the requested frames');
 
-  offscreenCanvas.width = Math.max(1, Math.ceil(bounds.maxX - bounds.minX));
-  offscreenCanvas.height = Math.max(1, Math.ceil(bounds.maxY - bounds.minY));
-  // Shift the measured box onto the canvas so the node is centered in view.
+  const boundsWidth = Math.max(1, bounds.maxX - bounds.minX);
+  const boundsHeight = Math.max(1, bounds.maxY - bounds.minY);
+  const scale = config.resolution ? config.resolution / boundsHeight : 1;
+
+  offscreenCanvas.width = Math.max(1, Math.round(boundsWidth * scale));
+  offscreenCanvas.height = Math.max(1, Math.round(boundsHeight * scale));
+  // Shift the measured box onto the canvas so the node is centered in view;
+  // the camera translation is scaled by world.resolution at render time.
+  world.resolution = scale;
   world.camera.e = -bounds.minX;
   world.camera.f = -bounds.minY;
 
