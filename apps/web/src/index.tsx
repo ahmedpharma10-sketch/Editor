@@ -23,8 +23,12 @@ document.addEventListener('contextmenu', (e) => e.preventDefault())
 
 if (window.desktop) {
   const origRequest = FileSystemHandle.prototype.requestPermission;
-  FileSystemHandle.prototype.queryPermission = function (desc) {
-    return origRequest.call(this, desc);
+  FileSystemHandle.prototype.queryPermission = async function (desc) {
+    try {
+      return await origRequest.call(this, desc);
+    } catch {
+      return 'prompt';
+    }
   };
 
   restoreLastRoute();

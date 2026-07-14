@@ -16,6 +16,7 @@ declare global {
       platform: string;
       send(channel: string, payload: unknown): void;
       on(channel: string, cb: (payload: unknown) => void): (() => void);
+      getPathForFile(file: File): string;
     };
     showOpenFilePicker(options?: OpenFilePickerOptions): Promise<FileSystemFileHandle[]>;
     EyeDropper?: {

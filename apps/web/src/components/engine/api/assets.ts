@@ -18,7 +18,7 @@ import { createEntity } from "./entities";
 import { appendChild } from "./hierarchy";
 import { addComponent, setComponent } from "./events";
 import { resizeEntity } from "./resize";
-import { mimeTypeToExtension } from "@/utils";
+import { mimeTypeToExtension, showFileDialog } from "@/utils";
 import { trpc } from "@/lib/trpc";
 import {
   ElectronFileHandle,
@@ -796,19 +796,25 @@ export async function insertAssetInTimeline(world: EngineWorld, asset: Asset, mo
 
 export async function replaceAssetHandle(world: EngineWorld, asset: Asset) {
   const { mimeType } = asset;
-  let handle: FileSystemFileHandle | undefined;
-  try {
-    [handle] = await window.showOpenFilePicker({
-      multiple: false,
-      types: [
-        {
-          description: `${mimeType} files`,
-          accept: { [mimeType]: [mimeTypeToExtension(mimeType)] },
-        },
-      ],
-    });
-  } catch {
-    return;
+  let handle: FileSystemFileHandle | ElectronFileHandle | undefined;
+
+  if (window.desktop) {
+    const [picked] = await showFileDialog(mimeType, false);
+    handle = picked as FileSystemFileHandle | ElectronFileHandle;
+  } else {
+    try {
+      [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [
+          {
+            description: `${mimeType} files`,
+            accept: { [mimeType]: [mimeTypeToExtension(mimeType)] },
+          },
+        ],
+      });
+    } catch {
+      return;
+    }
   }
   if (!handle) return;
 
@@ -827,19 +833,25 @@ export async function replaceAssetHandle(world: EngineWorld, asset: Asset) {
   }
 };
 
-type FileOrHandle = File | FileSystemFileHandle | FileSystemDirectoryHandle
+type FileOrHandle = File | FileSystemFileHandle | FileSystemDirectoryHandle | ElectronFileHandle
 
 export async function getFileFromDataTransferItem(item?: DataTransferItem): Promise<FileOrHandle | null> {
   if (!item) return null;
 
-  if (typeof item.getAsFileSystemHandle === 'function') {
-    const handle = await item.getAsFileSystemHandle();
-    if (handle && (handle.kind === 'file' || handle.kind === 'directory')) {
-      return handle as FileOrHandle;
-    }
+  const file = item.getAsFile();
+  if (typeof item.getAsFileSystemHandle !== 'function') return file;
+  const handle = await item.getAsFileSystemHandle();
+
+  if (!handle || (handle.kind !== 'file' && handle.kind !== 'directory')) {
     return null;
   }
-  return item.getAsFile();
+
+  if (window.desktop && handle.kind === 'file' && file) {
+    const path = window.desktop.getPathForFile(file);
+    if (path) return ElectronFileHandle.fromFile(path, file);
+  }
+
+  return handle as FileOrHandle;
 }
 
 

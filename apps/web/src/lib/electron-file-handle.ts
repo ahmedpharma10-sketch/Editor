@@ -67,12 +67,18 @@ export class ElectronFileHandle {
 
   private filePromise: Promise<File> | null = null;
 
-  constructor(path: string, name?: string) {
+  public constructor(path: string, name?: string) {
     this.path = path;
     this.name = name ?? basename(path);
   }
 
-  async getFile(): Promise<File> {
+  public static fromFile(path: string, file: File): ElectronFileHandle {
+    const handle = new ElectronFileHandle(path, file.name);
+    handle.filePromise = Promise.resolve(file);
+    return handle;
+  }
+
+  public async getFile(): Promise<File> {
     if (!this.filePromise) {
       // Serialize CDP round-trips: every call shares the same hidden input,
       // and overlapping setFiles() calls would race on `input.files[0]`.
@@ -84,28 +90,26 @@ export class ElectronFileHandle {
     return this.filePromise;
   }
 
-  invalidate() {
+  public invalidate() {
     this.filePromise = null;
   }
 
   // FileSystemFileHandle shape — ElectronFileHandle is always "granted" because
   // the main process has full disk access.
-  async queryPermission(_descriptor?: any): Promise<PermissionState> {
+  public async queryPermission(_descriptor?: any): Promise<PermissionState> {
     return "granted";
   }
 
-  async requestPermission(_descriptor?: any): Promise<PermissionState> {
+  public async requestPermission(_descriptor?: any): Promise<PermissionState> {
     return "granted";
   }
 
-  toJSON(): SerializedElectronFileHandle {
+  public toJSON(): SerializedElectronFileHandle {
     return { kind: "electron-file", path: this.path, name: this.name };
   }
 }
 
-export function isSerializedElectronFileHandle(
-  value: unknown
-): value is SerializedElectronFileHandle {
+export function isSerializedElectronFileHandle(value: unknown): value is SerializedElectronFileHandle {
   return (
     typeof value === "object" &&
     value !== null &&

@@ -4,8 +4,7 @@
 
 import { mimeTypeToExtension } from "./media";
 import { colord } from "colord";
-
-import type { ElectronFileHandle } from "@/lib/electron-file-handle";
+import { ElectronFileHandle } from "@/lib/electron-file-handle";
 
 /**
  * Reads the computed value of a CSS custom property from the document root.
@@ -87,16 +86,16 @@ export async function verifyHandlePermissions(
 export async function showFileDialog(
   accept = 'image/*,video/*,audio/*,text/*',
   multiple = true
-): Promise<File[] | FileSystemFileHandle[]> {
+): Promise<(File | FileSystemFileHandle | ElectronFileHandle)[]> {
   try {
-    if ('showOpenFilePicker' in window) {
+    if (!window.desktop && 'showOpenFilePicker' in window) {
       return await window.showOpenFilePicker({
         multiple,
         startIn: 'downloads',
       });
     }
 
-    return new Promise<File[]>(resolve => {
+    return new Promise<(File | ElectronFileHandle)[]>(resolve => {
       // setup input
       const input = document.createElement('input');
       input.type = 'file';
@@ -105,8 +104,12 @@ export async function showFileDialog(
       // listen for changes
       input.onchange = (fileEvent: Event) => {
         const files = Array.from((fileEvent.target as HTMLInputElement)?.files ?? []);
-        resolve(files);
+        resolve(files.map((file) => {
+          const path = window.desktop?.getPathForFile(file);
+          return path ? ElectronFileHandle.fromFile(path, file) : file;
+        }));
       };
+      input.oncancel = () => resolve([]);
       input.click();
     });
   } catch {
