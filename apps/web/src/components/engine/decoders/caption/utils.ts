@@ -6,6 +6,7 @@ import { query } from 'bitecs';
 import { ChildOf } from '../../components/relations';
 import { deleteEntity } from '../../api/entities';
 import { getAssetFile } from '../../api/assets';
+import { parseSubtitles } from './subtitles';
 
 import type { Transcript, WordGroup } from '@diffusionstudio/api-contract';
 import type { EngineWorld } from '../../api/world';
@@ -110,6 +111,9 @@ export async function resolveTranscript(asset: Asset): Promise<Transcript> {
   if (asset.type === 'TRANSCRIPT') {
     const file = await getAssetFile(asset);
     const text = await file.text();
+    if (asset.mimeType === 'application/x-subrip' || asset.mimeType === 'text/vtt') {
+      return parseSubtitles(text);
+    }
     return JSON.parse(text);
   }
 

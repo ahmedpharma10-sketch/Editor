@@ -122,7 +122,11 @@ export type PatchProps = {
   transition?: TransitionSpec | null;
   /** Any CSS color, applied to the node's solid fill (created if absent); alpha is ignored — use `opacity`. */
   fill?: string;
-  /** Path, URL, asset id, or a `generate.*` declaration. */
+  /**
+   * Path, URL, asset id, or a `generate.*` declaration. On `<captions>` a
+   * transcript source (.srt, .vtt, or transcript .json) mounted instead of
+   * transcribing the scene; `generate.*` is not accepted there.
+   */
   src?: string | AssetRef;
   /** How the source maps into the box. Default "cover" on `<video>`, "contain" on `<image>`. */
   objectFit?: Fit;
@@ -257,4 +261,4 @@ export type SequenceProps = Pick<PatchProps, "name"> & {
   children?: SolidJSX.Element;
 };
 
-export type CaptionsProps = Pick<PatchProps, "preset" | "colors">;
+export type CaptionsProps = Pick<PatchProps, "preset" | "colors" | "src" | "start">;

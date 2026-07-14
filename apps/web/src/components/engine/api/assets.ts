@@ -342,7 +342,7 @@ async function probeMediaMetadata(file: Blob, mimeType: string) {
       : await getRasterDimensions(file);
 
     return { type: 'IMAGE', width, height } as const;
-  } else if (mimeType === 'application/json') {
+  } else if (mimeType === 'application/json' || mimeType === 'application/x-subrip' || mimeType === 'text/vtt') {
     return { type: 'TRANSCRIPT' } as const;
   } else if (mimeType.match(/^(audio\/|video\/)/)) {
     const input = new Input({
@@ -856,6 +856,16 @@ export async function detectMimeType(handle: MediaInput): Promise<string | null>
   } else {
     handle = await handle.getFile();
     mimeType = handle.type;
+  }
+
+  // Subtitle files: the extension is authoritative — OS registries rarely map .srt.
+  const fileName = typeof handle === 'string'
+    ? handle.split(/[?#]/)[0]
+    : (handle as File).name ?? '';
+  if (/\.srt$/i.test(fileName) || mimeType === 'application/x-subrip') {
+    return 'application/x-subrip';
+  } else if (/\.vtt$/i.test(fileName) || mimeType === 'text/vtt') {
+    return 'text/vtt';
   }
 
   if (mimeType?.startsWith('image/')) {

@@ -37,7 +37,7 @@ The first rendered root becomes the active scene. New roots are auto-placed on t
 | `<video>` / `<image>` | Media; `src` is required. |
 | `<audio>` | Sound only, no spatial props. |
 | `<sequence>` | Track container for back-to-back clips (positions are explicit); hosts transitions. |
-| `<captions>` | Transcribes the scene's audio into styled captions. |
+| `<captions>` | Styled captions: transcribes the scene's audio, or mounts a transcript given via `src`. |
 | `<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`, `<colorStop>` | Fills, declared as children; see [Paints](#paints). |
 
 User-defined components are ordinary Solid components; only intrinsic elements produce nodes.
@@ -212,6 +212,16 @@ Declarations are pure: nothing generates until the mount commits, and refs never
 ```tsx
 <captions preset="spotlight" colors={["#FF0055"]} />
 ```
+
+### Manual captions
+
+`src` supplies the transcript instead of transcribing: a path, URL, or asset id of an `.srt` or `.vtt` subtitle file, or a transcript `.json` (the `dapi transcribe` output format: `[{ text, words: [{ text, start, end }] }]`, times in seconds). Subtitle cues carry no word timings, so word-level presets highlight on timings synthesized within each cue.
+
+```tsx
+<captions src="./subtitles.srt" preset="classic" />
+```
+
+Times are scene-relative; set `start` to shift the whole caption track when the transcript was written against a clip that begins later in the scene.
 
 | Preset | Style |
 | --- | --- |

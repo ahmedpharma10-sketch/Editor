@@ -81,7 +81,7 @@ function fnv1a(input: string): string {
   return (hash >>> 0).toString(16);
 }
 
-function transcriptTrim(transcript: Transcript): { start: number; end: number } {
+export function transcriptTrim(transcript: Transcript): { start: number; end: number } {
   const firstWord = transcript.at(0)?.words.at(0);
   const lastWord = transcript.at(-1)?.words.at(-1);
   return { start: secondsToFrames(firstWord?.start), end: secondsToFrames(lastWord?.end) };

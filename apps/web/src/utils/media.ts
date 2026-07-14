@@ -58,6 +58,8 @@ export function mimeTypeToExtension(mimeType: string): string {
     // Web files
     'text/html': '.html',
     'application/json': '.json',
+    'application/x-subrip': '.srt',
+    'text/vtt': '.vtt',
     'text/xml': '.xml',
     'application/xml': '.xml',
   };

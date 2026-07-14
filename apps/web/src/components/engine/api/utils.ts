@@ -173,6 +173,10 @@ export function reactToAssetChange(world: EngineWorld, eid: number) {
     reactToPaintChange(world, eid);
   } else if (hasComponent(world, eid, c.Audio)) {
     reactToGeometryDurationChange(world, eid);
+  } else if (hasComponent(world, eid, c.Caption)) {
+    // Re-pointed transcript: drop the decoder so it re-resolves with the new asset.
+    c.CaptionDecoder[eid]?.dispose();
+    c.CaptionDecoder[eid] = null;
   }
 }
 

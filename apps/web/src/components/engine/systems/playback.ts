@@ -229,28 +229,30 @@ function forwardDecoders(world: EngineWorld, sid: number, eid: number): void {
 
 	const hidden =
 		hasComponent(world, eid, c.Hidden)
-		|| hasComponent(world, eid, c.Culled)
-		|| world.mode === 'offline-audio';
+		|| hasComponent(world, eid, c.Culled);
+	const visualsEnabled = !hidden && world.mode !== 'offline-audio';
 
 	let paintAudioEid: number | undefined;
 	if (!hidden) {
 		for (const fid of query(world, [ChildOf(eid), c.Paint, Not(c.Deleted), Not(c.Hidden)])) {
 			if (c.Paint[fid] === PaintType.VIDEO) {
-				forwardVideoDecoder(world, sid, eid, fid);
+				if (visualsEnabled) {
+					forwardVideoDecoder(world, sid, eid, fid);
+				}
 				paintAudioEid = fid;
 			}
 
-			if (c.Paint[fid] === PaintType.SEQUENCE) {
+			if (c.Paint[fid] === PaintType.SEQUENCE && visualsEnabled) {
 				forwardSequenceDecoder(world, sid, eid, fid);
 			}
 
-			if (c.Paint[fid] === PaintType.IMAGE) {
+			if (c.Paint[fid] === PaintType.IMAGE && visualsEnabled) {
 				forwardImageDecoder(world, sid, eid, fid);
 			}
 		}
 	}
 
-	if (hasComponent(world, eid, c.Caption) && !hidden) {
+	if (hasComponent(world, eid, c.Caption) && visualsEnabled) {
 		forwardCaptionDecoder(world, sid, eid);
 	}
 

@@ -33,7 +33,9 @@ import {
   setComponent,
   setKeyframeTrack,
   transcribeScene,
+  transcriptTrim,
 } from "@/components/engine";
+import { resolveTranscript } from "@/components/engine/decoders/caption/utils";
 import { ChildOf } from "@/components/engine/components";
 import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
 import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
@@ -903,7 +905,12 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     const c = world.components;
     const eid = node.eid;
 
-    if (asset.type === 'AUDIO') {
+    if (asset.type === 'TRANSCRIPT') {
+      const transcript = await resolveTranscript(asset);
+      // AssetId set here makes commit's caption phase skip transcription.
+      setComponent(world, eid, c.AssetId, asset.id);
+      setComponent(world, eid, c.Trim, transcriptTrim(transcript));
+    } else if (asset.type === 'AUDIO') {
       setComponent(world, eid, c.AssetId, asset.id);
       resizeEntity(world, eid, { width: 500, height: 150 });
     } else if (asset.type === 'IMAGE' || asset.type === 'VIDEO') {
