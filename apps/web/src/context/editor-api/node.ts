@@ -10,7 +10,6 @@ import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
 
 import {
   deleteEntity,
-  getParentEntity,
   isText,
   isScene,
   getEntityTree,
@@ -37,7 +36,6 @@ import type {
   NodeRenderRequest,
   NodeRenderResult,
 } from "@diffusionstudio/cli/channels";
-import { clamp } from "@/utils";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
 
@@ -273,33 +271,17 @@ export function handleNodeGrep(engine: Accessor<Engine>) {
   };
 }
 
-// Walk up from a node to the scene that owns it (a scene resolves to itself).
-function sceneOfNode(world: EngineWorld, eid: number): number | null {
-  let cur: number | null = eid;
-  while (cur !== null) {
-    if (isScene(world, cur)) return cur;
-    cur = getParentEntity(world, cur);
-  }
-  return null;
-}
-
 export function handleNodeCapture(engine: Accessor<Engine>) {
   return async ({ id, frames, timestamp }: { id: number; frames?: number[]; timestamp?: boolean }): Promise<{ base64: string }[]> => {
     const e = engine();
     const w = e.world;
-    const c = w.components;
 
     const eid = resolveNodeEid(w, id);
 
-    // `undefined` means the current playhead, mapped into the node's local
-    // timeline (the encoder's frame 0 is the node's first visible frame).
+    // `undefined` means the node's first visible frame (the encoder's frame 0).
     let shots = frames;
     if (shots === undefined || shots.length === 0) {
-      const sceneEid = sceneOfNode(w, eid);
-      const sceneFrame = sceneEid !== null ? c.Computed.localTime[sceneEid] ?? 0 : 0;
-      const start = c.Computed.start[eid] ?? 0;
-      const duration = c.Computed.duration[eid] ?? 0;
-      shots = [clamp(sceneFrame - start, 0, Math.max(0, duration - 1))];
+      shots = [0];
     }
 
     const encoder = await createImageEncoder(w, {

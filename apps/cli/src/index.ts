@@ -435,19 +435,15 @@ type CaptureOptions = { time?: string[]; timestamp?: boolean };
 async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const eid = parseNodeIds([id])[0];
 
-  let times: number[] | undefined;
-  let frames: number[] | undefined;
-  if (opts.time !== undefined) {
-    times = opts.time.map((t) => parseTimeArg(t, "--time"));
-    frames = times.map((t) => Math.round(t * TIME_FPS));
-  }
+  const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
+  const frames = times.map((t) => Math.round(t * TIME_FPS));
 
   try {
     const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp });
     for (const [i, { base64 }] of shots.entries()) {
       const path = join(tmpdir(), `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
-      console.log(JSON.stringify({ time: times ? times[i] : null, path }));
+      console.log(JSON.stringify({ time: times[i], path }));
     }
   } catch (e) {
     handleSocketError(e);
@@ -1344,7 +1340,7 @@ node
     `Render a node in isolation to PNGs, one per position, each stamped in the top-left with its HH:MM:SS:FF timestamp. The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
-  .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: the node's frame under the current playhead)`)
+  .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
   .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
