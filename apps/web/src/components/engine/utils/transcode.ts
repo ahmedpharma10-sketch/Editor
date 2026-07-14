@@ -415,27 +415,42 @@ function drawRuler(ctx: CanvasRenderingContext2D, layout: RulerLayout) {
   const paddingLeft = 5;
   const paddingTop = 2;
   const tickHeight = Math.round(rulerHeight * 0.4);
+  const labelGap = 10;
 
   ctx.fillStyle = '#FFF';
   ctx.strokeStyle = '#FFF';
   ctx.lineWidth = 2;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
+
+  const rowWidth = columns * columnWidthInPixels;
+  let labelEndX = -Infinity;
   for (let i = 0; i < cells; i++) {
     const column = i % columns;
     const row = Math.floor(i / columns);
     const columnX = column * columnWidthInPixels;
     const rowTop = row * rowHeightInPixels;
 
-    ctx.beginPath();
-    ctx.moveTo(columnX + 0.5, rowTop + rulerHeight - tickHeight);
-    ctx.lineTo(columnX + 0.5, rowTop + rulerHeight);
-    ctx.stroke();
+    if (column === 0) labelEndX = -Infinity;
+
+    const tickX = columnX + 0.5;
+    if (tickX >= labelEndX) {
+      ctx.beginPath();
+      ctx.moveTo(tickX, rowTop + rulerHeight - tickHeight);
+      ctx.lineTo(tickX, rowTop + rulerHeight);
+      ctx.stroke();
+    }
 
     ctx.font = column === 0
       ? `bold ${leadFontSize}px sans-serif`
       : `${baseFontSize}px sans-serif`;
-    ctx.fillText(formatTimestamp(startOffset + i * secondsPerColumn, frameRate), columnX + paddingLeft, (rowTop + rulerHeight / 2) + paddingTop);
+    const label = formatTimestamp(startOffset + i * secondsPerColumn, frameRate);
+    const labelX = columnX + paddingLeft;
+    const labelWidth = ctx.measureText(label).width;
+    if (labelX < labelEndX + labelGap || labelX + labelWidth > rowWidth) continue;
+
+    ctx.fillText(label, labelX, (rowTop + rulerHeight / 2) + paddingTop);
+    labelEndX = labelX + labelWidth;
   }
 }
 
