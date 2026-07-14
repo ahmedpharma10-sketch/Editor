@@ -153,6 +153,68 @@ function createImageDecoder(asset: ImageAsset): ImageDecoder {
 	return new BitmapImageDecoder(asset);
 }
 
+type DecoderCacheEntry = {
+	decoder: ImageDecoder;
+	initPromise: Promise<void>;
+	refs: number;
+};
+
+/** One decoded bitmap per asset id, scoped per world. */
+type ImageDecoderCache = Map<string, DecoderCacheEntry>;
+
+const decoderCaches = new WeakMap<EngineWorld, ImageDecoderCache>();
+
+function getDecoderCache(world: EngineWorld): ImageDecoderCache {
+	let cache = decoderCaches.get(world);
+	if (!cache) {
+		cache = new Map();
+		decoderCaches.set(world, cache);
+	}
+	return cache;
+}
+
+/**
+ * Per-entity handle onto a shared, refcounted decoder. Duplicated entities
+ * pointing at the same asset share one decode; disposing a handle releases
+ * one reference and the underlying decoder is disposed with the last one.
+ */
+class SharedImageDecoder implements ImageDecoder {
+	private released = false;
+
+	public constructor(
+		private readonly entry: DecoderCacheEntry,
+		private readonly cache: ImageDecoderCache,
+	) { }
+
+	public get assetId() { 
+		return this.entry.decoder.assetId;
+	}
+	public get failed() {
+		return this.entry.decoder.failed;
+	}
+	public get ready() {
+		return this.entry.decoder.ready;
+	}
+
+	public init(): Promise<void> {
+		return this.entry.initPromise;
+	}
+
+	public getBitmap(targetWidth: number, targetHeight: number): DecodedImage | null {
+		return this.entry.decoder.getBitmap(targetWidth, targetHeight);
+	}
+
+	public dispose() {
+		if (this.released) return;
+		this.released = true;
+		this.entry.refs--;
+		if (this.entry.refs === 0) {
+			this.cache.delete(this.entry.decoder.assetId);
+			this.entry.decoder.dispose();
+		}
+	}
+}
+
 type ResolvedImageDecoder = {
 	decoder: ImageDecoder;
 	initPromise: Promise<void> | null;
@@ -171,7 +233,7 @@ export function resolveImageDecoder(world: EngineWorld, eid: number): ResolvedIm
 		};
 	};
 
-	// Asset changed — dispose old decoder and create a new one.
+	// Asset changed: release the old decoder and acquire one for the new asset.
 	if (existing) existing.dispose();
 
 	const asset = world.assets.get(assetId);
@@ -179,10 +241,19 @@ export function resolveImageDecoder(world: EngineWorld, eid: number): ResolvedIm
 
 	addComponent(world, eid, world.components.ImageDecoder, false);
 
-	const decoder = createImageDecoder(asset);
-	world.components.ImageDecoder[eid] = decoder;
+	const cache = getDecoderCache(world);
+	let entry = cache.get(assetId);
+	if (!entry) {
+		const decoder = createImageDecoder(asset);
+		entry = { decoder, initPromise: decoder.init(), refs: 0 };
+		cache.set(assetId, entry);
+	}
+	entry.refs++;
+
+	const handle = new SharedImageDecoder(entry, cache);
+	world.components.ImageDecoder[eid] = handle;
 	return {
-		decoder,
-		initPromise: decoder.init(),
+		decoder: handle,
+		initPromise: entry.initPromise,
 	};
 }
