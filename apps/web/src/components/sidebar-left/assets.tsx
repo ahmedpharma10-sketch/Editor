@@ -43,6 +43,7 @@ import { LazyAssetItem } from "./asset-item";
 import { FolderItem, handleFolderDrop, ASSET_DRAG_TYPE, FOLDER_DRAG_TYPE } from "./folder-item";
 
 import type { EngineWorld } from "@/components/engine";
+import type { ElectronFileHandle } from "@/lib/electron-file-handle";
 
 export function Assets() {
   let root: HTMLDivElement | undefined;
@@ -122,7 +123,9 @@ export function Assets() {
     }
   });
 
-  const importAssets = async (handles: ReadonlyArray<File | FileSystemFileHandle | DataTransferItem>) => {
+  const importAssets = async (
+    handles: ReadonlyArray<File | FileSystemFileHandle | ElectronFileHandle | DataTransferItem>,
+  ) => {
     if (handles.length === 0) return;
 
     try {
