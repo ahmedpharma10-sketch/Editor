@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { platform, tmpdir } from "node:os";
-import { extname, isAbsolute, join, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
 import { version } from "../../../package.json";
 import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
@@ -519,6 +519,7 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
 
   const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
+  mkdirSync(dir, { recursive: true });
   try {
     const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp, auto: opts.auto });
     for (const { time, base64 } of frames) {
@@ -644,6 +645,7 @@ async function mediaFilmstrip(ref: string, opts: MediaPreviewOptions): Promise<v
   const { start, end, scale } = parsePreviewWindow(opts);
   const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
+  mkdirSync(dirname(resolve(path)), { recursive: true });
   const stop = startSpinner("Rendering filmstrip");
   try {
     const { base64, ...rest } = await editor.media.filmstrip.query({ ...target, start, end, scale });
@@ -660,6 +662,7 @@ async function mediaWaveform(ref: string, opts: MediaPreviewOptions): Promise<vo
   const { start, end, scale } = parsePreviewWindow(opts);
   const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
+  mkdirSync(dirname(resolve(path)), { recursive: true });
   const stop = startSpinner("Rendering waveform");
   try {
     const { base64, ...rest } = await editor.media.waveform.query({ ...target, start, end, scale });
