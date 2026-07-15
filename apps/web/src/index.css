@@ -48,6 +48,7 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-sidebar: var(--sidebar);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
@@ -116,6 +117,7 @@
 
   --canvas: hsla(0, 0%, 91%, 1);
   --background: hsla(0, 0%, 100%, 1);
+  --sidebar: hsla(0, 0%, 97%, 1);
   --foreground: hsla(240, 5%, 9%, 1);
   --card: hsla(0, 0%, 100%, 1);
   --card-foreground: hsla(240, 5%, 9%, 1);
@@ -167,6 +169,7 @@
 [data-kb-theme="dark"] {
   --canvas: hsla(0, 0%, 9%, 1);
   --background: hsla(0, 0%, 11%, 1);
+  --sidebar: hsla(0, 0%, 0%, 1);
   --foreground: hsla(0, 0%, 95%, 1);
   --card: hsla(0, 0%, 11%, 1);
   --card-foreground: hsla(0, 0%, 95%, 1);
@@ -213,6 +216,21 @@
   --meter-yellow: hsla(46, 90%, 62%, 1);
   --meter-red: hsla(1, 90%, 62%, 1);
   --meter-clip: hsla(60, 100%, 50%, 1);
+}
+
+/* macOS desktop: the BrowserWindow uses native vibrancy, so the page keeps a
+   transparent background and the sidebars go translucent to let the blur show. */
+[data-platform="darwin"],
+[data-platform="darwin"] body {
+  background: transparent;
+}
+
+[data-platform="darwin"] {
+  --sidebar: hsla(0, 0%, 98%, 0.6);
+}
+
+[data-platform="darwin"][data-kb-theme="dark"] {
+  --sidebar: hsla(0, 0%, 2%, 0.4);
 }
 
 @layer base {

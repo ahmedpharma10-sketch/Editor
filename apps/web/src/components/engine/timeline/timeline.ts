@@ -14,7 +14,7 @@ import {
   renderLayers,
 } from "./render";
 import { pixelsToFrames, updateTimelineTransform } from "./utils";
-import { DEFAULT_TIMELINE_RESOLUTION, TIMELINE_RESOLUTION_RANGE, TIMELINE_PADDING_LEFT } from "./config";
+import { DEFAULT_TIMELINE_RESOLUTION, TIMELINE_RESOLUTION_RANGE, TIMELINE_PADDING_LEFT, RULER_HEIGHT } from "./config";
 import { useEngine } from "@/context/engine";
 import { useCursor } from "@/hooks/use-cursor";
 import { createTimelineContext } from "./world";
@@ -87,15 +87,20 @@ export function createTimeline() {
     try {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = timeline.colors.background.default;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
       timeline.cursor = 'default';
 
       renderBackground(world, timeline);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, RULER_HEIGHT, canvas.width, canvas.height);
+      ctx.clip();
       renderLayers(world, timeline);
       renderMarquee(world, timeline);
+      ctx.restore();
+
       renderRuler(world, timeline);
       renderWorkarea(world, timeline);
       renderPlayhead(world, timeline);

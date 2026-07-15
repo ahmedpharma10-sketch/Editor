@@ -103,7 +103,7 @@ export function Layers() {
         style={{ 'grid-template-rows': `${RULER_HEIGHT}px 1fr` }}
         data-timeline-layers-container
       >
-        <div class="w-full z-10 flex flex-row gap-1 pl-2 pr-3 items-center text-muted-foreground bg-background">
+        <div class="w-full z-10 flex flex-row gap-1 pl-2 pr-3 items-center text-muted-foreground">
           <Tooltip placement="top">
             <TooltipTrigger<typeof Button>
               as={(triggerProps) => (

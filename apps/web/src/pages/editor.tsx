@@ -54,7 +54,7 @@ export function EditorPage() {
 
   return (
     <div
-      class="bg-background h-screen w-full overflow-hidden grid"
+      class="bg-sidebar h-screen w-full overflow-hidden grid"
       classList={{
         'grid-cols-[264px_1px_1fr_1px_264px]': sidebarsVisible(),
         'grid-cols-[1fr]': !sidebarsVisible(),

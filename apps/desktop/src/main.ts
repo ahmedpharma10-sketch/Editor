@@ -67,7 +67,9 @@ function createWindow(show = true) {
     height: 800,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 14, y: 14 },
-    backgroundColor: "#1c1c1c",
+    ...(process.platform === "darwin"
+      ? { vibrancy: "sidebar" as const, backgroundColor: "#00000000" }
+      : { backgroundColor: "#1c1c1c" }),
     webPreferences: {
       preload: join(app.getAppPath(), "dist", "preload.js"),
     },
