@@ -430,7 +430,7 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type CaptureOptions = { time?: string[]; timestamp?: boolean };
+type CaptureOptions = { time?: string[]; timestamp?: boolean; output?: string };
 
 async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const eid = parseNodeIds([id])[0];
@@ -438,10 +438,12 @@ async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
   const frames = times.map((t) => Math.round(t * TIME_FPS));
 
+  const dir = opts.output ?? tmpdir();
+  mkdirSync(dir, { recursive: true });
   try {
     const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp });
     for (const [i, { base64 }] of shots.entries()) {
-      const path = join(tmpdir(), `${randomUUID()}.png`);
+      const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
       console.log(JSON.stringify({ time: times[i], path }));
     }
@@ -1345,6 +1347,7 @@ node
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
   .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node
