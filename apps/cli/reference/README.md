@@ -116,6 +116,7 @@ Time inputs take the `Time` format unless noted otherwise. Times in **outputs** 
 ## Conventions
 
 - **Stdout is JSON.** Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one object per line, no surrounding array) so per-item results stay streamable. `node tree` and `asset tree` emit one nested object per root. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `mount` and `node insert` write nothing.
+- **Batch commands are fail-fast** (`node rm`, `node patch`, `asset add`, …): one invalid input fails the whole command with a single stderr message and exit `1`. Ids are validated before anything changes, so a failed `rm`/`mv`/`cp` changes nothing; there are no per-item partial results.
 - **Unix-style names are canonical:** list/read is `ls`, delete is `rm`, duplicate is `cp`, move/reparent is `mv`, search is `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls`. Commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.
 - **Exit codes:** `0` on success, `1` on any error (missing file, app not running, invalid input, IPC error).

@@ -8,9 +8,12 @@ Deletes one or more assets from the open project by id. Alias: `remove`.
 
 ## Output
 
-JSON Lines, one per input id:
+JSON Lines on stdout, one per deleted asset:
 
 ```ts
-| { status: "fulfilled"; id: string; name: string }
-| { status: "rejected"; id: string; error: string }
+{ id: string; name: string }
 ```
+
+## Errors
+
+An unknown id fails the whole command before anything is deleted.

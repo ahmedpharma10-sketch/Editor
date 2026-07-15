@@ -145,7 +145,9 @@ async function addAssets(paths: string[], opts: AssetAddOptions): Promise<void> 
 
   try {
     const results = await editor.asset.add.mutate({ paths: absolutePaths, folderId: opts.folder });
-    for (const result of results) console.log(JSON.stringify(result));
+    for (const result of results) {
+      console.log(JSON.stringify(result));
+    }
   } catch (e) {
     handleSocketError(e);
   }
@@ -155,16 +157,9 @@ async function listAssets(ids: string[]): Promise<void> {
   try {
     // No ids → every asset in the library; with ids → those specific assets.
     const results = await editor.asset.list.query({ ids: ids.length ? ids : undefined });
-    let failed = false;
     for (const result of results) {
-      if (result.status === "fulfilled") {
-        console.log(JSON.stringify(result.asset));
-      } else {
-        console.error(result.error);
-        failed = true;
-      }
+      console.log(JSON.stringify(result));
     }
-    if (failed) process.exit(1);
   } catch (e) {
     handleSocketError(e);
   }
@@ -337,7 +332,9 @@ async function setSelection(ids: string[]): Promise<void> {
 async function focusSelection(): Promise<void> {
   try {
     const results = await editor.selection.focus.mutate();
-    for (const result of results) console.log(JSON.stringify(result));
+    for (const result of results) {
+      console.log(JSON.stringify(result));
+    }
   } catch (e) {
     handleSocketError(e);
   }
@@ -347,16 +344,9 @@ async function listNodes(ids: string[]): Promise<void> {
   try {
     // No ids → root scenes; with ids → those specific nodes.
     const results = await editor.node.list.query({ ids: ids.length ? parseNodeIds(ids) : undefined });
-    let failed = false;
     for (const result of results) {
-      if (result.status === "fulfilled") {
-        console.log(JSON.stringify(result.node));
-      } else {
-        console.error(result.error);
-        failed = true;
-      }
+      console.log(JSON.stringify(result));
     }
-    if (failed) process.exit(1);
   } catch (e) {
     handleSocketError(e);
   }
@@ -718,12 +708,8 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
 
   const stop = startSpinner("Mounting project");
   try {
-    const result = await editor.mount.mutate({ code }, GENERATE);
+    await editor.mount.mutate({ code }, GENERATE);
     stop();
-    if (result.status === "rejected") {
-      console.error(result.error);
-      process.exit(1);
-    }
   } catch (e) {
     stop();
     handleSocketError(e);
@@ -749,12 +735,8 @@ async function nodeInsert(parentId: string, path: string | undefined, opts: Node
 
   const stop = startSpinner("Inserting entities");
   try {
-    const result = await editor.node.insert.mutate({ code, parentId: eid, index }, GENERATE);
+    await editor.node.insert.mutate({ code, parentId: eid, index }, GENERATE);
     stop();
-    if (result.status === "rejected") {
-      console.error(result.error);
-      process.exit(1);
-    }
   } catch (e) {
     stop();
     handleSocketError(e);
@@ -1263,7 +1245,7 @@ folder
   .command("mv")
   .alias("move")
   .description(
-    `Move one or more folders under a new parent. A folder cannot move into itself or a descendant; such a move rejects that id.`,
+    `Move one or more folders under a new parent. A folder cannot move into itself or a descendant; such a move fails the command before anything moves.`,
   )
   .argument("<ids...>", "folder ids to move")
   .option("--to <folderId>", "destination parent folder (default: the library root); fails before moving anything if it doesn't resolve to a folder")

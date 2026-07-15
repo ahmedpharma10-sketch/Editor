@@ -36,9 +36,6 @@ export type NodeRef = { id: number; name: string; type: string };
 
 export type EntityRecord = { id: string; eid: number } & Record<string, unknown>;
 
-export type NodeListResult =
-  | { status: "fulfilled"; node: EntityRecord }
-  | { status: "rejected"; id: number; error: string };
 
 export type NodeTree = NodeRef & {
   description: string;
@@ -67,17 +64,11 @@ export type NodeGrepMatch = { component: string; value: string };
 
 export type NodeGrepResult = NodeRef & { matches: NodeGrepMatch[] };
 
-export type NodeDeleteResult =
-  | { status: "fulfilled"; id: number }
-  | { status: "rejected"; id: number; error: string };
+export type NodeDeleteResult = { id: number };
 
 export type MountRequest = {
   code: string;
 };
-
-export type MountResult =
-  | { status: "fulfilled" }
-  | { status: "rejected"; error: string };
 
 export type NodeInsertRequest = {
   code: string;
@@ -87,13 +78,9 @@ export type NodeInsertRequest = {
 
 export type NodePatch = { id: number } & PatchProps;
 
-export type NodePatchResult =
-  | { status: "fulfilled"; id: number }
-  | { status: "rejected"; id: number; error: string };
+export type NodePatchResult = { id: number };
 
-export type NodeDuplicateResult =
-  | { status: "fulfilled"; sourceId: number; newId: number }
-  | { status: "rejected"; sourceId: number; error: string };
+export type NodeDuplicateResult = { sourceId: number; newId: number };
 
 export type EncoderConfigInput = {
   format?: "mp4" | "webm" | "ogg" | "mov";
@@ -158,27 +145,15 @@ export type AssetTreeEntry = { id: string; name: string; type: string; children?
 
 export type AssetRecord = { id: string } & Record<string, unknown>;
 
-export type AssetListResult =
-  | { status: "fulfilled"; asset: AssetRecord }
-  | { status: "rejected"; id: string; error: string };
-
-export type AssetMoveResult =
-  | { status: "fulfilled"; id: string; folderId: string | null }
-  | { status: "rejected"; id: string; error: string };
+export type AssetMoveResult = { id: string; folderId: string | null };
 
 export type AssetsExportRequest = { ids: string[]; output: string; isDir: boolean };
 
-export type AssetExportResult =
-  | { status: "fulfilled"; id: string; path: string }
-  | { status: "rejected"; id: string; error: string };
+export type AssetExportResult = { id: string; path: string };
 
-export type FolderMoveResult =
-  | { status: "fulfilled"; id: string; parentId: string | null }
-  | { status: "rejected"; id: string; error: string };
+export type FolderMoveResult = { id: string; parentId: string | null };
 
-export type FolderDeleteResult =
-  | { status: "fulfilled"; id: string; deletedFolders: number; deletedAssets: number }
-  | { status: "rejected"; id: string; error: string };
+export type FolderDeleteResult = { id: string; deletedFolders: number; deletedAssets: number };
 
 export type ModelsRequest = { type?: "image" | "video" | "audio" };
 

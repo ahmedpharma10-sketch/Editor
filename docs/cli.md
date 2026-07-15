@@ -9,7 +9,7 @@
 - **Exit codes:** `0` on success, `1` on any error.
 - **Unix names are canonical:** `ls`, `rm`, `cp`, `mv`, `grep`. The English forms (`list`, `remove`, `duplicate`, `move`) are aliases, and `get` is an alias for every `ls`.
 - **Group aliases:** `selection`→`sel`, `node`→`n`, `project`→`p`, `asset`→`a`, `folder`→`fld`, `context`→`ctx`.
-- **Batch commands** (`node rm`, `node patch`, `asset add`, …) emit one `{ status: "fulfilled" | "rejected", … }` line per input, so partial failures are visible per item.
+- **Batch commands are fail-fast** (`node rm`, `node patch`, `asset add`, …): one invalid input fails the whole command with a single stderr message and exit `1`. Ids are validated before anything changes, so a failed `rm`/`mv`/`cp` changes nothing; there are no per-item partial results.
 
 ### Time values
 
@@ -69,7 +69,7 @@ dapi node insert <paintId> --code '<colorStop offset={0.5} color="#FF0055" />'
 dapi node patch ([path.json] | --json <str>)
 ```
 
-Assigns JSX props on existing entities. The payload is an array of `{ id, …props }`, taking exactly the props a JSX element takes (see the [element reference](composition.md#elements)). A rejected entry applies none of its props. Renaming is patching `name`; recoloring is patching `fill`; paints and color stops are patchable too. A [transition](composition.md#transitions) is patched as a `transition` prop on the outgoing clip (`null` removes it).
+Assigns JSX props on existing entities. The payload is an array of `{ id, …props }`, taking exactly the props a JSX element takes (see the [element reference](composition.md#elements)). A failing entry applies none of its props and aborts the command. Renaming is patching `name`; recoloring is patching `fill`; paints and color stops are patchable too. A [transition](composition.md#transitions) is patched as a `transition` prop on the outgoing clip (`null` removes it).
 
 ```sh
 dapi node patch --json '[{ "id": 42, "x": 100, "opacity": 0.5 }]'

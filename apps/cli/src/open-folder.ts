@@ -148,11 +148,7 @@ export async function openFolder(folderPath: string): Promise<OpenFolderResult> 
   for (const { segments, paths } of assetDirs) {
     const folderId = await ensureFolder(segments, folderIds);
     const results = await editor.asset.add.mutate({ paths, folderId });
-    if (Array.isArray(results)) {
-      imported += results.filter(
-        (r: { status?: string }) => r?.status === "fulfilled",
-      ).length;
-    }
+    imported += results.length;
   }
 
   writeMarker(folderPath, project.id);

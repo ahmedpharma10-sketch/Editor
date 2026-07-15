@@ -11,14 +11,14 @@ import { resolveEntityEid } from "./node";
 import { hasComponent } from "bitecs";
 
 import type { Accessor } from "solid-js";
-import type { MountRequest, MountResult, NodeInsertRequest } from "@diffusionstudio/cli/channels";
+import type { MountRequest, NodeInsertRequest } from "@diffusionstudio/cli/channels";
 import type { Engine } from "@/components/engine";
 
 /**
  * `dapi mount` — evaluates a compiled project module and renders it directly into the ECS world
  */
 export function handleMount(engine: Accessor<Engine>) {
-  return async ({ code }: MountRequest): Promise<MountResult> => {
+  return async ({ code }: MountRequest): Promise<void> => {
     const e = engine();
     const world = e.world;
     const c = world.components;
@@ -52,13 +52,9 @@ export function handleMount(engine: Accessor<Engine>) {
         switchActiveScene(world, document.rootEid);
         e.camera.fitToActiveScene();
       }
-    } catch (error) {
-      return { status: "rejected", error: error instanceof Error ? error.message : String(error) };
     } finally {
       dispose?.();
     }
-
-    return { status: "fulfilled" };
   };
 }
 
@@ -70,7 +66,7 @@ export function handleMount(engine: Accessor<Engine>) {
  * `<colorStop>` roots.
  */
 export function handleNodeInsert(engine: Accessor<Engine>) {
-  return async ({ code, parentId, index }: NodeInsertRequest): Promise<MountResult> => {
+  return async ({ code, parentId, index }: NodeInsertRequest): Promise<void> => {
     const e = engine();
     const world = e.world;
     let dispose = () => { };
@@ -101,12 +97,8 @@ export function handleNodeInsert(engine: Accessor<Engine>) {
       } finally {
         world.history.commitTransaction();
       }
-    } catch (error) {
-      return { status: "rejected", error: error instanceof Error ? error.message : String(error) };
     } finally {
       dispose?.();
     }
-
-    return { status: "fulfilled" };
   };
 }

@@ -8,9 +8,12 @@ Deep-clones one or more nodes, including all descendants. Alias: `duplicate`.
 
 ## Output
 
-JSON Lines, one per input id:
+JSON Lines on stdout, one per cloned node:
 
 ```ts
-| { status: "fulfilled"; sourceId: number; newId: number }
-| { status: "rejected"; sourceId: number; error: string }
+{ sourceId: number; newId: number }
 ```
+
+## Errors
+
+An unknown id fails the whole command before anything is cloned.

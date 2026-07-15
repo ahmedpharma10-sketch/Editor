@@ -17,10 +17,10 @@ Payload shape:
 Array<{ id: number } & PatchProps>
 ```
 
-All props are optional; a patch may set any subset. An unsupported property or an out-of-range value rejects that entity; a rejected patch applies none of its props (no half-applied patches). Notes beyond the JSX table:
+All props are optional; a patch may set any subset. An unsupported property or an out-of-range value fails the command at that entity; the failing patch applies none of its props (no half-applied patches). Notes beyond the JSX table:
 
 - `fill` recolors the entity's existing solid fill(s), or creates one if the entity has none.
-- `src` takes a path, URL, or asset id (`generate.*` declarations are JSX-only). The source resolves asynchronously after the other props land; if resolution fails, the entity is reported rejected even though its other props were applied. Patch `src` on its own to avoid ambiguity.
+- `src` takes a path, URL, or asset id (`generate.*` declarations are JSX-only). The source resolves asynchronously after the other props land; if resolution fails, the command fails at that entity even though its other props were applied. Patch `src` on its own to avoid ambiguity.
 - `syncTo` re-runs audio alignment against the document node carrying the given key and writes the entity's `start` from the measured offset (see [jsx/audio-sync.md](../jsx/audio-sync.md)). The command blocks until alignment settles; a failed alignment rejects the entity.
 - `transition` sets, merges into, or (with `null`) removes the clip's transition into the next clip (see [jsx/transitions.md](../jsx/transitions.md)).
 - Keyframe lists are accepted wherever the property is animatable, with the same semantics as mount (see [jsx/keyframes.md](../jsx/keyframes.md)); a static value replaces any existing keyframes.
@@ -28,9 +28,12 @@ All props are optional; a patch may set any subset. An unsupported property or a
 
 ## Output
 
-JSON Lines, one per input id:
+JSON Lines on stdout, one per patched entity:
 
 ```ts
-| { status: "fulfilled"; id: number }
-| { status: "rejected"; id: number; error: string }
+{ id: number }
 ```
+
+## Errors
+
+An unknown id fails the whole command before anything is patched. A patch that fails to apply aborts the command at that entity with `Entity <id>: <reason>` on stderr: the failing entity applies none of its props, entities patched before it stay patched, and later entries are not applied.

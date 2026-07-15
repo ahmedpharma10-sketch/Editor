@@ -9,13 +9,8 @@ Adds one or more local files as assets in the open project. The counterpart of [
 
 ## Output
 
-JSON Lines, one per input path:
-
-```ts
-| ({ status: "fulfilled"; path: string } & Asset)
-| { status: "rejected"; path: string; error: string }
-```
+JSON Lines on stdout, one `AssetRecord` per added file (the same shape [`asset ls`](./ls.md) prints).
 
 ## Errors
 
-Exits non-zero before importing anything if `--folder` doesn't resolve to a folder.
+Exits non-zero before importing anything if `--folder` doesn't resolve to a folder. A file that fails to import fails the whole command with `<path>: <reason>` on stderr; files imported before the failure stay in the library.

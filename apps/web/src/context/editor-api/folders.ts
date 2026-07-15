@@ -6,6 +6,7 @@ import { assert } from '@/utils';
 import {
   createFolder,
   deleteFolder,
+  isDescendantFolder,
   moveFolder,
   renameFolder,
   useFolders,
@@ -58,32 +59,31 @@ export function handleFoldersMove(engine: Accessor<Engine>) {
       assert(world.folders.has(to), `Folder ${to} not found.`);
     }
     const parentId = to ?? null;
-    const results: FolderMoveResult[] = [];
+    // Validate every move before applying any, so a bad id changes nothing.
     for (const id of ids) {
-      if (!world.folders.has(id)) {
-        results.push({ status: "rejected", id, error: "Not found" });
-        continue;
-      }
-      const moved = await moveFolder(world, id, parentId);
-      results.push(moved
-        ? { status: "fulfilled", id, parentId }
-        : { status: "rejected", id, error: "Cannot move a folder into itself or one of its descendants" });
+      assert(world.folders.has(id), `No such folder: ${id}`);
+      assert(
+        parentId === null || (parentId !== id && !isDescendantFolder(world, parentId, id)),
+        `Cannot move folder ${id} into itself or one of its descendants`,
+      );
     }
-    return results;
+    for (const id of ids) {
+      await moveFolder(world, id, parentId);
+    }
+    return ids.map((id) => ({ id, parentId }));
   }
 }
 
 export function handleFoldersDelete(engine: Accessor<Engine>) {
   return async ({ ids }: { ids: string[] }): Promise<FolderDeleteResult[]> => {
     const { world } = engine();
+    for (const id of ids) {
+      assert(world.folders.has(id), `No such folder: ${id}`);
+    }
     const results: FolderDeleteResult[] = [];
     for (const id of ids) {
-      if (!world.folders.has(id)) {
-        results.push({ status: "rejected", id, error: "Not found" });
-        continue;
-      }
       const { deletedFolders, deletedAssets } = await deleteFolder(world, id);
-      results.push({ status: "fulfilled", id, deletedFolders, deletedAssets });
+      results.push({ id, deletedFolders, deletedAssets });
     }
     return results;
   }

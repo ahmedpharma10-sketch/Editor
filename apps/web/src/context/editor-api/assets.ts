@@ -14,25 +14,25 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { AssetExportResult, AssetListResult, AssetMoveResult, AssetRecord, AssetsExportRequest, AssetTreeEntry } from "@diffusionstudio/cli/channels";
+import type { AssetExportResult, AssetMoveResult, AssetRecord, AssetsExportRequest, AssetTreeEntry } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 export function handleAssetsAdd(engine: Accessor<Engine>) {
-  return async ({ paths, folderId }: { paths: string[]; folderId?: string }) => {
+  return async ({ paths, folderId }: { paths: string[]; folderId?: string }): Promise<AssetRecord[]> => {
     const { world } = engine();
     if (folderId !== undefined) {
       assert(world.folders.has(folderId), `Folder ${folderId} not found.`);
     }
-    const settled = await Promise.allSettled(
-      paths.map((path) => loadAsset(world, new ElectronFileHandle(path), { folderId }))
+    const assets = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          return await loadAsset(world, new ElectronFileHandle(path), { folderId });
+        } catch (e) {
+          throw new Error(`${path}: ${(e as Error)?.message ?? String(e)}`);
+        }
+      })
     );
-
-    const results = settled.map((r, i) =>
-      r.status === 'rejected'
-        ? { status: "rejected", path: paths[i], error: (r.reason as Error)?.message ?? String(r.reason) }
-        : { status: "fulfilled", ...toAssetRecord(r.value) }
-    );
-    return results;
+    return assets.map(toAssetRecord);
   }
 }
 
@@ -49,24 +49,24 @@ function toAssetRecord(asset: Asset): AssetRecord {
 }
 
 export function handleAssetsList(engine: Accessor<Engine>) {
-  return async ({ ids }: { ids?: string[] }): Promise<AssetListResult[]> => {
+  return async ({ ids }: { ids?: string[] }): Promise<AssetRecord[]> => {
     const { world } = engine();
 
     // No ids → every asset in the library
     if (ids === undefined || ids.length === 0) {
-      return Array.from(world.assets.values()).map((asset) => ({
-        status: "fulfilled",
-        asset: toAssetRecord(asset),
-      }));
+      return Array.from(world.assets.values()).map(toAssetRecord);
     }
 
-    return ids.map((id) => {
-      const asset = world.assets.get(id);
-      return asset
-        ? { status: "fulfilled", asset: toAssetRecord(asset) }
-        : { status: "rejected", id, error: `No such asset: ${id}` };
-    });
+    return resolveAssets(world, ids).map(toAssetRecord);
   };
+}
+
+function resolveAssets(world: Engine["world"], ids: string[]): Asset[] {
+  return ids.map((id) => {
+    const asset = world.assets.get(id);
+    assert(asset, `No such asset: ${id}`);
+    return asset;
+  });
 }
 
 export function handleAssetTree(engine: Accessor<Engine>) {
@@ -112,27 +112,17 @@ export function handleAssetsMove(engine: Accessor<Engine>) {
       assert(world.folders.has(to), `Folder ${to} not found.`);
     }
     const folderId = to ?? null;
-    const results: AssetMoveResult[] = ids.map((id) =>
-      world.assets.has(id)
-        ? { status: "fulfilled", id, folderId }
-        : { status: "rejected", id, error: "Not found" });
-    const foundIds = results.filter((r) => r.status === "fulfilled").map((r) => r.id);
-    if (foundIds.length > 0) await moveAssetsToFolder(world, foundIds, folderId);
-    return results;
+    resolveAssets(world, ids);
+    await moveAssetsToFolder(world, ids, folderId);
+    return ids.map((id) => ({ id, folderId }));
   }
 }
 
 export function handleAssetsDelete(engine: Accessor<Engine>) {
-  return async ({ ids }: { ids: string[] }) => {
+  return async ({ ids }: { ids: string[] }): Promise<Array<{ id: string; name: string }>> => {
     const { world } = engine();
-    const results = ids.map((id) => {
-      const asset = world.assets.get(id);
-      return asset
-        ? { status: "fulfilled", id, name: asset.name }
-        : { status: "rejected", id, error: "Not found" };
-    });
-    const foundIds = results.filter((r) => r.status === "fulfilled").map((r) => r.id);
-    if (foundIds.length > 0) await removeAsset(world, ...foundIds);
+    const results = resolveAssets(world, ids).map((asset) => ({ id: asset.id, name: asset.name }));
+    await removeAsset(world, ...ids);
     return results;
   }
 }
@@ -140,20 +130,17 @@ export function handleAssetsDelete(engine: Accessor<Engine>) {
 export function handleAssetsExport(engine: Accessor<Engine>) {
   return async ({ ids, output, isDir }: AssetsExportRequest): Promise<AssetExportResult[]> => {
     const { world } = engine();
+    const assets = resolveAssets(world, ids);
+    for (const asset of assets) {
+      assert(asset.type !== "SEQUENCE", `Asset ${asset.id} is an image sequence; export is not supported.`);
+    }
     const results: AssetExportResult[] = [];
-    for (const id of ids) {
-      try {
-        const asset = world.assets.get(id);
-        assert(asset, `Asset ${id} not found.`);
-        assert(asset.type !== "SEQUENCE", `Asset ${id} is an image sequence; export is not supported.`);
-        const blob = await getAssetFile(asset);
-        const path = isDir
-          ? await streamBlobToDir(blob, output, exportFileName(asset))
-          : await streamBlobToFile(blob, output);
-        results.push({ status: "fulfilled", id, path });
-      } catch (e) {
-        results.push({ status: "rejected", id, error: (e as Error)?.message ?? String(e) });
-      }
+    for (const asset of assets) {
+      const blob = await getAssetFile(asset);
+      const path = isDir
+        ? await streamBlobToDir(blob, output, exportFileName(asset))
+        : await streamBlobToFile(blob, output);
+      results.push({ id: asset.id, path });
     }
     return results;
   };
