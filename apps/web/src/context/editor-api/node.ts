@@ -9,6 +9,7 @@ import { createImageEncoder } from "@/components/engine/encode/image-encoder";
 import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
 
 import {
+  AnimationPhase,
   deleteEntity,
   isText,
   isScene,
@@ -17,7 +18,7 @@ import {
   serializeEntity,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
-import { WorldDocument } from "@/utils/jsx";
+import { ANIMATION_TYPE_MAP, WorldDocument } from "@/utils/jsx";
 import { entityType } from "./selection";
 
 import type { EngineWorld, Engine } from "@/components/engine";
@@ -37,6 +38,11 @@ import type {
 } from "@diffusionstudio/cli/channels";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
+
+// The JSX animation names, keyed by engine preset.
+const ANIMATION_TYPE_NAMES: Record<number, string> = Object.fromEntries(
+  Object.entries(ANIMATION_TYPE_MAP).map(([name, type]) => [type, name]),
+);
 
 // Scenes are nodes too, so node ops accept them alongside geometry, groups,
 // and adjustment layers.
@@ -152,6 +158,14 @@ function describeEntity(world: EngineWorld, eid: number): string {
   if (hasComponent(world, eid, c.Keyframe)) {
     parts.push(`time: ${fmtTime(c.Keyframe.time[eid] ?? 0)}`, `value: ${c.Keyframe.value[eid]}`);
     if (c.Keyframe.easing[eid]) parts.push(`easing: ${c.Keyframe.easing[eid]}`);
+  }
+  if (hasComponent(world, eid, c.Animation)) {
+    parts.push(
+      `type: ${ANIMATION_TYPE_NAMES[c.Animation.type[eid] ?? 0] ?? c.Animation.type[eid]}`,
+      `phase: ${c.Animation.phase[eid] === AnimationPhase.OUT ? "out" : "in"}`,
+      `duration: ${fmtTime(c.Animation.duration[eid] ?? 0)}`,
+    );
+    if (c.Animation.delay[eid]) parts.push(`delay: ${fmtTime(c.Animation.delay[eid])}`);
   }
   if (hasComponent(world, eid, c.TextRange)) {
     parts.push(`range: ${c.TextRange.start[eid] ?? 0}–${c.TextRange.end[eid] ?? "end"}`);

@@ -20,6 +20,7 @@ The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the 
 | [media.md](./media.md) | `src` resolution (paths, URLs, asset ids, `AssetRef`) |
 | [timing.md](./timing.md) | `start` / `end` / `sourceIn` / `sourceOut`, time formats |
 | [keyframes.md](./keyframes.md) | Keyframe animation and easing |
+| [animations.md](./animations.md) | The `animations` prop: preset in/out animations |
 | [transitions.md](./transitions.md) | The `transition` prop on sequence clips |
 | [sequences.md](./sequences.md) | `<sequence>` sequential placement |
 | [audio-sync.md](./audio-sync.md) | `syncTo` audio alignment |

@@ -8,6 +8,8 @@ import * as solid from "solid-js";
 import * as solidStore from "solid-js/store";
 import * as diffusionJsx from "@diffusionstudio/jsx";
 import {
+  AnimationPhase,
+  AnimationType,
   CaptionType,
   FontStyle,
   GeometryType,
@@ -178,6 +180,77 @@ function parseTransitionDuration(value: unknown): number {
   assert(typeof frames === "number", "transition `duration` must be a time value" + `, value: ${value}`);
   assert(frames > 0, "transition `duration` must be > 0");
   return frames;
+}
+
+// JSX animation names, mapped to the presets the animations inspector writes.
+// Exported for `node tree`'s entity descriptions.
+export const ANIMATION_TYPE_MAP = {
+  fade: AnimationType.FADE,
+  gain: AnimationType.GAIN,
+  grow: AnimationType.GROW,
+  shrink: AnimationType.SHRINK,
+  blur: AnimationType.BLUR,
+  slideLeft: AnimationType.SLIDE_LEFT,
+  slideRight: AnimationType.SLIDE_RIGHT,
+  slideUp: AnimationType.SLIDE_UP,
+  slideDown: AnimationType.SLIDE_DOWN,
+  spin: AnimationType.SPIN,
+  twist: AnimationType.TWIST,
+  appearWord: AnimationType.APPEAR_WORD,
+  appearChar: AnimationType.APPEAR_CHAR,
+  scramble: AnimationType.SCRAMBLE,
+} as const;
+
+const TEXT_ANIMATION_TYPES: ReadonlySet<AnimationType> = new Set([
+  AnimationType.APPEAR_WORD,
+  AnimationType.APPEAR_CHAR,
+  AnimationType.SCRAMBLE,
+]);
+
+// 1 second at the canonical 30 fps — the animations inspector's default.
+const ANIMATION_DEFAULT_DURATION = 30;
+
+function parseAnimationSpec(
+  entry: unknown,
+  isTextNode: boolean,
+): { type: AnimationType; phase: AnimationPhase; duration: number; delay: number } {
+  assert(
+    typeof entry === "object" && entry !== null && !Array.isArray(entry),
+    "`animations` entries must be { type, phase?, duration?, delay? } objects" + `, value: ${entry}`,
+  );
+  const { type, phase, duration, delay } = entry as Record<string, unknown>;
+
+  assert(typeof type === "string", "animation `type` must be a string" + `, value: ${type}`);
+  const parsedType = ANIMATION_TYPE_MAP[type as keyof typeof ANIMATION_TYPE_MAP];
+  assert(parsedType !== undefined, `invalid animation type: "${type}"`);
+  assert(
+    isTextNode || !TEXT_ANIMATION_TYPES.has(parsedType),
+    `animation type "${type}" only applies to text elements`,
+  );
+
+  let parsedPhase = AnimationPhase.IN;
+  if (phase !== undefined) {
+    assert(phase === "in" || phase === "out", 'animation `phase` must be "in" or "out"' + `, value: ${phase}`);
+    if (phase === "out") parsedPhase = AnimationPhase.OUT;
+  }
+
+  let parsedDuration = ANIMATION_DEFAULT_DURATION;
+  if (duration !== undefined) {
+    const frames = parseFrames(String(duration), 30);
+    assert(typeof frames === "number", "animation `duration` must be a time value" + `, value: ${duration}`);
+    assert(frames > 0, "animation `duration` must be > 0");
+    parsedDuration = frames;
+  }
+
+  let parsedDelay = 0;
+  if (delay !== undefined) {
+    const frames = parseFrames(String(delay), 30);
+    assert(typeof frames === "number", "animation `delay` must be a time value" + `, value: ${delay}`);
+    assert(frames >= 0, "animation `delay` must be >= 0");
+    parsedDelay = frames;
+  }
+
+  return { type: parsedType, phase: parsedPhase, duration: parsedDuration, delay: parsedDelay };
 }
 
 const CAPTION_PRESET_MAP = {
@@ -683,6 +756,25 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
           spec.duration ??= TRANSITION_DEFAULT_DURATION;
         }
         setComponent(world, eid, c.Transition, spec);
+        break;
+      } case "animations": {
+        assert(
+          Array.isArray(value),
+          "`animations` must be an array of { type, phase?, duration?, delay? } objects" + `, value: ${value}`,
+        );
+        const isTextNode = c.Geometry[eid] === GeometryType.TEXT;
+        const specs = value.map((entry) => parseAnimationSpec(entry, isTextNode));
+
+        // The list replaces the node's existing animations; [] clears them.
+        // Materialized before deleting — removal mutates the live query.
+        for (const aid of [...query(world, [c.Animation, ChildOf(eid), Not(c.Deleted)])]) {
+          deleteEntity(world, aid);
+        }
+        for (const spec of specs) {
+          const aid = createEntity(world);
+          setComponent(world, aid, c.Animation, spec);
+          appendChild(world, aid, eid);
+        }
         break;
       } case "src": {
         if (isAssetRef(value)) {

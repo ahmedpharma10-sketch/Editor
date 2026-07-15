@@ -23,6 +23,7 @@ All props are optional; a patch may set any subset. An unsupported property or a
 - `src` takes a path, URL, or asset id (`generate.*` declarations are JSX-only). The source resolves asynchronously after the other props land; if resolution fails, the command fails at that entity even though its other props were applied. Patch `src` on its own to avoid ambiguity.
 - `syncTo` re-runs audio alignment against the document node carrying the given key and writes the entity's `start` from the measured offset (see [jsx/audio-sync.md](../jsx/audio-sync.md)). The command blocks until alignment settles; a failed alignment rejects the entity.
 - `transition` sets, merges into, or (with `null`) removes the clip's transition into the next clip (see [jsx/transitions.md](../jsx/transitions.md)).
+- `animations` replaces the entity's preset in/out animations with the given list; `[]` removes them all (see [jsx/animations.md](../jsx/animations.md)).
 - Keyframe lists are accepted wherever the property is animatable, with the same semantics as mount (see [jsx/keyframes.md](../jsx/keyframes.md)); a static value replaces any existing keyframes.
 - Element applicability is not checked: props are applied wherever `mount` would apply them (e.g. `fontSize` only makes sense on a text node).
 

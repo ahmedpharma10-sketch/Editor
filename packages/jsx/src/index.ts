@@ -17,6 +17,8 @@ export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
 export type {
   Animatable,
+  AnimationSpec,
+  AnimationType,
   AudioProps,
   CaptionPreset,
   CaptionsProps,
