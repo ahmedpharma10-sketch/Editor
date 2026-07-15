@@ -15,6 +15,30 @@ import { MAIN_CHANNELS } from "./main-channels";
 
 const DEV_URL = "http://localhost:5173";
 const AUTH_PROTOCOL = "diffusion";
+const MACOS_CORNER_RADIUS = 16;
+const MACOS_BACKDROP = { blur: 80, red: 0.07, green: 0.07, blue: 0.07, alpha: 0.9 };
+
+let setNativeCornerRadius: ((handle: Buffer, radius: number) => void) | null = null;
+let setNativeBackdrop:
+  | ((handle: Buffer, blur: number, r: number, g: number, b: number, a: number) => void)
+  | null = null;
+
+if (process.platform === "darwin") {
+  ({ setCornerRadius: setNativeCornerRadius, setBackdrop: setNativeBackdrop } = require(
+    join(app.getAppPath(), "dist", "corner_radius.node"),
+  ));
+}
+
+function applyCornerRadius(radius: number) {
+  if (!setNativeCornerRadius || !mainWindow || mainWindow.isDestroyed()) return;
+  setNativeCornerRadius(mainWindow.getNativeWindowHandle(), radius);
+}
+
+function applyBackdrop() {
+  if (!setNativeBackdrop || !mainWindow || mainWindow.isDestroyed()) return;
+  const { blur, red, green, blue, alpha } = MACOS_BACKDROP;
+  setNativeBackdrop(mainWindow.getNativeWindowHandle(), blur, red, green, blue, alpha);
+}
 
 if (app.isPackaged && !process.argv.includes("--hidden")) {
   updateElectronApp({ repo: "diffusionstudio/editor" });
@@ -62,7 +86,7 @@ async function setFileInputFiles(selector: string, absolutePath: string) {
 
 function createWindow(show = true) {
   mainWindow = new BrowserWindow({
-    show,
+    show: false,
     width: 1200,
     height: 800,
     titleBarStyle: "hiddenInset",
@@ -82,10 +106,29 @@ function createWindow(show = true) {
     pendingAuthUrl = null;
   });
 
+  applyCornerRadius(MACOS_CORNER_RADIUS);
+  applyBackdrop();
+
+  mainWindow.once("ready-to-show", () => {
+    applyCornerRadius(MACOS_CORNER_RADIUS);
+    applyBackdrop();
+
+    if (show) {
+      mainWindow?.show();
+    }
+  });
+
+  mainWindow.on("show", () => {
+    applyCornerRadius(MACOS_CORNER_RADIUS);
+    applyBackdrop();
+  });
+
   mainWindow.on("enter-full-screen", () => {
+    applyCornerRadius(0);
     mainBridge.emit(mainWindow, MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE, { fullscreen: true });
   });
   mainWindow.on("leave-full-screen", () => {
+    applyCornerRadius(MACOS_CORNER_RADIUS);
     mainBridge.emit(mainWindow, MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE, { fullscreen: false });
   });
   mainWindow.on("closed", () => {

@@ -12,7 +12,6 @@ import { ProjectMenu } from "./project-menu";
 import { useProjectId } from "@/hooks/use-project-id";
 import { getProjectName, setProjectName } from "../engine/db";
 import { createResource } from "solid-js";
-import { Separator } from "@/components/ui/separator";
 import { cx } from "@/lib/cva";
 
 export function SidebarLeft() {
@@ -91,9 +90,8 @@ export function ProjectHeader(props: ProjectHeaderProps) {
   };
 
   return (
-    <div class={cx("h-12 shrink-0 flex items-center gap-2 pr-4 pl-2.5", props.class)}>
+    <div class={cx("h-12 shrink-0 flex items-center gap-1 pr-4 pl-2.5", props.class)}>
       <ProjectMenu />
-      <Separator orientation="vertical" class="h-6 max-h-6" />
       <div class="flex items-center w-full">
         <input
           type="text"
@@ -103,7 +101,7 @@ export function ProjectHeader(props: ProjectHeaderProps) {
           onBlur={handleBlurNameInput}
           onKeyDown={handleKeyDownNameInput}
           placeholder="Project name"
-          class="w-full bg-transparent focus-ring px-1 h-5 ml-1 rounded text-xs text-muted-foreground font-strong outline-none"
+          class="w-full bg-transparent focus-ring px-1 h-5 ml-1 rounded text-xs text-muted-foreground font-450 outline-none"
         />
       </div>
     </div>
