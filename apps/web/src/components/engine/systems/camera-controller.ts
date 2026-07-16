@@ -98,10 +98,11 @@ export function createCameraController(world: EngineWorld) {
 		const rect = parent.getBoundingClientRect();
 		const screenWidth = rect.width;
 		const screenHeight = rect.height;
+		if (screenWidth <= 0 || screenHeight <= 0) return;
 
 		const scaleX = (screenWidth - padding * 2) / bounds.width;
 		const scaleY = (screenHeight - padding * 2) / bounds.height;
-		const scale = Math.min(scaleX, scaleY, 1);
+		const scale = Math.max(0.01, Math.min(scaleX, scaleY, 1));
 
 		const centerX = bounds.x + bounds.width / 2;
 		const centerY = bounds.y + bounds.height / 2;
