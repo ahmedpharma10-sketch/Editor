@@ -58,6 +58,8 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   const getEngine = () => engine;
 
   createEffect(() => {
+    document.documentElement.dataset.fullscreen = String(isFullscreen());
+
     if (!window.desktop) return;
 
     const router = createAppRouter({ getEngine, getUser, requireAuth, setParams });

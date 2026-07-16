@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 import solid from 'vite-plugin-solid'
 import solidSvg from 'vite-plugin-solid-svg'
 import tailwindcss from '@tailwindcss/vite'
+import typegpu from 'unplugin-typegpu/vite'
 import { resolve } from 'path'
 import pkg from '../../package.json'
 
@@ -14,6 +15,7 @@ export default defineConfig({
     solid(),
     tailwindcss(),
     solidSvg({ defaultAsComponent: true }),
+    typegpu(),
   ],
   define: {
     APP_VERSION: JSON.stringify(pkg.version),

@@ -6,10 +6,15 @@ import js from "@eslint/js";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import solidPlugin from "eslint-plugin-solid";
+import typegpuPlugin from "eslint-plugin-typegpu";
 import globals from "globals";
 
 export default [
   js.configs.recommended,
+  {
+    ...typegpuPlugin.configs.recommended,
+    files: ["**/*.{js,jsx,ts,tsx}"],
+  },
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
