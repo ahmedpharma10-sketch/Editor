@@ -123,7 +123,9 @@ export function Assets() {
     }
   });
 
-  const importAssets = async (handles: ReadonlyArray<File | FileSystemFileHandle | ElectronFileHandle | DataTransferItem>) => {
+  const importAssets = async (
+    handles: ReadonlyArray<File | FileSystemFileHandle | ElectronFileHandle | DataTransferItem>,
+  ) => {
     if (handles.length === 0) return;
 
     try {
