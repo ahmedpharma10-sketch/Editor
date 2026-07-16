@@ -40,7 +40,7 @@ type DashboardSurfaceCardProps = {
 
 export function DashboardSurfaceCard(props: DashboardSurfaceCardProps) {
   return (
-    <div class={cx("rounded-xl bg-input/40 p-4", props.class)}>
+    <div class={cx("rounded-xl bg-accent/50 p-4", props.class)}>
       {props.children}
     </div>
   );

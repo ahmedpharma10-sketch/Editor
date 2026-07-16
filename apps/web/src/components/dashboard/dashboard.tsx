@@ -70,9 +70,9 @@ export function Dashboard() {
               <DashboardSidebarUser active={view() === "account"} onClick={() => setView("account")} />
             </aside>
 
-            <Separator orientation="vertical" />
+            <Separator orientation="vertical" class="bg-border-strong" />
 
-            <section class="flex min-h-0 flex-1 flex-col">
+            <section class="flex min-h-0 flex-1 flex-col bg-canvas">
               <Switch>
                 <Match when={view() === "projects"}>
                   <DashboardProjectsView />
