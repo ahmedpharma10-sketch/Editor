@@ -35,3 +35,8 @@ out/
 
 # Vercel
 .vercel
+
+# AI
+skills-lock.json
+.agents
+.claude

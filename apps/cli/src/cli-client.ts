@@ -137,8 +137,8 @@ export const editor = createTRPCClient<AppRouter>({ links: [cliLink] });
 // Transport failures surface as TRPCClientError wrapping the socket error;
 // unwrap to reach errno codes like ENOENT/ECONNREFUSED.
 export function errnoCode(e: unknown): string | undefined {
-  const cause = (e as { cause?: unknown }).cause;
-  return ((cause ?? e) as NodeJS.ErrnoException).code;
+  if (!(e instanceof TRPCClientError)) return undefined;
+  return (e.cause as NodeJS.ErrnoException | undefined)?.code;
 }
 
 // Bridges the cold-start gap after launching the app. Main only delivers the

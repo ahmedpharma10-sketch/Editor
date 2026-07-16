@@ -9,6 +9,7 @@ import { createImageEncoder } from "@/components/engine/encode/image-encoder";
 import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
 
 import {
+  AnimationPhase,
   deleteEntity,
   isText,
   isScene,
@@ -17,7 +18,7 @@ import {
   serializeEntity,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
-import { WorldDocument } from "@/utils/jsx";
+import { ANIMATION_TYPE_MAP, WorldDocument } from "@/utils/jsx";
 import { entityType } from "./selection";
 
 import type { EngineWorld, Engine } from "@/components/engine";
@@ -28,7 +29,6 @@ import type {
   NodeGrepMatch,
   NodeGrepRequest,
   NodeGrepResult,
-  NodeListResult,
   NodePatch,
   NodePatchResult,
   NodeRef,
@@ -38,6 +38,11 @@ import type {
 } from "@diffusionstudio/cli/channels";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
+
+// The JSX animation names, keyed by engine preset.
+const ANIMATION_TYPE_NAMES: Record<number, string> = Object.fromEntries(
+  Object.entries(ANIMATION_TYPE_MAP).map(([name, type]) => [type, name]),
+);
 
 // Scenes are nodes too, so node ops accept them alongside geometry, groups,
 // and adjustment layers.
@@ -73,29 +78,17 @@ export function resolveNodeEid(world: EngineWorld, eid: number): number {
 }
 
 export function handleNodeList(engine: Accessor<Engine>) {
-  return async ({ ids }: { ids?: number[] }): Promise<NodeListResult[]> => {
+  return async ({ ids }: { ids?: number[] }): Promise<EntityRecord[]> => {
     const { world } = engine();
     const c = world.components;
 
     // No ids → the root: top-level nodes
     if (ids === undefined || ids.length === 0) {
       const roots = [...query(world, [c.Geometry, Not(ChildOf("*")), Not(c.Deleted)])];
-      return roots.map((eid) => ({
-        status: "fulfilled",
-        node: serializeEntity(world, eid) as EntityRecord,
-      }));
+      return roots.map((eid) => serializeEntity(world, eid) as EntityRecord);
     }
 
-    return ids.map((id) => {
-      try {
-        return {
-          status: "fulfilled",
-          node: serializeEntity(world, resolveEntityEid(world, id)) as EntityRecord,
-        };
-      } catch (e) {
-        return { status: "rejected", id, error: (e as Error).message };
-      }
-    });
+    return ids.map((id) => serializeEntity(world, resolveEntityEid(world, id)) as EntityRecord);
   };
 }
 
@@ -165,6 +158,14 @@ function describeEntity(world: EngineWorld, eid: number): string {
   if (hasComponent(world, eid, c.Keyframe)) {
     parts.push(`time: ${fmtTime(c.Keyframe.time[eid] ?? 0)}`, `value: ${c.Keyframe.value[eid]}`);
     if (c.Keyframe.easing[eid]) parts.push(`easing: ${c.Keyframe.easing[eid]}`);
+  }
+  if (hasComponent(world, eid, c.Animation)) {
+    parts.push(
+      `type: ${ANIMATION_TYPE_NAMES[c.Animation.type[eid] ?? 0] ?? c.Animation.type[eid]}`,
+      `phase: ${c.Animation.phase[eid] === AnimationPhase.OUT ? "out" : "in"}`,
+      `duration: ${fmtTime(c.Animation.duration[eid] ?? 0)}`,
+    );
+    if (c.Animation.delay[eid]) parts.push(`delay: ${fmtTime(c.Animation.delay[eid])}`);
   }
   if (hasComponent(world, eid, c.TextRange)) {
     parts.push(`range: ${c.TextRange.start[eid] ?? 0}–${c.TextRange.end[eid] ?? "end"}`);
@@ -340,59 +341,34 @@ export function handleNodeRender(engine: Accessor<Engine>) {
 export function handleNodeDelete(engine: Accessor<Engine>) {
   return async ({ ids }: { ids: number[] }): Promise<NodeDeleteResult[]> => {
     const { world } = engine();
-    const resolved = ids.map((id) => {
-      try {
-        return { id, eid: resolveEntityEid(world, id) };
-      } catch (e) {
-        return { id, error: (e as Error).message };
-      }
-    });
+    const eids = ids.map((id) => resolveEntityEid(world, id));
 
-    const toDelete = resolved.filter((r): r is { id: number; eid: number } => "eid" in r);
     world.history.transaction("deleting nodes", () => {
-      for (const { eid } of toDelete) {
+      for (const eid of eids) {
         deleteEntity(world, eid);
       }
     });
 
-    return resolved.map((r) =>
-      "eid" in r
-        ? { status: "fulfilled", id: r.id }
-        : { status: "rejected", id: r.id, error: r.error },
-    );
+    return ids.map((id) => ({ id }));
   };
 }
 
 export function handleNodeDuplicate(engine: Accessor<Engine>) {
   return async ({ ids }: { ids: number[] }): Promise<NodeDuplicateResult[]> => {
     const { world } = engine();
-    const resolved = ids.map((id) => {
-      try {
-        const eid = resolveNodeEid(world, id);
-        return { id, tree: getEntityTree(world, eid) };
-      } catch (e) {
-        return { id, error: (e as Error).message };
+    const resolved = ids.map((id) => ({
+      id,
+      tree: getEntityTree(world, resolveNodeEid(world, id)),
+    }));
+
+    const newRootEids = new Map<number, number>();
+    world.history.transaction("duplicating nodes", () => {
+      for (const { id, tree } of resolved) {
+        newRootEids.set(id, cloneSubtree(world, tree).get(id)!);
       }
     });
 
-    const toClone = resolved.filter(
-      (r): r is { id: number; tree: number[] } => "tree" in r,
-    );
-
-    const newRootEids = new Map<number, number>();
-    if (toClone.length > 0) {
-      world.history.transaction("duplicating nodes", () => {
-        for (const { id, tree } of toClone) {
-          newRootEids.set(id, cloneSubtree(world, tree).get(id)!);
-        }
-      });
-    }
-
-    return resolved.map((r) =>
-      "tree" in r
-        ? { status: "fulfilled", sourceId: r.id, newId: newRootEids.get(r.id)! }
-        : { status: "rejected", sourceId: r.id, error: r.error },
-    );
+    return ids.map((id) => ({ sourceId: id, newId: newRootEids.get(id)! }));
   };
 }
 
@@ -401,16 +377,21 @@ export function handleNodePatch(engine: Accessor<Engine>) {
     const e = engine();
     const world = e.world;
 
+    // Entity ids are validated upfront; a failing patch still aborts the
+    // batch mid-way, leaving earlier patches applied (and its own props
+    // rolled back).
+    for (const patch of patches) {
+      resolveEntityEid(world, patch.id);
+    }
+
     const results: NodePatchResult[] = [];
     for (const patch of patches) {
       const doc = new WorldDocument(e);
 
       try {
-        const eid = resolveEntityEid(world, patch.id);
-
         world.history.startTransaction("patching node");
         try {
-          const node = doc.element(eid);
+          const node = doc.element(resolveEntityEid(world, patch.id));
           for (const [key, value] of Object.entries(patch)) {
             if (key === "id") continue;
             doc.setProperty(node, key, value);
@@ -429,11 +410,11 @@ export function handleNodePatch(engine: Accessor<Engine>) {
         } finally {
           world.history.commitTransaction();
         }
-
-        results.push({ status: "fulfilled", id: patch.id });
       } catch (error) {
-        results.push({ status: "rejected", id: patch.id, error: (error as Error).message });
+        throw new Error(`Entity ${patch.id}: ${(error as Error).message}`);
       }
+
+      results.push({ id: patch.id });
     }
 
     return results;

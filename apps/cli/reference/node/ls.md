@@ -19,4 +19,4 @@ Records are raw engine data: times are frames at 30 fps, colors are packed `0xRR
 
 ## Errors
 
-If any input id fails to resolve, writes a per-id message to stderr and exits non-zero after emitting all successful records to stdout.
+An unknown id fails the whole command: nothing is printed to stdout and it exits non-zero with `No such entity: <id>` on stderr.

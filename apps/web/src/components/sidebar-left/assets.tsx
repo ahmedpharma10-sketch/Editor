@@ -305,7 +305,7 @@ export function Assets() {
       on:dragover={handleDragOver}
       on:dragenter={handleDragEnter}
       on:dragleave={handleDragLeave}
-      class="relative flex flex-col flex-1 min-h-0 bg-background text-foreground text-sm focus:outline-none"
+      class="relative flex flex-col flex-1 min-h-0 text-foreground text-sm focus:outline-none"
       tabIndex={0}
       ref={root}
       onKeyDown={handleKeyDown}

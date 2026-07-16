@@ -39,7 +39,7 @@ export function Toolbar() {
       <Show when={!promptInputOpen()}>
         <ActionBar openPromptInput={openPromptInput} />
       </Show>
-      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl p-1.5 bg-background border border-border flex gap-2 items-center z-10">
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl p-1.5 bg-background border border-border-strong flex gap-2 items-center z-10">
         <div class="flex gap-1">
           <Tooltip>
             <TooltipTrigger

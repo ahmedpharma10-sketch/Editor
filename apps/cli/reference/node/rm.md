@@ -8,9 +8,12 @@ Deletes one or more entities and all their descendants. Alias: `remove`.
 
 ## Output
 
-JSON Lines, one per input id:
+JSON Lines on stdout, one per deleted entity:
 
 ```ts
-| { status: "fulfilled"; id: number }
-| { status: "rejected"; id: number; error: string }
+{ id: number }
 ```
+
+## Errors
+
+An unknown id fails the whole command before anything is deleted.

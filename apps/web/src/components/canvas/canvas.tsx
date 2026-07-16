@@ -145,7 +145,7 @@ export function Canvas() {
   }
 
   return (
-    <div class="relative size-full">
+    <div class="relative size-full bg-background">
       <div class="absolute inset-0">
         <Toolbar />
         <DrawOverlay />

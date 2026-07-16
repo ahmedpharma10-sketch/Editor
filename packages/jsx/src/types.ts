@@ -63,6 +63,42 @@ export type TransitionSpec = {
   duration?: Time;
 };
 
+/**
+ * Preset animation styles — the editor's animations inspector options.
+ * "appearWord" / "appearChar" / "scramble" apply only to text elements;
+ * "gain" ramps audio and has no visual effect.
+ */
+export type AnimationType =
+  | "fade"
+  | "gain"
+  | "grow"
+  | "shrink"
+  | "blur"
+  | "slideLeft"
+  | "slideRight"
+  | "slideUp"
+  | "slideDown"
+  | "spin"
+  | "twist"
+  | "appearWord"
+  | "appearChar"
+  | "scramble";
+
+/** One entry of the `animations` prop's list — see `PatchProps["animations"]`. */
+export type AnimationSpec = {
+  /** Animation style. */
+  type: AnimationType;
+  /** "in" plays from the clip's head, "out" into its tail. Default "in". */
+  phase?: "in" | "out";
+  /** Length of the animation. Any `Time` format. Default 1 second. */
+  duration?: Time;
+  /**
+   * Gap between the clip edge and the animation: after the head for "in",
+   * before the tail for "out". Any `Time` format. Default 0.
+   */
+  delay?: Time;
+};
+
 /** Caption style presets — the editor's caption inspector presets. */
 export type CaptionPreset =
   | "classic"
@@ -120,6 +156,11 @@ export type PatchProps = {
    * merges into the clip's existing transition, `null` removes it.
    */
   transition?: TransitionSpec | null;
+  /**
+   * Preset in/out animations, played over the clip's head and tail. The list
+   * replaces the node's existing animations; `[]` removes them all.
+   */
+  animations?: AnimationSpec[];
   /** Any CSS color, applied to the node's solid fill (created if absent); alpha is ignored — use `opacity`. */
   fill?: string;
   /**
@@ -172,6 +213,7 @@ export const PATCH_PROP_KEYS = Object.keys({
   sourceOut: true,
   syncTo: true,
   transition: true,
+  animations: true,
   fill: true,
   src: true,
   objectFit: true,
@@ -195,7 +237,7 @@ type CommonProps = TimingProps &
   Pick<
     PatchProps,
     | "key" | "name" | "x" | "y" | "width" | "height" | "rotation" | "opacity" | "cornerRadius"
-    | "transition"
+    | "transition" | "animations"
   >;
 
 export type SceneProps = {
@@ -246,7 +288,7 @@ export type ImageProps = CommonProps &
 
 export type AudioProps = TimingProps &
   Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "name" | "volume" | "muted" | "syncTo">;
+  Pick<PatchProps, "name" | "volume" | "muted" | "syncTo" | "animations">;
 
 export type TextProps = CommonProps &
   Pick<
@@ -261,4 +303,4 @@ export type SequenceProps = Pick<PatchProps, "name"> & {
   children?: SolidJSX.Element;
 };
 
-export type CaptionsProps = Pick<PatchProps, "preset" | "colors" | "src" | "start">;
+export type CaptionsProps = Pick<PatchProps, "preset" | "colors" | "src" | "start" | "animations">;

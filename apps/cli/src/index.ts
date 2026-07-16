@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { platform, tmpdir } from "node:os";
-import { extname, isAbsolute, join, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
 import { version } from "../../../package.json";
 import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
@@ -145,7 +145,9 @@ async function addAssets(paths: string[], opts: AssetAddOptions): Promise<void> 
 
   try {
     const results = await editor.asset.add.mutate({ paths: absolutePaths, folderId: opts.folder });
-    for (const result of results) console.log(JSON.stringify(result));
+    for (const result of results) {
+      console.log(JSON.stringify(result));
+    }
   } catch (e) {
     handleSocketError(e);
   }
@@ -155,16 +157,9 @@ async function listAssets(ids: string[]): Promise<void> {
   try {
     // No ids → every asset in the library; with ids → those specific assets.
     const results = await editor.asset.list.query({ ids: ids.length ? ids : undefined });
-    let failed = false;
     for (const result of results) {
-      if (result.status === "fulfilled") {
-        console.log(JSON.stringify(result.asset));
-      } else {
-        console.error(result.error);
-        failed = true;
-      }
+      console.log(JSON.stringify(result));
     }
-    if (failed) process.exit(1);
   } catch (e) {
     handleSocketError(e);
   }
@@ -337,7 +332,9 @@ async function setSelection(ids: string[]): Promise<void> {
 async function focusSelection(): Promise<void> {
   try {
     const results = await editor.selection.focus.mutate();
-    for (const result of results) console.log(JSON.stringify(result));
+    for (const result of results) {
+      console.log(JSON.stringify(result));
+    }
   } catch (e) {
     handleSocketError(e);
   }
@@ -347,16 +344,9 @@ async function listNodes(ids: string[]): Promise<void> {
   try {
     // No ids → root scenes; with ids → those specific nodes.
     const results = await editor.node.list.query({ ids: ids.length ? parseNodeIds(ids) : undefined });
-    let failed = false;
     for (const result of results) {
-      if (result.status === "fulfilled") {
-        console.log(JSON.stringify(result.node));
-      } else {
-        console.error(result.error);
-        failed = true;
-      }
+      console.log(JSON.stringify(result));
     }
-    if (failed) process.exit(1);
   } catch (e) {
     handleSocketError(e);
   }
@@ -430,7 +420,7 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type CaptureOptions = { time?: string[]; timestamp?: boolean };
+type CaptureOptions = { time?: string[]; timestamp?: boolean; output?: string };
 
 async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const eid = parseNodeIds([id])[0];
@@ -438,10 +428,12 @@ async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
   const frames = times.map((t) => Math.round(t * TIME_FPS));
 
+  const dir = opts.output ?? tmpdir();
+  mkdirSync(dir, { recursive: true });
   try {
     const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp });
     for (const [i, { base64 }] of shots.entries()) {
-      const path = join(tmpdir(), `${randomUUID()}.png`);
+      const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
       console.log(JSON.stringify({ time: times[i], path }));
     }
@@ -519,6 +511,7 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
 
   const target = resolveAssetRef(ref);
   const dir = opts.output ?? tmpdir();
+  mkdirSync(dir, { recursive: true });
   try {
     const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp, auto: opts.auto });
     for (const { time, base64 } of frames) {
@@ -644,6 +637,7 @@ async function mediaFilmstrip(ref: string, opts: MediaPreviewOptions): Promise<v
   const { start, end, scale } = parsePreviewWindow(opts);
   const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
+  mkdirSync(dirname(resolve(path)), { recursive: true });
   const stop = startSpinner("Rendering filmstrip");
   try {
     const { base64, ...rest } = await editor.media.filmstrip.query({ ...target, start, end, scale });
@@ -660,6 +654,7 @@ async function mediaWaveform(ref: string, opts: MediaPreviewOptions): Promise<vo
   const { start, end, scale } = parsePreviewWindow(opts);
   const target = resolveAssetRef(ref);
   const path = opts.output ?? join(tmpdir(), `${randomUUID()}.png`);
+  mkdirSync(dirname(resolve(path)), { recursive: true });
   const stop = startSpinner("Rendering waveform");
   try {
     const { base64, ...rest } = await editor.media.waveform.query({ ...target, start, end, scale });
@@ -713,12 +708,8 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
 
   const stop = startSpinner("Mounting project");
   try {
-    const result = await editor.mount.mutate({ code }, GENERATE);
+    await editor.mount.mutate({ code }, GENERATE);
     stop();
-    if (result.status === "rejected") {
-      console.error(result.error);
-      process.exit(1);
-    }
   } catch (e) {
     stop();
     handleSocketError(e);
@@ -744,12 +735,8 @@ async function nodeInsert(parentId: string, path: string | undefined, opts: Node
 
   const stop = startSpinner("Inserting entities");
   try {
-    const result = await editor.node.insert.mutate({ code, parentId: eid, index }, GENERATE);
+    await editor.node.insert.mutate({ code, parentId: eid, index }, GENERATE);
     stop();
-    if (result.status === "rejected") {
-      console.error(result.error);
-      process.exit(1);
-    }
   } catch (e) {
     stop();
     handleSocketError(e);
@@ -1258,7 +1245,7 @@ folder
   .command("mv")
   .alias("move")
   .description(
-    `Move one or more folders under a new parent. A folder cannot move into itself or a descendant; such a move rejects that id.`,
+    `Move one or more folders under a new parent. A folder cannot move into itself or a descendant; such a move fails the command before anything moves.`,
   )
   .argument("<ids...>", "folder ids to move")
   .option("--to <folderId>", "destination parent folder (default: the library root); fails before moving anything if it doesn't resolve to a folder")
@@ -1342,6 +1329,7 @@ node
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
   .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node

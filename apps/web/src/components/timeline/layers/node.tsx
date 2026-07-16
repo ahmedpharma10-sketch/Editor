@@ -299,7 +299,7 @@ export function NodeLayer(props: NodeLayerProps) {
               <Show
                 when={editing()}
                 fallback={
-                  <span class="text-xs px-0.5 shrink-0 whitespace-nowrap" onDblClick={startEditing}>
+                  <span class="text-xs px-0.5 shrink-0 whitespace-nowrap text-foreground" onDblClick={startEditing}>
                     {name()}
                   </span>
                 }
@@ -307,7 +307,7 @@ export function NodeLayer(props: NodeLayerProps) {
                 <input
                   ref={mountNameInput}
                   type="text"
-                  class="text-xs bg-input border border-primary rounded-sm outline-none px-0.5 w-32"
+                  class="text-xs bg-input border border-primary rounded-sm outline-none px-0.5 w-32 text-foreground"
                   value={name()}
                   onInput={handleNameInput}
                   onKeyDown={handleNameKeyDown}

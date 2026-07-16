@@ -9,13 +9,12 @@ Moves one or more assets into a folder. Alias: `move`.
 
 ## Output
 
-JSON Lines, one per input id:
+JSON Lines on stdout, one per moved asset:
 
 ```ts
-| { status: "fulfilled"; id: string; folderId: string | null }
-| { status: "rejected"; id: string; error: string }
+{ id: string; folderId: string | null }
 ```
 
 ## Errors
 
-Exits non-zero before moving anything if `--to` doesn't resolve to a folder; an unknown asset id rejects that id only.
+An unknown asset id, or a `--to` that doesn't resolve to a folder, fails the whole command before anything is moved.

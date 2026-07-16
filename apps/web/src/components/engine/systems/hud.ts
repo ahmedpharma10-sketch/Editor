@@ -93,7 +93,7 @@ export function hudSystem(world: EngineWorld) {
     // Play/pause button (only for entities with Timeline)
     if (hasTimelineComp) {
       ctx.save();
-      ctx.fillStyle = isSelected ? '#cce8ff' : '#9E9E9E';
+      ctx.fillStyle = isSelected ? '#cce8ff' : 'rgba(242, 242, 242, 0.64)';
       if (c.Playback.playing[eid] !== 1) {
         ctx.translate(2, 3);
         ctx.fill(PLAY_PATH);
@@ -121,7 +121,7 @@ export function hudSystem(world: EngineWorld) {
     const fittedText = fitTextToWidth(ctx, name, header.width - labelStartX - activeIndicatorWidth);
 
     if (fittedText) {
-      ctx.fillStyle = isSelected ? '#cce8ff' : '#9E9E9E';
+      ctx.fillStyle = isSelected ? '#cce8ff' : 'rgba(242, 242, 242, 0.64)';
       ctx.fillText(fittedText.value, 0, 0);
 
       const labelHitMat = multiply2D(header.mat, translate2D(labelStartX, 0));
@@ -157,7 +157,7 @@ export function hudSystem(world: EngineWorld) {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.font = '350 11px Inter, sans-serif';
-      ctx.fillStyle = isSelected ? '#cce8ff' : '#9E9E9E';
+      ctx.fillStyle = isSelected ? '#cce8ff' : 'rgba(242, 242, 242, 0.64)';
       ctx.fillText("Active", 0, 0);
     }
 
@@ -180,7 +180,7 @@ export function hudSystem(world: EngineWorld) {
         ctx.globalAlpha = 0.7;
         ctx.fillStyle = '#cce8ff';
       } else {
-        ctx.fillStyle = '#666666';
+        ctx.fillStyle = 'rgba(121, 121, 121, 1)';
       }
       ctx.fillText(`${m}:${s}`, 0, 0);
       ctx.globalAlpha = 1;

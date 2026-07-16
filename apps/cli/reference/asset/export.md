@@ -11,13 +11,12 @@ Writes one or more assets' original file bytes to a location on the file system:
 
 ## Output
 
-JSON Lines, one per input id, in the requested order:
+JSON Lines on stdout, one per exported asset, in the requested order:
 
 ```ts
-| { status: "fulfilled"; id: string; path: string }   // path = the file actually written
-| { status: "rejected"; id: string; error: string }
+{ id: string; path: string }   // path = the file actually written
 ```
 
 ## Errors
 
-Exits non-zero before writing anything if `--output` must be a directory (multiple ids, or a trailing path separator) but resolves to an existing file, or if the output directory can't be created. An unknown id, or an image-sequence asset, rejects that id only; a rejected asset leaves no partial file behind.
+Exits non-zero before writing anything if `--output` must be a directory (multiple ids, or a trailing path separator) but resolves to an existing file, if the output directory can't be created, if an id is unknown, or if an id is an image-sequence asset. An I/O failure mid-batch aborts the remaining writes and leaves no partial file for the failing asset; files written before it stay.

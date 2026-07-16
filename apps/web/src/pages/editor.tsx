@@ -54,7 +54,7 @@ export function EditorPage() {
 
   return (
     <div
-      class="bg-background h-screen w-full overflow-hidden grid"
+      class="bg-sidebar h-screen w-full overflow-hidden grid"
       classList={{
         'grid-cols-[264px_1px_1fr_1px_264px]': sidebarsVisible(),
         'grid-cols-[1fr]': !sidebarsVisible(),
@@ -67,15 +67,15 @@ export function EditorPage() {
       </Show>
       <Show when={sidebarsVisible()}>
         <SidebarLeft />
-        <div class="bg-border" />
+        <div class="bg-border-strong" />
       </Show>
       <Canvas />
       <Show when={sidebarsVisible()}>
-        <div class="bg-border" />
+        <div class="bg-border-strong" />
         <Inspector />
       </Show>
       <Show when={timelineVisible()}>
-        <div class="col-span-full bg-border relative">
+        <div class="col-span-full bg-border-strong relative">
           <div
             class="absolute left-0 right-0 -top-px h-[3px] z-10 cursor-ns-resize group"
             onPointerDown={handleResizeStart}
@@ -89,13 +89,13 @@ export function EditorPage() {
       </Show>
       <Show when={timelineVisible()}>
         <Layers />
-        <div class="bg-border" />
+        <div class="bg-border-strong" />
       </Show>
       <Show when={timelineVisible()}>
         <Timeline />
       </Show>
       <Show when={timelineVisible()}>
-        <div class="bg-border" />
+        <div class="bg-border-strong" />
         <Soundboard />
       </Show>
       <Show when={!sidebarsVisible()}>

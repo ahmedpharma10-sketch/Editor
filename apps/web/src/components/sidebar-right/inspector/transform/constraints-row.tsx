@@ -35,6 +35,12 @@ export function ConstraintsRow(props: ConstraintsRowProps) {
     if (value == null) return;
     setComponent(world, props.nodeEid, c.Constraint, { vertical: value });
   };
+  const assignCenterConstraints = () => {
+    setComponent(world, props.nodeEid, c.Constraint, {
+      horizontal: ConstraintType.CENTER,
+      vertical: ConstraintType.CENTER,
+    });
+  };
 
 
   return (
@@ -100,83 +106,77 @@ export function ConstraintsRow(props: ConstraintsRowProps) {
         </div>
 
         <div
-          class="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 -ml-[23px] cursor-pointer py-1"
+          class="group absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 -ml-[23px] cursor-pointer py-1"
           onClick={() => assignHorizontalConstraint(ConstraintType.MIN)}
         >
           <div
             class="w-2.5 h-0.5 rounded-sm"
             classList={{
               "bg-primary": h() === ConstraintType.MIN || h() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40": h() !== ConstraintType.MIN && h() !== ConstraintType.STRETCH
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": h() !== ConstraintType.MIN && h() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
-          class="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 ml-[23px] cursor-pointer py-1"
+          class="group absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 ml-[23px] cursor-pointer py-1"
           onClick={() => assignHorizontalConstraint(ConstraintType.MAX)}
         >
           <div
             class="w-2.5 h-0.5 rounded-sm"
             classList={{
               "bg-primary": h() === ConstraintType.MAX || h() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40": h() !== ConstraintType.MAX && h() !== ConstraintType.STRETCH
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": h() !== ConstraintType.MAX && h() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
-          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -mt-[23px] cursor-pointer px-1"
+          class="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -mt-[23px] cursor-pointer px-1"
           onClick={() => assignVerticalConstraint(ConstraintType.MIN)}
         >
           <div
             class="w-0.5 h-2.5 rounded-sm"
             classList={{
               "bg-primary": w() === ConstraintType.MIN || w() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40": w() !== ConstraintType.MIN && w() !== ConstraintType.STRETCH
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": w() !== ConstraintType.MIN && w() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
-          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 mt-[23px] cursor-pointer px-1"
+          class="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 mt-[23px] cursor-pointer px-1"
           onClick={() => assignVerticalConstraint(ConstraintType.MAX)}
         >
           <div
             class="w-0.5 h-2.5 rounded-sm"
             classList={{
               "bg-primary": w() === ConstraintType.MAX || w() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40": w() !== ConstraintType.MAX && w() !== ConstraintType.STRETCH
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": w() !== ConstraintType.MAX && w() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
-          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5"
-          onClick={() => assignHorizontalConstraint(ConstraintType.CENTER)}
-          classList={{ "pointer-events-none": h() === ConstraintType.CENTER }}
+          class="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer p-1"
+          onClick={assignCenterConstraints}
         >
-          <div
-            class="w-2.5 h-0.5 rounded-sm"
-            classList={{
-              "bg-primary": h() === ConstraintType.CENTER,
-              "bg-transparent": h() !== ConstraintType.CENTER
-            }}
-          />
-        </div>
-
-        <div
-          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer py-0.5"
-          onClick={() => assignVerticalConstraint(ConstraintType.CENTER)}
-          classList={{ "pointer-events-none": w() === ConstraintType.CENTER }}
-        >
-          <div
-            class="w-0.5 h-2.5 rounded-sm"
-            classList={{
-              "bg-primary": w() === ConstraintType.CENTER,
-              "bg-transparent": w() !== ConstraintType.CENTER
-            }}
-          />
+          <div class="relative size-2.5">
+            <div
+              class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-0.5 rounded-sm"
+              classList={{
+                "bg-primary": h() === ConstraintType.CENTER,
+                "bg-transparent group-hover:bg-muted-foreground/40": h() !== ConstraintType.CENTER
+              }}
+            />
+            <div
+              class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-2.5 rounded-sm"
+              classList={{
+                "bg-primary": w() === ConstraintType.CENTER,
+                "bg-transparent group-hover:bg-muted-foreground/40": w() !== ConstraintType.CENTER
+              }}
+            />
+          </div>
         </div>
       </div>
     </ControlRow>

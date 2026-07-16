@@ -8,10 +8,13 @@ Deletes one or more folders. **Deletion cascades:** every descendant folder and 
 
 ## Output
 
-JSON Lines, one per input id:
+JSON Lines on stdout, one per deleted folder:
 
 ```ts
-| { status: "fulfilled"; id: string; deletedFolders: number; deletedAssets: number }
-    // deletedFolders counts the folder itself plus all descendants
-| { status: "rejected"; id: string; error: string }
+{ id: string; deletedFolders: number; deletedAssets: number }
+// deletedFolders counts the folder itself plus all descendants
 ```
+
+## Errors
+
+An unknown id fails the whole command before anything is deleted.

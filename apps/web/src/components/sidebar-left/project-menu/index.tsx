@@ -45,7 +45,9 @@ export function ProjectMenu() {
           class="flex items-center gap-0 h-7 rounded-md text-muted-foreground outline-none focus-ring hover:text-foreground data-expanded:text-foreground"
         >
           <Icon name="diffusion-logo" class="size-6" />
-          <Icon name="chevron-down" class="size-6" />
+          <div class="flex items-center justify-center overflow-clip h-6 w-4">
+            <Icon name="chevron-down" class="size-6" />
+          </div>
         </DropdownMenuTrigger>
         <DropdownMenuPortal>
           <DropdownMenuContent class="w-[188px]">

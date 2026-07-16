@@ -23,7 +23,7 @@ export function DashboardSidebarItem(props: DashboardSidebarItemProps) {
       type="button"
       onClick={props.onClick}
       class={cx("flex h-8 w-full items-center rounded-md px-0 hover:bg-accent focus-ring", props.class)}
-      classList={{ "bg-muted": props.active }}
+      classList={{ "bg-accent": props.active }}
     >
       <span class="grid size-7 place-items-center overflow-clip">
         <Show
@@ -106,7 +106,7 @@ export function DashboardSidebarUser(props: DashboardSidebarUserProps) {
         type="button"
         onClick={props.onClick}
         class="flex w-full items-center gap-2 rounded-md p-2 text-left hover:bg-accent focus-ring"
-        classList={{ "bg-muted": props.active }}
+        classList={{ "bg-accent": props.active }}
       >
         <Show
           when={avatarUrl()}

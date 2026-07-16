@@ -52,9 +52,9 @@ export function VolumeMeter(props: VolumeMeterProps) {
   onCleanup(() => meter.disconnect());
 
   return (
-    <div class="flex gap-px w-5 overflow-hidden rounded-sm">
-      <VerticalMeter channel={0} levels={meter.levels} />
-      <VerticalMeter channel={1} levels={meter.levels} />
+    <div class="flex gap-px w-5">
+      <VerticalMeter channel={0} levels={meter.levels} class="rounded-l" />
+      <VerticalMeter channel={1} levels={meter.levels} class="rounded-r" />
     </div>
   );
 }
@@ -62,6 +62,7 @@ export function VolumeMeter(props: VolumeMeterProps) {
 type VerticalMeterProps = {
   channel: number;
   levels: () => ChannelLevels[];
+  class?: string;
 };
 
 function VerticalMeter(props: VerticalMeterProps) {
@@ -82,15 +83,15 @@ function VerticalMeter(props: VerticalMeterProps) {
   };
 
   return (
-    <div class="h-full relative w-full">
-      {/* Segmented background (bottom=green, mid=yellow, top=red) */}
-      <MeterSegments />
+    <div class={cx("h-full relative w-full overflow-clip bg-background", props.class)}>
+      <div class="absolute inset-0 bg-input" />
 
-      {/* Dark overlay that reveals from top — covers unfilled portion */}
       <div
-        class="absolute inset-x-0 top-0 bg-canvas transition-none"
-        style={{ height: `${100 - rmsPct()}%` }}
-      />
+        class="absolute inset-0"
+        style={{ "clip-path": `inset(${100 - rmsPct()}% 0 0 0)` }}
+      >
+        <MeterSegments />
+      </div>
 
       {/* Peak indicator line */}
       <Show when={peakPct() > 0.5}>
@@ -199,8 +200,8 @@ export function VolumeControl(props: VolumeControlProps) {
             <div
               class="h-px pointer-events-none"
               classList={{
-                'bg-disabled-foreground': isMajor,
-                'bg-disabled-foreground/50': !isMajor,
+                'bg-muted-foreground': isMajor,
+                'bg-muted-foreground/70': !isMajor,
                 'w-full': isMajor,
                 'w-1/2': !isMajor,
               }}
@@ -225,7 +226,7 @@ export function MeterScale() {
         {(label) => {
           const needsPad = !label.startsWith('-');
           return (
-            <span class="text-xxs leading-none font-mono text-disabled-foreground">
+            <span class="text-xxs leading-none font-mono text-muted-foreground">
               {needsPad && <span class="invisible">-</span>}
               {label}
             </span>
