@@ -32,6 +32,7 @@ import {
 } from "solid-js";
 import { useEngine } from "@/context/engine";
 import { useQuery } from "@/components/engine/hooks";
+import { DEFAULT_BACKGROUND } from "@/components/engine";
 import { toast } from "somoto";
 
 const COLOR_TYPES = ["Hex", "HSL", "RGB"] as const;
@@ -84,7 +85,7 @@ export function ColorOpacityPicker(props: ColorOpacityPickerProps) {
   const documentColors = createMemo(() => {
     const colors = new Set<number>();
     for (const eid of colorEntities()) {
-      colors.add(c.Color[eid] ?? 0x171717); // fallback is background color
+      colors.add(c.Color[eid] ?? DEFAULT_BACKGROUND); // fallback is background color
       if (colors.size >= 36) break;
     }
     return Array.from(colors);

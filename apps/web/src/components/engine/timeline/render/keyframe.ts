@@ -10,7 +10,7 @@ import { addComponent, clearComponent, removeComponent, setComponent } from "../
 import type { EngineWorld } from "../../api/world";
 import type { TimelineContext } from "../world";
 
-const KEYFRAME_COLOR = '#9E9E9E';
+const KEYFRAME_COLOR = 'rgba(242, 242, 242, 0.64)';
 const KEYFRAME_SIZE = 8;
 const KEYFRAME_HALF_SIZE = KEYFRAME_SIZE / 2;
 const KEYFRAME_HITBOX_PADDING = 2;

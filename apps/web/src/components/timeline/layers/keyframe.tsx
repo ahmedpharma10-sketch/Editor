@@ -118,7 +118,7 @@ export function KeyframeLayer(props: KeyframeLayerProps) {
           <div class="size-4 shrink-0 mr-0.5 flex items-center justify-center overflow-clip">
             <Icon name="keyframe-indicator-default" class="size-6" />
           </div>
-          <span class="text-xs px-0.5 shrink-0 whitespace-nowrap">
+          <span class="text-xs px-0.5 shrink-0 whitespace-nowrap text-foreground">
             {formatProperty(c.KeyframeTrack.property[props.layer.eid])}
           </span>
         </div>

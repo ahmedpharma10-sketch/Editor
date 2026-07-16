@@ -58,8 +58,8 @@ export const COLORS = {
     scrubber: '#F43535', // ambient red
   },
   ruler: {
-    tick: '#404040',
-    text: '#505050',
+    tick: 'rgba(53, 53, 53, 1)',
+    text: 'rgba(75, 75, 75, 1)',
   },
   clip: {
     group: {
