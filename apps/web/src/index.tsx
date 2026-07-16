@@ -22,6 +22,8 @@ if (import.meta.env.PROD) {
 document.addEventListener('contextmenu', (e) => e.preventDefault())
 
 if (window.desktop) {
+  document.documentElement.dataset.platform = window.desktop.platform;
+
   const origRequest = FileSystemHandle.prototype.requestPermission;
   FileSystemHandle.prototype.queryPermission = async function (desc) {
     try {

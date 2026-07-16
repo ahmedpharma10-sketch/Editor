@@ -275,7 +275,7 @@ export function Alignment() {
               as={Button}
               size="icon"
               variant="ghost"
-              class="text-muted-foreground w-5.5 h-7"
+              class="text-foreground w-5.5 h-7"
               onClick={() => handleAction(item.id)}
             >
               <Icon name={item.icon} />

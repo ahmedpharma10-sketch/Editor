@@ -98,12 +98,12 @@ export function Layers() {
   return (
     <div class="relative size-full">
       <div
-        class="grid grid-cols-1 h-full absolute inset-0 overflow-hidden"
+        class="grid grid-cols-1 h-full absolute border-b border-border inset-0 overflow-hidden"
         on:wheel={timeline.scroll}
         style={{ 'grid-template-rows': `${RULER_HEIGHT}px 1fr` }}
         data-timeline-layers-container
       >
-        <div class="w-full z-10 flex flex-row gap-1 pl-2 pr-3 items-center text-muted-foreground bg-background">
+        <div class="w-full z-10 flex flex-row gap-1 pl-2 pr-3 items-center text-muted-foreground">
           <Tooltip placement="top">
             <TooltipTrigger<typeof Button>
               as={(triggerProps) => (

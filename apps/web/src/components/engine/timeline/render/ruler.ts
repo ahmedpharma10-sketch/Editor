@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { hasComponent } from "bitecs";
 import { assert } from "@/utils";
 import { RULER_INTERVALS } from "../constants";
 import { RULER_HEIGHT, RULER_LABEL_Y, RULER_TICK_HEIGHT_MAJOR, RULER_TICK_HEIGHT_MINOR, TARGET_MAJOR_TICK_DISTANCE } from "../config";
@@ -18,7 +17,6 @@ let workareaTxOpen = false;
 
 export function renderRuler(world: EngineWorld, timeline: TimelineContext) {
   const ctx = timeline.ctx!;
-  const canvas = timeline.canvas!;
   const pointer = timeline.pointer!;
 
   const scrollX = getCurrentScrollX(world);
@@ -31,21 +29,7 @@ export function renderRuler(world: EngineWorld, timeline: TimelineContext) {
 
   ctx.save();
 
-  ctx.beginPath()
-  ctx.rect(0, 0, canvas.width, RULER_HEIGHT);
-  ctx.closePath();
-  ctx.fillStyle = timeline.colors.background.default;
-  ctx.fill();
-
   ctx.translate(-(scrollX * resolution), 0);
-
-  if (scene && hasComponent(world, scene, c.Trim)) {
-    const inPx = framesToPixels(world, c.Trim.start[scene]);
-    const outPx = framesToPixels(world, c.Trim.end[scene]);
-
-    ctx.fillStyle = timeline.colors.background.default;
-    ctx.fillRect(inPx, 0, outPx - inPx, RULER_HEIGHT);
-  }
 
   const layout = getRulerLayout(world);
   const [minX, maxX] = getRelativeViewport(world, timeline);

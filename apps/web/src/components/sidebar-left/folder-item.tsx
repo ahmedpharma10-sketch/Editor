@@ -171,7 +171,7 @@ export function FolderItem(props: FolderItemProps) {
         <Show
           when={props.renaming}
           fallback={
-            <div class="text-xs text-muted-foreground truncate select-none">
+            <div class="text-xs text-foreground truncate select-none">
               {props.folder.name}
             </div>
           }

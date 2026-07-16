@@ -219,7 +219,7 @@ export function SceneInitOverlay(props: DropOverlayProps) {
           </div>
           <button
             type="button"
-            class="w-full h-full bg-background border border-border overflow-hidden flex items-center justify-center hover:bg-accent hover:border-input active:bg-muted active:border-input"
+            class="w-full h-full bg-accent/50 border border-border overflow-hidden flex items-center justify-center hover:bg-accent hover:border-input active:bg-muted active:border-input"
             onClick={handleInitializeScene}
             ref={buttonRef}
           >

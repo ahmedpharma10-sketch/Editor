@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { VideoSampleSink } from "mediabunny";
+import tgpu, { d, std } from "typegpu";
 import { assert } from "@/utils";
 
 import type { InputVideoTrack } from "mediabunny";
@@ -37,23 +38,32 @@ const MOTION_EPS = 2 / DIM;
 // per run of this many seconds: the calmest, least motion-blurred sample.
 const MAX_UNSETTLED = 4;
 
-const SHADER = /* wgsl */ `
-  @group(0) @binding(0) var samp: sampler;
-  @group(0) @binding(1) var frame: texture_external;
-  @group(0) @binding(2) var<storage, read_write> blocks: array<f32>;
+const fingerprintLayout = tgpu.bindGroupLayout({
+  samp: { sampler: "filtering" },
+  frame: { externalTexture: d.textureExternal() },
+  blocks: { storage: d.arrayOf(d.f32), access: "mutable" },
+});
 
-  @compute @workgroup_size(8, 8)
-  fn main(@builtin(global_invocation_id) id: vec3u) {
-    var sum = 0.0;
-    for (var y = 0u; y < ${TAPS}u; y++) {
-      for (var x = 0u; x < ${TAPS}u; x++) {
-        let uv = (vec2f(id.xy) + (vec2f(f32(x), f32(y)) + 0.5) / ${TAPS}.0) / ${GRID}.0;
-        sum += dot(textureSampleBaseClampToEdge(frame, samp, uv).rgb, vec3f(0.2126, 0.7152, 0.0722));
-      }
+const fingerprintFn = tgpu.computeFn({
+  workgroupSize: [8, 8],
+  in: { id: d.builtin.globalInvocationId },
+})((input) => {
+  "use gpu";
+  let sum = d.f32(0);
+  for (let y = d.u32(0); y < TAPS; y++) {
+    for (let x = d.u32(0); x < TAPS; x++) {
+      const uv = std.div(
+        std.add(d.vec2f(input.id.xy), std.div(std.add(d.vec2f(x, y), 0.5), TAPS)),
+        GRID,
+      );
+      sum += std.dot(
+        std.textureSampleBaseClampToEdge(fingerprintLayout.$.frame, fingerprintLayout.$.samp, uv).rgb,
+        d.vec3f(0.2126, 0.7152, 0.0722), // Rec. 709 luma coefficients
+      );
     }
-    blocks[id.y * ${GRID}u + id.x] = sum / ${TAPS * TAPS}.0;
   }
-`;
+  fingerprintLayout.$.blocks[input.id.y * GRID + input.id.x] = sum / (TAPS * TAPS);
+});
 
 /**
  * Scans the track at 2fps within [from, to] (track time) and picks up to
@@ -141,40 +151,23 @@ async function createFingerprinter() {
   const adapter = await navigator.gpu.requestAdapter();
   assert(adapter, "Auto frame selection requires WebGPU, but no GPU adapter is available.");
   const device = await adapter.requestDevice();
-  const pipeline = device.createComputePipeline({
-    layout: "auto",
-    compute: { module: device.createShaderModule({ code: SHADER }) },
-  });
-  const sampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
-  const blocks = device.createBuffer({ size: DIM * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-  const staging = device.createBuffer({ size: DIM * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const root = tgpu.initFromDevice({ device });
+  const pipeline = root.createComputePipeline({ compute: fingerprintFn });
+  const sampler = root.createSampler({ magFilter: "linear", minFilter: "linear" });
+  const blocks = root.createBuffer(d.arrayOf(d.f32, DIM)).$usage("storage");
 
   return {
     async fingerprint(frame: VideoFrame): Promise<Float32Array> {
-      // External textures are only valid within the current task, so import,
-      // encode, and submit synchronously for every frame.
-      const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: sampler },
-          { binding: 1, resource: device.importExternalTexture({ source: frame }) },
-          { binding: 2, resource: { buffer: blocks } },
-        ],
+      const bindGroup = root.createBindGroup(fingerprintLayout, {
+        samp: sampler,
+        frame: device.importExternalTexture({ source: frame }),
+        blocks,
       });
-      const encoder = device.createCommandEncoder();
-      const pass = encoder.beginComputePass();
-      pass.setPipeline(pipeline);
-      pass.setBindGroup(0, bindGroup);
-      pass.dispatchWorkgroups(GRID / 8, GRID / 8);
-      pass.end();
-      encoder.copyBufferToBuffer(blocks, 0, staging, 0, DIM * 4);
-      device.queue.submit([encoder.finish()]);
-      await staging.mapAsync(GPUMapMode.READ);
-      const print = new Float32Array(staging.getMappedRange().slice(0));
-      staging.unmap();
-      return print;
+      pipeline.with(bindGroup).dispatchWorkgroups(GRID / 8, GRID / 8);
+      return new Float32Array(await blocks.read());
     },
     dispose() {
+      root.destroy();
       device.destroy();
     },
   };

@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { createMemo, Show } from "solid-js";
 import { ControlRow } from "@/components/ui/control-group";
 import { Icon } from "@/components/ui/icon";
+import { IncrementDecrementControl } from "@/components/ui/increment-decrement-control";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ControlledTextField } from "@/components/ui/text-field";
 import { useEngine } from "@/context/engine";
@@ -262,24 +263,12 @@ export function TimeSettings(props: TimeSettingsProps) {
           limitEvents
           onNumber={handleLengthChange}
         />
-        <div class="flex gap-px rounded-md overflow-hidden">
-          <button
-            type="button"
-            title="Decrease length"
-            class="flex-1 h-7 bg-input flex items-center justify-center hover:bg-input/80 active:bg-muted-foreground/20 text-muted-foreground"
-            onClick={() => handleLengthChange(Math.max(0.1, durationSeconds() - 0.1))}
-          >
-            <Icon name="minus" />
-          </button>
-          <button
-            type="button"
-            title="Increase length"
-            class="flex-1 h-7 bg-input flex items-center justify-center hover:bg-input/80 active:bg-muted-foreground/20 text-muted-foreground"
-            onClick={() => handleLengthChange(durationSeconds() + 0.1)}
-          >
-            <Icon name="plus-add" />
-          </button>
-        </div>
+        <IncrementDecrementControl
+          decrementLabel="Decrease length"
+          incrementLabel="Increase length"
+          onDecrement={() => handleLengthChange(Math.max(0.1, durationSeconds() - 0.1))}
+          onIncrement={() => handleLengthChange(durationSeconds() + 0.1)}
+        />
       </ControlRow>
 
       <Show when={supportsPlaybackRate() && addons().playbackRate}>
@@ -298,24 +287,12 @@ export function TimeSettings(props: TimeSettingsProps) {
               limitEvents
               onNumber={(value) => assignPlaybackRate(value / 100)}
             />
-            <div class="flex gap-px rounded-md overflow-hidden">
-              <button
-                type="button"
-                title="Decrease speed"
-                class="flex-1 h-7 bg-input flex items-center justify-center hover:bg-input/80 active:bg-muted-foreground/20 text-muted-foreground"
-                onClick={() => assignPlaybackRate(Math.max(1, Math.round(playbackRatePercent() - 10)) / 100)}
-              >
-                <Icon name="minus" />
-              </button>
-              <button
-                type="button"
-                title="Increase speed"
-                class="flex-1 h-7 bg-input flex items-center justify-center hover:bg-input/80 active:bg-muted-foreground/20 text-muted-foreground"
-                onClick={() => assignPlaybackRate(Math.round(playbackRatePercent() + 10) / 100)}
-              >
-                <Icon name="plus-add" />
-              </button>
-            </div>
+            <IncrementDecrementControl
+              decrementLabel="Decrease speed"
+              incrementLabel="Increase speed"
+              onDecrement={() => assignPlaybackRate(Math.max(1, Math.round(playbackRatePercent() - 10)) / 100)}
+              onIncrement={() => assignPlaybackRate(Math.round(playbackRatePercent() + 10) / 100)}
+            />
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem onSelect={() => handleRemoveAddon("playbackRate")}>

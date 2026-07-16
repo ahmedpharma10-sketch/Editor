@@ -40,6 +40,7 @@ All visual elements accept:
 | `cornerRadius` | `Animatable<number>` | `0` | Uniform corner radius, px. |
 | `start`, `end`, `sourceIn`, `sourceOut` | `Time` | see [timing.md](./timing.md) | Temporal placement. |
 | `transition` | `TransitionSpec \| null` | none | Transition into the next clip; direct children of `<sequence>` only (see [transitions.md](./transitions.md)). |
+| `animations` | `AnimationSpec[]` | none | Preset in/out animations over the clip's head and tail (see [animations.md](./animations.md)). |
 
 `Animatable` props also take a keyframe list; see [keyframes.md](./keyframes.md).
 

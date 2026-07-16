@@ -58,14 +58,18 @@ export async function restoreWorld(world: EngineWorld) {
 		restoreFonts(world),
 	]);
 
-	if (worldRecord) {
-		world.camera.a = worldRecord.camera.a;
-		world.camera.b = worldRecord.camera.b;
-		world.camera.c = worldRecord.camera.c;
-		world.camera.d = worldRecord.camera.d;
-		world.camera.e = worldRecord.camera.e;
-		world.camera.f = worldRecord.camera.f;
-		world.background = worldRecord.background;
+	const cam = worldRecord?.camera;
+	const cameraValid = !!cam
+		&& [cam.a, cam.b, cam.c, cam.d, cam.e, cam.f].every(Number.isFinite)
+		&& cam.a > 0 && cam.d > 0;
+
+	if (cameraValid) {
+		world.camera.a = cam.a;
+		world.camera.b = cam.b;
+		world.camera.c = cam.c;
+		world.camera.d = cam.d;
+		world.camera.e = cam.e;
+		world.camera.f = cam.f;
 	} else {
 		world.camera.a = 1;
 		world.camera.b = 0;
@@ -73,6 +77,11 @@ export async function restoreWorld(world: EngineWorld) {
 		world.camera.d = 1;
 		world.camera.e = 0;
 		world.camera.f = 0;
+	}
+
+	if (worldRecord) {
+		world.background = worldRecord.background;
+	} else {
 		const { r, g, b } = getCssVar('--color-canvas').toRgb();
 		world.background = rgbToColor(r, g, b);
 	}

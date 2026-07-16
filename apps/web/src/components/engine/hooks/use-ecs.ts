@@ -223,7 +223,7 @@ export function useQuery(query: QueryTerm[]): Accessor<number[]> {
  * Subscribe to a world-level state value via a getter. Examples:
  *   useWorldState(w => w.selection.scene, null)
  *   useWorldState(w => w.camera.a, 1)
- *   useWorldState(w => w.background, 0x171717)
+ *   useWorldState(w => w.background, 0x161616)
  */
 export function useWorldState<T>(get: (world: EngineWorld) => T, initial: T): Accessor<T> {
 	const [value, setValue] = createSignal<T>(initial);

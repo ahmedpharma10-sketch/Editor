@@ -18,7 +18,7 @@ import type { FontSource } from "../font";
 import type { Asset, Folder } from "../db";
 import type { RuntimeMode, HitRegion, Camera2D, PointerState, SnapLine, HudMode } from "../types";
 
-export const DEFAULT_BACKGROUND = 0x171717;
+export const DEFAULT_BACKGROUND = 0x161616;
 
 export function createEngineWorld(projectId: string, audioContext: AudioContext | OfflineAudioContext) {
 	const [timelineIndex, setTimelineIndex] = createSignal<TimelineIndexValue>({ root: null, layers: [] });

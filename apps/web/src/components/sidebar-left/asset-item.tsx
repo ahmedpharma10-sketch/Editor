@@ -135,7 +135,7 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
         <Show
           when={isRenaming()}
           fallback={
-            <div class="text-xs text-muted-foreground truncate select-none">
+            <div class="text-xs text-foreground truncate select-none">
               {props.asset.name}
             </div>
           }

@@ -99,7 +99,7 @@ export function SubItemLayer(props: SubItemLayerProps) {
               <Icon name={props.expanded ? "chevron-down" : "chevron-right"} class="size-6 hover:text-foreground" />
             </Show>
           </button>
-          <span class="text-xs px-0.5 shrink-0 whitespace-nowrap">
+          <span class="text-xs px-0.5 shrink-0 whitespace-nowrap text-foreground">
             {name()}
           </span>
         </div>
