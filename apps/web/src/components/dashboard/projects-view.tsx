@@ -195,6 +195,7 @@ export function DashboardProjectsView() {
       placeholder="Search in projects"
     >
       <DashboardViewSection
+        class="pb-4"
         title="Recent projects"
         controls={
           <Select<(typeof SORT_OPTIONS)[number]>

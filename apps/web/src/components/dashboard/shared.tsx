@@ -417,7 +417,7 @@ export function DashboardCardButton(props: DashboardCardButtonProps) {
       onClick={props.onClick}
       onKeyDown={handleKeyDown}
       class={cx(
-        "flex w-62 shrink-0 flex-col gap-3 rounded-xl p-2 text-left outline-none transition-colors hover:bg-accent focus-ring group",
+        "flex w-62 shrink-0 flex-col gap-3 rounded-xl p-2 text-left outline-none transition-colors hover:bg-accent/50 focus-ring group",
         props.active && "bg-muted hover:bg-muted ring-1 ring-inset ring-ring",
         props.class,
       )}
@@ -436,7 +436,7 @@ export function DashboardCardPreview(props: DashboardCardPreviewProps) {
   return (
     <div
       class={cx(
-        "bg-canvas relative aspect-video w-full overflow-hidden rounded-md border border-border",
+        "bg-canvas relative aspect-video w-full overflow-hidden rounded-md border border-border-strong",
         props.class,
       )}
     >
@@ -473,11 +473,12 @@ type DashboardViewSectionProps = {
   title: string;
   controls: JSX.Element;
   children: JSX.Element;
+  class?: string;
 };
 
 export function DashboardViewSection(props: DashboardViewSectionProps) {
   return (
-    <div class="flex min-h-0 flex-1 flex-col gap-4 pt-4">
+    <div class={cx("flex min-h-0 flex-1 flex-col gap-4 pt-4", props.class)}>
       <div class="flex h-10 items-end gap-6 px-6">
         <h1 class="min-w-0 flex-1 text-lg leading-7  font-450 text-foreground">
           {props.title}
