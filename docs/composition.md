@@ -38,6 +38,7 @@ The first rendered root becomes the active scene. New roots are auto-placed on t
 | `<audio>` | Sound only, no spatial props. |
 | `<sequence>` | Track container for back-to-back clips (positions are explicit); hosts transitions. |
 | `<captions>` | Styled captions: transcribes the scene's audio, or mounts a transcript given via `src`. |
+| `<html>` | A rectangle whose children are HTML/SVG, laid out by the browser at the node's box size and drawn into it. Equivalent to a `<rect>` with an `<htmlPaint>`. |
 | `<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`, `<colorStop>` (aliases `<solid>`, `<linearGradient>`, `<radialGradient>`, `<stop>`) | Fills, declared as children; see [Paints](#paints). |
 
 User-defined components are ordinary Solid components; only intrinsic elements produce nodes.
@@ -72,6 +73,7 @@ Animatable props also take a keyframe list — see [Animation](#animation).
 - **`<image>`**: `src` (required), `objectFit` (default `"contain"`).
 - **`<audio>`**: `src` (required), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo`, timing props.
 - **`<text>`**: string children (required), `fontFamily` (see `dapi fonts`), `fontSize`, `fontWeight`, `fontStyle`, `fill`, `textAlign`, `textBaseline`.
+- **`<html>`**: HTML/SVG children. Fully reactive: signals in attributes, styles, and text update the drawn content. Event handlers are dropped (the content is painted, not interactive).
 
 These same props are what `dapi node patch` assigns on existing nodes.
 
@@ -180,7 +182,7 @@ A node's fill is a **paint child**; the `fill` prop is shorthand for a solid pai
 </rect>
 ```
 
-`<solidPaint>` takes `color` (required) and `opacity`; gradient paints take `rotation` and `opacity` and only `<colorStop>` children (`offset` and `color` required). Colors are any CSS color; alpha is ignored, use `opacity`. Each paint tag has a short alias (`<solid>`, `<linearGradient>`, `<radialGradient>`, `<stop>`, `<html>`); the SVG name overlap is unambiguous because tags resolve by environment.
+`<solidPaint>` takes `color` (required) and `opacity`; gradient paints take `rotation` and `opacity` and only `<colorStop>` children (`offset` and `color` required). Colors are any CSS color; alpha is ignored, use `opacity`. Each paint tag has a short alias (`<solid>`, `<linearGradient>`, `<radialGradient>`, `<stop>`); the SVG name overlap is unambiguous because tags resolve by environment. `<htmlPaint>` draws browser-laid-out HTML/SVG children into the node's box; the `<html>` element is shorthand for a `<rect>` carrying one.
 
 ## Generated assets
 

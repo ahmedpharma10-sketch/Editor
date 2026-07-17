@@ -17,6 +17,7 @@ import type {
   GradientPaintProps,
   GroupProps,
   HtmlPaintProps,
+  HtmlProps,
   ImageProps,
   RectProps,
   SceneProps,
@@ -27,7 +28,7 @@ import type {
 } from "./types";
 
 // "html" is dropped alongside the media tags: in composition context it is
-// the <htmlPaint> alias, and as a DOM tag it is useless inside a paint host.
+// the html node element, and as a DOM tag it is useless inside a paint host.
 type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video" | "html">;
 
 // SVG vocabulary for <htmlPaint> content. Tags the editor also declares keep
@@ -66,6 +67,6 @@ export declare namespace JSX {
     colorStop: ColorStopProps;
     stop: ColorStopProps;
     htmlPaint: HtmlPaintProps;
-    html: HtmlPaintProps;
+    html: HtmlProps;
   }
 }

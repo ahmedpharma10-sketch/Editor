@@ -555,15 +555,32 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
       } case "colorStop": case "stop": {
         setComponent(world, eid, c.ColorStop, {});
         break;
-      } case "htmlPaint": case "html": {
+      } case "htmlPaint": {
         assert(
           isHtmlInCanvasSupported(),
-          "<html> requires the html-in-canvas API; enable chrome://flags/#canvas-draw-element",
+          "<htmlPaint> requires the html-in-canvas API; enable chrome://flags/#canvas-draw-element",
         );
         setComponent(world, eid, c.Paint, PaintType.HTML);
         const host = new HtmlHost();
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
+        node.host = host;
+        break;
+      } case "html": {
+        // A rect carrying an html paint; the node's children are the paint's
+        // DOM content, so `node.host` points at the paint's host.
+        assert(
+          isHtmlInCanvasSupported(),
+          "<html> requires the html-in-canvas API; enable chrome://flags/#canvas-draw-element",
+        );
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        setComponent(world, eid, c.Name, getNextName(world, "HTML"));
+        const fid = createEntity(world);
+        setComponent(world, fid, c.Paint, PaintType.HTML);
+        const host = new HtmlHost();
+        addComponent(world, fid, c.HtmlHost, false);
+        c.HtmlHost[fid] = host;
+        appendChild(world, fid, eid);
         node.host = host;
         break;
       } default: {

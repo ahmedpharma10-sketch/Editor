@@ -295,6 +295,9 @@ export type HtmlPaintProps = Pick<PatchProps, "opacity"> & {
   children?: SolidJSX.Element;
 };
 
+/** `<html>` — a rectangle carrying an `<htmlPaint>` with the given children. */
+export type HtmlProps = CommonProps & Pick<HtmlPaintProps, "children">;
+
 export type AudioProps = TimingProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "name" | "volume" | "muted" | "syncTo" | "animations">;

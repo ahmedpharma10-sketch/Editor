@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { query, hasComponent, Not } from 'bitecs';
-import { ChildOf, GeometryType } from '../components';
+import { ChildOf, GeometryType, PaintType } from '../components';
 import { getParentEntity } from './base';
 
 import type { EngineWorld } from './world';
@@ -68,6 +68,11 @@ export function isShape(world: EngineWorld, eid: number): boolean {
 		&& !hasComponent(world, eid, c.Group)
 		&& !hasComponent(world, eid, c.Scene)
 		&& !hasComponent(world, eid, c.Audio);
+}
+
+export function hasHtmlPaint(world: EngineWorld, eid: number): boolean {
+	const c = world.components;
+	return (c.Cache.fills[eid] ?? []).some(fid => c.Paint[fid] === PaintType.HTML);
 }
 
 export function isMask(world: EngineWorld, eid: number): boolean {

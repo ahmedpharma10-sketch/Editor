@@ -10,6 +10,8 @@ Run from the repo root with the editor open:
 | [03-live-list.tsx](03-live-list.tsx) | `dapi mount --live samples/reconciler/03-live-list.tsx` | \<For\> moves (reorder without recreate), list insert/remove |
 | [04-ticker.tsx](04-ticker.tsx) | `dapi mount --live samples/reconciler/04-ticker.tsx` | useTicker playhead reactivity (press play) |
 | [05-html-paint.tsx](05-html-paint.tsx) | `dapi mount --live samples/reconciler/05-html-paint.tsx` | DOM/SVG materialization under \<html\>; needs html-in-canvas |
+| [06-anime-timeline.tsx](06-anime-timeline.tsx) | `dapi mount --live samples/reconciler/06-anime-timeline.tsx` | anime.js timeline seeked from useTicker, driving an ECS node and \<html\> content in lockstep |
+| [07-anime-mini.tsx](07-anime-mini.tsx) | `dapi mount --live samples/reconciler/07-anime-mini.tsx` | minimal anime.js + useTicker sync, sized for a social post |
 
 Each root scene carries a stable key, so re-mounting a sample replaces its
 scene in place. Inspect results with `dapi node tree`; entity ids in sample 03

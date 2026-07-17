@@ -30,6 +30,7 @@ export type {
   GradientPaintProps,
   GroupProps,
   HtmlPaintProps,
+  HtmlProps,
   ImageProps,
   Keyframe,
   PatchProps,

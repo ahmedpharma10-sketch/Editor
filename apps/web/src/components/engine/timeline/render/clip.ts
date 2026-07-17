@@ -9,7 +9,7 @@ import { CLIP_BREAKPOINTS, CLIP_CORNER_RADIUS, CLIP_FONT, CLIP_LABEL_HEIGHT, CLI
 import { renderImageThumbnails } from "./image";
 import { renderAudioWaveform } from "./audio";
 import { renderVideoThumbnails } from "./video";
-import { getParentEntity, isAdjustmentLayer, isCaption, isGroup, isMask, isScene, isText } from "../../api";
+import { getParentEntity, hasHtmlPaint, isAdjustmentLayer, isCaption, isGroup, isMask, isScene, isText } from "../../api";
 import { renderCaption } from "./caption";
 import { hasComponent, Not, Or, query } from "bitecs";
 import { addComponent, clearComponent, removeComponent, setComponent } from "../../api/events";
@@ -328,6 +328,10 @@ export function getClipStyle(
 
   if (isAdjustmentLayer(world, eid)) {
     return timeline.colors.clip.adjustment;
+  }
+
+  if (hasHtmlPaint(world, eid)) {
+    return timeline.colors.clip.html;
   }
 
   if (asset?.type == 'VIDEO') {
