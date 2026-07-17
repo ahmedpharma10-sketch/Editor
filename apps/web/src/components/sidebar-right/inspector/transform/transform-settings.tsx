@@ -58,7 +58,12 @@ export function TransformSettings(props: TransformSettingsProps) {
   };
 
   const supportsConstraints = createMemo(() => {
-    const parentEid = getParentEntity(world, eid());
+    if (hasComponent(world, eid(), c.Sequential)) return false;
+
+    let parentEid = getParentEntity(world, eid());
+    while (parentEid !== null && hasComponent(world, parentEid, c.Sequential)) {
+      parentEid = getParentEntity(world, parentEid);
+    }
     if (parentEid === null) return false;
 
     const parentIsScene = hasComponent(world, parentEid, c.Scene);

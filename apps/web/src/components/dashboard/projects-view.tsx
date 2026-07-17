@@ -221,7 +221,7 @@ export function DashboardProjectsView() {
           </Select>
         }
       >
-        <DashboardCardButton onClick={handleCreateProject} class="hover:bg-background">
+        <DashboardCardButton onClick={handleCreateProject}>
           <DashboardCardPreview class="bg-accent/50 group-hover:bg-accent group-hover:border-input">
             <Icon
               name="plus-add"

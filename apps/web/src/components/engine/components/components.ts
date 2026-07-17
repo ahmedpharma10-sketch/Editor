@@ -308,7 +308,7 @@ export const Computed = {
   offsetX: [] as number[],
   offsetY: [] as number[],
   // Local-space origin of the entity's bounding rect. Non-zero only for
-  // Group/Sequential containers whose children's AABB extends past (0, 0).
+  // Group containers whose children's AABB extends past (0, 0)
   originX: [] as number[],
   originY: [] as number[],
   rotation: [] as number[],

@@ -5,6 +5,7 @@
 import { hasComponent, query } from "bitecs";
 import { syncKeyframeTrack } from "./keyframe";
 import { removeComponent, setComponent } from "./events";
+import { getParentEntity } from "./base";
 import { ChildOf, ConstraintType } from "../components";
 
 import type { EngineWorld } from "./world";
@@ -77,9 +78,30 @@ export function propagateSize(world: EngineWorld, eid: number) {
 export function resolveConstraintOffsets(world: EngineWorld, eid: number): void {
   const c = world.components;
 
+  let dimsEid: number | null = eid;
+    // Sequences aren't spatial constructs — they mirror their parent's frame.
+  while (dimsEid !== null && hasComponent(world, dimsEid, c.Sequential)) {
+    dimsEid = getParentEntity(world, dimsEid);
+  }
+  if (dimsEid === null) return;
+
+  resolveConstraintOffsetsAgainst(world, eid, dimsEid);
+}
+
+function resolveConstraintOffsetsAgainst(world: EngineWorld, eid: number, dimsEid: number): void {
+  const c = world.components;
+
+  // Sequential children are transparent: resolve their children against the
+  // same spatial parent.
+  for (const childEid of query(world, [ChildOf(eid), c.Sequential])) {
+    resolveConstraintOffsetsAgainst(world, childEid, dimsEid);
+  }
+
   for (const childEid of query(world, [ChildOf(eid), c.Constraint])) {
-    const curParentW = c.Computed.width[eid];
-    const curParentH = c.Computed.height[eid];
+    if (hasComponent(world, childEid, c.Sequential)) continue;
+
+    const curParentW = c.Computed.width[dimsEid];
+    const curParentH = c.Computed.height[dimsEid];
 
     const prevParentW = c.ConstraintCache.parentWidth[childEid];
     const prevParentH = c.ConstraintCache.parentHeight[childEid];

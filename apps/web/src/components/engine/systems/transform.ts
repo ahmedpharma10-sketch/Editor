@@ -168,14 +168,27 @@ function cullEntity(world: EngineWorld, eid: number, parentEid: number | null): 
 }
 
 /**
- * Recompute a Group/Sequential entity's Computed bounds from the union of its
- * children's transformed boxes. Leaf entities own an absolute Size and need no
+ * Recompute a Group entity's Computed bounds from the union of its children's
+ * transformed boxes. Sequences aren't spatial constructs — they mirror their
+ * parent's frame instead (the walk is parent-first, so the parent's Computed
+ * values are already settled). Leaf entities own an absolute Size and need no
  * resolution here.
  */
 export function computeGroupBounds(world: EngineWorld, eid: number): void {
 	const c = world.components;
 
-	if (hasComponent(world, eid, c.Group) || hasComponent(world, eid, c.Sequential)) {
+	if (hasComponent(world, eid, c.Sequential)) {
+		const parentEid = getParentEntity(world, eid);
+		if (parentEid !== null) {
+			c.Computed.width[eid] = c.Computed.width[parentEid];
+			c.Computed.height[eid] = c.Computed.height[parentEid];
+			c.Computed.originX[eid] = c.Computed.originX[parentEid] ?? 0;
+			c.Computed.originY[eid] = c.Computed.originY[parentEid] ?? 0;
+			return;
+		}
+	}
+
+	if (hasComponent(world, eid, c.Group)) {
 		let minX = Infinity;
 		let minY = Infinity;
 		let maxX = -Infinity;
