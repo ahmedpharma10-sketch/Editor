@@ -561,7 +561,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
           "<html> requires the html-in-canvas API; enable chrome://flags/#canvas-draw-element",
         );
         setComponent(world, eid, c.Paint, PaintType.HTML);
-        const host = new HtmlHost(world);
+        const host = new HtmlHost();
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
         node.host = host;

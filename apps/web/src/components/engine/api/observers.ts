@@ -481,6 +481,7 @@ export function observeWorld(world: EngineWorld) {
     utils.rebuildCaches(world, eid, getParentEntity(world, eid));
     utils.reactToChildDetached(world, eid);
     utils.disposeDecoders(world, eid);
+    utils.disposeHtmlHosts(world, eid);
     utils.disconnectAudioBus(world, eid);
     utils.unpersistEntity(world, eid);
     world.rebuildTimelineIndex();

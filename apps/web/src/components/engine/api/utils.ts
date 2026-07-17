@@ -134,10 +134,7 @@ export function disposeDecoders(world: EngineWorld, eid: number): void {
   const VideoDecoder = world.components.VideoDecoder;
   const SequenceDecoder = world.components.SequenceDecoder;
   const AudioDecoder = world.components.AudioDecoder;
-  const HtmlHost = world.components.HtmlHost;
 
-  HtmlHost[eid]?.dispose();
-  HtmlHost[eid] = null;
   ImageDecoder[eid]?.dispose();
   ImageDecoder[eid] = null;
   VideoDecoder[eid]?.dispose();
@@ -149,6 +146,17 @@ export function disposeDecoders(world: EngineWorld, eid: number): void {
 
   for (const child of query(world, [ChildOf(eid)])) {
     disposeDecoders(world, child);
+  }
+}
+
+export function disposeHtmlHosts(world: EngineWorld, eid: number): void {
+  const HtmlHost = world.components.HtmlHost;
+
+  HtmlHost[eid]?.dispose();
+  HtmlHost[eid] = null;
+
+  for (const child of query(world, [ChildOf(eid)])) {
+    disposeHtmlHosts(world, child);
   }
 }
 
