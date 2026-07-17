@@ -4,6 +4,7 @@
 
 export * from './coordinates';
 export * from './history';
+export * from './live-mounts';
 export * from './time';
 export * from './sort';
 export * from './cursor';

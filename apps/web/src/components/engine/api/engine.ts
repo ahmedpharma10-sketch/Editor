@@ -104,6 +104,7 @@ export function createEngine(id: string) {
 
 	function dispose(): void {
 		stop();
+		world.liveMounts.disposeAll();
 		keyboard.dispose();
 		camera.dispose();
 	}

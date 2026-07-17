@@ -14,15 +14,26 @@ import type { Accessor } from "solid-js";
 import type { MountRequest, NodeInsertRequest } from "@diffusionstudio/cli/channels";
 import type { Engine } from "@/components/engine";
 
+function documentRootKeys(world: Engine["world"], document: WorldDocument): string[] {
+  const keys: string[] = [];
+  for (const node of document.stage.children ?? []) {
+    if (node.kind !== "element") continue;
+    const key = world.components.Key[node.eid];
+    if (key !== undefined) keys.push(key);
+  }
+  return keys;
+}
+
 /**
  * `dapi mount` — evaluates a compiled project module and renders it directly into the ECS world
  */
 export function handleMount(engine: Accessor<Engine>) {
-  return async ({ code }: MountRequest): Promise<void> => {
+  return async ({ code, live }: MountRequest): Promise<void> => {
     const e = engine();
     const world = e.world;
     const c = world.components;
     let dispose = () => { };
+    let persisted = false;
 
     try {
       // Evaluate — top-level code (including top-level await) runs here.
@@ -41,6 +52,11 @@ export function handleMount(engine: Accessor<Engine>) {
         throw error;
       }
 
+      // The keyed root replacement above deleted any same-key entities, so
+      // graphs that were driving them are dead; dispose them before their
+      // next effect can write to a recycled entity id.
+      world.liveMounts.supersede(documentRootKeys(world, document));
+
       try {
         world.history.startTransaction("Commit document");
         await document.commit();
@@ -48,12 +64,17 @@ export function handleMount(engine: Accessor<Engine>) {
         world.history.commitTransaction();
       }
 
+      if (live) {
+        world.liveMounts.register({ rootKeys: () => documentRootKeys(world, document), dispose });
+        persisted = true;
+      }
+
       if (document.rootEid && hasComponent(world, document.rootEid, c.Scene)) {
         switchActiveScene(world, document.rootEid);
         e.camera.fitToActiveScene();
       }
     } finally {
-      dispose?.();
+      if (!persisted) dispose?.();
     }
   };
 }

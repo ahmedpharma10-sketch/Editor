@@ -669,7 +669,7 @@ async function mediaWaveform(ref: string, opts: MediaPreviewOptions): Promise<vo
 
 const MOUNT_EXTENSIONS = new Set([".tsx", ".jsx", ".ts", ".js"]);
 
-type MountOptions = { code?: string };
+type MountOptions = { code?: string; live?: boolean };
 
 // Validates the (<path> | --code) pair shared by `mount` and `node insert`,
 // then compiles the module. Compile errors fail here, before the app is contacted.
@@ -708,7 +708,7 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
 
   const stop = startSpinner("Mounting project");
   try {
-    await editor.mount.mutate({ code }, GENERATE);
+    await editor.mount.mutate({ code, live: opts.live }, GENERATE);
     stop();
   } catch (e) {
     stop();
@@ -1070,10 +1070,14 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). By default the module's reactive graph is disposed once the mount lands (the entities stay, but signals, effects, and timers stop); pass --live to keep it running. Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
+  .option(
+    "--live",
+    "keep the reactive graph alive after mounting: signals, effects, and timers keep driving the mounted entities until the app closes or a later mount claims one of its root keys (same key -> the old run is unmounted)",
+  )
   .action((path: string | undefined, opts: MountOptions) => mountProject(path, opts));
 
 const asset = program

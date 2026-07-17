@@ -278,6 +278,21 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
 
   private queue: GenaiQueueItem[] = [];
 
+  // Set once `commit()` finishes. A live mount (`dapi mount --live`) keeps
+  // its reactive graph running past commit, so later writes flow through the
+  // same paths, untracked; otherwise the undo stack would fill with one
+  // entry per reactive update.
+  private committed = false;
+
+  private track<T>(fn: () => T): T {
+    if (!this.committed) return fn();
+    let result!: T;
+    this.world.history.untrack(() => {
+      result = fn();
+    });
+    return result;
+  }
+
   public constructor(engine: Engine, target?: { parentEid: number }) {
     this.stage = { kind: "root", eid: target?.parentEid };
     this.engine = engine;
@@ -300,14 +315,9 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     {
       const memo: GenerationMemo = new Map();
 
-      const results = await Promise.allSettled(this.queue.map(async ({ node, ref, type }) => {
-        if (node.kind !== "element" || hasComponent(world, node.eid, c.Deleted) || type !== "asset" || !ref) return;
-        try {
-          const asset = await resolveGeneratedAsset(world, ref, memo);
-          await this.mountSource(node, asset.id);
-        } finally {
-          world.history.untrack(() => removeComponent(world, node.eid, c.Generating));
-        }
+      const results = await Promise.allSettled(this.queue.map(({ node, ref, type }) => {
+        if (type !== "asset" || !ref) return;
+        return this.generateInto(node, ref, memo);
       }));
 
       assertAllSettled(results);
@@ -373,13 +383,36 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         setComponent(world, node.eid, c.Trim, trim);
       }
     }
+
+    this.queue.length = 0;
+    this.committed = true;
   }
 
   private get world(): EngineWorld {
     return this.engine.world;
   }
 
+  /**
+   * Resolves a generated asset and attaches it: during commit via the genai
+   * queue, or immediately when a live mount sets an asset ref after commit.
+   */
+  private async generateInto(node: DocumentNode, ref: AssetRef, memo: GenerationMemo): Promise<void> {
+    const world = this.world;
+    const c = world.components;
+    if (node.kind !== "element" || hasComponent(world, node.eid, c.Deleted)) return;
+    try {
+      const asset = await resolveGeneratedAsset(world, ref, memo);
+      await this.mountSource(node, asset.id);
+    } finally {
+      world.history.untrack(() => removeComponent(world, node.eid, c.Generating));
+    }
+  }
+
   public createElement(tag: string): DocumentNode {
+    return this.track(() => this.createElementImpl(tag));
+  }
+
+  private createElementImpl(tag: string): DocumentNode {
     const world = this.world;
     const c = world.components;
 
@@ -441,6 +474,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         appendChild(world, fid, eid);
         return node;
       } case "captions": {
+        assert(!this.committed, "<captions> cannot be created after commit; re-mount instead");
         const eid = createEntity(world);
         const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.Geometry, GeometryType.TEXT);
@@ -533,6 +567,12 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   public replaceText(node: DocumentNode, text: string) {
     assert(node.kind === "text", "replaceText target is not a text node");
     node.text = text;
+    // Already-inserted text (a live mount updating a signal inside <text>)
+    // must land in the world too; insertNode only writes Chars on insert.
+    const parent = node.parent;
+    if (parent?.kind === "element") {
+      this.track(() => setComponent(this.world, parent.eid, this.world.components.Chars, text));
+    }
   }
 
   public isTextNode(node: DocumentNode): boolean {
@@ -541,7 +581,10 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
 
   public setProperty(node: DocumentNode, name: string, value: unknown) {
     if (name === "children" || name === "ref" || value === undefined || node.kind !== "element") return;
+    this.track(() => this.setPropertyImpl(node, name, value));
+  }
 
+  private setPropertyImpl(node: DocumentNode & { kind: "element" }, name: string, value: unknown) {
     const world = this.world;
     const c = world.components;
     const eid = node.eid;
@@ -735,6 +778,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
       } case "syncTo": {
         assert(typeof value === "string", "`syncTo` must be a string" + `, value: ${value}`);
         assert(value.trim().length > 0, "`syncTo` must be a non-empty string");
+        assert(!this.committed, "`syncTo` cannot change after commit; re-mount instead");
         this.queue.push({ node, targetKey: value.trim(), type: "sync" });
         break;
       } case "transition": {
@@ -782,13 +826,16 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
           if (!hasComponent(world, eid, c.Size)) {
             resizeEntity(world, eid, placeholderSize(getAssetSpec(value)));
           }
-          this.queue.push({ node, ref: value, type: "asset" });
+          // Post-commit (live mount) nothing drains the queue; resolve now.
+          if (this.committed) this.generateInto(node, value, new Map()).catch(console.error);
+          else this.queue.push({ node, ref: value, type: "asset" });
           break;
         }
         assert(typeof value === "string", "`src` must be a string" + `, value: ${value}`);
         assert(value.trim().length > 0, "`src` must be a non-empty string");
 
-        this.promises.push(this.mountSource(node, value));
+        if (this.committed) this.mountSource(node, value).catch(console.error);
+        else this.promises.push(this.mountSource(node, value));
         break;
       } case "objectFit":
         assert(typeof value === "string", "`objectFit` must be a string" + `, value: ${value}`);
@@ -905,6 +952,10 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   }
 
   public insertNode(parent: DocumentNode, node: DocumentNode) {
+    this.track(() => this.insertNodeImpl(parent, node));
+  }
+
+  private insertNodeImpl(parent: DocumentNode, node: DocumentNode) {
     const c = this.world.components;
     if (parent.kind === "root" && node.kind === "element") {
       if (parent.eid === undefined) {
@@ -949,12 +1000,14 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   public removeNode(parent: DocumentNode, node: DocumentNode) {
     const c = this.world.components;
 
-    if (parent.kind === "element" && node.kind === "text") {
-      removeComponent(this.world, parent.eid, c.Chars);
-    } else if (parent.kind === "element" && node.kind === "element") {
-      removeChild(this.world, node.eid, parent.eid);
-      deleteEntity(this.world, node.eid);
-    }
+    this.track(() => {
+      if (parent.kind === "element" && node.kind === "text") {
+        removeComponent(this.world, parent.eid, c.Chars);
+      } else if (parent.kind === "element" && node.kind === "element") {
+        removeChild(this.world, node.eid, parent.eid);
+        deleteEntity(this.world, node.eid);
+      }
+    });
 
     parent.children = parent.children?.filter((child) => child !== node);
     node.parent = undefined;
@@ -993,31 +1046,34 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     if (node.kind !== "element") return;
 
     const asset = await resolveAsset(this.world, src);
-    const world = this.world;
-    const c = world.components;
-    const eid = node.eid;
+    const transcript = asset.type === 'TRANSCRIPT' ? await resolveTranscript(asset) : null;
 
-    if (asset.type === 'TRANSCRIPT') {
-      const transcript = await resolveTranscript(asset);
-      // AssetId set here makes commit's caption phase skip transcription.
-      setComponent(world, eid, c.AssetId, asset.id);
-      setComponent(world, eid, c.Trim, transcriptTrim(transcript));
-    } else if (asset.type === 'AUDIO') {
-      setComponent(world, eid, c.AssetId, asset.id);
-      resizeEntity(world, eid, { width: 500, height: 150 });
-    } else if (asset.type === 'IMAGE' || asset.type === 'VIDEO') {
-      const fid = createEntity(world);
-      setComponent(world, fid, c.Paint, asset.type === 'IMAGE' ? PaintType.IMAGE : PaintType.VIDEO);
-      setComponent(world, fid, c.ScaleMode, node.objectFit ? SCALE_MODE_MAP[node.objectFit] : ScaleMode.COVER);
-      setComponent(world, fid, c.AssetId, asset.id);
-      appendChild(world, fid, eid);
+    this.track(() => {
+      const world = this.world;
+      const c = world.components;
+      const eid = node.eid;
 
-      if (!hasComponent(world, eid, c.Size)) {
-        resizeEntity(world, eid, { width: asset.width, height: asset.height });
+      if (asset.type === 'TRANSCRIPT') {
+        // AssetId set here makes commit's caption phase skip transcription.
+        setComponent(world, eid, c.AssetId, asset.id);
+        setComponent(world, eid, c.Trim, transcriptTrim(transcript!));
+      } else if (asset.type === 'AUDIO') {
+        setComponent(world, eid, c.AssetId, asset.id);
+        resizeEntity(world, eid, { width: 500, height: 150 });
+      } else if (asset.type === 'IMAGE' || asset.type === 'VIDEO') {
+        const fid = createEntity(world);
+        setComponent(world, fid, c.Paint, asset.type === 'IMAGE' ? PaintType.IMAGE : PaintType.VIDEO);
+        setComponent(world, fid, c.ScaleMode, node.objectFit ? SCALE_MODE_MAP[node.objectFit] : ScaleMode.COVER);
+        setComponent(world, fid, c.AssetId, asset.id);
+        appendChild(world, fid, eid);
+
+        if (!hasComponent(world, eid, c.Size)) {
+          resizeEntity(world, eid, { width: asset.width, height: asset.height });
+        }
       }
-    }
 
-    setComponent(world, eid, c.Name, asset.name);
+      setComponent(world, eid, c.Name, asset.name);
+    });
   }
 
 }

@@ -68,6 +68,7 @@ export type NodeDeleteResult = { id: number };
 
 export type MountRequest = {
   code: string;
+  live?: boolean;
 };
 
 export type NodeInsertRequest = {
