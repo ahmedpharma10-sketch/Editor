@@ -16,8 +16,8 @@ import type { Engine } from "@/components/engine";
 
 function documentRootKeys(world: Engine["world"], document: WorldDocument): string[] {
   const keys: string[] = [];
-  for (const node of document.stage.children ?? []) {
-    if (node.kind !== "element") continue;
+  for (const node of document.stage.children) {
+    if (node.eid === undefined) continue;
     const key = world.components.Key[node.eid];
     if (key !== undefined) keys.push(key);
   }

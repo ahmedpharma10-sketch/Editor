@@ -26,7 +26,17 @@ import type {
   VideoProps,
 } from "./types";
 
-type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video">;
+// "html" is dropped alongside the media tags: in composition context it is
+// the <htmlPaint> alias, and as a DOM tag it is useless inside a paint host.
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video" | "html">;
+
+// SVG vocabulary for <htmlPaint> content. Tags the editor also declares keep
+// their composition types below; the runtime resolves the actual meaning by
+// environment, the type system approximates with the composition side.
+type SvgElementTags = Omit<
+  SolidJSX.SVGElementTags,
+  "image" | "linearGradient" | "radialGradient" | "rect" | "stop" | "text"
+>;
 
 export declare namespace JSX {
   // Solid's Element type keeps Solid's control flow (<For>, <Show>, …) and
@@ -37,7 +47,7 @@ export declare namespace JSX {
     children: unknown;
   }
 
-  export interface IntrinsicElements extends HtmlElementTags {
+  export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
     scene: SceneProps;
     group: GroupProps;
     rect: RectProps;
@@ -48,9 +58,14 @@ export declare namespace JSX {
     sequence: SequenceProps;
     captions: CaptionsProps;
     solidPaint: SolidPaintProps;
+    solid: SolidPaintProps;
     linearGradientPaint: GradientPaintProps;
+    linearGradient: GradientPaintProps;
     radialGradientPaint: GradientPaintProps;
+    radialGradient: GradientPaintProps;
     colorStop: ColorStopProps;
+    stop: ColorStopProps;
     htmlPaint: HtmlPaintProps;
+    html: HtmlPaintProps;
   }
 }

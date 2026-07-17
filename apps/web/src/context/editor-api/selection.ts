@@ -54,6 +54,7 @@ export function entityType(world: EngineWorld, eid: number): string {
       case PaintType.RADIAL_GRADIENT: return "radialGradientPaint";
       case PaintType.IMAGE: return "imagePaint";
       case PaintType.VIDEO: return "videoPaint";
+      case PaintType.HTML: return "htmlPaint";
       default: return "paint";
     }
   }

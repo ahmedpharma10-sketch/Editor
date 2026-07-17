@@ -1,19 +1,19 @@
-# `<htmlPaint>`
+# `<html>`
 
-A paint whose children are **real HTML**. The browser lays them out at the parent geometry's box size and the result is drawn into the box via the [html-in-canvas](https://github.com/WICG/html-in-canvas) API. Use it for content that is painful to build from `<rect>` and `<text>`: styled cards, tables, code blocks, flex/grid layouts.
+A paint whose children are **real HTML** (long form: `<htmlPaint>`). The browser lays them out at the parent geometry's box size and the result is drawn into the box via the [html-in-canvas](https://github.com/WICG/html-in-canvas) API. Use it for content that is painful to build from `<rect>` and `<text>`: styled cards, tables, code blocks, flex/grid layouts.
 
 ```tsx
 <rect x={40} y={40} width={800} height={120} cornerRadius={24}>
-  <htmlPaint>
+  <html>
     <div style="display:flex;align-items:center;gap:16px;height:100%;
                 background:#111;color:#fff;font:500 40px Inter;padding:0 32px;">
       <span style="color:#7c9cff;">01</span> Introduction
     </div>
-  </htmlPaint>
+  </html>
 </rect>
 ```
 
-Inside `<htmlPaint>`, lowercase tags are DOM elements with Solid's own HTML typings, not composition elements (`<audio>` and `<video>` stay the editor's). Composition elements cannot nest inside it, and HTML tags are invalid outside it.
+Inside `<html>`, every tag is a DOM element: names the editor also uses (`<rect>`, `<text>`, and inside `<svg>` also `<linearGradient>` and `<stop>`) become plain HTML/SVG here, because tags resolve by environment. HTML tags remain invalid outside it.
 
 ## Reactivity
 
@@ -24,9 +24,9 @@ const [count, setCount] = createSignal(0);
 setInterval(() => setCount((c) => c + 1), 1000);
 
 <rect width={400} height={200}>
-  <htmlPaint>
+  <html>
     <div style="font:700 96px Inter;color:#fff;">{count()}</div>
-  </htmlPaint>
+  </html>
 </rect>
 ```
 
@@ -40,7 +40,7 @@ Like all paints it stacks with siblings in document order and clips to the paren
 
 ## Requirements and limitations
 
-- Requires Chromium's html-in-canvas API, currently behind `chrome://flags/#canvas-draw-element`. Mounting `<htmlPaint>` fails with an explicit error when the API is unavailable.
+- Requires Chromium's html-in-canvas API, currently behind `chrome://flags/#canvas-draw-element`. Mounting `<html>` fails with an explicit error when the API is unavailable.
 - Markup renders with the page's fonts and full CSS. Event handlers are dropped — the content is painted, not interactive.
 - The content lives only as long as its mount: it is not persisted and does not render in exports yet.
 - CSS animations in the markup play on the wall clock, not the composition playhead. Animate the parent element's props with [keyframes](./keyframes.md) for frame-accurate motion.

@@ -13,10 +13,10 @@ Lowercase intrinsic elements map 1:1 onto internal node types:
 | [`<text>`](./text.md) | **Geometry with Text component** | Children become editable glyphs. |
 | [`<sequence>`](./sequences.md) | **Sequential group** | Track container for back-to-back clips; positions are explicit. |
 | [`<captions>`](./captions.md) | **Caption node** | Transcribes the enclosing scene's audio. |
-| [`<solidPaint>`](./paints.md) | **Solid paint** | Paint child. |
-| [`<linearGradientPaint>` / `<radialGradientPaint>`](./paints.md) | **Gradient paint** | Paint child; takes `<colorStop>` children. |
-| [`<colorStop>`](./paints.md) | **Gradient color stop** | Valid only inside gradient paints. |
-| [`<htmlPaint>`](./html-paint.md) | **Html paint** | Paint child whose children are real, reactive HTML drawn by the browser (html-in-canvas, flagged Chromium API). |
+| [`<solidPaint>`](./paints.md) (alias `<solid>`) | **Solid paint** | Paint child. |
+| [`<linearGradientPaint>` / `<radialGradientPaint>`](./paints.md) (aliases `<linearGradient>` / `<radialGradient>`) | **Gradient paint** | Paint child; takes `<colorStop>` children. |
+| [`<colorStop>`](./paints.md) (alias `<stop>`) | **Gradient color stop** | Valid only inside gradient paints. |
+| [`<html>`](./html-paint.md) (long form `<htmlPaint>`) | **Html paint** | Paint child whose children are real, reactive HTML drawn by the browser (html-in-canvas, flagged Chromium API). |
 
 User-defined components are ordinary Solid components; they compose intrinsics and carry no runtime cost. Only intrinsic elements produce entities.
 

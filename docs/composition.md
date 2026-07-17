@@ -38,7 +38,7 @@ The first rendered root becomes the active scene. New roots are auto-placed on t
 | `<audio>` | Sound only, no spatial props. |
 | `<sequence>` | Track container for back-to-back clips (positions are explicit); hosts transitions. |
 | `<captions>` | Styled captions: transcribes the scene's audio, or mounts a transcript given via `src`. |
-| `<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`, `<colorStop>` | Fills, declared as children; see [Paints](#paints). |
+| `<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`, `<colorStop>` (aliases `<solid>`, `<linearGradient>`, `<radialGradient>`, `<stop>`) | Fills, declared as children; see [Paints](#paints). |
 
 User-defined components are ordinary Solid components; only intrinsic elements produce nodes.
 
@@ -180,7 +180,7 @@ A node's fill is a **paint child**; the `fill` prop is shorthand for a solid pai
 </rect>
 ```
 
-`<solidPaint>` takes `color` (required) and `opacity`; gradient paints take `rotation` and `opacity` and only `<colorStop>` children (`offset` and `color` required). Colors are any CSS color; alpha is ignored, use `opacity`.
+`<solidPaint>` takes `color` (required) and `opacity`; gradient paints take `rotation` and `opacity` and only `<colorStop>` children (`offset` and `color` required). Colors are any CSS color; alpha is ignored, use `opacity`. Each paint tag has a short alias (`<solid>`, `<linearGradient>`, `<radialGradient>`, `<stop>`, `<html>`); the SVG name overlap is unambiguous because tags resolve by environment.
 
 ## Generated assets
 
