@@ -134,7 +134,10 @@ export function disposeDecoders(world: EngineWorld, eid: number): void {
   const VideoDecoder = world.components.VideoDecoder;
   const SequenceDecoder = world.components.SequenceDecoder;
   const AudioDecoder = world.components.AudioDecoder;
+  const HtmlHost = world.components.HtmlHost;
 
+  HtmlHost[eid]?.dispose();
+  HtmlHost[eid] = null;
   ImageDecoder[eid]?.dispose();
   ImageDecoder[eid] = null;
   VideoDecoder[eid]?.dispose();

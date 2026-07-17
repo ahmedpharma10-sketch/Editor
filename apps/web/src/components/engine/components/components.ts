@@ -6,6 +6,7 @@ import type { VideoCodec, AudioCodec } from "mediabunny";
 import type { ContainerFormat } from "../encode/types";
 import type { Token } from "../utils/text";
 import type { AudioBus as AudioBusInstance } from "../services/audio-bus";
+import type { HtmlHost as HtmlHostInstance } from "../decoders/html";
 import type { ImageDecoder as ImageDecoderInstance } from "../decoders/image";
 import type { VideoDecoderInstance } from "../decoders/video";
 import type { SequenceDecoder as SequenceDecoderInstance } from "../decoders/sequence";
@@ -358,6 +359,8 @@ export const Cache = {
   keyframes: [] as number[][],
   animations: [] as number[][],
 };
+
+export const HtmlHost = [] as (HtmlHostInstance | null)[];
 
 export const ImageDecoder = [] as (ImageDecoderInstance | null)[];
 

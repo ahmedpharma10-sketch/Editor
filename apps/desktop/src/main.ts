@@ -18,6 +18,8 @@ const AUTH_PROTOCOL = "diffusion";
 const MACOS_CORNER_RADIUS = 16;
 const MACOS_BACKDROP = { blur: 80, red: 0.07, green: 0.07, blue: 0.07, alpha: 0.9 };
 
+app.commandLine.appendSwitch("enable-blink-features", "CanvasDrawElement");
+
 let setNativeCornerRadius: ((handle: Buffer, radius: number) => void) | null = null;
 let setNativeBackdrop:
   | ((handle: Buffer, blur: number, r: number, g: number, b: number, a: number) => void)

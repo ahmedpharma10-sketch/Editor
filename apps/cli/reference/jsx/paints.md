@@ -19,6 +19,7 @@ Paint elements are valid inside any filled visual element (`<rect>`, `<scene>`, 
 | `<linearGradientPaint>` | `rotation`, `opacity` | Linear gradient across the parent's box; `rotation` in degrees, `0` = left to right. |
 | `<radialGradientPaint>` | `rotation`, `opacity` | Radial gradient centered in the parent's box. |
 | `<colorStop>` | `offset` (**required**, `0`-`1`), `color` (**required**), `opacity` | Gradient color stop. Valid only inside gradient paints, which take no other children. |
+| [`<htmlPaint>`](./html-paint.md) | `opacity`, HTML children | Reactive HTML laid out and drawn into the parent's box (flagged Chromium API). |
 
 Colors accept any CSS color; alpha is ignored (use `opacity`). `color`, `opacity`, and `offset` are animatable (see [keyframes.md](./keyframes.md)), so gradients can animate. Paints have no spatial or timing props and cannot be document roots.
 

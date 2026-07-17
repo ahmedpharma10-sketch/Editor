@@ -29,6 +29,7 @@ export type {
   Fit,
   GradientPaintProps,
   GroupProps,
+  HtmlPaintProps,
   ImageProps,
   Keyframe,
   PatchProps,

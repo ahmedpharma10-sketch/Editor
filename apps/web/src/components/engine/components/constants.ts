@@ -65,6 +65,7 @@ export enum PaintType {
   RADIAL_GRADIENT,
   SEQUENCE,
   WAVEFORM,
+  HTML,
 }
 
 export enum EffectType {

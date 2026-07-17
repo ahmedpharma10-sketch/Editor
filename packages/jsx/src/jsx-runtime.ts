@@ -16,6 +16,7 @@ import type {
   ColorStopProps,
   GradientPaintProps,
   GroupProps,
+  HtmlPaintProps,
   ImageProps,
   RectProps,
   SceneProps,
@@ -24,6 +25,8 @@ import type {
   TextProps,
   VideoProps,
 } from "./types";
+
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video">;
 
 export declare namespace JSX {
   // Solid's Element type keeps Solid's control flow (<For>, <Show>, …) and
@@ -34,7 +37,7 @@ export declare namespace JSX {
     children: unknown;
   }
 
-  export interface IntrinsicElements {
+  export interface IntrinsicElements extends HtmlElementTags {
     scene: SceneProps;
     group: GroupProps;
     rect: RectProps;
@@ -48,5 +51,6 @@ export declare namespace JSX {
     linearGradientPaint: GradientPaintProps;
     radialGradientPaint: GradientPaintProps;
     colorStop: ColorStopProps;
+    htmlPaint: HtmlPaintProps;
   }
 }

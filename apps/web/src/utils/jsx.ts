@@ -37,6 +37,7 @@ import {
   transcribeScene,
   transcriptTrim,
 } from "@/components/engine";
+import { HtmlHost, isHtmlInCanvasSupported } from "@/components/engine/decoders/html";
 import { resolveTranscript } from "@/components/engine/decoders/caption/utils";
 import { ChildOf } from "@/components/engine/components";
 import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
@@ -55,6 +56,7 @@ type DocumentNode = {
   sourceIn?: number;
   sourceOut?: number;
   objectFit?: keyof typeof SCALE_MODE_MAP;
+  host?: HtmlHost;
   parent?: DocumentNode;
   children?: DocumentNode[];
 } | {
@@ -65,6 +67,12 @@ type DocumentNode = {
 } | {
   kind: "text";
   text: string;
+  dom?: Text;
+  parent?: DocumentNode;
+  children?: DocumentNode[];
+} | {
+  kind: "dom";
+  el: Element;
   parent?: DocumentNode;
   children?: DocumentNode[];
 };
@@ -548,8 +556,21 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         const node: DocumentNode = { kind: "element", eid };
         setComponent(world, eid, c.ColorStop, {});
         return node;
+      } case "htmlPaint": {
+        assert(
+          isHtmlInCanvasSupported(),
+          "<htmlPaint> requires the html-in-canvas API; enable chrome://flags/#canvas-draw-element",
+        );
+        const eid = createEntity(world);
+        setComponent(world, eid, c.Paint, PaintType.HTML);
+        const host = new HtmlHost(world);
+        addComponent(world, eid, c.HtmlHost, false);
+        c.HtmlHost[eid] = host;
+        return { kind: "element", eid, host };
       } default: {
-        assert(false, `unknown tag: "${tag}"`);
+        // Any tag outside the editor's vocabulary is HTML: a real DOM
+        // element, valid only inside <htmlPaint> (enforced on insert).
+        return { kind: "dom", el: document.createElement(tag) };
       }
     }
   }
@@ -612,6 +633,11 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   public replaceText(node: DocumentNode, text: string) {
     assert(node.kind === "text", "replaceText target is not a text node");
     node.text = text;
+    // Text inside HTML content is backed by a live DOM node.
+    if (node.dom) {
+      node.dom.data = text;
+      return;
+    }
     // Already-inserted text (a live mount updating a signal inside <text>)
     // must land in the world too; insertNode only writes Chars on insert.
     const parent = node.parent;
@@ -625,7 +651,12 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   }
 
   public setProperty(node: DocumentNode, name: string, value: unknown) {
-    if (name === "children" || name === "ref" || value === undefined || node.kind !== "element") return;
+    if (name === "children" || name === "ref" || value === undefined) return;
+    if (node.kind === "dom") {
+      setDomProperty(node.el, name, value);
+      return;
+    }
+    if (node.kind !== "element") return;
     this.track(() => this.setPropertyImpl(node, name, value));
   }
 
@@ -996,13 +1027,28 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     }
   }
 
-  public insertNode(parent: DocumentNode, node: DocumentNode) {
-    this.track(() => this.insertNodeImpl(parent, node));
+  public insertNode(parent: DocumentNode, node: DocumentNode, anchor?: DocumentNode) {
+    this.track(() => this.insertNodeImpl(parent, node, anchor));
   }
 
-  private insertNodeImpl(parent: DocumentNode, node: DocumentNode) {
+  private insertNodeImpl(parent: DocumentNode, node: DocumentNode, anchor?: DocumentNode) {
     const c = this.world.components;
-    if (parent.kind === "root" && node.kind === "element") {
+
+    // HTML content: the parent is <htmlPaint>'s host or a DOM node within it.
+    const domParent = parent.kind === "dom" ? parent.el
+      : parent.kind === "element" && parent.host ? parent.host.element
+      : null;
+
+    if (domParent !== null && node.kind !== "root") {
+      assert(node.kind !== "element", "composition elements cannot nest inside <htmlPaint>");
+      const el = node.kind === "dom" ? node.el : (node.dom ??= document.createTextNode(node.text));
+      const anchorEl = anchor?.kind === "dom" ? anchor.el
+        : anchor?.kind === "text" ? anchor.dom ?? null
+        : null;
+      domParent.insertBefore(el, anchorEl);
+    } else if (node.kind === "dom") {
+      assert(false, `<${node.el.tagName.toLowerCase()}> is only valid inside <htmlPaint>`);
+    } else if (parent.kind === "root" && node.kind === "element") {
       if (parent.eid === undefined) {
         assert(hasComponent(this.world, node.eid, c.Geometry), "this element cannot be a document root");
         const key = c.Key[node.eid];
@@ -1037,8 +1083,15 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
       appendChild(this.world, node.eid, parent.eid);
     }
 
+    // Re-inserting an attached node moves it (how the renderer reorders),
+    // so detach it from its previous position first.
+    if (node.parent) {
+      node.parent.children = node.parent.children?.filter((child) => child !== node);
+    }
     parent.children ??= [];
-    parent.children.push(node);
+    const index = anchor !== undefined ? parent.children.indexOf(anchor) : -1;
+    if (index === -1) parent.children.push(node);
+    else parent.children.splice(index, 0, node);
     node.parent = parent;
   }
 
@@ -1046,7 +1099,11 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     const c = this.world.components;
 
     this.track(() => {
-      if (parent.kind === "element" && node.kind === "text") {
+      if (node.kind === "dom") {
+        node.el.remove();
+      } else if (node.kind === "text" && node.dom) {
+        node.dom.remove();
+      } else if (parent.kind === "element" && node.kind === "text") {
         removeComponent(this.world, parent.eid, c.Chars);
       } else if (parent.kind === "element" && node.kind === "element") {
         removeChild(this.world, node.eid, parent.eid);
@@ -1121,6 +1178,37 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     });
   }
 
+}
+
+/**
+ * Prop assignment for DOM nodes inside <htmlPaint>: enough of Solid's DOM
+ * conventions (style objects, class, classList, innerHTML) for drawn markup.
+ * Event handlers are dropped — the content is painted, not interactive.
+ */
+function setDomProperty(el: Element, name: string, value: unknown): void {
+  if (typeof value === "function") return;
+
+  if (name === "style") {
+    const style = (el as HTMLElement).style;
+    if (typeof value === "string") style.cssText = value;
+    else if (typeof value === "object" && value !== null) Object.assign(style, value);
+  } else if (name === "class" || name === "className") {
+    el.className = String(value);
+  } else if (name === "classList") {
+    if (typeof value === "object" && value !== null) {
+      for (const [key, on] of Object.entries(value)) {
+        el.classList.toggle(key, !!on);
+      }
+    }
+  } else if (name === "innerHTML") {
+    el.innerHTML = String(value);
+  } else if (name === "textContent") {
+    el.textContent = String(value);
+  } else if (value === false || value === null) {
+    el.removeAttribute(name);
+  } else {
+    el.setAttribute(name, value === true ? "" : String(value));
+  }
 }
 
 function placeholderSize(spec: AssetSpecInput): { width: number; height: number } {

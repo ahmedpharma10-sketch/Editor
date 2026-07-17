@@ -286,6 +286,15 @@ export type ImageProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "objectFit">;
 
+export type HtmlPaintProps = Pick<PatchProps, "opacity"> & {
+  /**
+   * HTML children — real DOM elements laid out by the browser at the parent
+   * geometry's box size and drawn into it (html-in-canvas). Fully reactive:
+   * signals in attributes and text update the drawn content.
+   */
+  children?: SolidJSX.Element;
+};
+
 export type AudioProps = TimingProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "name" | "volume" | "muted" | "syncTo" | "animations">;
