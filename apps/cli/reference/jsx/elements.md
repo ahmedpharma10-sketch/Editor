@@ -23,7 +23,7 @@ User-defined components are ordinary Solid components; they compose intrinsics a
 
 - Coordinates are **pixels relative to the parent's box**, origin top-left. No percentages, no layout keywords; explicit numbers until the layout engine lands.
 - **Every element's box defaults to its parent's box**: `x` and `y` default to `0`, `width` and `height` default to the parent's size (the JSX analog of `position: absolute; inset: 0`). The scene's box is its required `width`×`height`.
-- How media pixels map into the box is controlled by `objectFit`, never by the box itself. A generated asset's placeholder therefore always has a definite size, even before the asset exists.
+- How media pixels map into the box is controlled by `objectFit` (default `"cover"`), never by the box itself. A generated asset's placeholder therefore always has a definite size, even before the asset exists.
 
 ## Common props
 

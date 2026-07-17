@@ -24,7 +24,7 @@ export function handleContextGet(engine: Accessor<Engine>) {
     const entityCount = getAllEntities(world).filter((eid) => !hasComponent(world, eid, c.Deleted)).length;
     const activeSceneId = world.selection.scene !== null ? world.selection.scene : null;
     const currentFrame = activeSceneId !== null ? (c.Computed.localTime[activeSceneId] ?? 0) : 0;
-    const fontFamilies = [...new Set(world.fonts.map((f) => f.family))];
+    const fontFamilies = [...new Set(["Inter", ...world.fonts.map((f) => f.family)])];
     const projectId = world.projectId;
     const projectName = await getProjectName(projectId);
 
