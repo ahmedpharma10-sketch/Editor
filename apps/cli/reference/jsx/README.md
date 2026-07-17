@@ -26,7 +26,7 @@ The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the 
 | [audio-sync.md](./audio-sync.md) | `syncTo` audio alignment |
 | [captions.md](./captions.md) | `<captions>` and style presets |
 | [generate.md](./generate.md) | Declarative AI asset generation (`generate.*`) |
-| [lifecycle.md](./lifecycle.md) | One-shot render lifecycle |
+| [lifecycle.md](./lifecycle.md) | Render lifecycle: one-shot vs `--live`, `useTicker` |
 | [errors.md](./errors.md) | Where each pipeline stage fails and with what effect |
 
 ## Pipeline

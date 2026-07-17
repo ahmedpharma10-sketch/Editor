@@ -409,4 +409,6 @@ export function playbackSystem(world: EngineWorld): void {
 			}
 		}
 	}
+
+	world.liveMounts.advance();
 }

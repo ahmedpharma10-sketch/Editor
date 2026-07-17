@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createContext, useContext } from "solid-js";
+import { createContext, createMemo, useContext } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 
-import type { JSX } from "solid-js";
+import type { Accessor, JSX } from "solid-js";
 import type { ProjectDocument } from "./document";
 
 // Compiled project modules call the static runtime exports below
@@ -70,6 +70,35 @@ export const {
   mergeProps,
   use,
 } = renderer;
+
+export type Ticker = {
+  time: Accessor<number>;
+  frame: Accessor<number>;
+  delta: Accessor<number>;
+  playing: Accessor<boolean>;
+};
+
+/**
+ * Subscribes to the project's timeline: the playhead of the scene the mount's
+ * root lives in (or is), pushed by the host once per playback tick. Each
+ * accessor only propagates when its value changes, so a paused scene re-runs
+ * nothing and `frame()` consumers update at most once per frame. Values only
+ * move while the reactive graph is alive, i.e. under `dapi mount --live`.
+ */
+export function useTicker(): Ticker {
+  const document = doc();
+  if (!document.tick) {
+    throw new Error("useTicker: this host does not provide a timeline clock");
+  }
+
+  const tick = document.tick.bind(document);
+  return {
+    time: createMemo(() => tick().time),
+    frame: createMemo(() => tick().frame),
+    delta: createMemo(() => tick().delta),
+    playing: createMemo(() => tick().playing),
+  };
+}
 
 /**
  * Host entry point: renders a project component directly into `document`.

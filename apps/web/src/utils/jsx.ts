@@ -43,7 +43,7 @@ import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
 import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
 import { assert, assertAllSettled, parseColor } from "@/utils";
 
-import type { AssetRef, AssetSpecInput, ProjectDocument } from "@diffusionstudio/jsx";
+import type { AssetRef, AssetSpecInput, ProjectDocument, ProjectTick } from "@diffusionstudio/jsx";
 import type { Engine, EngineWorld } from "@/components/engine";
 import type { GenerationMemo } from "@/utils/jsx-generation";
 
@@ -392,6 +392,50 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     return this.engine.world;
   }
 
+  private ticker = solid.createSignal<ProjectTick>(
+    { time: 0, frame: 0, delta: 0, playing: false },
+    { equals: (a, b) => a.time === b.time && a.frame === b.frame && a.delta === b.delta && a.playing === b.playing },
+  );
+  private lastTickTime: number | null = null;
+
+  public tick(): ProjectTick {
+    return this.ticker[0]();
+  }
+
+  /**
+   * Reads the playhead of the nearest Playback-carrying ancestor of the
+   * mount's root (the root itself for a mounted scene) into the ticker
+   * signal. Called by the playback system once per tick.
+   */
+  public advanceTicker(): void {
+    const c = this.world.components;
+    const sid = this.playbackRoot();
+    const time = sid !== null ? (c.Computed.localTimeInSeconds[sid] ?? 0) : 0;
+    const delta = this.lastTickTime === null ? 0 : time - this.lastTickTime;
+    this.lastTickTime = time;
+    this.ticker[1]({
+      time,
+      frame: sid !== null ? (c.Computed.localTime[sid] ?? 0) : 0,
+      delta,
+      playing: sid !== null && c.Playback.playing[sid] === 1,
+    });
+  }
+
+  private playbackRoot(): number | null {
+    // Resolved per tick rather than cached: the root lands after component
+    // bodies run (so it is null during the first render), and reparenting or
+    // keyed replacement can change the answer later.
+
+    const world = this.world;
+    const c = world.components;
+    let current = this.rootEid ?? (this.stage.kind === "root" ? this.stage.eid : undefined) ?? null;
+    while (current !== null && !hasComponent(world, current, c.Deleted)) {
+      if (hasComponent(world, current, c.Playback)) return current;
+      current = getParentEntity(world, current);
+    }
+    return null;
+  }
+
   /**
    * Resolves a generated asset and attaches it: during commit via the genai
    * queue, or immediately when a live mount sets an asset ref after commit.
@@ -423,6 +467,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         addComponent(world, eid, c.Scene);
         addComponent(world, eid, c.ClipsContent);
+        setComponent(world, eid, c.Playback, {});
         setComponent(world, eid, c.Name, getNextName(world, "Scene"));
         return node;
       } case "group": {

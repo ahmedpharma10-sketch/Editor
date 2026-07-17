@@ -11,13 +11,22 @@
  * disposed with them. Root keys are read live rather than snapshotted, so
  * roots a running graph adds or removes later still reconcile.
  */
-export type LiveMount = { rootKeys: () => string[]; dispose: () => void };
+export type LiveMount = {
+	rootKeys: () => string[];
+	advance: () => void;
+	dispose: () => void;
+};
 
 export type LiveMounts = ReturnType<typeof createLiveMounts>;
 
 export function createLiveMounts() {
 	const mounts = new Set<LiveMount>();
 	return {
+		advance(): void {
+			for (const mount of mounts) {
+				mount.advance();
+			}
+		},
 		supersede(keys: string[]): void {
 			for (const mount of mounts) {
 				if (keys.some((key) => mount.rootKeys().includes(key))) {

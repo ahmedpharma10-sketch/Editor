@@ -10,6 +10,23 @@
  * opaque to the renderer.
  */
 
+/**
+ * One reading of the host's timeline clock, local to the mounted project:
+ * the playhead of the scene the mount's root lives in (or is). Values only
+ * move for live mounts; the host pushes a fresh reading once per playback
+ * tick.
+ */
+export type ProjectTick = {
+  /** Playhead in seconds (sub-frame precision while playing). */
+  time: number;
+  /** Playhead in frames at the host frame rate. */
+  frame: number;
+  /** Seconds advanced since the previous tick: 0 while paused, negative on a backward scrub or loop. */
+  delta: number;
+  /** Whether the scene is currently playing. */
+  playing: boolean;
+};
+
 export interface ProjectDocument<N = unknown> {
   stage: N;
   createElement(tag: string): N;
@@ -22,4 +39,5 @@ export interface ProjectDocument<N = unknown> {
   getParentNode(node: N): N | undefined;
   getFirstChild(node: N): N | undefined;
   getNextSibling(node: N): N | undefined;
+  tick?(): ProjectTick;
 }

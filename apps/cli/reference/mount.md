@@ -11,6 +11,10 @@ Exactly one of:
 - `<path>`: path to a `.tsx` / `.jsx` / `.ts` / `.js` entry module.
 - `--code <str>`: inline module source, compiled identically. The `export default () =>` wrapper is optional; a bare JSX expression (no `export default` in the source) is wrapped into a component module automatically.
 
+Optionally:
+
+- `--live`: keep the reactive graph alive after mounting, so signals, effects, timers, and [`useTicker`](./jsx/lifecycle.md#useticker) keep driving the mounted entities. Without it the graph is disposed once the mount lands (the entities stay, reactivity stops). A live run ends when a later mount claims one of its root keys or the project closes (see [jsx/lifecycle.md](./jsx/lifecycle.md)).
+
 ## Output
 
 None. The command exits `0` once the tree is committed and every declared asset has generated; inspect the result with [`dapi context`](./context.md), [`dapi node ls`](./node/ls.md), or [`dapi node tree`](./node/tree.md).

@@ -65,7 +65,11 @@ export function handleMount(engine: Accessor<Engine>) {
       }
 
       if (live) {
-        world.liveMounts.register({ rootKeys: () => documentRootKeys(world, document), dispose });
+        world.liveMounts.register({
+          rootKeys: () => documentRootKeys(world, document),
+          advance: () => document.advanceTicker(),
+          dispose,
+        });
         persisted = true;
       }
 
