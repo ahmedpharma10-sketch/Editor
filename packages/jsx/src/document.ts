@@ -40,4 +40,5 @@ export interface ProjectDocument<N = unknown> {
   getFirstChild(node: N): N | undefined;
   getNextSibling(node: N): N | undefined;
   tick?(): ProjectTick;
+  applyRef?(node: N, ref: (target: unknown) => void): void;
 }

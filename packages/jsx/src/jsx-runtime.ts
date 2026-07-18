@@ -12,6 +12,8 @@
 import type { JSX as SolidJSX } from "solid-js";
 import type {
   AudioProps,
+  CanvasPaintProps,
+  CanvasProps,
   CaptionsProps,
   ColorStopProps,
   GradientPaintProps,
@@ -27,9 +29,10 @@ import type {
   VideoProps,
 } from "./types";
 
-// "html" is dropped alongside the media tags: in composition context it is
-// the html node element, and as a DOM tag it is useless inside a paint host.
-type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video" | "html">;
+// "html" and "canvas" are dropped alongside the media tags: in composition
+// context they are node elements, and as DOM tags they are useless inside a
+// paint host (a DOM canvas's content doesn't survive drawElementImage).
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video" | "html" | "canvas">;
 
 // SVG vocabulary for <htmlPaint> content. Tags the editor also declares keep
 // their composition types below; the runtime resolves the actual meaning by
@@ -68,5 +71,7 @@ export declare namespace JSX {
     stop: ColorStopProps;
     htmlPaint: HtmlPaintProps;
     html: HtmlProps;
+    canvasPaint: CanvasPaintProps;
+    canvas: CanvasProps;
   }
 }

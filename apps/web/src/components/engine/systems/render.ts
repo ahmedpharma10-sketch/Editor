@@ -366,6 +366,15 @@ export function renderFills(world: EngineWorld, eid: number): void {
 				host.draw(ctx, c.Computed.width[eid], c.Computed.height[eid]);
 				ctx.restore();
 			}
+		} else if (c.Paint[fid] === PaintType.CANVAS) {
+			const host = c.CanvasHost[fid];
+
+			if (host) {
+				ctx.save();
+				ctx.clip();
+				host.draw(ctx, c.Computed.width[eid], c.Computed.height[eid]);
+				ctx.restore();
+			}
 		} else if (c.Paint[fid] === PaintType.SOLID) {
 			ctx.fillStyle = colorToHex(c.Computed.color[fid]);
 			ctx.fill();

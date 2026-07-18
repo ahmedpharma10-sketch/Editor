@@ -18,6 +18,7 @@ The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the 
 | [scene.md](./scene.md), [group.md](./group.md), [rect.md](./rect.md), [text.md](./text.md), [video.md](./video.md), [image.md](./image.md), [audio.md](./audio.md) | Per-element props |
 | [paints.md](./paints.md) | `<solidPaint>`, gradients, `<colorStop>` |
 | [html-paint.md](./html-paint.md) | `<html>`: reactive HTML children drawn into the box |
+| [canvas-paint.md](./canvas-paint.md) | `<canvas>`: a ref-provided canvas you draw into, sampled every frame |
 | [media.md](./media.md) | `src` resolution (paths, URLs, asset ids, `AssetRef`) |
 | [timing.md](./timing.md) | `start` / `end` / `sourceIn` / `sourceOut`, time formats |
 | [keyframes.md](./keyframes.md) | Keyframe animation and easing |

@@ -25,6 +25,7 @@ import { motionSystem } from '../systems/motion';
 import { transformSystem } from '../systems/transform';
 import { renderSystem } from '../systems/render';
 import { shareHtmlHosts } from '../decoders/html';
+import { shareCanvasHosts } from '../decoders/canvas';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { AudioBus } from '../services/audio-bus';
@@ -134,6 +135,7 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 
 	if (videoEnabled) {
 		shareHtmlHosts(sourceWorld, world, eidMap);
+		shareCanvasHosts(sourceWorld, world, eidMap);
 	}
 
 	// Set up mediabunny output

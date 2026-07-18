@@ -38,6 +38,7 @@ import {
   transcriptTrim,
 } from "@/components/engine";
 import { HtmlHost, isHtmlInCanvasSupported } from "@/components/engine/decoders/html";
+import { CanvasHost } from "@/components/engine/decoders/canvas";
 import { resolveTranscript } from "@/components/engine/decoders/caption/utils";
 import { ChildOf } from "@/components/engine/components";
 import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
@@ -65,6 +66,8 @@ type DocumentNode = {
   eid?: number;
   dom?: Element | Text;
   host?: HtmlHost;
+  canvasHost?: CanvasHost;
+  ref?(target: unknown): void;
 };
 
 let nextNodeId = 1;
@@ -582,6 +585,26 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         c.HtmlHost[fid] = host;
         appendChild(world, fid, eid);
         node.host = host;
+        break;
+      } case "canvasPaint": {
+        setComponent(world, eid, c.Paint, PaintType.CANVAS);
+        const host = new CanvasHost();
+        addComponent(world, eid, c.CanvasHost, false);
+        c.CanvasHost[eid] = host;
+        node.canvasHost = host;
+        break;
+      } case "canvas": {
+        // A rect carrying a canvas paint; the node's ref receives the
+        // paint's backing canvas, so `node.canvasHost` points at it.
+        setComponent(world, eid, c.Geometry, GeometryType.RECT);
+        setComponent(world, eid, c.Name, getNextName(world, "Canvas"));
+        const fid = createEntity(world);
+        setComponent(world, fid, c.Paint, PaintType.CANVAS);
+        const host = new CanvasHost();
+        addComponent(world, fid, c.CanvasHost, false);
+        c.CanvasHost[fid] = host;
+        appendChild(world, fid, eid);
+        node.canvasHost = host;
         break;
       } default: {
         assert(false, `<${node.tag}> is only valid inside <html> content`);
@@ -1156,6 +1179,54 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
   }
 
   /**
+   * Records a `ref` callback (the renderer's `use`). Refs run at
+   * materialization, when the backing object exists — for canvas elements
+   * the paint's canvas, for DOM nodes under an <htmlPaint> the element.
+   */
+  public applyRef(node: DocumentNode, ref: (target: unknown) => void): void {
+    node.ref = ref;
+  }
+
+  /** Invokes and consumes a node's recorded ref, outside the current tracking scope. */
+  private invokeRef(node: DocumentNode, target: unknown): void {
+    const ref = node.ref;
+    if (ref === undefined) return;
+    node.ref = undefined;
+    solid.untrack(() => ref(target));
+  }
+
+  /**
+   * The box a canvas paint's bitmap is initially allocated at: the nearest
+   * explicit size up the shadow tree (every element's box defaults to its
+   * parent's), falling back to a live ancestor's computed size for mounts
+   * into existing entities (`dapi node insert`).
+   */
+  private resolveBoxSize(node: DocumentNode): { width: number; height: number } {
+    const c = this.world.components;
+    let width: number | undefined;
+    let height: number | undefined;
+
+    // Recorded props first — entities in the materializing subtree are fresh,
+    // so their Computed sizes are defaults, not layout. Live ancestors'
+    // Computed only backstops mounts into existing entities (node insert).
+    for (let cursor: DocumentNode | undefined = node; cursor !== undefined; cursor = cursor.parent) {
+      width ??= sizeProp(cursor.props.width);
+      height ??= sizeProp(cursor.props.height);
+      if (width !== undefined && height !== undefined) return { width, height };
+    }
+    for (let cursor: DocumentNode | undefined = node; cursor !== undefined; cursor = cursor.parent) {
+      // Freshly created entities have an eid but no Size yet; only already
+      // live ones (e.g. the target of a `node insert`) carry a real box.
+      if (cursor.eid === undefined || !hasComponent(this.world, cursor.eid, c.Size)) continue;
+      width ??= c.Computed.width[cursor.eid] || undefined;
+      height ??= c.Computed.height[cursor.eid] || undefined;
+      if (width !== undefined && height !== undefined) break;
+    }
+
+    return { width: width ?? 300, height: height ?? 150 };
+  }
+
+  /**
    * Creates the entity for an element and replays its shadow state: tag
    * components, children (attached while the subtree is still detached from
    * the stage), then recorded props in authored order.
@@ -1164,6 +1235,13 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     node.eid = this.createEntityForTag(node);
     for (const child of node.children) this.attach(node, child);
     for (const [name, value] of Object.entries(node.props)) this.applyEcsProperty(node, name, value);
+
+    if (node.canvasHost !== undefined) {
+      const box = this.resolveBoxSize(node.tag === "canvasPaint" ? node.parent ?? node : node);
+      node.canvasHost.setSize(box.width, box.height);
+      this.invokeRef(node, node.canvasHost.canvas);
+    }
+    assert(node.ref === undefined, `\`ref\` is not supported on <${node.tag}>`);
   }
 
   /** Builds the DOM subtree for a node under an <htmlPaint>, props applied. */
@@ -1181,6 +1259,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
       el.appendChild(child.dom!);
     }
     for (const [name, value] of Object.entries(node.props)) setDomProperty(el, name, value);
+    this.invokeRef(node, el);
   }
 
   public removeNode(parent: DocumentNode, node: DocumentNode) {
@@ -1304,6 +1383,17 @@ function placeholderSize(spec: AssetSpecInput): { width: number; height: number 
 function parseFrames(value: string | null | undefined, fps: number): number | undefined {
   const seconds = parseTime(value);
   return seconds === undefined ? undefined : Math.round(seconds * fps);
+}
+
+/**
+ * Reads a recorded width/height prop as a number; keyframed sizes read as their first keyframe.
+ */
+function sizeProp(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  if (Array.isArray(value) && typeof (value[0] as { value?: unknown })?.value === "number") {
+    return (value[0] as { value: number }).value;
+  }
+  return undefined;
 }
 
 /**

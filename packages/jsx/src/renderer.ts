@@ -68,8 +68,22 @@ export const {
   spread,
   setProp,
   mergeProps,
-  use,
 } = renderer;
+
+/**
+ * Ref application (compiled `ref={fn}`). Hosts that materialize elements
+ * lazily route refs through `applyRef` so the callback receives the backing
+ * object (e.g. a canvas paint's canvas) once it exists; hosts without
+ * `applyRef` keep the renderer's immediate call with the host node.
+ */
+export function use(fn: (target: unknown, arg?: unknown) => void, node: unknown, arg?: unknown): unknown {
+  const document = doc();
+  if (document.applyRef) {
+    document.applyRef(node, fn);
+    return node;
+  }
+  return renderer.use(fn, node, arg);
+}
 
 export type Ticker = {
   time: Accessor<number>;

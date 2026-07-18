@@ -160,6 +160,17 @@ export function disposeHtmlHosts(world: EngineWorld, eid: number): void {
   }
 }
 
+export function disposeCanvasHosts(world: EngineWorld, eid: number): void {
+  const CanvasHost = world.components.CanvasHost;
+
+  CanvasHost[eid]?.dispose();
+  CanvasHost[eid] = null;
+
+  for (const child of query(world, [ChildOf(eid)])) {
+    disposeCanvasHosts(world, child);
+  }
+}
+
 export function disconnectAudioBus(world: EngineWorld, eid: number): void {
   const AudioBus = world.components.AudioBus;
   AudioBus[eid]?.disconnect();

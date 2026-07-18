@@ -7,6 +7,7 @@ import type { ContainerFormat } from "../encode/types";
 import type { Token } from "../utils/text";
 import type { AudioBus as AudioBusInstance } from "../services/audio-bus";
 import type { HtmlHost as HtmlHostInstance } from "../decoders/html";
+import type { CanvasHost as CanvasHostInstance } from "../decoders/canvas";
 import type { ImageDecoder as ImageDecoderInstance } from "../decoders/image";
 import type { VideoDecoderInstance } from "../decoders/video";
 import type { SequenceDecoder as SequenceDecoderInstance } from "../decoders/sequence";
@@ -361,6 +362,8 @@ export const Cache = {
 };
 
 export const HtmlHost = [] as (HtmlHostInstance | null)[];
+
+export const CanvasHost = [] as (CanvasHostInstance | null)[];
 
 export const ImageDecoder = [] as (ImageDecoderInstance | null)[];
 

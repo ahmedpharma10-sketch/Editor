@@ -22,6 +22,8 @@ export type {
   AnimationSpec,
   AnimationType,
   AudioProps,
+  CanvasPaintProps,
+  CanvasProps,
   CaptionPreset,
   CaptionsProps,
   ColorStopProps,
