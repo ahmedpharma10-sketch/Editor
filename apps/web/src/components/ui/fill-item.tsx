@@ -4,6 +4,7 @@
 
 import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
+import { Icon } from "@/components/ui/icon";
 import { Keyframe } from "@/components/ui/keyframe";
 import { OpacitySwatch } from "@/components/ui/opacity-swatch";
 import { useEngine } from "@/context/engine";
@@ -405,6 +406,12 @@ function PaintItemIcon(props: PaintItemIconProps) {
       <Show when={color() !== undefined && type() === PaintType.SOLID}>
         <OpacitySwatch color={color()!} opacity={opacity()} />
       </Show>
+
+      <Show when={type() === PaintType.HTML || type() === PaintType.SURFACE}>
+        <div class="flex size-full items-center justify-center bg-muted text-muted-foreground">
+          <Icon name="html-small" />
+        </div>
+      </Show>
     </>
   );
 }
@@ -428,6 +435,10 @@ function FillLabel(props: FillLabelProps) {
       return "Linear";
     } else if (type() === PaintType.RADIAL_GRADIENT) {
       return "Radial";
+    } else if (type() === PaintType.HTML) {
+      return "HTML";
+    } else if (type() === PaintType.SURFACE) {
+      return "Surface";
     } else {
       const asset = assets.get(assetId() ?? "");
       return asset?.name ?? "Unknown";
