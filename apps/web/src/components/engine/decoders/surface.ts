@@ -9,7 +9,7 @@ import type { EngineWorld } from '../api/world';
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /**
- * Backing surface for one canvas paint: a detached canvas handed to the
+ * Backing store for one surface paint: a detached canvas handed to the
  * mount's `ref` callback, which draws into it with any context type (2d,
  * webgl, webgpu). The engine samples the bitmap every frame and stretches it
  * into the parent geometry's box. After the initial box-sized allocation the
@@ -17,7 +17,7 @@ type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
  * `renderer.setSize`) resize it through their own APIs, so the engine never
  * touches it again.
  */
-export class CanvasHost {
+export class SurfaceHost {
 	public readonly canvas = document.createElement('canvas');
 	private disposed = false;
 
@@ -43,21 +43,21 @@ export class CanvasHost {
 }
 
 /**
- * Shares <canvasPaint> hosts with a cloned (offline) world. The backing
+ * Shares <surfacePaint> hosts with a cloned (offline) world. The backing
  * canvas is runtime state serializeEntity cannot carry, so export/capture
  * worlds reference the live hosts directly and sample whatever the mount's
  * ref last drew while encoding. The source world keeps ownership; offline
  * worlds must not dispose them.
  */
-export function shareCanvasHosts(
+export function shareSurfaceHosts(
 	sourceWorld: EngineWorld,
 	world: EngineWorld,
 	eidMap: Map<number, number>,
 ) {
 	for (const [sourceEid, targetEid] of eidMap) {
-		const host = sourceWorld.components.CanvasHost[sourceEid];
+		const host = sourceWorld.components.SurfaceHost[sourceEid];
 		if (!host) continue;
-		addComponent(world, targetEid, world.components.CanvasHost, false);
-		world.components.CanvasHost[targetEid] = host;
+		addComponent(world, targetEid, world.components.SurfaceHost, false);
+		world.components.SurfaceHost[targetEid] = host;
 	}
 }

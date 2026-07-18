@@ -54,7 +54,7 @@ The values respect play, pause, scrubbing, looping, and playback speed, which wa
 
 ## `useFile`
 
-Resolves a [`src`](./media.md) (path, asset id, URL, or a `generate.*` ref) to its `File`, so effects can read the raw bytes: draw a library image onto a [`<canvas>`](./canvas-paint.md), parse a data file, decode audio. The module is sandboxed and can't fetch a path or asset id itself, so resolution goes through the host, exactly as `src` does.
+Resolves a [`src`](./media.md) (path, asset id, URL, or a `generate.*` ref) to its `File`, so effects can read the raw bytes: draw a library image onto a [`<surface>`](./surface-paint.md), parse a data file, decode audio. The module is sandboxed and can't fetch a path or asset id itself, so resolution goes through the host, exactly as `src` does.
 
 ```tsx
 import { createSignal, createEffect } from "solid-js";
@@ -72,7 +72,7 @@ function Logo() {
     ctx.drawImage(await createImageBitmap(f), 0, 0, el.width, el.height);
   });
 
-  return <canvas ref={setCanvas} width={640} height={360} />;
+  return <surface ref={setCanvas} width={640} height={360} />;
 }
 ```
 

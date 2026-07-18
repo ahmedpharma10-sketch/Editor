@@ -55,7 +55,7 @@ export function entityType(world: EngineWorld, eid: number): string {
       case PaintType.IMAGE: return "imagePaint";
       case PaintType.VIDEO: return "videoPaint";
       case PaintType.HTML: return "htmlPaint";
-      case PaintType.CANVAS: return "canvasPaint";
+      case PaintType.SURFACE: return "surfacePaint";
       default: return "paint";
     }
   }

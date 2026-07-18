@@ -75,9 +75,9 @@ export function hasHtmlPaint(world: EngineWorld, eid: number): boolean {
 	return (c.Cache.fills[eid] ?? []).some(fid => c.Paint[fid] === PaintType.HTML);
 }
 
-export function hasCanvasPaint(world: EngineWorld, eid: number): boolean {
+export function hasSurfacePaint(world: EngineWorld, eid: number): boolean {
 	const c = world.components;
-	return (c.Cache.fills[eid] ?? []).some(fid => c.Paint[fid] === PaintType.CANVAS);
+	return (c.Cache.fills[eid] ?? []).some(fid => c.Paint[fid] === PaintType.SURFACE);
 }
 
 export function isMask(world: EngineWorld, eid: number): boolean {

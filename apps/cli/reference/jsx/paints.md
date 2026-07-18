@@ -20,9 +20,9 @@ Paint elements are valid inside any filled visual element (`<rect>`, `<scene>`, 
 | `<radialGradientPaint>` | `<radialGradient>` | `rotation`, `opacity` | Radial gradient centered in the parent's box. |
 | `<colorStop>` | `<stop>` | `offset` (**required**, `0`-`1`), `color` (**required**), `opacity` | Gradient color stop. Valid only inside gradient paints, which take no other children. |
 | [`<html>`](./html-paint.md) | `<htmlPaint>` | `opacity`, HTML children | Reactive HTML laid out and drawn into the parent's box (flagged Chromium API). |
-| [`<canvas>`](./canvas-paint.md) | `<canvasPaint>` | `opacity`, `ref` (**required**) | A canvas your `ref` callback draws into (any context type), sampled into the parent's box every frame. |
+| [`<surface>`](./surface-paint.md) | `<surfacePaint>` | `opacity`, `ref` (**required**) | A canvas your `ref` callback draws into (any context type), sampled into the parent's box every frame. |
 
-Both names of a pair work everywhere; names shared with SVG (`<linearGradient>`, `<stop>`) are unambiguous because tags resolve by environment: inside an [`<html>`](./html-paint.md) paint they are the real SVG elements, anywhere else the paints. `<html>` and `<canvas>` themselves are never DOM tags — in a composition they always mean these elements.
+Both names of a pair work everywhere; names shared with SVG (`<linearGradient>`, `<stop>`) are unambiguous because tags resolve by environment: inside an [`<html>`](./html-paint.md) paint they are the real SVG elements, anywhere else the paints. `<html>` is never a DOM tag — in a composition it always means the element; `<surface>` doesn't collide with a DOM tag at all.
 
 Colors accept any CSS color; alpha is ignored (use `opacity`). `color`, `opacity`, and `offset` are animatable (see [keyframes.md](./keyframes.md)), so gradients can animate. Paints have no spatial or timing props and cannot be document roots.
 

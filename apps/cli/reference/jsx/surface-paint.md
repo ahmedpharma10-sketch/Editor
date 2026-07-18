@@ -1,9 +1,9 @@
-# `<canvas>`
+# `<surface>`
 
-A paint backed by a **canvas you draw yourself** (long form: `<canvasPaint>`). The `ref` callback receives a detached `HTMLCanvasElement`; draw into it with any context type — 2d, webgl, webgpu — and the engine samples the bitmap every frame, stretching it into the parent geometry's box. Use it for procedural graphics and for external renderers (three.js, p5, chart libraries) that want to own a canvas.
+A paint backed by a **canvas you draw yourself** (long form: `<surfacePaint>`). The `ref` callback receives a detached `HTMLCanvasElement`; draw into it with any context type — 2d, webgl, webgpu — and the engine samples the bitmap every frame, stretching it into the parent geometry's box. Use it for procedural graphics and for external renderers (three.js, p5, chart libraries) that want to own a canvas.
 
 ```tsx
-<canvas x={40} y={40} width={640} height={360} cornerRadius={24}
+<surface x={40} y={40} width={640} height={360} cornerRadius={24}
   ref={(el) => {
     const ctx = el.getContext("2d")!;
     ctx.fillStyle = "#111";
@@ -14,12 +14,12 @@ A paint backed by a **canvas you draw yourself** (long form: `<canvasPaint>`). T
   }} />
 ```
 
-`<canvasPaint ref={...}>` is the paint child form, valid inside any filled visual element; `<canvas>` is a rectangle carrying one, with all [common props](./elements.md#common-props).
+`<surfacePaint ref={...}>` is the paint child form, valid inside any filled visual element; `<surface>` is a rectangle carrying one, with all [common props](./elements.md#common-props).
 
 ## The ref and the bitmap
 
 - The ref runs **once**, when the paint materializes, inside the mount's reactive owner — `createEffect`, `onCleanup`, and [`useTicker`](./lifecycle.md) all work inside it.
-- **Callback form only** (`ref={(el) => ...}`). Variable refs (`let el; <canvas ref={el} />`) receive a renderer-internal node, not the canvas.
+- **Callback form only** (`ref={(el) => ...}`). Variable refs (`let el; <surface ref={el} />`) receive a renderer-internal node, not the canvas.
 - The bitmap is allocated at the element's box size (in composition pixels) **before the ref runs**; after that the engine never touches it — the bitmap belongs to your code. Resize it yourself (`el.width = ...`, or an external renderer's own API) for higher resolution; the bitmap is stretched into the box every frame either way, so an animated box scales pixels rather than re-rasterizing.
 - Unlike [`<html>`](./html-paint.md) no flagged browser API is needed, and the sampled pixels render in exports.
 
@@ -28,7 +28,7 @@ A paint backed by a **canvas you draw yourself** (long form: `<canvasPaint>`). T
 The engine samples the canvas every frame, so anything you draw shows up on the next frame. Under [`dapi mount --live`](../mount.md) the reactive graph stays alive: create effects in the ref to redraw from signals, or drive frame-accurate motion from the ticker's composition time:
 
 ```tsx
-<canvas width={400} height={400}
+<surface width={400} height={400}
   ref={(el) => {
     const ctx = el.getContext("2d")!;
     const { time } = useTicker();
@@ -49,7 +49,7 @@ Because the ticker follows the playhead, ticker-driven drawing stays frame-accur
 Anything that accepts an existing canvas plugs in directly; a detached canvas is fine for WebGL:
 
 ```tsx
-<canvas width={1280} height={720}
+<surface width={1280} height={720}
   ref={(el) => {
     const renderer = new THREE.WebGLRenderer({
       canvas: el,
@@ -77,10 +77,10 @@ Anything that accepts an existing canvas plugs in directly; a detached canvas is
 | `ref` | `(canvas: HTMLCanvasElement) => void` | **required** | Receives the backing canvas at materialization. |
 | `opacity` | `Animatable<number>` | `1` | Paint opacity, `0`-`1`. |
 
-Like all paints it stacks with siblings in document order and clips to the parent's box (including `cornerRadius`). `<canvasPaint>` takes no children.
+Like all paints it stacks with siblings in document order and clips to the parent's box (including `cornerRadius`). `<surfacePaint>` takes no children.
 
 ## Requirements and limitations
 
 - The drawing is code, so the content lives only as long as its mount: it is not persisted with the document. Exports and captures started while the mount is alive sample the live canvas.
 - Only the `ref` attribute form on the element itself is routed; refs inside spread props are not.
-- `<canvas>` is not available as a DOM tag inside [`<html>`](./html-paint.md) content — in a composition it is always this element.
+- A real DOM `<canvas>` is not available inside [`<html>`](./html-paint.md) content — its pixels don't survive the html-in-canvas rasterization. Use `<surface>` for hand-drawn graphics instead.

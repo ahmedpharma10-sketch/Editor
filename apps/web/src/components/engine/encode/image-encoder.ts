@@ -16,7 +16,7 @@ import { transformSystem } from '../systems/transform';
 import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { shareHtmlHosts } from '../decoders/html';
-import { shareCanvasHosts } from '../decoders/canvas';
+import { shareSurfaceHosts } from '../decoders/surface';
 import { getEntityTree } from '../api/query';
 import { framesToSeconds, formatTimestamp, stampTimestampLabel } from '../utils';
 import { assert } from '@/utils';
@@ -85,7 +85,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   assert(rootEid !== undefined, 'Failed to clone entity subtree');
 
   shareHtmlHosts(sourceWorld, world, eidMap);
-  shareCanvasHosts(sourceWorld, world, eidMap);
+  shareSurfaceHosts(sourceWorld, world, eidMap);
 
   const clonedEids = [...eidMap.values()];
   const c = world.components;

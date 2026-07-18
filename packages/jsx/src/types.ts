@@ -304,9 +304,9 @@ export type HtmlProps = CommonProps & Pick<HtmlPaintProps, "children">;
 type HostCanvas = typeof globalThis extends { HTMLCanvasElement: new () => infer T } ? T
   : { width: number; height: number; getContext(contextId: string, options?: unknown): unknown };
 
-export type CanvasPaintProps = Pick<PatchProps, "opacity"> & {
+export type SurfacePaintProps = Pick<PatchProps, "opacity"> & {
   /**
-   * Receives the paint's backing canvas once the paint materializes. Draw to
+   * Receives the surface's backing canvas once the paint materializes. Draw to
    * any context type (2d, webgl, webgpu); the engine samples the bitmap every
    * frame and stretches it into the parent geometry's box. Callback form
    * only — the renderer has no element to assign to a variable ref.
@@ -314,8 +314,8 @@ export type CanvasPaintProps = Pick<PatchProps, "opacity"> & {
   ref: (canvas: HostCanvas) => void;
 };
 
-/** `<canvas>` — a rectangle carrying a `<canvasPaint>` with the given ref. */
-export type CanvasProps = CommonProps & Pick<CanvasPaintProps, "ref">;
+/** `<surface>` — a rectangle carrying a `<surfacePaint>` with the given ref. */
+export type SurfaceProps = CommonProps & Pick<SurfacePaintProps, "ref">;
 
 export type AudioProps = TimingProps &
   Required<Pick<PatchProps, "src">> &

@@ -366,8 +366,8 @@ export function renderFills(world: EngineWorld, eid: number): void {
 				host.draw(ctx, c.Computed.width[eid], c.Computed.height[eid]);
 				ctx.restore();
 			}
-		} else if (c.Paint[fid] === PaintType.CANVAS) {
-			const host = c.CanvasHost[fid];
+		} else if (c.Paint[fid] === PaintType.SURFACE) {
+			const host = c.SurfaceHost[fid];
 
 			if (host) {
 				ctx.save();

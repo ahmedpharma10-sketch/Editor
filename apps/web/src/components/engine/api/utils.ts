@@ -160,14 +160,14 @@ export function disposeHtmlHosts(world: EngineWorld, eid: number): void {
   }
 }
 
-export function disposeCanvasHosts(world: EngineWorld, eid: number): void {
-  const CanvasHost = world.components.CanvasHost;
+export function disposeSurfaceHosts(world: EngineWorld, eid: number): void {
+  const SurfaceHost = world.components.SurfaceHost;
 
-  CanvasHost[eid]?.dispose();
-  CanvasHost[eid] = null;
+  SurfaceHost[eid]?.dispose();
+  SurfaceHost[eid] = null;
 
   for (const child of query(world, [ChildOf(eid)])) {
-    disposeCanvasHosts(world, child);
+    disposeSurfaceHosts(world, child);
   }
 }
 

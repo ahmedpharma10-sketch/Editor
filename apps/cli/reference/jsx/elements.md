@@ -17,7 +17,7 @@ Lowercase intrinsic elements map 1:1 onto internal node types:
 | [`<linearGradientPaint>` / `<radialGradientPaint>`](./paints.md) (aliases `<linearGradient>` / `<radialGradient>`) | **Gradient paint** | Paint child; takes `<colorStop>` children. |
 | [`<colorStop>`](./paints.md) (alias `<stop>`) | **Gradient color stop** | Valid only inside gradient paints. |
 | [`<html>`](./html-paint.md) (long form `<htmlPaint>`) | **Html paint** | Paint child whose children are real, reactive HTML drawn by the browser (html-in-canvas, flagged Chromium API). |
-| [`<canvas>`](./canvas-paint.md) (long form `<canvasPaint>`) | **Canvas paint** | Paint child whose `ref` hands you a canvas to draw with any context type (2d, webgl, webgpu); sampled every frame. |
+| [`<surface>`](./surface-paint.md) (long form `<surfacePaint>`) | **Surface paint** | Paint child whose `ref` hands you a canvas to draw with any context type (2d, webgl, webgpu); sampled every frame. |
 
 User-defined components are ordinary Solid components; they compose intrinsics and carry no runtime cost. Only intrinsic elements produce entities.
 

@@ -66,7 +66,7 @@ export enum PaintType {
   SEQUENCE,
   WAVEFORM,
   HTML,
-  CANVAS,
+  SURFACE,
 }
 
 export enum EffectType {

@@ -133,7 +133,7 @@ export function useTicker(): Ticker {
  *   if (!el || !f) return;
  *   el.getContext("2d")!.drawImage(await createImageBitmap(f), 0, 0);
  * });
- * // <canvas ref={setCanvas} width={640} height={360} />
+ * // <surface ref={setCanvas} width={640} height={360} />
  * ```
  */
 export function useFile(src: AssetInput): ResourceReturn<File> {

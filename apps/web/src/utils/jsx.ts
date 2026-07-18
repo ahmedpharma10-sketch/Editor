@@ -38,7 +38,7 @@ import {
   transcriptTrim,
 } from "@/components/engine";
 import { HtmlHost, isHtmlInCanvasSupported } from "@/components/engine/decoders/html";
-import { CanvasHost } from "@/components/engine/decoders/canvas";
+import { SurfaceHost } from "@/components/engine/decoders/surface";
 import { resolveTranscript } from "@/components/engine/decoders/caption/utils";
 import { ChildOf } from "@/components/engine/components";
 import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
@@ -66,7 +66,7 @@ type DocumentNode = {
   eid?: number;
   dom?: Element | Text;
   host?: HtmlHost;
-  canvasHost?: CanvasHost;
+  surfaceHost?: SurfaceHost;
   ref?(target: unknown): void;
 };
 
@@ -599,25 +599,25 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         appendChild(world, fid, eid);
         node.host = host;
         break;
-      } case "canvasPaint": {
-        setComponent(world, eid, c.Paint, PaintType.CANVAS);
-        const host = new CanvasHost();
-        addComponent(world, eid, c.CanvasHost, false);
-        c.CanvasHost[eid] = host;
-        node.canvasHost = host;
+      } case "surfacePaint": {
+        setComponent(world, eid, c.Paint, PaintType.SURFACE);
+        const host = new SurfaceHost();
+        addComponent(world, eid, c.SurfaceHost, false);
+        c.SurfaceHost[eid] = host;
+        node.surfaceHost = host;
         break;
-      } case "canvas": {
-        // A rect carrying a canvas paint; the node's ref receives the
-        // paint's backing canvas, so `node.canvasHost` points at it.
+      } case "surface": {
+        // A rect carrying a surface paint; the node's ref receives the
+        // paint's backing canvas, so `node.surfaceHost` points at it.
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
-        setComponent(world, eid, c.Name, getNextName(world, "Canvas"));
+        setComponent(world, eid, c.Name, getNextName(world, "Surface"));
         const fid = createEntity(world);
-        setComponent(world, fid, c.Paint, PaintType.CANVAS);
-        const host = new CanvasHost();
-        addComponent(world, fid, c.CanvasHost, false);
-        c.CanvasHost[fid] = host;
+        setComponent(world, fid, c.Paint, PaintType.SURFACE);
+        const host = new SurfaceHost();
+        addComponent(world, fid, c.SurfaceHost, false);
+        c.SurfaceHost[fid] = host;
         appendChild(world, fid, eid);
-        node.canvasHost = host;
+        node.surfaceHost = host;
         break;
       } default: {
         assert(false, `<${node.tag}> is only valid inside <html> content`);
@@ -1249,10 +1249,10 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     for (const child of node.children) this.attach(node, child);
     for (const [name, value] of Object.entries(node.props)) this.applyEcsProperty(node, name, value);
 
-    if (node.canvasHost !== undefined) {
-      const box = this.resolveBoxSize(node.tag === "canvasPaint" ? node.parent ?? node : node);
-      node.canvasHost.setSize(box.width, box.height);
-      this.invokeRef(node, node.canvasHost.canvas);
+    if (node.surfaceHost !== undefined) {
+      const box = this.resolveBoxSize(node.tag === "surfacePaint" ? node.parent ?? node : node);
+      node.surfaceHost.setSize(box.width, box.height);
+      this.invokeRef(node, node.surfaceHost.canvas);
     }
     assert(node.ref === undefined, `\`ref\` is not supported on <${node.tag}>`);
   }
