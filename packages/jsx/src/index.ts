@@ -15,7 +15,7 @@ export type {
 } from "./generate";
 export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
-export { useTicker } from "./renderer";
+export { useTicker, useFile } from "./renderer";
 export type { Ticker } from "./renderer";
 export type {
   Animatable,

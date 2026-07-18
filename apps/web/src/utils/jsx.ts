@@ -45,7 +45,7 @@ import { ASPECT_RATIO_DIMENSIONS, findEmptyPlacement } from "@/utils/genai";
 import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
 import { assert, assertAllSettled, parseColor } from "@/utils";
 
-import type { AssetRef, AssetSpecInput, ProjectDocument, ProjectTick } from "@diffusionstudio/jsx";
+import type { AssetInput, AssetRef, AssetSpecInput, ProjectDocument, ProjectTick } from "@diffusionstudio/jsx";
 import type { Engine, EngineWorld } from "@/components/engine";
 import type { GenerationMemo } from "@/utils/jsx-generation";
 
@@ -429,6 +429,19 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
 
   public tick(): ProjectTick {
     return this.ticker[0]();
+  }
+
+  /**
+   * Backs `useFile`: resolves a source (path, URL, asset id, or `AssetRef`) to
+   * its `File`, the same input `src` accepts. A `generate.*` ref generates on
+   * demand (content-cached in the library, so it collapses with the mount's own
+   * generation of the same spec).
+   */
+  public async loadFile(input: AssetInput): Promise<File> {
+    const asset = isAssetRef(input)
+      ? await resolveGeneratedAsset(this.world, input, new Map())
+      : await resolveAsset(this.world, input);
+    return await asset.handle.getFile();
   }
 
   /**

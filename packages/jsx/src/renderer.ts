@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createContext, createMemo, useContext } from "solid-js";
+import { createContext, createMemo, createResource, useContext } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 
-import type { Accessor, JSX } from "solid-js";
+import type { Accessor, JSX, ResourceReturn } from "solid-js";
+import type { AssetInput } from "./generate";
 import type { ProjectDocument } from "./document";
 
 // Compiled project modules call the static runtime exports below
@@ -112,6 +113,37 @@ export function useTicker(): Ticker {
     delta: createMemo(() => tick().delta),
     playing: createMemo(() => tick().playing),
   };
+}
+
+/**
+ * Resolves a source (path, asset id, URL, or a `generate.*` ref) to its `File`,
+ * for reading raw bytes inside effects. Returns Solid's `createResource` tuple
+ * unchanged: the resource accessor reads `undefined` until it resolves, then
+ * the `File` (with `.loading` / `.error`), plus `mutate` / `refetch`.
+ * Resolution is async (fetch a URL, read a path or library asset, await a
+ * `generate.*` ref) and, like `src`, needs the host — a sandboxed module can't
+ * fetch a path or asset id itself.
+ *
+ * ```tsx
+ * const [canvas, setCanvas] = createSignal<HTMLCanvasElement>();
+ * const [file] = useFile("/assets/logo.png");
+ * createEffect(async () => {
+ *   const el = canvas();
+ *   const f = file();
+ *   if (!el || !f) return;
+ *   el.getContext("2d")!.drawImage(await createImageBitmap(f), 0, 0);
+ * });
+ * // <canvas ref={setCanvas} width={640} height={360} />
+ * ```
+ */
+export function useFile(src: AssetInput): ResourceReturn<File> {
+  const document = doc();
+  if (!document.loadFile) {
+    throw new Error("useFile: this host does not provide file resolution");
+  }
+
+  const load = document.loadFile.bind(document);
+  return createResource(() => src, (input) => load(input));
 }
 
 /**

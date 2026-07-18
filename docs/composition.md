@@ -88,6 +88,25 @@ These same props are what `dapi node patch` assigns on existing nodes.
 - an **asset id**: an imported library asset (see `dapi asset tree`)
 - an **`AssetRef`**: the value returned by a `generate.*` declaration
 
+To read a source's raw bytes inside an effect instead of mounting it as a node, pass the same input to `useFile`, which resolves it to a `File`. It returns Solid's `createResource` tuple (`[file, { mutate, refetch }]`): the `file` accessor reads `undefined` until it resolves, then the `File`. Useful for drawing a library image onto a `<canvas>` or parsing a data file:
+
+```tsx
+import { createSignal, createEffect } from "solid-js";
+import { useFile } from "@diffusionstudio/jsx";
+
+const [canvas, setCanvas] = createSignal<HTMLCanvasElement>();
+const [file] = useFile("/assets/logo.png");
+
+createEffect(async () => {
+  const el = canvas();
+  const f = file();
+  if (!el || !f) return;
+  el.getContext("2d")!.drawImage(await createImageBitmap(f), 0, 0);
+});
+
+// <canvas ref={setCanvas} width={640} height={360} />
+```
+
 ## Timing
 
 `start`/`end` place a clip on the parent timeline; `sourceIn`/`sourceOut` select which part of its source plays. The two are independent. Values take any [time format](cli.md#time-values) (seconds, `"45f"` frames, `"MM:SS"`).

@@ -51,3 +51,29 @@ Call it in a component body. It returns accessors for the playhead of the scene 
 | `playing()` | Whether the scene is playing |
 
 The values respect play, pause, scrubbing, looping, and playback speed, which wall-clock timers do not. Each accessor only propagates when its value changes, so a paused scene re-runs nothing and `frame()` consumers update at most once per frame. In a one-shot mount the first value renders and then freezes; the hook is only useful with `--live`.
+
+## `useFile`
+
+Resolves a [`src`](./media.md) (path, asset id, URL, or a `generate.*` ref) to its `File`, so effects can read the raw bytes: draw a library image onto a [`<canvas>`](./canvas-paint.md), parse a data file, decode audio. The module is sandboxed and can't fetch a path or asset id itself, so resolution goes through the host, exactly as `src` does.
+
+```tsx
+import { createSignal, createEffect } from "solid-js";
+import { useFile } from "@diffusionstudio/jsx";
+
+function Logo() {
+  const [canvas, setCanvas] = createSignal<HTMLCanvasElement>();
+  const [file] = useFile("/assets/logo.png");  // path, asset id, URL, or AssetRef
+
+  createEffect(async () => {
+    const el = canvas();
+    const f = file();                          // undefined until it resolves
+    if (!el || !f) return;
+    const ctx = el.getContext("2d")!;
+    ctx.drawImage(await createImageBitmap(f), 0, 0, el.width, el.height);
+  });
+
+  return <canvas ref={setCanvas} width={640} height={360} />;
+}
+```
+
+Returns Solid's `createResource` tuple unchanged: `[file, { mutate, refetch }]`. The `file` accessor reads `undefined` until resolution completes, then the `File`; `file.loading` and `file.error` report progress and failure. Resolution is async (fetch a URL, read a path or library asset, await a `generate.*` ref) and only runs in a live graph; in a one-shot mount there is no effect to consume the result.
