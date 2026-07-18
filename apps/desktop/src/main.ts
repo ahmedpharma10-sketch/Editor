@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, nativeImage, session, shell } from "electron";
 import { join } from "node:path";
 import { open, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -218,6 +218,11 @@ if (app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    if (!app.isPackaged && process.platform === "darwin") {
+      const devIcon = nativeImage.createFromPath(join(app.getAppPath(), "assets", "icon-dev.png"));
+      if (!devIcon.isEmpty()) app.dock?.setIcon(devIcon);
+    }
+
     setupAppMenu();
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true));
     session.defaultSession.setPermissionCheckHandler(() => true);
