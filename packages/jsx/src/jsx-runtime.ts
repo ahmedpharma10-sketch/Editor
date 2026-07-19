@@ -17,8 +17,9 @@ import type { JSX as SolidJSX } from "solid-js";
 
 // "canvas" is dropped: a DOM canvas's content doesn't survive
 // drawElementImage, so it is useless inside a paint host (draw with
-// <Surface> instead).
-type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas">;
+// <Surface> instead). "audio" and "video" are dropped: media doesn't play
+// under a paint host — use the <Audio>/<Video> composition elements.
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas" | "audio" | "video">;
 
 export declare namespace JSX {
   // Solid's Element type keeps Solid's control flow (<For>, <Show>, …) and

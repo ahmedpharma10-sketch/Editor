@@ -45,3 +45,4 @@ Like all paints it stacks with siblings in document order and clips to the paren
 - The content lives only as long as its mount: it is not persisted and does not render in exports yet.
 - CSS animations in the markup play on the wall clock, not the composition playhead. Animate the parent element's props with [keyframes](./keyframes.md) for frame-accurate motion.
 - Cross-origin subresources (e.g. remote images) are excluded from the painted output by the browser's read-back rules; use local assets.
+- `<audio>` and `<video>` tags are rejected: media doesn't play under a paint host. Use the [`<Audio>`](./audio.md) and [`<Video>`](./video.md) composition elements, which own playback and the timeline.

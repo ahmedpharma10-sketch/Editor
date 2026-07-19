@@ -613,6 +613,12 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   public createElement(tag: string): HostNode {
     // When the tag starts with a lowercase letter, it's a DOM vocabulary
     if (tag[0] === tag[0].toLowerCase()) {
+      // Media doesn't play under a paint host — playback and the timeline
+      // belong to the composition elements.
+      assert(
+        tag !== "audio" && tag !== "video",
+        `<${tag}> is not supported as html content; use the <${tag === "audio" ? "Audio" : "Video"}> composition element instead`,
+      );
       return SVGElements.has(tag)
         ? document.createElementNS(SVG_NS, tag)
         : document.createElement(tag);
