@@ -32,6 +32,19 @@ const FORWARD_BIAS_FRAMES = 24;
  */
 const DRAIN_FRAMES = 8;
 
+/**
+ * Total pixel budget of the preview frame cache
+ */
+const CACHE_PIXEL_BUDGET = 768 * 432 * 81; // 81 tiles at 768x432
+
+/**
+ * Per-tile pixel cap (~720p) — enough detail for the preview canvas.
+ */
+const MAX_TILE_PIXELS = 1280 * 720;
+
+const MIN_CACHE_COUNT = 30;
+const MAX_CACHE_COUNT = 81;
+
 export class VideoBuffer {
 	public errored = false;
 	public asset: VideoAsset;
@@ -40,7 +53,7 @@ export class VideoBuffer {
 	public mode: VideoBufferMode = 'alive';
 	public initialized: Promise<void>;
 
-	public readonly cache = new FrameCache({ pixels: 768 * 432, count: 81 });
+	public readonly cache: FrameCache;
 	public readonly queue = new VideoDecoderQueue(this.frameCallback.bind(this));
 
 	// user facing display canvas
@@ -59,6 +72,11 @@ export class VideoBuffer {
 
 	public constructor(asset: VideoAsset) {
 		this.asset = asset;
+
+		const pixels = Math.min(asset.width * asset.height, MAX_TILE_PIXELS);
+		const count = Math.min(MAX_CACHE_COUNT, Math.max(MIN_CACHE_COUNT, Math.floor(CACHE_PIXEL_BUDGET / pixels)));
+		this.cache = new FrameCache({ pixels, count });
+
 		this.initialized = this.initialize();
 	}
 
