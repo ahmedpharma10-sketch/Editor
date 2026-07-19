@@ -20,6 +20,7 @@ const MACOS_BACKDROP = { blur: 80, red: 0.07, green: 0.07, blue: 0.07, alpha: 0.
 
 app.setName("Diffusion Studio");
 app.commandLine.appendSwitch("enable-blink-features", "CanvasDrawElement");
+app.commandLine.appendSwitch("enable-features", "SharedArrayBuffer");
 
 let setNativeCornerRadius: ((handle: Buffer, radius: number) => void) | null = null;
 let setNativeBackdrop:
@@ -185,7 +186,7 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>
     setFileInputFiles(selector, absolutePath),
   );
-  
+
   mainBridge.handle(MAIN_CHANNELS.FILE_WRITE_OPEN, async ({ path, exclusive }) => {
     const handle = await open(path, exclusive ? "wx" : "w");
     const id = randomUUID();
@@ -214,7 +215,7 @@ if (app.requestSingleInstanceLock()) {
     try {
       await entry.handle.close();
     } finally {
-      await unlink(entry.path).catch(() => {});
+      await unlink(entry.path).catch(() => { });
     }
   });
 
