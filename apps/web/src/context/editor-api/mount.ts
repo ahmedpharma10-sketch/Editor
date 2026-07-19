@@ -94,7 +94,7 @@ export function handleMount(engine: Accessor<Engine>) {
  * parent entity instead of the document: roots take no key, nothing is
  * reconciled or deleted, every run inserts fresh entities. The parent may be
  * any live entity that takes children — a node, or a gradient paint for
- * `<colorStop>` roots.
+ * `<ColorStop>` roots.
  */
 export function handleNodeInsert(engine: Accessor<Engine>) {
   return async ({ code, parentId, index }: NodeInsertRequest): Promise<void> => {

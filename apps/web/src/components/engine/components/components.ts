@@ -380,6 +380,14 @@ export const HtmlHost = [] as (HtmlHostInstance | null)[];
 
 export const SurfaceHost = [] as (SurfaceHostInstance | null)[];
 
+// Renderer-runtime state on mounted entities (never serialized)
+export type MountData = {
+  props: Record<string, unknown>;
+  textBox?: DocumentFragment;
+};
+
+export const Data = [] as (MountData | null)[];
+
 export const ImageDecoder = [] as (ImageDecoderInstance | null)[];
 
 export const VideoDecoder = [] as (VideoDecoderInstance | null)[];

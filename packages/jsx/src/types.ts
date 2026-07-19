@@ -132,7 +132,7 @@ export type PatchProps = {
   height?: Animatable<number>;
   /** Rotation in degrees. Animatable. */
   rotation?: Animatable<number>;
-  /** Opacity, 0–1. Animatable. */
+  /** Opacity, 0–1 (out-of-range values clamp, like CSS). Animatable. */
   opacity?: Animatable<number>;
   /** Uniform corner radius, px. Animatable. */
   cornerRadius?: Animatable<number>;
@@ -152,7 +152,7 @@ export type PatchProps = {
   syncTo?: string;
   /**
    * Transition into the next clip, rendered centered on the cut, set on the
-   * outgoing clip. Only on direct children of `<sequence>`; a partial value
+   * outgoing clip. Only on direct children of `<Sequence>`; a partial value
    * merges into the clip's existing transition, `null` removes it.
    */
   transition?: TransitionSpec | null;
@@ -164,12 +164,12 @@ export type PatchProps = {
   /** Any CSS color, applied to the node's solid fill (created if absent); alpha is ignored — use `opacity`. */
   fill?: string;
   /**
-   * Path, URL, asset id, or a `generate.*` declaration. On `<captions>` a
+   * Path, URL, asset id, or a `generate.*` declaration. On `<Captions>` a
    * transcript source (.srt, .vtt, or transcript .json) mounted instead of
    * transcribing the scene; `generate.*` is not accepted there.
    */
   src?: string | AssetRef;
-  /** How the source maps into the box. Default "cover" on `<video>`, "contain" on `<image>`. */
+  /** How the source maps into the box. Default "cover" on `<Video>`, "contain" on `<Image>`. */
   objectFit?: Fit;
   /** Decibels: 0 = unity gain, negative attenuates (-6 ≈ half as loud), -Infinity = silence. Use `muted` to silence. Animatable. */
   volume?: Animatable<number>;
@@ -182,7 +182,7 @@ export type PatchProps = {
   /** CSS weights 100–900, or "normal" / "bold". */
   fontWeight?: number | "normal" | "bold";
   fontStyle?: "normal" | "italic";
-  /** Any CSS color: the glyph color on `<text>`, the paint color on paints and color stops. Animatable. */
+  /** Any CSS color: the glyph color on `<Text>`, the paint color on paints and color stops. Animatable. */
   color?: Animatable<string>;
   /** Horizontal alignment of glyphs within the box. Default "left". */
   textAlign?: "left" | "center" | "right";
@@ -190,7 +190,7 @@ export type PatchProps = {
   textBaseline?: "top" | "middle" | "bottom";
   /** Position along the gradient, 0–1. Animatable. */
   offset?: Animatable<number>;
-  /** Caption style preset — `<captions>` only. Default "classic". */
+  /** Caption style preset — `<Captions>` only. Default "classic". */
   preset?: CaptionPreset;
   /** Fills the caption preset's color slots in order; any CSS color, alpha is ignored. */
   colors?: string[];
@@ -262,7 +262,7 @@ export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
 };
 
 export type RectProps = CommonProps & Pick<PatchProps, "fill"> & {
-  /** Paint children (`<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`). */
+  /** Paint children (`<SolidPaint>`, `<LinearGradientPaint>`, `<RadialGradientPaint>`). */
   children?: SolidJSX.Element;
 };
 
@@ -271,7 +271,7 @@ export type SolidPaintProps = Required<Pick<PatchProps, "color">> & Pick<PatchPr
 export type GradientPaintProps = Pick<PatchProps, "opacity"> & {
   /** Gradient rotation in degrees. Defaults to 0 (left to right). */
   rotation?: number;
-  /** `<colorStop>` children — the gradient's color stops. */
+  /** `<ColorStop>` children — the gradient's color stops. */
   children?: SolidJSX.Element;
 };
 
@@ -295,7 +295,7 @@ export type HtmlPaintProps = Pick<PatchProps, "opacity"> & {
   children?: SolidJSX.Element;
 };
 
-/** `<html>` — a rectangle carrying an `<htmlPaint>` with the given children. */
+/** `<Html>` — a rectangle carrying an `<HtmlPaint>` with the given children. */
 export type HtmlProps = CommonProps & Pick<HtmlPaintProps, "children">;
 
 // HTMLCanvasElement without requiring the DOM lib (this package also
@@ -314,7 +314,7 @@ export type SurfacePaintProps = Pick<PatchProps, "opacity"> & {
   ref: (canvas: HostCanvas) => void;
 };
 
-/** `<surface>` — a rectangle carrying a `<surfacePaint>` with the given ref. */
+/** `<Surface>` — a rectangle carrying a `<SurfacePaint>` with the given ref. */
 export type SurfaceProps = CommonProps & Pick<SurfacePaintProps, "ref">;
 
 export type AudioProps = TimingProps &

@@ -12,13 +12,14 @@
  */
 
 import { Show, createSignal } from "solid-js";
+import { Rect, Scene, Text } from "@diffusionstudio/jsx";
 
 const [n, setN] = createSignal(0);
 setInterval(() => setN(n() + 1), 400);
 
 export default () => (
-  <scene key="sample-live" name="Live signals" width={960} height={540} fill="#101014">
-    <rect
+  <Scene key="sample-live" name="Live signals" width={960} height={540} fill="#101014">
+    <Rect
       x={40 + (n() * 24) % 700}
       y={60}
       width={120}
@@ -27,13 +28,13 @@ export default () => (
       fill={n() % 2 === 0 ? "#2288ff" : "#22ccff"}
     />
 
-    <text x={40} y={260} fontSize={64} fontFamily="Inter">
+    <Text x={40} y={260} fontSize={64} fontFamily="Inter">
       tick {n()}
-    </text>
+    </Text>
 
     <Show when={n() % 4 < 2}>
-      <rect x={40} y={380} width={80} height={80} fill="#44dd88" />
-      <text x={140} y={400} fontSize={36}>on air</text>
+      <Rect x={40} y={380} width={80} height={80} fill="#44dd88" />
+      <Text x={140} y={400} fontSize={36}>on air</Text>
     </Show>
-  </scene>
+  </Scene>
 );

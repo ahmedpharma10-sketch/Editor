@@ -1,9 +1,9 @@
 /* @jsxImportSource @diffusionstudio/jsx */
-/* Three.js owning a <surface>: a glTF helmet spun by the playhead.
+/* Three.js owning a <Surface>: a glTF helmet spun by the playhead.
  *
  *   dapi mount samples/reconciler/09-three-helmet.tsx
  *
- * The <surface> ref hands three.js a detached HTMLCanvasElement to render into;
+ * The <Surface> ref hands three.js a detached HTMLCanvasElement to render into;
  * the engine samples that bitmap into the node's box every frame, so a WebGL
  * scene composites like any other paint (needs preserveDrawingBuffer so the
  * per-frame readback doesn't come back blank). One clock drives everything:
@@ -17,7 +17,7 @@
  */
 
 import { createEffect, createSignal, onCleanup } from "solid-js";
-import { useTicker } from "@diffusionstudio/jsx";
+import { Scene, Surface, useTicker } from "@diffusionstudio/jsx";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -96,8 +96,8 @@ export default () => {
   };
 
   return (
-    <scene key="sample-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
-      <surface x={0} y={0} width={960} height={540} ref={setup} />
-    </scene>
+    <Scene key="sample-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
+      <Surface x={0} y={0} width={960} height={540} ref={setup} />
+    </Scene>
   );
 };

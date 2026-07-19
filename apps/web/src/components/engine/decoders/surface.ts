@@ -43,7 +43,7 @@ export class SurfaceHost {
 }
 
 /**
- * Shares <surfacePaint> hosts with a cloned (offline) world. The backing
+ * Shares <SurfacePaint> hosts with a cloned (offline) world. The backing
  * canvas is runtime state serializeEntity cannot carry, so export/capture
  * worlds reference the live hosts directly and sample whatever the mount's
  * ref last drew while encoding. The source world keeps ownership; offline

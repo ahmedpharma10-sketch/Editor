@@ -15,6 +15,25 @@ export type {
 } from "./generate";
 export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
+export {
+  Audio,
+  Captions,
+  ColorStop,
+  Group,
+  Html,
+  HtmlPaint,
+  Image,
+  LinearGradientPaint,
+  RadialGradientPaint,
+  Rect,
+  Scene,
+  Sequence,
+  SolidPaint,
+  Surface,
+  SurfacePaint,
+  Text,
+  Video,
+} from "./elements";
 export { useTicker, useFile } from "./renderer";
 export type { Ticker } from "./renderer";
 export type {

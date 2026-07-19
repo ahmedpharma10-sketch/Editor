@@ -10,6 +10,7 @@
  */
 
 import { For, createSignal } from "solid-js";
+import { Group, Rect, Scene, Text } from "@diffusionstudio/jsx";
 
 const COLORS: Record<string, string> = {
   A: "#ff4466",
@@ -27,16 +28,16 @@ setInterval(() => {
 }, 4000);
 
 export default () => (
-  <scene key="sample-list" name="Live list" width={960} height={540} fill="#101014">
+  <Scene key="sample-list" name="Live list" width={960} height={540} fill="#101014">
     <For each={items()}>
       {(label, i) => (
-        <group x={40 + i() * 180} y={180}>
-          <rect width={150} height={150} cornerRadius={16} fill={COLORS[label]} />
-          <text x={55} y={45} fontSize={56} fontFamily="Inter" fontWeight={700}>
+        <Group x={40 + i() * 180} y={180}>
+          <Rect width={150} height={150} cornerRadius={16} fill={COLORS[label]} />
+          <Text x={55} y={45} fontSize={56} fontFamily="Inter" fontWeight={700}>
             {label}
-          </text>
-        </group>
+          </Text>
+        </Group>
       )}
     </For>
-  </scene>
+  </Scene>
 );

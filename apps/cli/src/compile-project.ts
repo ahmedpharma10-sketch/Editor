@@ -92,13 +92,24 @@ function resolveBareSpecifier(spec: string, { cdnBase, importMap }: ResolverConf
   return `${cdnBase}/${spec}`;
 }
 
+// Identifiers babel auto-imports from `moduleName` when used as JSX tags
+// without an in-scope binding: Solid's control-flow defaults plus the
+// PascalCase composition elements, so project files need no imports for tags.
+// Element names must match the components in packages/jsx/src/elements.ts.
+const BUILT_INS = [
+  "For", "Show", "Switch", "Match", "Suspense", "SuspenseList", "Portal", "Index", "Dynamic", "ErrorBoundary",
+  "Scene", "Group", "Rect", "Video", "Image", "Audio", "Text", "Sequence", "Captions",
+  "SolidPaint", "LinearGradientPaint", "RadialGradientPaint", "ColorStop",
+  "HtmlPaint", "Html", "SurfacePaint", "Surface",
+];
+
 async function transformSolidJsx(source: string, filename: string): Promise<string> {
   const result = await transformAsync(source, {
     filename,
     babelrc: false,
     configFile: false,
     presets: [
-      [presetSolid, { generate: "universal", moduleName: "@diffusionstudio/jsx" }],
+      [presetSolid, { generate: "universal", moduleName: "@diffusionstudio/jsx", builtIns: BUILT_INS }],
       [presetTypescript, {}],
     ],
     sourceMaps: "inline",
@@ -148,7 +159,7 @@ function resolverPlugin(config: ResolverConfig): Plugin {
 export type CompileInput = { path: string } | { code: string };
 
 // `--code` ergonomics: a bare JSX expression (no `export default`) is wrapped
-// into a component module, so one-liners like `--code '<rect width={10} />'`
+// into a component module, so one-liners like `--code '<Rect width={10} />'`
 function wrapBareJsx(code: string): string {
   if (/\bexport\s+default\b/.test(code)) return code;
   return `export default () => (\n${code.trim().replace(/;+\s*$/, "")}\n);`;

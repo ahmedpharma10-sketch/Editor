@@ -739,7 +739,7 @@ async function nodeInsert(parentId: string, source: string, opts: NodeInsertOpti
     process.exit(1);
   }
   if (!/<\s*[A-Za-z]/.test(source)) {
-    console.error("`dapi node insert` expects JSX tags, e.g. '<rect width={10} height={10} />'.");
+    console.error("`dapi node insert` expects JSX tags, e.g. '<Rect width={10} height={10} />'.");
     process.exit(1);
   }
 
@@ -1088,7 +1088,7 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <surface>/<html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <Scene key> becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <Surface>/<Html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
@@ -1353,10 +1353,10 @@ node
 node
   .command("insert")
   .description(
-    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
+    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<Rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <Scene> and <ColorStop>; a gradient paint takes only <ColorStop> roots, which is how you add a stop to a gradient).`,
   )
-  .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
-  .argument("<code>", "JSX tags to insert, e.g. '<rect width={10} height={10} />' (no export default)")
+  .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <ColorStop> roots")
+  .argument("<code>", "JSX tags to insert, e.g. '<Rect width={10} height={10} />' (no export default)")
   .option("-i, --index <n>", "0-based position among the parent's existing children (node roots only; default: append at the end)")
   .action((parentId: string, code: string, opts: NodeInsertOptions) => nodeInsert(parentId, code, opts));
 
@@ -1451,7 +1451,7 @@ program
 program
   .command("fonts")
   .description(
-    `List the local fonts available on this machine (macOS only; does not require the app). These family names are valid \`fontFamily\` values on <text>; each family lists its variants.`,
+    `List the local fonts available on this machine (macOS only; does not require the app). These family names are valid \`fontFamily\` values on <Text>; each family lists its variants.`,
   )
   .option("-f, --family <pattern>", "filter to families whose name contains <pattern> (case-insensitive)")
   .option("-w, --weight <weights...>", "filter to variants with the given CSS weight(s), e.g. -w 400 700")

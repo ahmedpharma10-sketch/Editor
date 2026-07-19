@@ -7,41 +7,18 @@
  * compiled by babel-preset-solid (universal mode) against the renderer in
  * "./renderer", so this module carries no runtime — only the JSX namespace
  * TypeScript resolves element and prop types from.
+ *
+ * Composition elements are the PascalCase components in "./elements";
+ * intrinsic (lowercase) tags are exclusively DOM vocabulary for `<HtmlPaint>`
+ * content, so the case of a tag decides its environment.
  */
 
 import type { JSX as SolidJSX } from "solid-js";
-import type {
-  AudioProps,
-  CaptionsProps,
-  ColorStopProps,
-  GradientPaintProps,
-  GroupProps,
-  HtmlPaintProps,
-  HtmlProps,
-  ImageProps,
-  RectProps,
-  SceneProps,
-  SequenceProps,
-  SolidPaintProps,
-  SurfacePaintProps,
-  SurfaceProps,
-  TextProps,
-  VideoProps,
-} from "./types";
 
-// "audio", "video" and "html" are dropped because in composition context those
-// tags mean the node elements, not DOM tags. "canvas" is dropped for a separate
-// reason: a DOM canvas's content doesn't survive drawElementImage, so it is
-// useless inside a paint host (draw with <surface> instead).
-type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "audio" | "video" | "html" | "canvas">;
-
-// SVG vocabulary for <htmlPaint> content. Tags the editor also declares keep
-// their composition types below; the runtime resolves the actual meaning by
-// environment, the type system approximates with the composition side.
-type SvgElementTags = Omit<
-  SolidJSX.SVGElementTags,
-  "image" | "linearGradient" | "radialGradient" | "rect" | "stop" | "text"
->;
+// "canvas" is dropped: a DOM canvas's content doesn't survive
+// drawElementImage, so it is useless inside a paint host (draw with
+// <Surface> instead).
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas">;
 
 export declare namespace JSX {
   // Solid's Element type keeps Solid's control flow (<For>, <Show>, …) and
@@ -52,27 +29,5 @@ export declare namespace JSX {
     children: unknown;
   }
 
-  export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
-    scene: SceneProps;
-    group: GroupProps;
-    rect: RectProps;
-    video: VideoProps;
-    image: ImageProps;
-    audio: AudioProps;
-    text: TextProps;
-    sequence: SequenceProps;
-    captions: CaptionsProps;
-    solidPaint: SolidPaintProps;
-    solid: SolidPaintProps;
-    linearGradientPaint: GradientPaintProps;
-    linearGradient: GradientPaintProps;
-    radialGradientPaint: GradientPaintProps;
-    radialGradient: GradientPaintProps;
-    colorStop: ColorStopProps;
-    stop: ColorStopProps;
-    htmlPaint: HtmlPaintProps;
-    html: HtmlProps;
-    surfacePaint: SurfacePaintProps;
-    surface: SurfaceProps;
-  }
+  export interface IntrinsicElements extends HtmlElementTags, SolidJSX.SVGElementTags {}
 }

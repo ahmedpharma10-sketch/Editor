@@ -7,19 +7,19 @@ with `dapi mount`; every JSX element becomes an editable node in the
 composition — there is no hidden DOM, no CSS resolution, and no measuring pass.
 
 ```tsx
-import { generate } from "@diffusionstudio/jsx";
+import { Captions, Image, Scene, Text, generate } from "@diffusionstudio/jsx";
 
 const hero = generate.image({ prompt: "A neon city at night, cinematic" });
 
 export default function Project() {
   return (
-    <scene key="intro" name="Intro" width={1920} height={1080}>
-      <image src={hero} />
-      <text textAlign="center" textBaseline="middle" fontSize={128} fontWeight="bold">
+    <Scene key="intro" name="Intro" width={1920} height={1080}>
+      <Image src={hero} />
+      <Text textAlign="center" textBaseline="middle" fontSize={128} fontWeight="bold">
         Hello World
-      </text>
-      <captions />
-    </scene>
+      </Text>
+      <Captions />
+    </Scene>
   );
 }
 ```

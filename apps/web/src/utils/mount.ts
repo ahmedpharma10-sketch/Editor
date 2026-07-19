@@ -5,7 +5,7 @@
 import { query, Not } from "bitecs";
 import { renderProject } from "@diffusionstudio/jsx";
 
-import { WorldDocument, importProjectModule } from "@/utils/jsx";
+import { EntityNode, WorldDocument, importProjectModule } from "@/utils/jsx";
 import { getAssetFile } from "@/components/engine/api/assets";
 import { assert } from "@/utils";
 
@@ -29,8 +29,8 @@ export interface RealizedMount {
 /** Root keys of a rendered mount (its top-level entities' `Key` values). */
 export function documentRootKeys(world: EngineWorld, document: WorldDocument): string[] {
   const keys: string[] = [];
-  for (const node of document.stage.children) {
-    if (node.eid === undefined) continue;
+  for (const node of document.roots) {
+    if (!(node instanceof EntityNode)) continue;
     const key = world.components.Key[node.eid];
     if (key !== undefined) keys.push(key);
   }
@@ -65,7 +65,7 @@ export async function renderMount(
   };
 }
 
-/** MountPath -> entity id for one mount, so adopt can bind the re-run by key. */
+/** Creation ordinal (`MountPath.path`) -> entity id for one mount, so adopt can bind the re-run. */
 export function buildAdoptIndex(world: EngineWorld, mountId: string): Map<string, number> {
   const c = world.components;
   const index = new Map<string, number>();

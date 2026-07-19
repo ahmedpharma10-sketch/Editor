@@ -92,7 +92,7 @@ export class HtmlHost {
 			// skips the frame; log once so a permanent one doesn't spam.
 			if (!this.warned) {
 				this.warned = true;
-				console.error('Error drawing <htmlPaint> content', e);
+				console.error('Error drawing <HtmlPaint> content', e);
 			}
 		}
 	}
@@ -105,7 +105,7 @@ export class HtmlHost {
 }
 
 /**
- * Shares <htmlPaint> hosts with a cloned (offline) world. Host DOM is
+ * Shares <HtmlPaint> hosts with a cloned (offline) world. Host DOM is
  * runtime state serializeEntity cannot carry, so export/capture worlds
  * reference the live hosts directly and sample whatever the mount's reactive
  * graph shows while encoding. The source world keeps ownership; offline
