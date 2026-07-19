@@ -6,7 +6,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 
 ## Groups
 
-**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
+**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`logs`](./logs.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
@@ -30,6 +30,7 @@ How the surface is divided:
 
 - [`dapi open`](./open.md): launch the app, or open a file, folder, or deep link
 - [`dapi whoami`](./whoami.md): print the authenticated account
+- [`dapi logs`](./logs.md): recent console output from the running app
 
 ### Document
 
@@ -115,7 +116,7 @@ Time inputs take the `Time` format unless noted otherwise. Times in **outputs** 
 
 ## Conventions
 
-- **Stdout is JSON.** Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one object per line, no surrounding array) so per-item results stay streamable. `node tree` and `asset tree` emit one nested object per root. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `mount` and `node insert` write nothing.
+- **Stdout is JSON.** Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one object per line, no surrounding array) so per-item results stay streamable. `node tree` and `asset tree` emit one nested object per root. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `logs` writes plain formatted log lines; `mount` and `node insert` write nothing.
 - **Batch commands are fail-fast** (`node rm`, `node patch`, `asset add`, …): one invalid input fails the whole command with a single stderr message and exit `1`. Ids are validated before anything changes, so a failed `rm`/`mv`/`cp` changes nothing; there are no per-item partial results.
 - **Unix-style names are canonical:** list/read is `ls`, delete is `rm`, duplicate is `cp`, move/reparent is `mv`, search is `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls`. Commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.
