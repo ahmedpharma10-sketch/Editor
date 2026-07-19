@@ -15,6 +15,7 @@ import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from ".
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeCapture, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
 import { handleMount, handleNodeInsert } from "./mount";
 import { handleProjectActive, handleProjectList, handleProjectCreate, handleProjectDelete, handleProjectOpen } from "./project";
+import { handleLogs } from "./logs";
 import { handleModels } from "./models";
 import { handleVoices } from "./voices";
 import { cliBridge, mainBridge } from '@/lib/ipc';
@@ -99,6 +100,7 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
     context: q0(handleContextGet(getEngine)),
     mount: m(handleMount(getEngine)),
     models: q(handleModels()),
+    logs: q(handleLogs()),
     voices: q0(handleVoices()),
     asset: t.router({
       add: m(handleAssetsAdd(getEngine)),

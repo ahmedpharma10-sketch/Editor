@@ -16,7 +16,7 @@ import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { AssetRef, EncoderConfigInput, FrameQuality, NodePatch } from "./protocol";
+import type { AssetRef, EncoderConfigInput, FrameQuality, LogLevel, NodePatch } from "./protocol";
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
@@ -953,6 +953,39 @@ async function whoami(): Promise<void> {
   }
 }
 
+const LOG_LEVELS = ["debug", "info", "warning", "error"] as const;
+
+type LogsOptions = { tail?: string; level?: string };
+
+async function showLogs(opts: LogsOptions): Promise<void> {
+  if (opts.level !== undefined && !LOG_LEVELS.includes(opts.level as LogLevel)) {
+    console.error(`--level must be one of ${LOG_LEVELS.join(", ")} (got "${opts.level}")`);
+    process.exit(1);
+  }
+  let tail: number | undefined;
+  if (opts.tail !== undefined) {
+    const n = Number(opts.tail);
+    if (!Number.isInteger(n) || n <= 0) {
+      console.error(`--tail must be a positive integer (got "${opts.tail}")`);
+      process.exit(1);
+    }
+    tail = n;
+  }
+
+  try {
+    const entries = await editor.logs.query({ tail, level: opts.level as LogLevel | undefined });
+    const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+    for (const entry of entries) {
+      const d = new Date(entry.ts);
+      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+      const source = entry.source ? `  (${entry.source})` : "";
+      console.log(`${time} [${entry.level}] ${entry.message}${source}`);
+    }
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
 function startSpinner(label: string): () => void {
   if (!process.stderr.isTTY) {
     process.stderr.write(`${label}…\n`);
@@ -1447,6 +1480,15 @@ program
   .command("whoami")
   .description(`Print the authenticated account, or null if signed out.`)
   .action(() => whoami());
+
+program
+  .command("logs")
+  .description(
+    `Print recent console output from the running app (what the devtools console shows: page logs, worker logs, uncaught errors), oldest first, one line per entry: local time, level, message, source location. The app buffers the last 2000 entries across reloads and project switches, so this replaces relaunching with ELECTRON_ENABLE_LOGGING=1 when debugging renderer-side behavior.`,
+  )
+  .option("-n, --tail <n>", "output only the last <n> entries")
+  .option("-l, --level <level>", `minimum level to include: "debug", "info", "warning", or "error"`)
+  .action((opts: LogsOptions) => showLogs(opts));
 
 program
   .command("fonts")

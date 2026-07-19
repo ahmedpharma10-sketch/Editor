@@ -12,6 +12,7 @@ import { startCliServer, stopCliServer, isHeadless } from "./cli-server";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
+import type { LogEntry } from "@diffusionstudio/cli/protocol";
 
 const DEV_URL = "http://localhost:5173";
 const AUTH_PROTOCOL = "diffusion";
@@ -52,6 +53,29 @@ const openWrites = new Map<string, { handle: FileHandle; path: string }>();
 
 let mainWindow: BrowserWindow | null = null;
 let pendingAuthUrl: string | null = null;
+
+// Renderer console mirror, served to the CLI via LOGS_GET. Lives in main so
+// it survives reloads and captures everything the devtools console shows
+// (page logs, worker logs, uncaught errors) without touching the web bundle.
+const LOG_BUFFER_MAX = 2000;
+const logBuffer: LogEntry[] = [];
+
+function pushLog(level: LogEntry["level"], message: string, source: string) {
+  logBuffer.push({ ts: Date.now(), level, message, source });
+  if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+}
+
+function captureConsole(window: BrowserWindow) {
+  window.webContents.on("console-message", ({ level, message, lineNumber, sourceId }) => {
+    pushLog(level, message, sourceId ? `${sourceId}:${lineNumber}` : "");
+  });
+  window.webContents.on("preload-error", (_event, path, error) => {
+    pushLog("error", `Preload error: ${error.message}`, path);
+  });
+  window.webContents.on("render-process-gone", (_event, details) => {
+    pushLog("error", `Renderer process gone: ${details.reason} (exit code ${details.exitCode})`, "");
+  });
+}
 
 function findProtocolUrl(argv: string[]): string | null {
   return argv.find((arg) => arg.startsWith(`${AUTH_PROTOCOL}://`)) ?? null;
@@ -102,6 +126,8 @@ function createWindow(show = true) {
       preload: join(app.getAppPath(), "dist", "preload.js"),
     },
   });
+
+  captureConsole(mainWindow);
 
   mainWindow.webContents.on("did-finish-load", () => {
     if (pendingAuthUrl) {
@@ -183,6 +209,7 @@ if (app.requestSingleInstanceLock()) {
   });
   mainBridge.handle(MAIN_CHANNELS.WINDOW_IS_FULLSCREEN, () => mainWindow?.isFullScreen() ?? false);
   mainBridge.handle(MAIN_CHANNELS.HEADLESS_GET_MODE, () => isHeadless());
+  mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>
     setFileInputFiles(selector, absolutePath),
   );

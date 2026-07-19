@@ -9,6 +9,8 @@
 //
 // CLI traffic uses a separate wire pair (CLI_WIRE in @diffusionstudio/cli/protocol);
 // main forwards it opaquely without inspecting channel names.
+import type { LogEntry } from "@diffusionstudio/cli/protocol";
+
 export const MAIN_WIRE = {
   REQUEST: "main:request",
   RESPONSE: "main:response",
@@ -33,6 +35,7 @@ export const MAIN_CHANNELS = {
   FILE_WRITE_CLOSE: "file:write-close",
   FILE_WRITE_ABORT: "file:write-abort",
   HEADLESS_GET_MODE: "headless:get-mode",
+  LOGS_GET: "logs:get",
 
   // Main→Renderer events
   AUTH_CALLBACK: "auth:callback",
@@ -67,6 +70,7 @@ export type MainRequestMap = {
     response: void;
   };
   [MAIN_CHANNELS.HEADLESS_GET_MODE]: { request: void; response: boolean };
+  [MAIN_CHANNELS.LOGS_GET]: { request: void; response: LogEntry[] };
 };
 export type MainRequestChannel = keyof MainRequestMap;
 
