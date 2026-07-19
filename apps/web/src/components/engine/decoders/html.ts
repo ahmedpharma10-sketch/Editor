@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { addComponent } from '../api/events';
-
 import type { EngineWorld } from '../api/world';
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -18,6 +16,29 @@ type DrawElementContext = Ctx2D & {
 export function isHtmlInCanvasSupported(): boolean {
 	return typeof CanvasRenderingContext2D !== 'undefined'
 		&& 'drawElementImage' in CanvasRenderingContext2D.prototype;
+}
+
+/** Whether `world` currently owns or shares any live HTML paint host. */
+export function hasLiveHtmlHosts(world: EngineWorld): boolean {
+	for (const host of world.components.HtmlHost) {
+		if (host) return true;
+	}
+	return false;
+}
+
+/**
+ * Resolves after the browser's next rendering update (style/layout/paint) has
+ * completed. drawElementImage samples paint records that are only refreshed
+ * while the host canvas paints, so an offline render loop that mutates the
+ * paint's DOM must yield one rendering update before rasterizing — otherwise
+ * every frame in the same task samples the records of the last real paint.
+ * The task queued from inside rAF runs after that frame's paint, so this
+ * costs one vsync, not two.
+ */
+export function nextRenderingUpdate(): Promise<void> {
+	return new Promise(resolve => {
+		requestAnimationFrame(() => setTimeout(resolve, 0));
+	});
 }
 
 /**
@@ -101,25 +122,5 @@ export class HtmlHost {
 		if (this.disposed) return;
 		this.disposed = true;
 		this.canvas.remove();
-	}
-}
-
-/**
- * Shares <HtmlPaint> hosts with a cloned (offline) world. Host DOM is
- * runtime state serializeEntity cannot carry, so export/capture worlds
- * reference the live hosts directly and sample whatever the mount's reactive
- * graph shows while encoding. The source world keeps ownership; offline
- * worlds must not dispose them.
- */
-export function shareHtmlHosts(
-	sourceWorld: EngineWorld,
-	world: EngineWorld,
-	eidMap: Map<number, number>,
-) {
-	for (const [sourceEid, targetEid] of eidMap) {
-		const host = sourceWorld.components.HtmlHost[sourceEid];
-		if (!host) continue;
-		addComponent(world, targetEid, world.components.HtmlHost, false);
-		world.components.HtmlHost[targetEid] = host;
 	}
 }

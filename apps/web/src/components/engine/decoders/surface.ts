@@ -41,23 +41,3 @@ export class SurfaceHost {
 		this.canvas.height = 0;
 	}
 }
-
-/**
- * Shares <SurfacePaint> hosts with a cloned (offline) world. The backing
- * canvas is runtime state serializeEntity cannot carry, so export/capture
- * worlds reference the live hosts directly and sample whatever the mount's
- * ref last drew while encoding. The source world keeps ownership; offline
- * worlds must not dispose them.
- */
-export function shareSurfaceHosts(
-	sourceWorld: EngineWorld,
-	world: EngineWorld,
-	eidMap: Map<number, number>,
-) {
-	for (const [sourceEid, targetEid] of eidMap) {
-		const host = sourceWorld.components.SurfaceHost[sourceEid];
-		if (!host) continue;
-		addComponent(world, targetEid, world.components.SurfaceHost, false);
-		world.components.SurfaceHost[targetEid] = host;
-	}
-}
