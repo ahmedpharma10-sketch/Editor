@@ -11,9 +11,9 @@ Exactly one of:
 - `<path>`: path to a `.tsx` / `.jsx` / `.ts` / `.js` entry module.
 - `--code <str>`: inline module source, compiled identically. The `export default () =>` wrapper is optional; a bare JSX expression (no `export default` in the source) is wrapped into a component module automatically.
 
-Optionally:
+## Lifecycle
 
-- `--live`: keep the reactive graph alive after mounting, so signals, effects, timers, and [`useTicker`](./jsx/lifecycle.md#useticker) keep driving the mounted entities. Without it the graph is disposed once the mount lands (the entities stay, reactivity stops). A live run ends when a later mount claims one of its root keys or the project closes (see [jsx/lifecycle.md](./jsx/lifecycle.md)).
+A mount stays live: its reactive graph keeps running after the command returns, so signals, effects, timers, and [`useTicker`](./jsx/lifecycle.md#useticker) keep driving the mounted entities. The compiled module is persisted with the document and re-executed in every context, so the mount is restored on reload and its ticker-driven [`<surface>`](./jsx/surface-paint.md)/[`<html>`](./jsx/html-paint.md) animate in exports and captures (the module's structure must be deterministic). See [jsx/lifecycle.md](./jsx/lifecycle.md).
 
 ## Output
 

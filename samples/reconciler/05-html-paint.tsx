@@ -1,7 +1,7 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Environment split: the same tags mean different things per context.
  *
- *   dapi mount --live samples/reconciler/05-html-paint.tsx
+ *   dapi mount samples/reconciler/05-html-paint.tsx
  *
  * Requires the html-in-canvas API (chrome://flags/#canvas-draw-element;
  * not available in Electron 35, so use a supporting build): without it the

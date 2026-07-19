@@ -73,6 +73,7 @@ export function Assets() {
     const selectedFilter = assetFilter();
 
     return list.filter((asset) => {
+      if (asset.type === "SCRIPT") return false;
       if (selectedFilter !== "ALL" && asset.type !== selectedFilter) return false;
       if (q) return asset.name.toLowerCase().includes(q);
       return assetFolderId(world, asset) === folders.currentId();

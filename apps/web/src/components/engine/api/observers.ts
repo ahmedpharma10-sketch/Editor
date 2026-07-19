@@ -127,6 +127,18 @@ export function observeWorld(world: EngineWorld) {
     utils.persistEntity(world, eid);
   });
 
+  observe(world, "set", c.MountScript, (eid, { mountId, scriptAssetId }) => {
+    c.MountScript.mountId[eid] = mountId ?? c.MountScript.mountId[eid] ?? "";
+    c.MountScript.scriptAssetId[eid] = scriptAssetId ?? c.MountScript.scriptAssetId[eid] ?? "";
+    utils.persistEntity(world, eid);
+  });
+
+  observe(world, "set", c.MountPath, (eid, { mountId, path }) => {
+    c.MountPath.mountId[eid] = mountId ?? c.MountPath.mountId[eid] ?? "";
+    c.MountPath.path[eid] = path ?? c.MountPath.path[eid] ?? "";
+    utils.persistEntity(world, eid);
+  });
+
   observe(world, "set", c.Position, (eid, { x, y }) => {
     c.Position.x[eid] = x ?? c.Position.x[eid] ?? 0;
     c.Position.y[eid] = y ?? c.Position.y[eid] ?? 0;

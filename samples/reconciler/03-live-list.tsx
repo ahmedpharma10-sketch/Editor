@@ -1,7 +1,7 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Keyed list: <For> reorders, inserts, and removes materialized subtrees.
  *
- *   dapi mount --live samples/reconciler/03-live-list.tsx
+ *   dapi mount samples/reconciler/03-live-list.tsx
  *
  * Every 1.2s the first card cycles to the back: Solid MOVES the existing
  * nodes (reorder/reparent path, not delete + recreate; entity ids in

@@ -68,6 +68,7 @@ type DocumentNode = {
   host?: HtmlHost;
   surfaceHost?: SurfaceHost;
   ref?(target: unknown): void;
+  adopted?: boolean;
 };
 
 let nextNodeId = 1;
@@ -295,18 +296,59 @@ type GenaiQueueItem = {
   type: "asset" | "caption" | "sync";
 };
 
+export interface WorldDocumentOptions {
+  /** Mount into an existing parent entity (e.g. `dapi node insert`). */
+  parentEid?: number;
+  /** Only needed for `commit()`'s captioning phase (`author` mode). */
+  engine?: Engine;
+  /**
+   * `author` (default) mints entities and defines structure — an explicit
+   * `dapi mount`. `adopt` binds the re-run to already-persisted entities by
+   * their `MountPath`, rebuilding runtime hosts without re-authoring structure
+   * (restore, export, capture).
+   */
+  mode?: "author" | "adopt";
+  /** Identity shared by every entity of this mount (author stamps, adopt matches). */
+  mountId?: string;
+  /** SCRIPT asset holding the compiled module, stamped onto the mount root. */
+  scriptAssetId?: string;
+  /** `adopt` mode: MountPath -> existing entity id, built from the world. */
+  adoptIndex?: Map<string, number>;
+}
+
 export class WorldDocument implements ProjectDocument<DocumentNode> {
   public promises: Promise<void>[] = [];
   public stage: DocumentNode;
   public rootEid: number | null = null;
-  public engine: Engine;
+  public world: EngineWorld;
+  public engine?: Engine;
+
+  private readonly mode: "author" | "adopt";
+  private readonly mountId?: string;
+  private readonly scriptAssetId?: string;
+  private readonly adoptIndex?: Map<string, number>;
+
+  // Runtime hosts this render created. Offline (export/capture) worlds are
+  // discarded without an entity-delete pass, so their hosts (an HtmlHost
+  // appends a canvas to document.body) must be freed explicitly on dispose.
+  private createdHosts: { dispose(): void }[] = [];
 
   private queue: GenaiQueueItem[] = [];
 
-  // Set once `commit()` finishes. A live mount (`dapi mount --live`) keeps
-  // its reactive graph running past commit, so later writes flow through the
-  // same paths, untracked; otherwise the undo stack would fill with one
-  // entry per reactive update.
+  private trackHost<T extends { dispose(): void }>(host: T): T {
+    this.createdHosts.push(host);
+    return host;
+  }
+
+  /** Frees the runtime hosts this render created (paired with the graph dispose). */
+  public disposeHosts(): void {
+    for (const host of this.createdHosts) host.dispose();
+    this.createdHosts.length = 0;
+  }
+
+  // Set once `commit()` finishes. A mount keeps its reactive graph running
+  // past commit, so later writes flow through the same paths, untracked;
+  // otherwise the undo stack would fill with one entry per reactive update.
   private committed = false;
 
   private track<T>(fn: () => T): T {
@@ -318,9 +360,14 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     return result;
   }
 
-  public constructor(engine: Engine, target?: { parentEid: number }) {
-    this.stage = makeNode({ tag: "#root", eid: target?.parentEid });
-    this.engine = engine;
+  public constructor(world: EngineWorld, options: WorldDocumentOptions = {}) {
+    this.world = world;
+    this.engine = options.engine;
+    this.stage = makeNode({ tag: "#root", eid: options.parentEid });
+    this.mode = options.mode ?? "author";
+    this.mountId = options.mountId;
+    this.scriptAssetId = options.scriptAssetId;
+    this.adoptIndex = options.adoptIndex;
   }
 
   /**
@@ -407,6 +454,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         const sceneEid = getSceneAncestor(world, nodeEid);
         if (!sceneEid || !hasAudioSources(world, sceneEid)) continue;
 
+        assert(this.engine, "captioning requires an engine (author-mode mount)");
         const { asset, trim } = await transcribeScene(this.engine, sceneEid);
         setComponent(world, nodeEid, c.AssetId, asset.id);
         setComponent(world, nodeEid, c.Trim, trim);
@@ -415,10 +463,6 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
 
     this.queue.length = 0;
     this.committed = true;
-  }
-
-  private get world(): EngineWorld {
-    return this.engine.world;
   }
 
   private ticker = solid.createSignal<ProjectTick>(
@@ -437,11 +481,22 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
    * demand (content-cached in the library, so it collapses with the mount's own
    * generation of the same spec).
    */
-  public async loadFile(input: AssetInput): Promise<File> {
-    const asset = isAssetRef(input)
-      ? await resolveGeneratedAsset(this.world, input, new Map())
-      : await resolveAsset(this.world, input);
-    return await asset.handle.getFile();
+  public loadFile(input: AssetInput): Promise<File> {
+    const promise = (async () => {
+      const asset = isAssetRef(input)
+        ? await resolveGeneratedAsset(this.world, input, new Map())
+        : await resolveAsset(this.world, input);
+      return await asset.handle.getFile();
+    })();
+
+    // Let commit() await the initial resolution so the first exported/captured
+    // frame reflects a `useFile`-driven draw rather than rendering before the
+    // file lands. Post-commit refetches update reactively and aren't tracked.
+    if (!this.committed) {
+      this.promises.push(promise.then(() => undefined, () => undefined));
+    }
+
+    return promise;
   }
 
   /**
@@ -577,7 +632,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
           "<htmlPaint> requires the html-in-canvas API; enable chrome://flags/#canvas-draw-element",
         );
         setComponent(world, eid, c.Paint, PaintType.HTML);
-        const host = new HtmlHost();
+        const host = this.trackHost(new HtmlHost());
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
         node.host = host;
@@ -593,7 +648,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         setComponent(world, eid, c.Name, getNextName(world, "HTML"));
         const fid = createEntity(world);
         setComponent(world, fid, c.Paint, PaintType.HTML);
-        const host = new HtmlHost();
+        const host = this.trackHost(new HtmlHost());
         addComponent(world, fid, c.HtmlHost, false);
         c.HtmlHost[fid] = host;
         appendChild(world, fid, eid);
@@ -601,7 +656,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         break;
       } case "surfacePaint": {
         setComponent(world, eid, c.Paint, PaintType.SURFACE);
-        const host = new SurfaceHost();
+        const host = this.trackHost(new SurfaceHost());
         addComponent(world, eid, c.SurfaceHost, false);
         c.SurfaceHost[eid] = host;
         node.surfaceHost = host;
@@ -613,7 +668,7 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         setComponent(world, eid, c.Name, getNextName(world, "Surface"));
         const fid = createEntity(world);
         setComponent(world, fid, c.Paint, PaintType.SURFACE);
-        const host = new SurfaceHost();
+        const host = this.trackHost(new SurfaceHost());
         addComponent(world, fid, c.SurfaceHost, false);
         c.SurfaceHost[fid] = host;
         appendChild(world, fid, eid);
@@ -1137,8 +1192,11 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     // only the empty placeholders Solid's control flow leaves behind pass.
     if (node.text !== undefined) {
       if (parent === this.stage) return;
-      if (this.isTextEntity(parent)) this.assignChars(parent);
-      else assert(node.text === "", `<${parent.tag}> cannot contain text`);
+      if (this.isTextEntity(parent)) {
+        if (!(parent.adopted === true && !this.committed)) this.assignChars(parent);
+      } else {
+        assert(node.text === "", `<${parent.tag}> cannot contain text`);
+      }
       return;
     }
 
@@ -1146,7 +1204,14 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
     const eid = node.eid!;
 
     if (parent !== this.stage) {
-      this.attachEntity(eid, parent.eid!);
+      if (!node.adopted) this.attachEntity(eid, parent.eid!);
+      return;
+    }
+
+    // An adopted root is already placed and parented in the world; re-running
+    // placement/replace would overwrite its persisted position and delete it.
+    if (node.adopted) {
+      this.rootEid = eid;
       return;
     }
 
@@ -1172,6 +1237,15 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
         });
         deleteEntity(world, existing);
       }
+    }
+
+    // Stamp the mount's identity on its root so any world can re-run the
+    // module (export, capture, reload) in adopt mode.
+    if (this.mode === "author" && this.mountId !== undefined && this.scriptAssetId !== undefined) {
+      setComponent(world, eid, c.MountScript, {
+        mountId: this.mountId,
+        scriptAssetId: this.scriptAssetId,
+      });
     }
 
     this.rootEid = eid;
@@ -1245,9 +1319,29 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
    * the stage), then recorded props in authored order.
    */
   private materializeEcs(node: DocumentNode): void {
-    node.eid = this.createEntityForTag(node);
+    const path = this.mountId !== undefined ? this.computeMountPath(node) : undefined;
+    const adoptedEid = this.mode === "adopt" && path !== undefined
+      ? this.adoptIndex?.get(path)
+      : undefined;
+
+    if (adoptedEid !== undefined) {
+      node.eid = adoptedEid;
+      node.adopted = true;
+      this.reattachRuntimeHostsForTag(node);
+    } else {
+      node.eid = this.createEntityForTag(node);
+      if (this.mountId !== undefined && path !== undefined) {
+        setComponent(this.world, node.eid, this.world.components.MountPath, { mountId: this.mountId, path });
+      }
+    }
+
     for (const child of node.children) this.attach(node, child);
-    for (const [name, value] of Object.entries(node.props)) this.applyEcsProperty(node, name, value);
+
+    // Adopted nodes keep their persisted (possibly hand-edited) values; only
+    // actively re-running effects write, via setProperty after eid is set.
+    if (!node.adopted) {
+      for (const [name, value] of Object.entries(node.props)) this.applyEcsProperty(node, name, value);
+    }
 
     if (node.surfaceHost !== undefined) {
       const box = this.resolveBoxSize(node.tag === "surfacePaint" ? node.parent ?? node : node);
@@ -1255,6 +1349,91 @@ export class WorldDocument implements ProjectDocument<DocumentNode> {
       this.invokeRef(node, node.surfaceHost.canvas);
     }
     assert(node.ref === undefined, `\`ref\` is not supported on <${node.tag}>`);
+  }
+
+  /** Index of `node` among its parent's entity-bearing (non-text) children. */
+  private entitySiblingIndex(node: DocumentNode): number {
+    const parent = node.parent;
+    if (parent === undefined) return 0;
+    let index = 0;
+    for (const child of parent.children) {
+      if (child === node) break;
+      if (child.text === undefined) index++;
+    }
+    return index;
+  }
+
+  /**
+   * A node's stable structural key: the index path of entity-bearing siblings
+   * from the mount root down to the node. Computed identically at author and
+   * adopt time (deterministic tree → matching paths), so adopt can bind the
+   * re-run to the persisted entity carrying the same `MountPath`.
+   */
+  private computeMountPath(node: DocumentNode): string {
+    const parts: number[] = [];
+    let cursor: DocumentNode | undefined = node;
+    while (cursor !== undefined && cursor.parent !== undefined) {
+      parts.push(this.entitySiblingIndex(cursor));
+      if (cursor.parent === this.stage) break;
+      cursor = cursor.parent;
+    }
+    return parts.reverse().join("/");
+  }
+
+  /**
+   * Adopt mode: rebuild the runtime-only hosts a persisted entity can't carry,
+   * binding a fresh host to the existing (adopted) paint entity. Mirrors the
+   * host setup in `createEntityForTag` but never creates structural entities.
+   */
+  private reattachRuntimeHostsForTag(node: DocumentNode): void {
+    const world = this.world;
+    const c = world.components;
+    const eid = node.eid!;
+
+    switch (node.tag) {
+      case "surfacePaint": {
+        const host = this.trackHost(new SurfaceHost());
+        addComponent(world, eid, c.SurfaceHost, false);
+        c.SurfaceHost[eid] = host;
+        node.surfaceHost = host;
+        break;
+      }
+      case "surface": {
+        const fid = this.findPaintChild(eid, PaintType.SURFACE);
+        assert(fid !== undefined, "adopted <surface> has no surface paint child");
+        const host = this.trackHost(new SurfaceHost());
+        addComponent(world, fid, c.SurfaceHost, false);
+        c.SurfaceHost[fid] = host;
+        node.surfaceHost = host;
+        break;
+      }
+      case "htmlPaint": {
+        const host = this.trackHost(new HtmlHost());
+        addComponent(world, eid, c.HtmlHost, false);
+        c.HtmlHost[eid] = host;
+        node.host = host;
+        break;
+      }
+      case "html": {
+        const fid = this.findPaintChild(eid, PaintType.HTML);
+        assert(fid !== undefined, "adopted <html> has no html paint child");
+        const host = this.trackHost(new HtmlHost());
+        addComponent(world, fid, c.HtmlHost, false);
+        c.HtmlHost[fid] = host;
+        node.host = host;
+        break;
+      }
+    }
+  }
+
+  /** The child paint entity of `eid` carrying the given paint type, if any. */
+  private findPaintChild(eid: number, paint: PaintType): number | undefined {
+    const world = this.world;
+    const c = world.components;
+    for (const fid of query(world, [ChildOf(eid), c.Paint, Not(c.Deleted)])) {
+      if (c.Paint[fid] === paint) return fid;
+    }
+    return undefined;
   }
 
   /** Builds the DOM subtree for a node under an <htmlPaint>, props applied. */

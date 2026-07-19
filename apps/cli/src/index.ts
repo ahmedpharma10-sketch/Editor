@@ -669,7 +669,7 @@ async function mediaWaveform(ref: string, opts: MediaPreviewOptions): Promise<vo
 
 const MOUNT_EXTENSIONS = new Set([".tsx", ".jsx", ".ts", ".js"]);
 
-type MountOptions = { code?: string; live?: boolean };
+type MountOptions = { code?: string };
 
 // Validates the (<path> | --code) pair shared by `mount` and `node insert`,
 // then compiles the module. Compile errors fail here, before the app is contacted.
@@ -708,7 +708,7 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
 
   const stop = startSpinner("Mounting project");
   try {
-    await editor.mount.mutate({ code, live: opts.live }, GENERATE);
+    await editor.mount.mutate({ code }, GENERATE);
     stop();
   } catch (e) {
     stop();
@@ -716,9 +716,9 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
   }
 }
 
-type NodeInsertOptions = MountOptions & { index?: string };
+type NodeInsertOptions = { index?: string };
 
-async function nodeInsert(parentId: string, path: string | undefined, opts: NodeInsertOptions): Promise<void> {
+async function nodeInsert(parentId: string, source: string, opts: NodeInsertOptions): Promise<void> {
   const [eid] = parseNodeIds([parentId]);
 
   let index: number | undefined;
@@ -731,7 +731,25 @@ async function nodeInsert(parentId: string, path: string | undefined, opts: Node
     index = n;
   }
 
-  const code = await compileProjectInput(path, opts.code);
+  // `insert` takes a JSX fragment inline, not a module or a file: it renders
+  // once and is discarded, so a live program has nothing to drive it. Validate
+  // loosely — reject the module form and require something that looks like a tag.
+  if (/\bexport\s+default\b/.test(source)) {
+    console.error("`dapi node insert` takes JSX tags, not a component module — drop `export default` (use `dapi mount` for a live program).");
+    process.exit(1);
+  }
+  if (!/<\s*[A-Za-z]/.test(source)) {
+    console.error("`dapi node insert` expects JSX tags, e.g. '<rect width={10} height={10} />'.");
+    process.exit(1);
+  }
+
+  let code: string;
+  try {
+    code = await compileProject({ code: source });
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
 
   const stop = startSpinner("Inserting entities");
   try {
@@ -1070,14 +1088,10 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). By default the module's reactive graph is disposed once the mount lands (the entities stay, but signals, effects, and timers stop); pass --live to keep it running. Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <surface>/<html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
-  .option(
-    "--live",
-    "keep the reactive graph alive after mounting: signals, effects, and timers keep driving the mounted entities until the app closes or a later mount claims one of its root keys (same key -> the old run is unmounted)",
-  )
   .action((path: string | undefined, opts: MountOptions) => mountProject(path, opts));
 
 const asset = program
@@ -1339,13 +1353,12 @@ node
 node
   .command("insert")
   .description(
-    `Compile a Solid JSX project module and insert its rendered roots as children of an existing entity: the same pipeline as \`mount\` (including AI asset generation), but it inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
+    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
   )
   .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
-  .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
-  .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
+  .argument("<code>", "JSX tags to insert, e.g. '<rect width={10} height={10} />' (no export default)")
   .option("-i, --index <n>", "0-based position among the parent's existing children (node roots only; default: append at the end)")
-  .action((parentId: string, path: string | undefined, opts: NodeInsertOptions) => nodeInsert(parentId, path, opts));
+  .action((parentId: string, code: string, opts: NodeInsertOptions) => nodeInsert(parentId, code, opts));
 
 node
   .command("rm")

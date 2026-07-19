@@ -24,6 +24,14 @@ export interface DBEntity {
 	Stroke?: {};
 	Name?: string;
 	Key?: string;
+	MountScript?: {
+		mountId: string;
+		scriptAssetId: string;
+	};
+	MountPath?: {
+		mountId: string;
+		path: string;
+	};
 	ChildOf?: number;
 	ItemIndex?: number;
 	ClipHeight?: number;

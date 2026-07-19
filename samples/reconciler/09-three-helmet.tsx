@@ -1,7 +1,7 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Three.js owning a <surface>: a glTF helmet spun by the playhead.
  *
- *   dapi mount --live samples/reconciler/09-three-helmet.tsx
+ *   dapi mount samples/reconciler/09-three-helmet.tsx
  *
  * The <surface> ref hands three.js a detached HTMLCanvasElement to render into;
  * the engine samples that bitmap into the node's box every frame, so a WebGL

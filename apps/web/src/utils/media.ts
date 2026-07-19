@@ -57,6 +57,8 @@ export function mimeTypeToExtension(mimeType: string): string {
 
     // Web files
     'text/html': '.html',
+    'text/javascript': '.js',
+    'application/javascript': '.js',
     'application/json': '.json',
     'application/x-subrip': '.srt',
     'text/vtt': '.vtt',

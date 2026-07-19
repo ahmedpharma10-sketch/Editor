@@ -2,7 +2,7 @@
 /* Ref-provided canvas: the <surface> element hands its backing bitmap to the
  * ref callback, which owns it from then on.
  *
- *   dapi mount --live samples/reconciler/08-surface-paint.tsx
+ *   dapi mount samples/reconciler/08-surface-paint.tsx
  *
  * The ref runs once at materialization, inside the mount's reactive owner:
  * the effect below redraws from a signal and the playhead ticker, and the

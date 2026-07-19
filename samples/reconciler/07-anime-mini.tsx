@@ -1,6 +1,6 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Anime.js timeline scrubbed by the playhead: canvas and DOM in lockstep.
- *   dapi mount --live samples/reconciler/07-anime-mini.tsx
+ *   dapi mount samples/reconciler/07-anime-mini.tsx
  */
 import { createEffect, createSignal } from "solid-js";
 import { createTimeline } from "animejs";

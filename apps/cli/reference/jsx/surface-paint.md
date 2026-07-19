@@ -25,7 +25,7 @@ A paint backed by a **canvas you draw yourself** (long form: `<surfacePaint>`). 
 
 ## Reactivity
 
-The engine samples the canvas every frame, so anything you draw shows up on the next frame. Under [`dapi mount --live`](../mount.md) the reactive graph stays alive: create effects in the ref to redraw from signals, or drive frame-accurate motion from the ticker's composition time:
+The engine samples the canvas every frame, so anything you draw shows up on the next frame. A [`dapi mount`](../mount.md) stays live, so the reactive graph keeps running: create effects in the ref to redraw from signals, or drive frame-accurate motion from the ticker's composition time:
 
 ```tsx
 <surface width={400} height={400}
@@ -79,8 +79,12 @@ Anything that accepts an existing canvas plugs in directly; a detached canvas is
 
 Like all paints it stacks with siblings in document order and clips to the parent's box (including `cornerRadius`). `<surfacePaint>` takes no children.
 
+## Persistence and export
+
+The compiled module is persisted with the document, so the drawing is reproducible, not ephemeral: on reload, export, and `dapi node capture` the engine re-executes it and redraws into a fresh canvas driven by that context's playhead, so ticker surfaces animate in exports. The bitmap itself is not stored; your code reproduces it. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree; using them inside a draw effect is fine).
+
 ## Requirements and limitations
 
-- The drawing is code, so the content lives only as long as its mount: it is not persisted with the document. Exports and captures started while the mount is alive sample the live canvas.
+- Duplicating or copy-pasting a mounted surface yields a static copy (the drawing does not re-run for the copy); re-mount to get a fresh animated instance.
 - Only the `ref` attribute form on the element itself is routed; refs inside spread props are not.
 - A real DOM `<canvas>` is not available inside [`<html>`](./html-paint.md) content — its pixels don't survive the html-in-canvas rasterization. Use `<surface>` for hand-drawn graphics instead.

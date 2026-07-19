@@ -24,11 +24,10 @@ import { playbackSystem } from '../systems/playback';
 import { motionSystem } from '../systems/motion';
 import { transformSystem } from '../systems/transform';
 import { renderSystem } from '../systems/render';
-import { shareHtmlHosts } from '../decoders/html';
-import { shareSurfaceHosts } from '../decoders/surface';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { AudioBus } from '../services/audio-bus';
+import { realizeMounts } from '@/utils/mount';
 
 import type { EngineWorld } from '../api/world';
 import type { EncoderConfig } from './interfaces';
@@ -133,10 +132,10 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 	c.AudioPlayback.contextOffsetInSeconds[sceneEid] = 0;
 	c.AudioPlayback.timelineOffsetInSeconds[sceneEid] = playheadStartSeconds;
 
-	if (videoEnabled) {
-		shareHtmlHosts(sourceWorld, world, eidMap);
-		shareSurfaceHosts(sourceWorld, world, eidMap);
-	}
+	// Re-execute any mounts into this offline world so it owns its own reactive
+	// graphs + runtime hosts (surface/html). The per-frame playbackSystem then
+	// drives them via world.liveMounts, so ticker-animated surfaces render.
+	const mounts = videoEnabled ? await realizeMounts(world) : null;
 
 	// Set up mediabunny output
 	const buffer = await TargetBuffer.create(config.target);
@@ -339,6 +338,10 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 			};
 		} finally {
 			URL.revokeObjectURL(audioWorkletUrl);
+			// Free the graphs + hosts realized above (this offline world is
+			// discarded, so nothing else disposes them — an HtmlHost otherwise
+			// leaks a canvas on document.body).
+			mounts?.disposeAll();
 		}
 	};
 

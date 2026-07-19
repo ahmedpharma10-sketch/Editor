@@ -48,7 +48,7 @@ How the surface is divided:
 - [`dapi node tree`](./node/tree.md): an entity's subtree as nested JSON
 - [`dapi node grep`](./node/grep.md): search entity records with a regex
 - [`dapi node capture`](./node/capture.md): capture a node as a PNG
-- [`dapi node insert`](./node/insert.md): render a JSX module into an existing parent
+- [`dapi node insert`](./node/insert.md): insert JSX tags into an existing parent
 - [`dapi node rm`](./node/rm.md): delete entities
 - [`dapi node cp`](./node/cp.md): deep-clone nodes
 - [`dapi node patch`](./node/patch.md): assign JSX props on existing entities

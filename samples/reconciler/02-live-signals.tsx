@@ -1,14 +1,14 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Live reactivity: post-commit updates flow through the materialized nodes.
  *
- *   dapi mount --live samples/reconciler/02-live-signals.tsx
+ *   dapi mount samples/reconciler/02-live-signals.tsx
  *
  * Watch the stage:
  * - the blue rect slides and recolors (reactive setProperty)
  * - the counter text updates in place (replaceText into Chars)
  * - the green badge blinks (Show insert/remove; its placeholder text node
  *   sits under the scene without crashing the ECS side)
- * Re-mount without --live to freeze and dispose the graph.
+ * Re-mount without to freeze and dispose the graph.
  */
 
 import { Show, createSignal } from "solid-js";

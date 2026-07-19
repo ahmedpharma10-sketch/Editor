@@ -76,6 +76,21 @@ export const Name = [] as string[];
 // Stable identity for entities.
 export const Key = [] as string[];
 
+// On a mount's root entity: the compiled module (a SCRIPT asset) that a world
+// re-executes to rebuild this mount's reactive graph and runtime hosts.
+export const MountScript = {
+  mountId: [] as string[],
+  scriptAssetId: [] as string[],
+};
+
+// On every entity a mount materializes: its stable structural key (an index
+// path from the mount root), so a re-run in adopt mode can bind to the existing
+// entity instead of minting a new one.
+export const MountPath = {
+  mountId: [] as string[],
+  path: [] as string[],
+};
+
 export const Position = {
   x: [] as number[],
   y: [] as number[],

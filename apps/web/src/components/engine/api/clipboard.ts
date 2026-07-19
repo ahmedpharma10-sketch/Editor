@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { hasComponent, query, Or } from 'bitecs';
-import { cloneFromRecords, cloneSubtree, serializeEntity } from './serialize';
+import { cloneFromRecords, cloneSubtree, serializeEntity, stripMountIdentity } from './serialize';
 import { getEntityTree } from './query';
 import { getParentEntity } from './base';
 import { addComponent, clearComponent, setComponent } from './events';
@@ -41,7 +41,7 @@ export function pasteClipboard(world: EngineWorld) {
 		const copyRootEids: number[] = [];
 
 		for (const snapshot of clipboard) {
-			const result = cloneFromRecords(world, snapshot.records);
+			const result = cloneFromRecords(world, stripMountIdentity(snapshot.records));
 			const rootCopyEid = result.get(snapshot.root);
 			if (!rootCopyEid || (!hasComponent(world, rootCopyEid, c.Geometry) && !hasComponent(world, rootCopyEid, c.Group))) continue;
 

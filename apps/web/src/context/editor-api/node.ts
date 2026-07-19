@@ -386,7 +386,7 @@ export function handleNodePatch(engine: Accessor<Engine>) {
 
     const results: NodePatchResult[] = [];
     for (const patch of patches) {
-      const doc = new WorldDocument(e);
+      const doc = new WorldDocument(e.world, { engine: e });
 
       try {
         world.history.startTransaction("patching node");

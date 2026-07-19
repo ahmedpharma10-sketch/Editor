@@ -18,6 +18,7 @@ import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { shareHtmlHosts } from '../decoders/html';
 import { shareSurfaceHosts } from '../decoders/surface';
 import { getEntityTree } from '../api/query';
+import { realizeMounts } from '@/utils/mount';
 import { framesToSeconds, formatTimestamp, stampTimestampLabel } from '../utils';
 import { assert } from '@/utils';
 
@@ -86,6 +87,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
 
   shareHtmlHosts(sourceWorld, world, eidMap);
   shareSurfaceHosts(sourceWorld, world, eidMap);
+  const mounts = await realizeMounts(world);
 
   const clonedEids = [...eidMap.values()];
   const c = world.components;
@@ -208,6 +210,10 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
         type: 'error',
         error: e instanceof Error ? e : new Error('Unknown error'),
       };
+    } finally {
+      // Free the graphs + hosts realized above (this offline world is
+      // discarded; realized HtmlHosts otherwise leak a canvas on document.body).
+      mounts.disposeAll();
     }
   };
 

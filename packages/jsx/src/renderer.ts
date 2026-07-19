@@ -97,8 +97,9 @@ export type Ticker = {
  * Subscribes to the project's timeline: the playhead of the scene the mount's
  * root lives in (or is), pushed by the host once per playback tick. Each
  * accessor only propagates when its value changes, so a paused scene re-runs
- * nothing and `frame()` consumers update at most once per frame. Values only
- * move while the reactive graph is alive, i.e. under `dapi mount --live`.
+ * nothing and `frame()` consumers update at most once per frame. Values move
+ * while the reactive graph is alive: a mount stays live, and export, capture,
+ * and reload each re-execute the module and drive the ticker themselves.
  */
 export function useTicker(): Ticker {
   const document = doc();

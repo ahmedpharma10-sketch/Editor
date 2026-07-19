@@ -1,7 +1,7 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Timeline clock: useTicker drives props from the scene's playhead.
  *
- *   dapi mount --live samples/reconciler/04-ticker.tsx
+ *   dapi mount samples/reconciler/04-ticker.tsx
  *
  * Values only move during playback: press play in the editor. The orange
  * rect orbits with the frame, the readout shows time/frame, and the

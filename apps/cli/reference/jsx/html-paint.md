@@ -17,7 +17,7 @@ Inside `<html>`, every tag is a DOM element: names the editor also uses (`<rect>
 
 ## Reactivity
 
-The children are part of the project's Solid graph: signals in attributes and text update the live DOM, and the drawn content follows on the next frame. With [`dapi mount --live`](../mount.md) the graph stays alive, so `useTicker` or timers can drive the markup:
+The children are part of the project's Solid graph: signals in attributes and text update the live DOM, and the drawn content follows on the next frame. A [`dapi mount`](../mount.md) stays live, so the graph keeps running and `useTicker` or timers can drive the markup:
 
 ```tsx
 const [count, setCount] = createSignal(0);

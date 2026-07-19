@@ -1,31 +1,16 @@
 # Lifecycle
 
-## One-shot render (default)
+## A mount stays live
 
-Mounting is a **one-shot render**: the reactive graph exists to *compose* the document (loops, conditionals, derived values, component props), not to drive it afterward.
+After `dapi mount` returns, its reactive graph keeps running: signals, effects, timers, and [`useTicker`](#useticker) keep driving the mounted entities. Updates land in the document immediately (not as undo steps) — prop writes, conditional inserts and removals (`<Show>`, `<For>`), text, and reactive `src` swaps including `generate.*`. The materialized nodes are ordinary editable entities; asset generation is owned by the engine. `syncTo` and new `<captions>` are mount-only and throw if changed after commit. A run ends when a later `mount` claims one of its root keys (swapping the entities and disposing the old graph) or the project closes.
 
-1. The component tree renders synchronously into the staging root; `onMount` callbacks flush once.
-2. The subtree commits and the reactive root is **disposed**. Signal changes after commit do not affect the document.
-3. Ownership transfers to the document: every materialized node is a fully editable composition node. Asset generation is owned by the engine, not the reactive graph, so it proceeds normally after disposal.
+The compiled module is persisted with the document and re-executed in every context: reload rebuilds the graph and its runtime hosts (`<surface>`/`<html>`), and export and capture drive the ticker across the frames they render. Re-execution binds to the existing entities rather than re-authoring them, so hand-edits survive; it rewrites only the props your effects animate. This requires the module's structure to be deterministic: `Math.random()` and `Date.now()` must not decide element counts or `<Show>`/`<For>` branches (using them inside an effect is fine).
 
-The update path is **re-running the project**, which rebuilds the mount root in place, like refreshing a webpage; unchanged asset specs hit the generation cache.
-
-## Live mode (`dapi mount --live`)
-
-`--live` skips the disposal in step 2: the reactive root stays mounted after the command returns, so signals, effects, and timers keep driving the composition. Everything else is unchanged; the nodes are ordinary editable entities and generation blocks the command as usual.
-
-A live run ends when:
-
-- a later `mount` (live or not) claims one of its root keys: the keyed replacement swaps the entities and disposes the old graph (`onCleanup` callbacks flush), or
-- the project or app closes.
-
-Inside a live graph, updates behave as in any Solid app: prop writes, conditional inserts and removals (`<Show>`, `<For>`), and text updates land in the document immediately. They are not recorded as undo steps. A reactive `src` swap works, including `generate.*` refs (the node shows its generating state until the new asset lands). Two things stay mount-only and throw if changed after commit: `syncTo` and creating new `<captions>`; re-mount for those.
-
-`node insert` is always one-shot; only `mount` supports `--live`.
+`node insert` renders into an existing parent and is not persisted or kept live.
 
 ## `useTicker`
 
-Live graphs can subscribe to the project's timeline instead of reaching for wall-clock timers:
+A mount can subscribe to the project's timeline instead of reaching for wall-clock timers:
 
 ```tsx
 import { useTicker } from "@diffusionstudio/jsx";
@@ -50,7 +35,7 @@ Call it in a component body. It returns accessors for the playhead of the scene 
 | `delta()` | Seconds advanced since the previous engine tick: 0 while paused, negative on a backward scrub or loop |
 | `playing()` | Whether the scene is playing |
 
-The values respect play, pause, scrubbing, looping, and playback speed, which wall-clock timers do not. Each accessor only propagates when its value changes, so a paused scene re-runs nothing and `frame()` consumers update at most once per frame. In a one-shot mount the first value renders and then freezes; the hook is only useful with `--live`.
+The values respect play, pause, scrubbing, looping, and playback speed, which wall-clock timers do not. Each accessor only propagates when its value changes, so a paused scene re-runs nothing and `frame()` consumers update at most once per frame. Ticker-driven drawing follows the playhead in the editor and in exports and captures; wall-clock timers (`setInterval`, `requestAnimationFrame`) render live but do not appear in exports.
 
 ## `useFile`
 
@@ -76,4 +61,4 @@ function Logo() {
 }
 ```
 
-Returns Solid's `createResource` tuple unchanged: `[file, { mutate, refetch }]`. The `file` accessor reads `undefined` until resolution completes, then the `File`; `file.loading` and `file.error` report progress and failure. Resolution is async (fetch a URL, read a path or library asset, await a `generate.*` ref) and only runs in a live graph; in a one-shot mount there is no effect to consume the result.
+Returns Solid's `createResource` tuple unchanged: `[file, { mutate, refetch }]`. The `file` accessor reads `undefined` until resolution completes, then the `File`; `file.loading` and `file.error` report progress and failure. Resolution is async (fetch a URL, read a path or library asset, await a `generate.*` ref); export and capture await the first resolution before rendering frame 0. A `node insert` has no surviving effect to consume the result.

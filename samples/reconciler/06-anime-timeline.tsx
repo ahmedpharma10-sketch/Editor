@@ -1,7 +1,7 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Anime.js timeline scrubbed by the playhead: one clock, two render worlds.
  *
- *   dapi mount --live samples/reconciler/06-anime-timeline.tsx
+ *   dapi mount samples/reconciler/06-anime-timeline.tsx
  *
  * Needs the html-in-canvas API (see 05-html-paint.tsx). A paused anime.js
  * timeline tweens plain-object targets; a createEffect seeks it to the
