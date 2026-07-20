@@ -41,41 +41,52 @@ export function nextRenderingUpdate(): Promise<void> {
 	});
 }
 
+let htmlCanvas: HTMLCanvasElement | null = null;
+let htmlCtx: CanvasRenderingContext2D | null = null;
+let htmlHosts = 0;
+
+function acquireLayoutCanvas(): HTMLCanvasElement {
+	if (!htmlCanvas) {
+		htmlCanvas = document.createElement('canvas');
+		htmlCanvas.width = 1;
+		htmlCanvas.height = 1;
+		htmlCanvas.toggleAttribute('layoutsubtree', true);
+		htmlCanvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;pointer-events:none;';
+		document.body.appendChild(htmlCanvas);
+		htmlCtx = htmlCanvas.getContext('2d')!;
+	}
+	htmlHosts++;
+	return htmlCanvas;
+}
+
+function releaseLayoutCanvas(): void {
+	if (--htmlHosts === 0) {
+		htmlCanvas?.remove();
+		htmlCanvas = null;
+		htmlCtx = null;
+	}
+}
+
 /**
- * DOM host for one HTML paint: a div inside the host's own layoutsubtree
- * canvas. The mount document inserts the paint's JSX children into `element`
- * as real, reactive DOM; the browser lays them out at the parent geometry's
- * box size and `draw` rasterizes the result onto the host canvas and blits
- * it into the rendering context (stage or offscreen alike).
- *
- * The host canvas must stay inside the viewport: the browser only caches its
- * children's paint records (which drawElementImage reads) while the canvas
- * itself paints, so hiding it or parking it offscreen breaks every draw. The
- * 1px CSS size keeps it invisible in practice while its bitmap is resized
- * freely for rasterization.
+ * DOM host for one HTML paint: a div inside the shared layoutsubtree canvas.
+ * The mount document inserts the paint's JSX children into `element` as real,
+ * reactive DOM; the browser lays them out at the parent geometry's box size
+ * and `draw` rasterizes the result at the destination's device scale and
+ * blits it into the rendering context (stage or offscreen alike).
  */
 export class HtmlHost {
 	public readonly element: HTMLDivElement;
-	private readonly canvas = document.createElement('canvas');
-	private readonly ctx = this.canvas.getContext('2d')!;
 	private disposed = false;
 	private warned = false;
 	private width = -1;
 	private height = -1;
 
 	public constructor() {
-		this.canvas.width = 1;
-		this.canvas.height = 1;
-		this.canvas.toggleAttribute('layoutsubtree', true);
-		this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;pointer-events:none;';
-
 		const el = document.createElement('div');
 		// pointer-events: none — layoutsubtree children participate in hit
 		// testing and would otherwise swallow page interactions.
 		el.style.cssText = 'position:absolute;left:0;top:0;overflow:hidden;pointer-events:none;';
-		this.canvas.appendChild(el);
-		document.body.appendChild(this.canvas);
-
+		acquireLayoutCanvas().appendChild(el);
 		this.element = el;
 	}
 
@@ -88,7 +99,7 @@ export class HtmlHost {
 	}
 
 	public draw(ctx: Ctx2D, width: number, height: number): void {
-		if (this.disposed) return;
+		if (this.disposed || !htmlCanvas || !htmlCtx) return;
 
 		this.setSize(width, height);
 
@@ -99,21 +110,21 @@ export class HtmlHost {
 			const pw = Math.max(1, Math.ceil(width * sx));
 			const ph = Math.max(1, Math.ceil(height * sy));
 
+			// Grow-only: shrinking would clear and reallocate every time hosts
+			// of different sizes share the canvas within one frame.
+			if (htmlCanvas.width < pw) htmlCanvas.width = pw;
+			if (htmlCanvas.height < ph) htmlCanvas.height = ph;
 
-			if (this.canvas.width !== pw || this.canvas.height !== ph) {
-				this.canvas.width = pw;
-				this.canvas.height = ph;
-			}
-			this.ctx.setTransform(sx, 0, 0, sy, 0, 0);
-			this.ctx.clearRect(0, 0, width, height);
-			(this.ctx as DrawElementContext).drawElementImage(this.element, 0, 0, width, height);
-			ctx.drawImage(this.canvas, 0, 0, width, height);
+			htmlCtx.setTransform(sx, 0, 0, sy, 0, 0);
+			htmlCtx.clearRect(0, 0, width, height);
+			(htmlCtx as DrawElementContext).drawElementImage(this.element, 0, 0, width, height);
+			ctx.drawImage(htmlCanvas, 0, 0, pw, ph, 0, 0, width, height);
 		} catch (e) {
 			// A transient failure (subtree not yet laid out or painted) just
 			// skips the frame; log once so a permanent one doesn't spam.
 			if (!this.warned) {
 				this.warned = true;
-				console.error('Error drawing <HtmlPaint> content', e);
+				console.error(`Error drawing <HtmlPaint> content: ${e instanceof Error ? `${e.name}: ${e.message}` : e}`);
 			}
 		}
 	}
@@ -121,6 +132,7 @@ export class HtmlHost {
 	public dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
-		this.canvas.remove();
+		this.element.remove();
+		releaseLayoutCanvas();
 	}
 }
