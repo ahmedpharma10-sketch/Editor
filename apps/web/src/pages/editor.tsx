@@ -9,19 +9,22 @@ import { Soundboard, Inspector } from "@/components/sidebar-right";
 import { FloatingProjectHeader, SidebarLeft } from "@/components/sidebar-left";
 import { useLayout, MIN_TIMELINE_HEIGHT } from "@/context/layout";
 import { useEditorApi } from "@/context/editor-api";
+import { RULER_HEIGHT } from "@/components/engine/timeline/config";
 
 const MIN_CANVAS_HEIGHT = 200;
 
 export function EditorPage() {
-  const { sidebarsVisible, timelineVisible, timelineHeight, setTimelineHeight } = useLayout();
+  const { sidebarsVisible, timelineVisible, timelineMinimized, timelineHeight, setTimelineHeight } = useLayout();
   const { isDesktop, isFullscreen } = useEditorApi();
   const [resizing, setResizing] = createSignal(false);
 
   const timelineStyles = createMemo(() => {
     if (!timelineVisible()) return;
 
+    const height = timelineMinimized() ? RULER_HEIGHT : timelineHeight();
+
     return {
-      'grid-template-rows': `1fr 1px ${timelineHeight()}px`,
+      'grid-template-rows': `1fr 1px ${height}px`,
     };
   });
 
@@ -76,15 +79,17 @@ export function EditorPage() {
       </Show>
       <Show when={timelineVisible()}>
         <div class="col-span-full bg-border-strong relative">
-          <div
-            class="absolute left-0 right-0 -top-px h-[3px] z-10 cursor-ns-resize group"
-            onPointerDown={handleResizeStart}
-          >
+          <Show when={!timelineMinimized()}>
             <div
-              class="absolute left-0 right-0 top-px h-px transition-colors group-hover:bg-primary"
-              classList={{ 'bg-primary': resizing() }}
-            />
-          </div>
+              class="absolute left-0 right-0 -top-px h-[3px] z-10 cursor-ns-resize group"
+              onPointerDown={handleResizeStart}
+            >
+              <div
+                class="absolute left-0 right-0 top-px h-px transition-colors group-hover:bg-primary"
+                classList={{ 'bg-primary': resizing() }}
+              />
+            </div>
+          </Show>
         </div>
       </Show>
       <Show when={timelineVisible()}>
@@ -96,7 +101,9 @@ export function EditorPage() {
       </Show>
       <Show when={timelineVisible()}>
         <div class="bg-border-strong" />
-        <Soundboard />
+        <Show when={!timelineMinimized()}>
+          <Soundboard />
+        </Show>
       </Show>
       <Show when={!sidebarsVisible()}>
         <FloatingProjectHeader />

@@ -27,6 +27,7 @@ export function createTimelineContext() {
     currentLayerTop: 0,
     currentLayerHeight: DEFAULT_CLIP_HEIGHT,
     cursor: 'default' as CursorType,
+    minimized: false,
     canvas: null as HTMLCanvasElement | null,
     ctx: null as CanvasRenderingContext2D | null,
     layout: new DOMRect(),

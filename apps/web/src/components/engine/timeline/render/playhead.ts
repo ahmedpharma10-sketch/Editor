@@ -9,6 +9,13 @@ import { RULER_HEIGHT } from "../config";
 import type { EngineWorld } from "../../api/world";
 import type { TimelineContext } from "../world";
 
+// Rounded-rect knob shown while the timeline is minimized
+const PILL_TOP = 8;
+const PILL_HEIGHT = 19;
+const PILL_PADDING_X = 4;
+const PILL_RADIUS = 9;
+const PILL_CHAR_WIDTH = 6;
+
 // Critically-damped spring state for gradient width
 const GRADIENT_PX_PER_VELOCITY = 25;
 const GRADIENT_RESPONSE_TIME = 0.15;
@@ -32,6 +39,12 @@ export function renderPlayhead(world: EngineWorld, timeline: TimelineContext) {
 
   ctx.translate(-(scrollX * resolution), 0);
   ctx.translate(x, 0);
+
+  if (timeline.minimized) {
+    renderMinimizedPlayhead(timeline, currentTime);
+    ctx.restore();
+    return;
+  }
 
   // Draw knob
   {
@@ -111,4 +124,40 @@ export function renderPlayhead(world: EngineWorld, timeline: TimelineContext) {
   }
 
   ctx.restore();
+}
+
+function renderMinimizedPlayhead(timeline: TimelineContext, currentTime: number) {
+  const ctx = timeline.ctx!;
+
+  const label = `${Math.round(currentTime)}`;
+
+  ctx.font = '400 10px JetBrains Mono';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const width = label.length * PILL_CHAR_WIDTH + PILL_PADDING_X * 2;
+
+  ctx.beginPath();
+  ctx.moveTo(0, PILL_TOP + PILL_HEIGHT);
+  ctx.lineTo(0, RULER_HEIGHT);
+
+  ctx.strokeStyle = timeline.colors.border.input;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.strokeStyle = timeline.colors.border.ring;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.roundRect(-width / 2, PILL_TOP, width, PILL_HEIGHT, PILL_RADIUS);
+
+  ctx.fillStyle = timeline.colors.border.ring;
+  ctx.strokeStyle = timeline.colors.border.darker;
+  ctx.lineWidth = 1;
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = 'white';
+  ctx.fillText(label, 0, PILL_TOP + PILL_HEIGHT / 2 + 0.5);
 }

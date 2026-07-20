@@ -91,20 +91,25 @@ export function createTimeline() {
 
       timeline.cursor = 'default';
 
-      renderBackground(world, timeline);
+      if (!timeline.minimized) {
+        renderBackground(world, timeline);
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, RULER_HEIGHT, canvas.width, canvas.height);
-      ctx.clip();
-      renderLayers(world, timeline);
-      renderMarquee(world, timeline);
-      ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, RULER_HEIGHT, canvas.width, canvas.height);
+        ctx.clip();
+        renderLayers(world, timeline);
+        renderMarquee(world, timeline);
+        ctx.restore();
+      }
 
       renderRuler(world, timeline);
       renderWorkarea(world, timeline);
       renderPlayhead(world, timeline);
-      renderSnapPoints(world, timeline);
+
+      if (!timeline.minimized) {
+        renderSnapPoints(world, timeline);
+      }
 
       cursor.set(canvas, timeline.cursor);
     } catch (e) {
@@ -226,6 +231,10 @@ export function createTimeline() {
 
   const clientToTime = (clientX: number) => (clientToFrame(clientX) / world.frameRate);
 
+  const setMinimized = (minimized: boolean) => {
+    timeline.minimized = minimized;
+  }
+
   const attachCanvas = () => {
     const canvas = document.getElementById('timeline-canvas') as HTMLCanvasElement;
     assert(canvas, 'Timeline canvas must be defined');
@@ -289,5 +298,6 @@ export function createTimeline() {
     scroll,
     clientToTime,
     clientToFrame,
+    setMinimized,
   };
 }

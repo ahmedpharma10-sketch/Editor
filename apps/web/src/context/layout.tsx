@@ -10,10 +10,12 @@ import { store } from '@/init';
 type LayoutContextValue = {
   sidebarsVisible: Accessor<boolean>;
   timelineVisible: Accessor<boolean>;
+  timelineMinimized: Accessor<boolean>;
   timelineHeight: Accessor<number>;
   setTimelineHeight(height: number): void;
   toggleUI(): void;
   toggleTimeline(): void;
+  toggleTimelineMinimized(): void;
 };
 
 const LayoutContext = createContext<LayoutContextValue>();
@@ -32,6 +34,9 @@ export function LayoutProvider(props: { children: JSX.Element }) {
   const [timelineHeight, setTimelineHeight] = createStoredSignal(
     store.define<number>('layout.timelineHeight', DEFAULT_TIMELINE_HEIGHT),
   );
+  const [timelineMinimized, setTimelineMinimized] = createStoredSignal(
+    store.define<boolean>('layout.timelineMinimized', false),
+  );
 
   const timelineVisible = () => sidebarsVisible() && timelinePreferred();
 
@@ -43,15 +48,21 @@ export function LayoutProvider(props: { children: JSX.Element }) {
     setTimelinePreferred(!timelinePreferred());
   };
 
+  const toggleTimelineMinimized = () => {
+    setTimelineMinimized(!timelineMinimized());
+  };
+
   return (
     <LayoutContext.Provider
       value={{
         sidebarsVisible,
         timelineVisible,
+        timelineMinimized,
         timelineHeight,
         setTimelineHeight,
         toggleUI,
         toggleTimeline,
+        toggleTimelineMinimized,
       }}>
       {props.children}
     </LayoutContext.Provider>
