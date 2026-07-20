@@ -58,7 +58,7 @@ export default function Ticker() {
         fill={`hsl(${hue()} 90% 60%)`}
       />
 
-      <text x={80} y={64} fontSize={44} fontFamily="Inter">
+      <text x={80} y={64} width={1200} height={60} fontSize={44} fontFamily="Inter">
         t = {time().toFixed(2)}s / frame {frame()} / loop {Math.round(progress() * 100)}%
       </text>
     </scene>

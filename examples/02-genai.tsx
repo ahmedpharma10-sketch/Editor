@@ -57,8 +57,8 @@ export default function GenAi() {
   return (
     <scene key="example-genai" name="GenAI" width={1920} height={1080} fill="black">
       <sequence name="Generated shots">
-        <video src={shot1} start={0} end={5} transition={{}} />
-        <video src={shot2} start={5} end={10} />
+        <video src={shot1} width={1920} height={1080} start={0} end={5} transition={{}} />
+        <video src={shot2} width={1920} height={1080} start={5} end={10} />
       </sequence>
 
       <audio name="Voiceover" src={voiceover} start={1} />

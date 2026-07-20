@@ -86,8 +86,8 @@ export default function Project() {
   return (
     <scene key="my-first-scene" name="MyFirstScene" fill="black" width={1920} height={1080}>
       <sequence>
-        <video src={heroMotion} start={0} end={5} transition={{ type: "dissolve" }} />
-        <video src="/Movies/video.mp4" start={5} end={10} sourceIn={12} />
+        <video src={heroMotion} width={1920} height={1080} start={0} end={5} transition={{ type: "dissolve" }} />
+        <video src="/Movies/video.mp4" width={1920} height={1080} start={5} end={10} sourceIn={12} />
       </sequence>
 
       <image src={hero} x={40} y={40} width={200} height={112} />

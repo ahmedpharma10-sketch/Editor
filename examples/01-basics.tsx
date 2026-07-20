@@ -26,6 +26,8 @@ const TITLES: { text: string; start: Time; end: Time }[] = [
 function Title(props: { text: string; start: Time; end: Time }) {
   return (
     <text
+      width={1920}
+      height={1080}
       textAlign="center"
       textBaseline="middle"
       fontFamily="Inter"
