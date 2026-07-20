@@ -4,7 +4,7 @@
     "jsx": "preserve",
     "jsxImportSource": "@diffusionstudio/jsx",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": []
+    "types": ["@webgpu/types"]
   },
-  "include": ["reconciler"]
+  "include": ["*.tsx"]
 }

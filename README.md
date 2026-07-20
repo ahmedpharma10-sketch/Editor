@@ -1,8 +1,8 @@
 # Diffusion Studio
 
-**FFmpeg for agents:** a video editor you drive from the command line, with a generative-AI and vision toolchain built in.
+**FFmpeg for agents:** a media compositor you drive from the command line, with a generative-AI and vision toolchain built in.
 
-Diffusion Studio is a canvas-based video editor. What makes it different is `dapi`, its CLI: every part of the editor (projects, the scene graph, the asset library, AI generation, rendering) is scriptable over a local socket, with JSON on stdout and deterministic exit codes. A human uses the canvas; an agent uses `dapi`. Both edit the same document.
+What makes Diffusion Studio different is `dapi`, its CLI: every part of the editor (projects, the scene graph, the asset library, AI generation, rendering) is scriptable over a local socket, with JSON on stdout and deterministic exit codes.
 
 ```sh
 dapi open                       # use -b to run the editor headless
@@ -81,6 +81,9 @@ dapi node capture                                        # see the canvas itself
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
+| `dapi screenshot` / `dapi logs` | The app itself: capture the window, read recent console output |
+| `dapi fetch` | Download a video from yt/tt/ig, ready for `dapi asset add` |
+| `dapi whoami` | The authenticated account |
 
 Conventions throughout: single results are one JSON value, collections are JSON Lines, errors go to stderr with exit code `1`. Everything is built to be piped, grepped, and driven by a program.
 

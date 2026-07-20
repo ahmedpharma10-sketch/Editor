@@ -1,7 +1,7 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Three.js owning a <surface>: a glTF helmet spun by the playhead.
  *
- *   dapi mount samples/reconciler/09-three-helmet.tsx
+ *   dapi mount examples/06-three.tsx
  *
  * The <surface> ref hands three.js a detached HTMLCanvasElement to render into;
  * the engine samples that bitmap into the node's box every frame, so a WebGL
@@ -27,7 +27,7 @@ const MODEL_URL =
 
 const TURN_SECONDS = 6; // one full revolution per 6s of composition time
 
-export default () => {
+export default function ThreeHelmet() {
   const { time } = useTicker();
   const [loaded, setLoaded] = createSignal(false);
 
@@ -96,8 +96,8 @@ export default () => {
   };
 
   return (
-    <scene key="sample-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
+    <scene key="example-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
       <surface x={0} y={0} width={960} height={540} ref={setup} />
     </scene>
   );
-};
+}

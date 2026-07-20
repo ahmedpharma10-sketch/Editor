@@ -1,9 +1,9 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Anime.js timeline scrubbed by the playhead: one clock, two render worlds.
  *
- *   dapi mount samples/reconciler/06-anime-timeline.tsx
+ *   dapi mount examples/05-anime-timeline.tsx
  *
- * Needs the html-in-canvas API (see 05-html-paint.tsx). A paused anime.js
+ * Needs the html-in-canvas API (see 04-html-in-canvas.tsx). A paused anime.js
  * timeline tweens plain-object targets; a createEffect seeks it to the
  * scene playhead (looping over the timeline length) and mirrors the values
  * into a store. The same values drive an ECS chip on the canvas and a DOM
@@ -19,17 +19,17 @@ import { useTicker } from "@diffusionstudio/jsx";
 const chip = { x: -160, y: 190, rotation: -90, cornerRadius: 12, opacity: 0 };
 const card = { rise: 90, opacity: 0, progress: 0, hue: 210 };
 
-const tl = createTimeline({ autoplay: false })
-  .add(chip, { x: 110, opacity: 1, duration: 1000, ease: "outElastic(1, .6)" }, 0)
-  .add(chip, { rotation: 270, cornerRadius: 80, duration: 1400, ease: "inOutQuad" }, 1000)
-  .add(chip, { cornerRadius: 12, rotation: 360, duration: 800, ease: "outBack" }, 2600)
-  .add(card, { rise: 0, opacity: 1, duration: 800, ease: "outCubic" }, 200)
-  .add(card, { progress: 100, duration: 2800, ease: "inOutSine" }, 500)
-  .add(card, { hue: 570, duration: 3400, ease: "linear" }, 0);
-
-export default () => {
+export default function AnimeTimeline() {
   const { time } = useTicker();
   const [v, setV] = createStore({ chip: { ...chip }, card: { ...card } });
+
+  const tl = createTimeline({ autoplay: false })
+    .add(chip, { x: 110, opacity: 1, duration: 1000, ease: "outElastic(1, .6)" }, 0)
+    .add(chip, { rotation: 270, cornerRadius: 80, duration: 1400, ease: "inOutQuad" }, 1000)
+    .add(chip, { cornerRadius: 12, rotation: 360, duration: 800, ease: "outBack" }, 2600)
+    .add(card, { rise: 0, opacity: 1, duration: 800, ease: "outCubic" }, 200)
+    .add(card, { progress: 100, duration: 2800, ease: "inOutSine" }, 500)
+    .add(card, { hue: 570, duration: 3400, ease: "linear" }, 0);
 
   createEffect(() => {
     tl.seek((time() * 1000) % tl.duration);
@@ -40,7 +40,7 @@ export default () => {
   const hue = () => Math.round(v.card.hue);
 
   return (
-    <scene key="sample-anime" name="Anime timeline" width={960} height={540} fill="#101014">
+    <scene key="example-anime" name="Anime timeline" width={960} height={540} fill="#101014">
       <rect
         x={v.chip.x}
         y={v.chip.y}
@@ -50,9 +50,10 @@ export default () => {
         cornerRadius={v.chip.cornerRadius}
         opacity={v.chip.opacity}
         fill={`hsl(${hue()} 90% 60%)`}
+        end={3.25}
       />
 
-      <html x={380} y={120} width={500} height={300}>
+      <html x={380} y={120} width={500} height={300} end={3.25}>
         <div
           style={{
             "font-family": "Inter",
@@ -85,4 +86,4 @@ export default () => {
       </html>
     </scene>
   );
-};
+}
