@@ -11,6 +11,7 @@ import * as diffusionJsx from "@diffusionstudio/jsx";
 import {
   AnimationPhase,
   AnimationType,
+  CaptionAlign,
   CaptionType,
   FontStyle,
   GeometryType,
@@ -270,6 +271,12 @@ const CAPTION_PRESET_MAP = {
   paper: CaptionType.PAPER,
   guinea: CaptionType.GUINEA,
   stark: CaptionType.STARK,
+} as const;
+
+export const CAPTION_ALIGN_MAP = {
+  top: CaptionAlign.TOP,
+  center: CaptionAlign.CENTER,
+  bottom: CaptionAlign.BOTTOM,
 } as const;
 
 type GenaiQueueItem = {
@@ -1276,6 +1283,14 @@ export class WorldDocument implements ProjectDocument<HostNode> {
           return color;
         });
         setComponent(world, eid, c.Caption, { colors });
+        break;
+      } case "verticalAlign": {
+        assert(hasComponent(world, eid, c.Caption), "`verticalAlign` only applies to <Captions>");
+        assert(typeof value === "string", "`verticalAlign` must be a string" + `, value: ${value}`);
+        assert(value in CAPTION_ALIGN_MAP, `invalid verticalAlign value: "${value}"`);
+        setComponent(world, eid, c.Caption, { verticalAlign: CAPTION_ALIGN_MAP[value as keyof typeof CAPTION_ALIGN_MAP] });
+        // A live decoder has already placed the box from the old alignment.
+        c.CaptionDecoder[eid]?.reposition(world, eid);
         break;
       }
     }

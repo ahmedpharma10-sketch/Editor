@@ -69,6 +69,7 @@ export const Stroke = {};
 export const Caption = {
   type: [] as number[], // CaptionType enum index,
   colors: [] as number[][],
+  verticalAlign: [] as (number | undefined)[], // CaptionAlign enum index; unset = the preset's default
 };
 
 export const Name = [] as string[];

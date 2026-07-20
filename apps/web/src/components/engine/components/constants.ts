@@ -151,6 +151,12 @@ export enum CaptionType {
   STARK,
 }
 
+export enum CaptionAlign {
+  TOP,
+  CENTER,
+  BOTTOM,
+}
+
 export enum ToolType {
   MOVE,
   HAND,

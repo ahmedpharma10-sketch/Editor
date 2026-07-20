@@ -201,6 +201,12 @@ export type PatchProps = {
   preset?: CaptionPreset;
   /** Fills the caption preset's color slots in order; any CSS color, alpha is ignored. */
   colors?: string[];
+  /**
+   * Vertical placement of the caption block — `<Captions>` only: anchored to
+   * the top or bottom safe margin, or centered. The preset keeps owning the
+   * horizontal placement. Defaults to the preset's own alignment.
+   */
+  verticalAlign?: "top" | "center" | "bottom";
 };
 
 /** Every PatchProps key, at runtime — the `dapi node patch` allowlist. */
@@ -238,6 +244,7 @@ export const PATCH_PROP_KEYS = Object.keys({
   offset: true,
   preset: true,
   colors: true,
+  verticalAlign: true,
 } satisfies Record<keyof PatchProps, true>) as ReadonlyArray<keyof PatchProps>;
 
 type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
@@ -343,4 +350,7 @@ export type SequenceProps = Pick<PatchProps, "name"> & {
   children?: SolidJSX.Element;
 };
 
-export type CaptionsProps = Pick<PatchProps, "preset" | "colors" | "src" | "start" | "animations">;
+export type CaptionsProps = Pick<
+  PatchProps,
+  "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src" | "start" | "animations"
+>;

@@ -111,9 +111,10 @@ export function observeWorld(world: EngineWorld) {
     utils.persistEntity(world, eid);
   });
 
-  observe(world, "set", c.Caption, (eid, { type, colors }) => {
+  observe(world, "set", c.Caption, (eid, { type, colors, verticalAlign }) => {
     c.Caption.type[eid] = type ?? c.Caption.type[eid] ?? CaptionType.CLASSIC;
     c.Caption.colors[eid] = colors ?? c.Caption.colors[eid] ?? [0xFFFFFF];
+    c.Caption.verticalAlign[eid] = verticalAlign ?? c.Caption.verticalAlign[eid];
     utils.persistEntity(world, eid);
   });
 

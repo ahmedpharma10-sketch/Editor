@@ -222,6 +222,7 @@ export function serializeEntity(world: EngineWorld, eid: number): DBEntity {
 		record.Caption = {
 			type: c.Caption.type[eid],
 			colors: c.Caption.colors[eid]?.map(v => v),
+			verticalAlign: c.Caption.verticalAlign[eid],
 		};
 	}
 	if (hasComponent(world, eid, c.Chars)) {

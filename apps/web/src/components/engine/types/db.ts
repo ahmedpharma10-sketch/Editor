@@ -18,6 +18,7 @@ export interface DBEntity {
 	Caption?: {
 		type?: number;
 		colors?: number[];
+		verticalAlign?: number;
 	};
 	IsMask?: {};
 	Shadow?: {};
