@@ -6,6 +6,8 @@ import type { VideoCodec, AudioCodec } from "mediabunny";
 import type { ContainerFormat } from "../encode/types";
 import type { Token } from "../utils/text";
 import type { AudioBus as AudioBusInstance } from "../services/audio-bus";
+import type { HtmlHost as HtmlHostInstance } from "../decoders/html";
+import type { SurfaceHost as SurfaceHostInstance } from "../decoders/surface";
 import type { ImageDecoder as ImageDecoderInstance } from "../decoders/image";
 import type { VideoDecoderInstance } from "../decoders/video";
 import type { SequenceDecoder as SequenceDecoderInstance } from "../decoders/sequence";
@@ -67,12 +69,28 @@ export const Stroke = {};
 export const Caption = {
   type: [] as number[], // CaptionType enum index,
   colors: [] as number[][],
+  verticalAlign: [] as (number | undefined)[], // CaptionAlign enum index; unset = the preset's default
 };
 
 export const Name = [] as string[];
 
 // Stable identity for entities.
 export const Key = [] as string[];
+
+// On a mount's root entity: the compiled module (a SCRIPT asset) that a world
+// re-executes to rebuild this mount's reactive graph and runtime hosts.
+export const MountScript = {
+  mountId: [] as string[],
+  scriptAssetId: [] as string[],
+};
+
+// On every entity a mount materializes: its stable structural key (an index
+// path from the mount root), so a re-run in adopt mode can bind to the existing
+// entity instead of minting a new one.
+export const MountPath = {
+  mountId: [] as string[],
+  path: [] as string[],
+};
 
 export const Position = {
   x: [] as number[],
@@ -358,6 +376,18 @@ export const Cache = {
   keyframes: [] as number[][],
   animations: [] as number[][],
 };
+
+export const HtmlHost = [] as (HtmlHostInstance | null)[];
+
+export const SurfaceHost = [] as (SurfaceHostInstance | null)[];
+
+// Renderer-runtime state on mounted entities (never serialized)
+export type MountData = {
+  props: Record<string, unknown>;
+  textBox?: DocumentFragment;
+};
+
+export const Data = [] as (MountData | null)[];
 
 export const ImageDecoder = [] as (ImageDecoderInstance | null)[];
 

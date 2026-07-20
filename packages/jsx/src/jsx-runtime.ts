@@ -7,23 +7,19 @@
  * compiled by babel-preset-solid (universal mode) against the renderer in
  * "./renderer", so this module carries no runtime — only the JSX namespace
  * TypeScript resolves element and prop types from.
+ *
+ * Composition elements are the PascalCase components in "./elements";
+ * intrinsic (lowercase) tags are exclusively DOM vocabulary for `<HtmlPaint>`
+ * content, so the case of a tag decides its environment.
  */
 
 import type { JSX as SolidJSX } from "solid-js";
-import type {
-  AudioProps,
-  CaptionsProps,
-  ColorStopProps,
-  GradientPaintProps,
-  GroupProps,
-  ImageProps,
-  RectProps,
-  SceneProps,
-  SequenceProps,
-  SolidPaintProps,
-  TextProps,
-  VideoProps,
-} from "./types";
+
+// "canvas" is dropped: a DOM canvas's content doesn't survive
+// drawElementImage, so it is useless inside a paint host (draw with
+// <Surface> instead). "audio" and "video" are dropped: media doesn't play
+// under a paint host — use the <Audio>/<Video> composition elements.
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas" | "audio" | "video">;
 
 export declare namespace JSX {
   // Solid's Element type keeps Solid's control flow (<For>, <Show>, …) and
@@ -34,19 +30,5 @@ export declare namespace JSX {
     children: unknown;
   }
 
-  export interface IntrinsicElements {
-    scene: SceneProps;
-    group: GroupProps;
-    rect: RectProps;
-    video: VideoProps;
-    image: ImageProps;
-    audio: AudioProps;
-    text: TextProps;
-    sequence: SequenceProps;
-    captions: CaptionsProps;
-    solidPaint: SolidPaintProps;
-    linearGradientPaint: GradientPaintProps;
-    radialGradientPaint: GradientPaintProps;
-    colorStop: ColorStopProps;
-  }
+  export interface IntrinsicElements extends HtmlElementTags, SolidJSX.SVGElementTags {}
 }

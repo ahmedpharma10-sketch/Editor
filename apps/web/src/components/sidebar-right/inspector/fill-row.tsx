@@ -33,6 +33,8 @@ const FILL_TYPE_LABELS: Record<PaintType, string> = {
   [PaintType.LINEAR_GRADIENT]: 'Gradient',
   [PaintType.RADIAL_GRADIENT]: 'Gradient',
   [PaintType.WAVEFORM]: 'Waveform',
+  [PaintType.HTML]: 'Html',
+  [PaintType.SURFACE]: 'Surface',
 };
 
 export function FillRow(props: FillRowProps) {

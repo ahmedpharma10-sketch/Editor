@@ -8,6 +8,7 @@ import { createSignal } from "solid-js";
 import { observeWorld } from "./observers";
 import { createComponents } from "./components";
 import { createHistory } from "../utils/history";
+import { createLiveMounts } from "../utils/live-mounts";
 import { createStore } from "../db";
 import { initAssets } from "./assets";
 import { initFolders } from "./folders";
@@ -27,6 +28,7 @@ export function createEngineWorld(projectId: string, audioContext: AudioContext 
 		projectId,
 		components: createComponents(),
 		history: createHistory(),
+		liveMounts: createLiveMounts(),
 		selection: {
 			scene: null as number | null,
 			tool: 0,

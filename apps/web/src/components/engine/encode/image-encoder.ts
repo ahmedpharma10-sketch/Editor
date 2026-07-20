@@ -15,7 +15,9 @@ import { motionSystem } from '../systems/motion';
 import { transformSystem } from '../systems/transform';
 import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
+import { hasLiveHtmlHosts, nextRenderingUpdate } from '../decoders/html';
 import { getEntityTree } from '../api/query';
+import { realizeMounts } from '@/utils/mount';
 import { framesToSeconds, formatTimestamp, stampTimestampLabel } from '../utils';
 import { assert } from '@/utils';
 
@@ -81,6 +83,8 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   const eidMap = cloneFromRecords(world, records);
   const rootEid = eidMap.get(config.eid);
   assert(rootEid !== undefined, 'Failed to clone entity subtree');
+
+  const mounts = await realizeMounts(world);
 
   const clonedEids = [...eidMap.values()];
   const c = world.components;
@@ -174,6 +178,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   const render = async (): Promise<ImageExportResult> => {
     try {
       const images: string[] = [];
+      const waitForHtmlHosts = hasLiveHtmlHosts(world);
 
       for (const frame of config.frames) {
         if (canceled) {
@@ -184,6 +189,9 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
         await resolverSystem(world);
         motionSystem(world);
         transformSystem(world);
+        if (waitForHtmlHosts) {
+          await nextRenderingUpdate();
+        }
         renderSystem(world);
 
         if (config.timestamp) {
@@ -203,6 +211,10 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
         type: 'error',
         error: e instanceof Error ? e : new Error('Unknown error'),
       };
+    } finally {
+      // Free the graphs + hosts realized above (this offline world is
+      // discarded; realized HtmlHosts otherwise leak a canvas on document.body).
+      mounts.disposeAll();
     }
   };
 

@@ -65,6 +65,8 @@ export enum PaintType {
   RADIAL_GRADIENT,
   SEQUENCE,
   WAVEFORM,
+  HTML,
+  SURFACE,
 }
 
 export enum EffectType {
@@ -147,6 +149,12 @@ export enum CaptionType {
   PAPER,
   GUINEA,
   STARK,
+}
+
+export enum CaptionAlign {
+  TOP,
+  CENTER,
+  BOTTOM,
 }
 
 export enum ToolType {

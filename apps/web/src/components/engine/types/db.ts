@@ -18,12 +18,21 @@ export interface DBEntity {
 	Caption?: {
 		type?: number;
 		colors?: number[];
+		verticalAlign?: number;
 	};
 	IsMask?: {};
 	Shadow?: {};
 	Stroke?: {};
 	Name?: string;
 	Key?: string;
+	MountScript?: {
+		mountId: string;
+		scriptAssetId: string;
+	};
+	MountPath?: {
+		mountId: string;
+		path: string;
+	};
 	ChildOf?: number;
 	ItemIndex?: number;
 	ClipHeight?: number;

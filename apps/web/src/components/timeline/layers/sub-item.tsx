@@ -43,6 +43,8 @@ export function SubItemLayer(props: SubItemLayerProps) {
       if (c.Paint[eid()] === PaintType.VIDEO) return 'Video';
       if (c.Paint[eid()] === PaintType.SEQUENCE) return 'Sequence';
       if (c.Paint[eid()] === PaintType.WAVEFORM) return 'Waveform';
+      if (c.Paint[eid()] === PaintType.HTML) return 'HTML';
+      if (c.Paint[eid()] === PaintType.SURFACE) return 'Surface';
       return 'Fill';
     }
     if (hasComponent(world, eid(), c.ColorStop)) return 'Stop';

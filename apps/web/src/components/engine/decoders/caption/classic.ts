@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../components';
+import { CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../components';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../font/utils';
 import { groupBy, findActiveGroup, resolveTranscript } from './utils';
-import { getParentEntity, createEntity } from '../../api';
+import { placeCaption } from './position';
+import { createEntity } from '../../api';
 import { appendChild } from '../../api/hierarchy';
 import { addComponent, setComponent } from '../../api/events';
-import { resizeEntity } from '../../api/resize';
 
 import type { EngineWorld } from '../../api/world';
 import type { Asset } from '../../db';
@@ -38,24 +38,18 @@ export class ClassicCaptionDecoder implements CaptionDecoder {
     this.ready = true;
   }
 
+  public reposition(world: EngineWorld, eid: number): boolean {
+    return placeCaption(world, eid, {
+      width: CLASSIC_PRESET_WIDTH,
+      height: CLASSIC_PRESET_HEIGHT,
+      defaultAlign: CaptionAlign.CENTER,
+    });
+  }
+
   public applyStyles(world: EngineWorld, eid: number): void {
     const c = world.components;
 
-    const parentEid = getParentEntity(world, eid);
-    if (parentEid === null) return;
-
-    const parentWidth = c.Computed.width[parentEid];
-    const parentHeight = c.Computed.height[parentEid];
-
-    resizeEntity(world, eid, {
-      width: CLASSIC_PRESET_WIDTH,
-      height: CLASSIC_PRESET_HEIGHT,
-    });
-
-    setComponent(world, eid, c.Position, {
-      x: (parentWidth - CLASSIC_PRESET_WIDTH) / 2,
-      y: (parentHeight - CLASSIC_PRESET_HEIGHT) / 2,
-    });
+    if (!this.reposition(world, eid)) return;
 
     setComponent(world, eid, c.TextStyle, {
       fontFamily: 'Urbanist',

@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createContext, useContext } from "solid-js";
+import { createContext, createMemo, createResource, useContext } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 
-import type { JSX } from "solid-js";
+import type { Accessor, JSX, ResourceReturn } from "solid-js";
+import type { AssetInput } from "./generate";
 import type { ProjectDocument } from "./document";
 
 // Compiled project modules call the static runtime exports below
@@ -68,8 +69,83 @@ export const {
   spread,
   setProp,
   mergeProps,
-  use,
 } = renderer;
+
+/**
+ * Ref application (compiled `ref={fn}`). Hosts that materialize elements
+ * lazily route refs through `applyRef` so the callback receives the backing
+ * object (e.g. a canvas paint's canvas) once it exists; hosts without
+ * `applyRef` keep the renderer's immediate call with the host node.
+ */
+export function use(fn: (target: unknown, arg?: unknown) => void, node: unknown, arg?: unknown): unknown {
+  const document = doc();
+  if (document.applyRef) {
+    document.applyRef(node, fn);
+    return node;
+  }
+  return renderer.use(fn, node, arg);
+}
+
+export type Ticker = {
+  time: Accessor<number>;
+  frame: Accessor<number>;
+  delta: Accessor<number>;
+  playing: Accessor<boolean>;
+};
+
+/**
+ * Subscribes to the project's timeline: the playhead of the scene the mount's
+ * root lives in (or is), pushed by the host once per playback tick. Each
+ * accessor only propagates when its value changes, so a paused scene re-runs
+ * nothing and `frame()` consumers update at most once per frame. Values move
+ * while the reactive graph is alive: a mount stays live, and export, capture,
+ * and reload each re-execute the module and drive the ticker themselves.
+ */
+export function useTicker(): Ticker {
+  const document = doc();
+  if (!document.tick) {
+    throw new Error("useTicker: this host does not provide a timeline clock");
+  }
+
+  const tick = document.tick.bind(document);
+  return {
+    time: createMemo(() => tick().time),
+    frame: createMemo(() => tick().frame),
+    delta: createMemo(() => tick().delta),
+    playing: createMemo(() => tick().playing),
+  };
+}
+
+/**
+ * Resolves a source (path, asset id, URL, or a `generate.*` ref) to its `File`,
+ * for reading raw bytes inside effects. Returns Solid's `createResource` tuple
+ * unchanged: the resource accessor reads `undefined` until it resolves, then
+ * the `File` (with `.loading` / `.error`), plus `mutate` / `refetch`.
+ * Resolution is async (fetch a URL, read a path or library asset, await a
+ * `generate.*` ref) and, like `src`, needs the host — a sandboxed module can't
+ * fetch a path or asset id itself.
+ *
+ * ```tsx
+ * const [canvas, setCanvas] = createSignal<HTMLCanvasElement>();
+ * const [file] = useFile("/assets/logo.png");
+ * createEffect(async () => {
+ *   const el = canvas();
+ *   const f = file();
+ *   if (!el || !f) return;
+ *   el.getContext("2d")!.drawImage(await createImageBitmap(f), 0, 0);
+ * });
+ * // <Surface ref={setCanvas} width={640} height={360} />
+ * ```
+ */
+export function useFile(src: AssetInput): ResourceReturn<File> {
+  const document = doc();
+  if (!document.loadFile) {
+    throw new Error("useFile: this host does not provide file resolution");
+  }
+
+  const load = document.loadFile.bind(document);
+  return createResource(() => src, (input) => load(input));
+}
 
 /**
  * Host entry point: renders a project component directly into `document`.

@@ -27,6 +27,8 @@ import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { AudioBus } from '../services/audio-bus';
+import { hasLiveHtmlHosts, nextRenderingUpdate } from '../decoders/html';
+import { realizeMounts } from '@/utils/mount';
 
 import type { EngineWorld } from '../api/world';
 import type { EncoderConfig } from './interfaces';
@@ -130,6 +132,11 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 	// entity's scheduled audio back into the encoded window.
 	c.AudioPlayback.contextOffsetInSeconds[sceneEid] = 0;
 	c.AudioPlayback.timelineOffsetInSeconds[sceneEid] = playheadStartSeconds;
+
+	// Re-execute any mounts into this offline world so it owns its own reactive
+	// graphs + runtime hosts (surface/html). The per-frame playbackSystem then
+	// drives them via world.liveMounts, so ticker-animated surfaces render.
+	const mounts = videoEnabled ? await realizeMounts(world) : null;
 
 	// Set up mediabunny output
 	const buffer = await TargetBuffer.create(config.target);
@@ -237,6 +244,7 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 			const start = performance.now();
 			const startTime = start;
 			const totalFrames = Math.floor(duration * frameRate);
+			const waitForHtmlHosts = hasLiveHtmlHosts(world);
 
 			let audioRenderingDone = false;
 			let audioRenderingCompleted: Promise<AudioBuffer> | null = null;
@@ -268,6 +276,10 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 					playbackSystem(world);
 					await resolverSystem(world);
 					motionSystem(world);
+				}
+
+				if (waitForHtmlHosts) {
+					await nextRenderingUpdate();
 				}
 
 				if (videoEnabled) {
@@ -332,6 +344,10 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 			};
 		} finally {
 			URL.revokeObjectURL(audioWorkletUrl);
+			// Free the graphs + hosts realized above (this offline world is
+			// discarded, so nothing else disposes them — an HtmlHost otherwise
+			// leaks a canvas on document.body).
+			mounts?.disposeAll();
 		}
 	};
 

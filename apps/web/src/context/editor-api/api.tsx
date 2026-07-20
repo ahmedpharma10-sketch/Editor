@@ -15,13 +15,14 @@ import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from ".
 import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeCapture, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
 import { handleMount, handleNodeInsert } from "./mount";
 import { handleProjectActive, handleProjectList, handleProjectCreate, handleProjectDelete, handleProjectOpen } from "./project";
+import { handleLogs } from "./logs";
 import { handleModels } from "./models";
 import { handleVoices } from "./voices";
 import { cliBridge, mainBridge } from '@/lib/ipc';
 import { createRouterCaller } from '@/lib/cli-rpc';
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from "@/utils/common";
-import { handleGetFullscreenState, handleWindowFullscreenChange } from "./window";
+import { handleGetFullscreenState, handleWindowFullscreenChange, handleWindowScreenshot } from "./window";
 
 import type { JSX, Accessor } from 'solid-js';
 import type { User } from '@supabase/supabase-js';
@@ -99,6 +100,8 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
     context: q0(handleContextGet(getEngine)),
     mount: m(handleMount(getEngine)),
     models: q(handleModels()),
+    logs: q(handleLogs()),
+    screenshot: q0(handleWindowScreenshot()),
     voices: q0(handleVoices()),
     asset: t.router({
       add: m(handleAssetsAdd(getEngine)),

@@ -73,7 +73,7 @@ export class FrameCache {
     if (this.atlas.width !== absoluteWidth || this.atlas.height !== absoluteHeight) {
       this.atlas.width = absoluteWidth;
       this.atlas.height = absoluteHeight;
-      this.atlasCtx.imageSmoothingEnabled = false;
+      this.atlasCtx.imageSmoothingQuality = 'high';
       this.tiles = []; // setting the canvas size resets the tiles
     }
   }

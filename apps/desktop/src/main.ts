@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, nativeImage, session, shell } from "electron";
 import { join } from "node:path";
 import { open, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -12,11 +12,16 @@ import { startCliServer, stopCliServer, isHeadless } from "./cli-server";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
+import type { LogEntry } from "@diffusionstudio/cli/protocol";
 
 const DEV_URL = "http://localhost:5173";
 const AUTH_PROTOCOL = "diffusion";
 const MACOS_CORNER_RADIUS = 16;
 const MACOS_BACKDROP = { blur: 80, red: 0.07, green: 0.07, blue: 0.07, alpha: 0.9 };
+
+app.setName("Diffusion Studio");
+app.commandLine.appendSwitch("enable-blink-features", "CanvasDrawElement");
+app.commandLine.appendSwitch("enable-features", "SharedArrayBuffer");
 
 let setNativeCornerRadius: ((handle: Buffer, radius: number) => void) | null = null;
 let setNativeBackdrop:
@@ -48,6 +53,29 @@ const openWrites = new Map<string, { handle: FileHandle; path: string }>();
 
 let mainWindow: BrowserWindow | null = null;
 let pendingAuthUrl: string | null = null;
+
+// Renderer console mirror, served to the CLI via LOGS_GET. Lives in main so
+// it survives reloads and captures everything the devtools console shows
+// (page logs, worker logs, uncaught errors) without touching the web bundle.
+const LOG_BUFFER_MAX = 2000;
+const logBuffer: LogEntry[] = [];
+
+function pushLog(level: LogEntry["level"], message: string, source: string) {
+  logBuffer.push({ ts: Date.now(), level, message, source });
+  if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+}
+
+function captureConsole(window: BrowserWindow) {
+  window.webContents.on("console-message", ({ level, message, lineNumber, sourceId }) => {
+    pushLog(level, message, sourceId ? `${sourceId}:${lineNumber}` : "");
+  });
+  window.webContents.on("preload-error", (_event, path, error) => {
+    pushLog("error", `Preload error: ${error.message}`, path);
+  });
+  window.webContents.on("render-process-gone", (_event, details) => {
+    pushLog("error", `Renderer process gone: ${details.reason} (exit code ${details.exitCode})`, "");
+  });
+}
 
 function findProtocolUrl(argv: string[]): string | null {
   return argv.find((arg) => arg.startsWith(`${AUTH_PROTOCOL}://`)) ?? null;
@@ -98,6 +126,8 @@ function createWindow(show = true) {
       preload: join(app.getAppPath(), "dist", "preload.js"),
     },
   });
+
+  captureConsole(mainWindow);
 
   mainWindow.webContents.on("did-finish-load", () => {
     if (pendingAuthUrl) {
@@ -178,11 +208,18 @@ if (app.requestSingleInstanceLock()) {
     return url;
   });
   mainBridge.handle(MAIN_CHANNELS.WINDOW_IS_FULLSCREEN, () => mainWindow?.isFullScreen() ?? false);
+  mainBridge.handle(MAIN_CHANNELS.WINDOW_CAPTURE, async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No main window");
+    const image = await mainWindow.webContents.capturePage(undefined, { stayHidden: true });
+    const { width, height } = image.getSize();
+    return { base64: image.toPNG().toString("base64"), width, height };
+  });
   mainBridge.handle(MAIN_CHANNELS.HEADLESS_GET_MODE, () => isHeadless());
+  mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>
     setFileInputFiles(selector, absolutePath),
   );
-  
+
   mainBridge.handle(MAIN_CHANNELS.FILE_WRITE_OPEN, async ({ path, exclusive }) => {
     const handle = await open(path, exclusive ? "wx" : "w");
     const id = randomUUID();
@@ -211,11 +248,16 @@ if (app.requestSingleInstanceLock()) {
     try {
       await entry.handle.close();
     } finally {
-      await unlink(entry.path).catch(() => {});
+      await unlink(entry.path).catch(() => { });
     }
   });
 
   app.whenReady().then(() => {
+    if (!app.isPackaged && process.platform === "darwin") {
+      const devIcon = nativeImage.createFromPath(join(app.getAppPath(), "assets", "icon-dev.png"));
+      if (!devIcon.isEmpty()) app.dock?.setIcon(devIcon);
+    }
+
     setupAppMenu();
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true));
     session.defaultSession.setPermissionCheckHandler(() => true);

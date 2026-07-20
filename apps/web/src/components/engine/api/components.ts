@@ -4,6 +4,8 @@
 
 import * as ComponentRegistry from "../components/components";
 
+export type { MountData } from "../components/components";
+
 export function createComponents(): Components {
   return Object.fromEntries(
     Object.entries(ComponentRegistry)

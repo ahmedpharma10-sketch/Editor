@@ -5,6 +5,7 @@
 export * from './audio';
 export * from './audio-peaks';
 export * from './caption';
+export * from './html';
 export * from './image';
 export * from './sequence';
 export * from './time-stretcher';

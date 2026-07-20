@@ -3,9 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { renderProject } from "@diffusionstudio/jsx";
+import { nanoid } from "nanoid";
 
 import { reorderEntity, switchActiveScene } from "@/components/engine";
+import { createScriptAsset } from "@/components/engine/api/assets";
 import { WorldDocument, importProjectModule } from "@/utils/jsx";
+import { documentRootKeys } from "@/utils/mount";
 import { assert } from "@/utils";
 import { resolveEntityEid } from "./node";
 import { hasComponent } from "bitecs";
@@ -23,6 +26,7 @@ export function handleMount(engine: Accessor<Engine>) {
     const world = e.world;
     const c = world.components;
     let dispose = () => { };
+    let registered = false;
 
     try {
       // Evaluate — top-level code (including top-level await) runs here.
@@ -30,7 +34,18 @@ export function handleMount(engine: Accessor<Engine>) {
       const project = module.default as () => unknown;
       assert(typeof project === "function", "The project module must default-export a Solid component");
 
-      const document = new WorldDocument(e);
+      // Persist the compiled module as a content-addressed SCRIPT asset so any
+      // world (export, capture, reload) can re-run it in adopt mode. `mountId`
+      // ties every entity of this mount together for that re-run.
+      const scriptAsset = await createScriptAsset(world, code);
+      const mountId = nanoid();
+
+      const document = new WorldDocument(world, {
+        engine: e,
+        mode: "author",
+        mountId,
+        scriptAssetId: scriptAsset.id,
+      });
 
       try {
         world.history.startTransaction("Render project");
@@ -41,6 +56,11 @@ export function handleMount(engine: Accessor<Engine>) {
         throw error;
       }
 
+      // The keyed root replacement above deleted any same-key entities, so
+      // graphs that were driving them are dead; dispose them before their
+      // next effect can write to a recycled entity id.
+      world.liveMounts.supersede(documentRootKeys(world, document));
+
       try {
         world.history.startTransaction("Commit document");
         await document.commit();
@@ -48,12 +68,23 @@ export function handleMount(engine: Accessor<Engine>) {
         world.history.commitTransaction();
       }
 
+      // A mount always stays live: its reactive graph keeps driving the
+      // entities until a later mount claims a root key or the app closes.
+      world.liveMounts.register({
+        mountId,
+        rootKeys: () => documentRootKeys(world, document),
+        advance: () => document.advanceTicker(),
+        dispose,
+      });
+      registered = true;
+
       if (document.rootEid && hasComponent(world, document.rootEid, c.Scene)) {
         switchActiveScene(world, document.rootEid);
         e.camera.fitToActiveScene();
       }
     } finally {
-      dispose?.();
+      // Only the error path (before registration) needs to dispose the graph.
+      if (!registered) dispose?.();
     }
   };
 }
@@ -63,7 +94,7 @@ export function handleMount(engine: Accessor<Engine>) {
  * parent entity instead of the document: roots take no key, nothing is
  * reconciled or deleted, every run inserts fresh entities. The parent may be
  * any live entity that takes children — a node, or a gradient paint for
- * `<colorStop>` roots.
+ * `<ColorStop>` roots.
  */
 export function handleNodeInsert(engine: Accessor<Engine>) {
   return async ({ code, parentId, index }: NodeInsertRequest): Promise<void> => {
@@ -77,7 +108,7 @@ export function handleNodeInsert(engine: Accessor<Engine>) {
       const project = module.default as () => unknown;
       assert(typeof project === "function", "The project module must default-export a Solid component");
 
-      const document = new WorldDocument(e, { parentEid });
+      const document = new WorldDocument(e.world, { parentEid, engine: e });
 
       try {
         world.history.startTransaction("Insert nodes");

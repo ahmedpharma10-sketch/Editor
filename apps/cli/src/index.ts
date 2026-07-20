@@ -16,7 +16,7 @@ import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { AssetRef, EncoderConfigInput, FrameQuality, NodePatch } from "./protocol";
+import type { AssetRef, EncoderConfigInput, FrameQuality, LogLevel, NodePatch } from "./protocol";
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
@@ -716,9 +716,9 @@ async function mountProject(path: string | undefined, opts: MountOptions): Promi
   }
 }
 
-type NodeInsertOptions = MountOptions & { index?: string };
+type NodeInsertOptions = { index?: string };
 
-async function nodeInsert(parentId: string, path: string | undefined, opts: NodeInsertOptions): Promise<void> {
+async function nodeInsert(parentId: string, source: string, opts: NodeInsertOptions): Promise<void> {
   const [eid] = parseNodeIds([parentId]);
 
   let index: number | undefined;
@@ -731,7 +731,25 @@ async function nodeInsert(parentId: string, path: string | undefined, opts: Node
     index = n;
   }
 
-  const code = await compileProjectInput(path, opts.code);
+  // `insert` takes a JSX fragment inline, not a module or a file: it renders
+  // once and is discarded, so a live program has nothing to drive it. Validate
+  // loosely — reject the module form and require something that looks like a tag.
+  if (/\bexport\s+default\b/.test(source)) {
+    console.error("`dapi node insert` takes JSX tags, not a component module — drop `export default` (use `dapi mount` for a live program).");
+    process.exit(1);
+  }
+  if (!/<\s*[A-Za-z]/.test(source)) {
+    console.error("`dapi node insert` expects JSX tags, e.g. '<Rect width={10} height={10} />'.");
+    process.exit(1);
+  }
+
+  let code: string;
+  try {
+    code = await compileProject({ code: source });
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
 
   const stop = startSpinner("Inserting entities");
   try {
@@ -935,6 +953,54 @@ async function whoami(): Promise<void> {
   }
 }
 
+const LOG_LEVELS = ["debug", "info", "warning", "error"] as const;
+
+type LogsOptions = { tail?: string; level?: string };
+
+async function showLogs(opts: LogsOptions): Promise<void> {
+  if (opts.level !== undefined && !LOG_LEVELS.includes(opts.level as LogLevel)) {
+    console.error(`--level must be one of ${LOG_LEVELS.join(", ")} (got "${opts.level}")`);
+    process.exit(1);
+  }
+  let tail: number | undefined;
+  if (opts.tail !== undefined) {
+    const n = Number(opts.tail);
+    if (!Number.isInteger(n) || n <= 0) {
+      console.error(`--tail must be a positive integer (got "${opts.tail}")`);
+      process.exit(1);
+    }
+    tail = n;
+  }
+
+  try {
+    const entries = await editor.logs.query({ tail, level: opts.level as LogLevel | undefined });
+    const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+    for (const entry of entries) {
+      const d = new Date(entry.ts);
+      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+      const source = entry.source ? `  (${entry.source})` : "";
+      console.log(`${time} [${entry.level}] ${entry.message}${source}`);
+    }
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+type ScreenshotOptions = { output?: string };
+
+async function appScreenshot(opts: ScreenshotOptions): Promise<void> {
+  const dir = opts.output ?? tmpdir();
+  mkdirSync(dir, { recursive: true });
+  try {
+    const { base64, width, height } = await editor.screenshot.query();
+    const path = join(dir, `${randomUUID()}.png`);
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ path, width, height }));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
 function startSpinner(label: string): () => void {
   if (!process.stderr.isTTY) {
     process.stderr.write(`${label}…\n`);
@@ -1070,7 +1136,7 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; on success, inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <Scene key> becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <Surface>/<Html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
@@ -1335,13 +1401,12 @@ node
 node
   .command("insert")
   .description(
-    `Compile a Solid JSX project module and insert its rendered roots as children of an existing entity: the same pipeline as \`mount\` (including AI asset generation), but it inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
+    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<Rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <Scene> and <ColorStop>; a gradient paint takes only <ColorStop> roots, which is how you add a stop to a gradient).`,
   )
-  .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
-  .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
-  .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
+  .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <ColorStop> roots")
+  .argument("<code>", "JSX tags to insert, e.g. '<Rect width={10} height={10} />' (no export default)")
   .option("-i, --index <n>", "0-based position among the parent's existing children (node roots only; default: append at the end)")
-  .action((parentId: string, path: string | undefined, opts: NodeInsertOptions) => nodeInsert(parentId, path, opts));
+  .action((parentId: string, code: string, opts: NodeInsertOptions) => nodeInsert(parentId, code, opts));
 
 node
   .command("rm")
@@ -1432,9 +1497,26 @@ program
   .action(() => whoami());
 
 program
+  .command("logs")
+  .description(
+    `Print recent console output from the running app (what the devtools console shows: page logs, worker logs, uncaught errors), oldest first, one line per entry: local time, level, message, source location. The app buffers the last 2000 entries across reloads and project switches, so this replaces relaunching with ELECTRON_ENABLE_LOGGING=1 when debugging renderer-side behavior.`,
+  )
+  .option("-n, --tail <n>", "output only the last <n> entries")
+  .option("-l, --level <level>", `minimum level to include: "debug", "info", "warning", or "error"`)
+  .action((opts: LogsOptions) => showLogs(opts));
+
+program
+  .command("screenshot")
+  .description(
+    `Capture the entire application window as a PNG — the full UI as the user sees it (panels, timeline, asset library, canvas viewport), at the window's current size. The tool for checking what the app itself looks like; to render a node or scene cleanly for composition checks use \`node capture\` instead. Works even when the app was launched hidden (\`open --background\`).`,
+  )
+  .option("-o, --output <dir>", "directory to write the PNG into (default: system temp dir)")
+  .action((opts: ScreenshotOptions) => appScreenshot(opts));
+
+program
   .command("fonts")
   .description(
-    `List the local fonts available on this machine (macOS only; does not require the app). These family names are valid \`fontFamily\` values on <text>; each family lists its variants.`,
+    `List the local fonts available on this machine (macOS only; does not require the app). These family names are valid \`fontFamily\` values on <Text>; each family lists its variants.`,
   )
   .option("-f, --family <pattern>", "filter to families whose name contains <pattern> (case-insensitive)")
   .option("-w, --weight <weights...>", "filter to variants with the given CSS weight(s), e.g. -w 400 700")

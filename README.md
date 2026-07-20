@@ -28,12 +28,12 @@ const TITLES = [
 
 export default function Project() {
   return (
-    <scene key="intro" name="Intro" width={1920} height={1080} fill="black">
-      <video src={motion} width={1920} height={1080} />
-      <sequence>
+    <Scene key="intro" name="Intro" width={1920} height={1080} fill="black">
+      <Video src={motion} width={1920} height={1080} />
+      <Sequence>
         <For each={TITLES}>
           {(t) => (
-            <text
+            <Text
               textAlign="center"
               textBaseline="middle"
               fontSize={128}
@@ -44,11 +44,11 @@ export default function Project() {
               end={t.end}
             >
               {t.text}
-            </text>
+            </Text>
           )}
         </For>
-      </sequence>
-    </scene>
+      </Sequence>
+    </Scene>
   );
 }
 ```

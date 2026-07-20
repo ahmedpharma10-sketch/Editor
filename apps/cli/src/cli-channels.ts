@@ -175,3 +175,11 @@ export type ProjectSummary = {
   lastAccessedAt: string;
 };
 
+export type ScreenshotResult = { base64: string; width: number; height: number };
+
+export type LogLevel = "debug" | "info" | "warning" | "error";
+
+export type LogEntry = { ts: number; level: LogLevel; message: string; source: string };
+
+export type LogsRequest = { tail?: number; level?: LogLevel };
+

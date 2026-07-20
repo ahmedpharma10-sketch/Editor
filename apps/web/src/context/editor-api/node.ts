@@ -18,7 +18,7 @@ import {
   serializeEntity,
 } from "@/components/engine";
 import { ChildOf } from "@/components/engine/components";
-import { ANIMATION_TYPE_MAP, WorldDocument } from "@/utils/jsx";
+import { ANIMATION_TYPE_MAP, CAPTION_ALIGN_MAP, WorldDocument } from "@/utils/jsx";
 import { entityType } from "./selection";
 
 import type { EngineWorld, Engine } from "@/components/engine";
@@ -42,6 +42,11 @@ import type { Accessor } from "solid-js";
 // The JSX animation names, keyed by engine preset.
 const ANIMATION_TYPE_NAMES: Record<number, string> = Object.fromEntries(
   Object.entries(ANIMATION_TYPE_MAP).map(([name, type]) => [type, name]),
+);
+
+// The JSX caption alignment names, keyed by engine enum.
+const CAPTION_ALIGN_NAMES: Record<number, string> = Object.fromEntries(
+  Object.entries(CAPTION_ALIGN_MAP).map(([name, align]) => [align, name]),
 );
 
 // Scenes are nodes too, so node ops accept them alongside geometry, groups,
@@ -111,6 +116,11 @@ function describeEntity(world: EngineWorld, eid: number): string {
     const y = c.Position.y[eid] ?? 0;
     if (x !== 0 || y !== 0) parts.push(`pos: ${x},${y}`);
   }
+  if (hasComponent(world, eid, c.Offset)) {
+    const x = c.Offset.x[eid] ?? 0;
+    const y = c.Offset.y[eid] ?? 0;
+    if (x !== 0 || y !== 0) parts.push(`offset: ${x},${y}`);
+  }
   if (hasComponent(world, eid, c.Rotation) && c.Rotation[eid]) {
     parts.push(`rotation: ${c.Rotation[eid]}°`);
   }
@@ -134,6 +144,10 @@ function describeEntity(world: EngineWorld, eid: number): string {
     parts.push(`volume: ${db === -Infinity ? "-inf" : Math.round(db * 10) / 10} dB`);
   }
   if (hasComponent(world, eid, c.AssetId)) parts.push(`asset: ${c.AssetId[eid]}`);
+  if (hasComponent(world, eid, c.Caption)) {
+    const align = c.Caption.verticalAlign[eid];
+    if (align !== undefined) parts.push(`verticalAlign: ${CAPTION_ALIGN_NAMES[align]}`);
+  }
   if (hasComponent(world, eid, c.TextStyle)) {
     const family = c.TextStyle.fontFamily[eid];
     const size = c.TextStyle.fontSize[eid];
@@ -386,7 +400,7 @@ export function handleNodePatch(engine: Accessor<Engine>) {
 
     const results: NodePatchResult[] = [];
     for (const patch of patches) {
-      const doc = new WorldDocument(e);
+      const doc = new WorldDocument(e.world, { engine: e });
 
       try {
         world.history.startTransaction("patching node");

@@ -11,6 +11,7 @@ export interface CaptionDecoder {
   groups: WordGroup[];
   ready: boolean;
   applyStyles(world: EngineWorld, eid: number): void;
+  reposition(world: EngineWorld, eid: number): boolean;
   seekTo(world: EngineWorld, eid: number, relativeTime: number): void;
   draw(world: EngineWorld, eid: number): void;
   dispose(): void;

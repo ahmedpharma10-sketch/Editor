@@ -149,6 +149,28 @@ export function disposeDecoders(world: EngineWorld, eid: number): void {
   }
 }
 
+export function disposeHtmlHosts(world: EngineWorld, eid: number): void {
+  const HtmlHost = world.components.HtmlHost;
+
+  HtmlHost[eid]?.dispose();
+  HtmlHost[eid] = null;
+
+  for (const child of query(world, [ChildOf(eid)])) {
+    disposeHtmlHosts(world, child);
+  }
+}
+
+export function disposeSurfaceHosts(world: EngineWorld, eid: number): void {
+  const SurfaceHost = world.components.SurfaceHost;
+
+  SurfaceHost[eid]?.dispose();
+  SurfaceHost[eid] = null;
+
+  for (const child of query(world, [ChildOf(eid)])) {
+    disposeSurfaceHosts(world, child);
+  }
+}
+
 export function disconnectAudioBus(world: EngineWorld, eid: number): void {
   const AudioBus = world.components.AudioBus;
   AudioBus[eid]?.disconnect();

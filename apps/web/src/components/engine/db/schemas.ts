@@ -119,6 +119,12 @@ export const transcriptAssetSchema = assetBaseSchema.extend({
 
 export type TranscriptAsset = z.infer<typeof transcriptAssetSchema>;
 
+export const scriptAssetSchema = assetBaseSchema.extend({
+  type: z.literal('SCRIPT'),
+});
+
+export type ScriptAsset = z.infer<typeof scriptAssetSchema>;
+
 // `handle` points to the first frame's file (so generic preview/thumbnail
 export const sequenceAssetSchema = assetBaseSchema.extend({
   type: z.literal('SEQUENCE'),
@@ -136,6 +142,7 @@ export const assetSchema = z.discriminatedUnion('type', [
   audioAssetSchema,
   videoAssetSchema,
   transcriptAssetSchema,
+  scriptAssetSchema,
   sequenceAssetSchema,
 ]);
 

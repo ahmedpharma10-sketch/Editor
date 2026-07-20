@@ -15,6 +15,27 @@ export type {
 } from "./generate";
 export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
+export {
+  Audio,
+  Captions,
+  ColorStop,
+  Group,
+  Html,
+  HtmlPaint,
+  Image,
+  LinearGradientPaint,
+  RadialGradientPaint,
+  Rect,
+  Scene,
+  Sequence,
+  SolidPaint,
+  Surface,
+  SurfacePaint,
+  Text,
+  Video,
+} from "./elements";
+export { useTicker, useFile } from "./renderer";
+export type { Ticker } from "./renderer";
 export type {
   Animatable,
   AnimationSpec,
@@ -27,6 +48,8 @@ export type {
   Fit,
   GradientPaintProps,
   GroupProps,
+  HtmlPaintProps,
+  HtmlProps,
   ImageProps,
   Keyframe,
   PatchProps,
@@ -34,6 +57,8 @@ export type {
   SceneProps,
   SequenceProps,
   SolidPaintProps,
+  SurfacePaintProps,
+  SurfaceProps,
   TextProps,
   Time,
   TransitionSpec,
@@ -59,4 +84,4 @@ export {
   renderProject,
 } from "./renderer";
 
-export type { ProjectDocument } from "./document";
+export type { ProjectDocument, ProjectTick } from "./document";

@@ -6,7 +6,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 
 ## Groups
 
-**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
+**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
@@ -19,7 +19,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 How the surface is divided:
 
 - Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx/](./jsx/README.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots.
-- Scenes are created declaratively via `mount` (`<scene key="...">`); there is no imperative scene command.
+- Scenes are created declaratively via `mount` (`<Scene key="...">`); there is no imperative scene command.
 - AI asset generation (image / video / speech / audio) is declared in the project module (`generate.*`, see [jsx/generate.md](./jsx/generate.md)) and produced on mount. `models` and `voices` list what those declarations can reference.
 - Inspecting an existing asset (probe / transcribe / listen / filmstrip / waveform / grab) lives under `media`; writing an asset's original file back to disk is `asset export`.
 - Organizing the library lives under `folder`; moving assets between folders is `asset mv`.
@@ -30,6 +30,8 @@ How the surface is divided:
 
 - [`dapi open`](./open.md): launch the app, or open a file, folder, or deep link
 - [`dapi whoami`](./whoami.md): print the authenticated account
+- [`dapi logs`](./logs.md): recent console output from the running app
+- [`dapi screenshot`](./screenshot.md): capture the entire application window as a PNG
 
 ### Document
 
@@ -48,7 +50,7 @@ How the surface is divided:
 - [`dapi node tree`](./node/tree.md): an entity's subtree as nested JSON
 - [`dapi node grep`](./node/grep.md): search entity records with a regex
 - [`dapi node capture`](./node/capture.md): capture a node as a PNG
-- [`dapi node insert`](./node/insert.md): render a JSX module into an existing parent
+- [`dapi node insert`](./node/insert.md): insert JSX tags into an existing parent
 - [`dapi node rm`](./node/rm.md): delete entities
 - [`dapi node cp`](./node/cp.md): deep-clone nodes
 - [`dapi node patch`](./node/patch.md): assign JSX props on existing entities
@@ -115,7 +117,7 @@ Time inputs take the `Time` format unless noted otherwise. Times in **outputs** 
 
 ## Conventions
 
-- **Stdout is JSON.** Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one object per line, no surrounding array) so per-item results stay streamable. `node tree` and `asset tree` emit one nested object per root. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `mount` and `node insert` write nothing.
+- **Stdout is JSON.** Commands that return a single record emit one JSON value. Commands that return a collection emit JSON Lines (one object per line, no surrounding array) so per-item results stay streamable. `node tree` and `asset tree` emit one nested object per root. Exceptions: `open` for file / URL / no-target writes nothing; `fonts --names-only` writes plain family names; `logs` writes plain formatted log lines; `mount` and `node insert` write nothing.
 - **Batch commands are fail-fast** (`node rm`, `node patch`, `asset add`, …): one invalid input fails the whole command with a single stderr message and exit `1`. Ids are validated before anything changes, so a failed `rm`/`mv`/`cp` changes nothing; there are no per-item partial results.
 - **Unix-style names are canonical:** list/read is `ls`, delete is `rm`, duplicate is `cp`, move/reparent is `mv`, search is `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls`. Commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.

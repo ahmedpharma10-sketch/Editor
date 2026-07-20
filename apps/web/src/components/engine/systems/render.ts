@@ -357,6 +357,24 @@ export function renderFills(world: EngineWorld, eid: number): void {
 				ctx.fillStyle = MISSING_ASSET_COLOR;
 				ctx.fill();
 			}
+		} else if (c.Paint[fid] === PaintType.HTML) {
+			const host = c.HtmlHost[fid];
+
+			if (host) {
+				ctx.save();
+				ctx.clip();
+				host.draw(ctx, c.Computed.width[eid], c.Computed.height[eid]);
+				ctx.restore();
+			}
+		} else if (c.Paint[fid] === PaintType.SURFACE) {
+			const host = c.SurfaceHost[fid];
+
+			if (host) {
+				ctx.save();
+				ctx.clip();
+				host.draw(ctx, c.Computed.width[eid], c.Computed.height[eid]);
+				ctx.restore();
+			}
 		} else if (c.Paint[fid] === PaintType.SOLID) {
 			ctx.fillStyle = colorToHex(c.Computed.color[fid]);
 			ctx.fill();

@@ -50,6 +50,18 @@ export function serializeEntity(world: EngineWorld, eid: number): DBEntity {
 	if (hasComponent(world, eid, c.Key)) {
 		record.Key = c.Key[eid];
 	}
+	if (hasComponent(world, eid, c.MountScript)) {
+		record.MountScript = {
+			mountId: c.MountScript.mountId[eid],
+			scriptAssetId: c.MountScript.scriptAssetId[eid],
+		};
+	}
+	if (hasComponent(world, eid, c.MountPath)) {
+		record.MountPath = {
+			mountId: c.MountPath.mountId[eid],
+			path: c.MountPath.path[eid],
+		};
+	}
 	if (hasComponent(world, eid, c.ItemIndex)) {
 		record.ItemIndex = c.ItemIndex[eid] ?? 0;
 	}
@@ -210,6 +222,7 @@ export function serializeEntity(world: EngineWorld, eid: number): DBEntity {
 		record.Caption = {
 			type: c.Caption.type[eid],
 			colors: c.Caption.colors[eid]?.map(v => v),
+			verticalAlign: c.Caption.verticalAlign[eid],
 		};
 	}
 	if (hasComponent(world, eid, c.Chars)) {
@@ -267,6 +280,12 @@ export function deserializeEntity(world: EngineWorld, eid: number, e: Partial<DB
 	}
 	if (e.Key !== undefined) {
 		setComponent(world, eid, c.Key, e.Key);
+	}
+	if (e.MountScript !== undefined) {
+		setComponent(world, eid, c.MountScript, e.MountScript);
+	}
+	if (e.MountPath !== undefined) {
+		setComponent(world, eid, c.MountPath, e.MountPath);
 	}
 	if (e.ItemIndex !== undefined) {
 		setComponent(world, eid, c.ItemIndex, e.ItemIndex);
@@ -424,7 +443,19 @@ export function cloneFromRecords(world: EngineWorld, records: DBEntity[]) {
 	return eidMap;
 }
 
+/**
+ * Strips mount identity from records so a *same-world* copy doesn't collide
+ * with the original mount's id — adopt would otherwise bind two entities to one
+ * `MountPath`. A duplicated/pasted mount becomes plain static entities: its
+ * runtime hosts won't re-run (a documented limitation; re-mount to re-animate).
+ * The export/capture clone (`cloneFromRecords` directly) keeps identity so it
+ * can adopt.
+ */
+export function stripMountIdentity(records: DBEntity[]): DBEntity[] {
+	return records.map(({ MountScript: _script, MountPath: _path, ...rest }) => rest);
+}
+
 export function cloneSubtree(world: EngineWorld, tree: number[]) {
 	const records = tree.map(e => serializeEntity(world, e));
-	return cloneFromRecords(world, records);
+	return cloneFromRecords(world, stripMountIdentity(records));
 }
