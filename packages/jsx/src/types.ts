@@ -127,6 +127,13 @@ export type PatchProps = {
   /** Position relative to the parent, px. Defaults to 0. Animatable. */
   x?: Animatable<number>;
   y?: Animatable<number>;
+  /**
+   * Render-time translation on top of `x`/`y`, px — moves the drawn content
+   * without changing the layout box (the property slide animations drive).
+   * Subpixel values are kept. Defaults to 0. Animatable.
+   */
+  offsetX?: Animatable<number>;
+  offsetY?: Animatable<number>;
   /** Box size, px. Defaults to the parent's size. Animatable. */
   width?: Animatable<number>;
   height?: Animatable<number>;
@@ -202,6 +209,8 @@ export const PATCH_PROP_KEYS = Object.keys({
   name: true,
   x: true,
   y: true,
+  offsetX: true,
+  offsetY: true,
   width: true,
   height: true,
   rotation: true,
@@ -236,8 +245,8 @@ type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
 type CommonProps = TimingProps &
   Pick<
     PatchProps,
-    | "key" | "name" | "x" | "y" | "width" | "height" | "rotation" | "opacity" | "cornerRadius"
-    | "transition" | "animations"
+    | "key" | "name" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
+    | "opacity" | "cornerRadius" | "transition" | "animations"
   >;
 
 export type SceneProps = {

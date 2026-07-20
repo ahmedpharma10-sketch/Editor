@@ -930,6 +930,34 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         assert(typeof value === "number", "`y` must be a number" + `, value: ${value}`);
         setComponent(world, eid, c.Position, { y: Math.round(value) });
         break;
+      } case "offsetX": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`offsetX` must be a number" + `, value: ${v}`);
+            return v;
+          });
+          setComponent(world, eid, c.Offset, { x: keyframes[0].value });
+          setKeyframeTrack(world, eid, "offset.x", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "offset.x", []);
+        assert(typeof value === "number", "`offsetX` must be a number" + `, value: ${value}`);
+        setComponent(world, eid, c.Offset, { x: value });
+        break;
+      } case "offsetY": {
+        if (Array.isArray(value)) {
+          const keyframes = parseKeyframes(name, value, (v) => {
+            assert(typeof v === "number", "`offsetY` must be a number" + `, value: ${v}`);
+            return v;
+          });
+          setComponent(world, eid, c.Offset, { y: keyframes[0].value });
+          setKeyframeTrack(world, eid, "offset.y", keyframes);
+          break;
+        }
+        setKeyframeTrack(world, eid, "offset.y", []);
+        assert(typeof value === "number", "`offsetY` must be a number" + `, value: ${value}`);
+        setComponent(world, eid, c.Offset, { y: value });
+        break;
       } case "width": {
         if (Array.isArray(value)) {
           const keyframes = parseKeyframes(name, value, (v) => {

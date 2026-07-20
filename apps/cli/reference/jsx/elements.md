@@ -36,6 +36,7 @@ All visual elements accept:
 | `key` | `string` | none | Stable identity across mounts; **required** on document roots (see [roots.md](./roots.md)). |
 | `name` | `string` | none | Human-readable node name. |
 | `x`, `y` | `Animatable<number>` | `0` | Position relative to the parent, px. |
+| `offsetX`, `offsetY` | `Animatable<number>` | `0` | Render-time translation on top of `x`/`y`, px; moves the drawn content without changing the layout box. Subpixel values are kept. |
 | `width`, `height` | `Animatable<number>` | parent size | Box size, px. |
 | `rotation` | `Animatable<number>` | `0` | Rotation in degrees. |
 | `opacity` | `Animatable<number>` | `1` | `0`-`1`. |

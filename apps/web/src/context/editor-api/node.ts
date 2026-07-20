@@ -111,6 +111,11 @@ function describeEntity(world: EngineWorld, eid: number): string {
     const y = c.Position.y[eid] ?? 0;
     if (x !== 0 || y !== 0) parts.push(`pos: ${x},${y}`);
   }
+  if (hasComponent(world, eid, c.Offset)) {
+    const x = c.Offset.x[eid] ?? 0;
+    const y = c.Offset.y[eid] ?? 0;
+    if (x !== 0 || y !== 0) parts.push(`offset: ${x},${y}`);
+  }
   if (hasComponent(world, eid, c.Rotation) && c.Rotation[eid]) {
     parts.push(`rotation: ${c.Rotation[eid]}°`);
   }
