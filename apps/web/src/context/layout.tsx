@@ -8,14 +8,12 @@ import { createStoredSignal } from '@/lib/store';
 import { store } from '@/init';
 
 type LayoutContextValue = {
-  sidebarsVisible: Accessor<boolean>;
-  timelineVisible: Accessor<boolean>;
+  uiVisible: Accessor<boolean>;
   timelineMinimized: Accessor<boolean>;
   timelineHeight: Accessor<number>;
   setTimelineHeight(height: number): void;
   toggleUI(): void;
   toggleTimeline(): void;
-  toggleTimelineMinimized(): void;
 };
 
 const LayoutContext = createContext<LayoutContextValue>();
@@ -24,13 +22,10 @@ export const MIN_TIMELINE_HEIGHT = 120;
 export const DEFAULT_TIMELINE_HEIGHT = 234;
 
 export function LayoutProvider(props: { children: JSX.Element }) {
-  const [sidebarsVisible, setSidebarsVisible] = createStoredSignal(
-    store.define<boolean>('layout.sidebarsVisible', true),
+  const [uiVisible, setUiVisible] = createStoredSignal(
+    store.define<boolean>('layout.uiVisible', true),
   );
 
-  const [timelinePreferred, setTimelinePreferred] = createStoredSignal(
-    store.define<boolean>('layout.timelineVisible', true),
-  );
   const [timelineHeight, setTimelineHeight] = createStoredSignal(
     store.define<number>('layout.timelineHeight', DEFAULT_TIMELINE_HEIGHT),
   );
@@ -38,31 +33,18 @@ export function LayoutProvider(props: { children: JSX.Element }) {
     store.define<boolean>('layout.timelineMinimized', false),
   );
 
-  const timelineVisible = () => sidebarsVisible() && timelinePreferred();
-
-  const toggleUI = () => {
-    setSidebarsVisible(!sidebarsVisible());
-  };
-
-  const toggleTimeline = () => {
-    setTimelinePreferred(!timelinePreferred());
-  };
-
-  const toggleTimelineMinimized = () => {
-    setTimelineMinimized(!timelineMinimized());
-  };
+  const toggleUI = () => setUiVisible(!uiVisible());
+  const toggleTimeline = () => setTimelineMinimized(!timelineMinimized());
 
   return (
     <LayoutContext.Provider
       value={{
-        sidebarsVisible,
-        timelineVisible,
+        uiVisible,
         timelineMinimized,
         timelineHeight,
         setTimelineHeight,
         toggleUI,
         toggleTimeline,
-        toggleTimelineMinimized,
       }}>
       {props.children}
     </LayoutContext.Provider>

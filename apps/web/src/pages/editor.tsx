@@ -14,12 +14,12 @@ import { RULER_HEIGHT } from "@/components/engine/timeline/config";
 const MIN_CANVAS_HEIGHT = 200;
 
 export function EditorPage() {
-  const { sidebarsVisible, timelineVisible, timelineMinimized, timelineHeight, setTimelineHeight } = useLayout();
+  const { uiVisible, timelineMinimized, timelineHeight, setTimelineHeight } = useLayout();
   const { isDesktop, isFullscreen } = useEditorApi();
   const [resizing, setResizing] = createSignal(false);
 
   const timelineStyles = createMemo(() => {
-    if (!timelineVisible()) return;
+    if (!uiVisible()) return;
 
     const height = timelineMinimized() ? RULER_HEIGHT : timelineHeight();
 
@@ -59,25 +59,25 @@ export function EditorPage() {
     <div
       class="bg-sidebar h-screen w-full overflow-hidden grid"
       classList={{
-        'grid-cols-[264px_1px_1fr_1px_264px]': sidebarsVisible(),
-        'grid-cols-[1fr]': !sidebarsVisible(),
-        'grid-rows-[1fr]': !timelineVisible(),
+        'grid-cols-[264px_1px_1fr_1px_264px]': uiVisible(),
+        'grid-cols-[1fr]': !uiVisible(),
+        'grid-rows-[1fr]': !uiVisible(),
       }}
       style={timelineStyles()}
     >
       <Show when={isDesktop && !isFullscreen()}>
         <div class="fixed top-0 left-0 right-0 h-10 z-20" style="-webkit-app-region: drag;" />
       </Show>
-      <Show when={sidebarsVisible()}>
+      <Show when={uiVisible()}>
         <SidebarLeft />
         <div class="bg-border-strong" />
       </Show>
       <Canvas />
-      <Show when={sidebarsVisible()}>
+      <Show when={uiVisible()}>
         <div class="bg-border-strong" />
         <Inspector />
       </Show>
-      <Show when={timelineVisible()}>
+      <Show when={uiVisible()}>
         <div class="col-span-full bg-border-strong relative">
           <Show when={!timelineMinimized()}>
             <div
@@ -92,20 +92,20 @@ export function EditorPage() {
           </Show>
         </div>
       </Show>
-      <Show when={timelineVisible()}>
+      <Show when={uiVisible()}>
         <Layers />
         <div class="bg-border-strong" />
       </Show>
-      <Show when={timelineVisible()}>
+      <Show when={uiVisible()}>
         <Timeline />
       </Show>
-      <Show when={timelineVisible()}>
+      <Show when={uiVisible()}>
         <div class="bg-border-strong" />
         <Show when={!timelineMinimized()}>
           <Soundboard />
         </Show>
       </Show>
-      <Show when={!sidebarsVisible()}>
+      <Show when={!uiVisible()}>
         <FloatingProjectHeader />
       </Show>
     </div>

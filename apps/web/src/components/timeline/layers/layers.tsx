@@ -41,7 +41,7 @@ export function Layers() {
   const timeline = useTimeline();
   const { world } = useEngine();
   const { now, playing, looping } = useECS();
-  const { timelineMinimized, toggleTimelineMinimized } = useLayout();
+  const { timelineMinimized, toggleTimeline } = useLayout();
 
   const c = world.components;
   const timelineIndex = world.timelineIndex;
@@ -96,7 +96,7 @@ export function Layers() {
 
   const handleHeaderDoubleClick = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
-    toggleTimelineMinimized();
+    toggleTimeline();
   }
 
   createEffect(() => {

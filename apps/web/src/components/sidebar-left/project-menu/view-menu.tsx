@@ -53,7 +53,7 @@ export function ViewMenu() {
         <DropdownMenuItem onSelect={layout.toggleUI}>
           Toggle UI
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={layout.toggleTimelineMinimized}>
+        <DropdownMenuItem onSelect={layout.toggleTimeline}>
           Toggle timeline
         </DropdownMenuItem>
       </DropdownMenuGroup>
