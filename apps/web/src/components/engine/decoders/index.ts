@@ -8,5 +8,6 @@ export * from './caption';
 export * from './html';
 export * from './image';
 export * from './sequence';
+export * from './shader';
 export * from './time-stretcher';
 export * from './video';

@@ -6,7 +6,7 @@ import { hasComponent, query, Not, Or } from 'bitecs';
 import { ChildOf, COMPOSITE_OPERATIONS, EffectType, GeometryType, PaintType, ScaleMode, StrokeCap, StrokeJoin, TransitionType } from '../components';
 import { getParentEntity } from '../api/base';
 import { cubicBezier } from 'animejs';
-import { resolveImageDecoder, resolveVideoDecoder, resolveSequenceDecoder, resolveCaptionDecoder } from '../decoders';
+import { resolveImageDecoder, resolveVideoDecoder, resolveSequenceDecoder, resolveCaptionDecoder, resolveShaderHost } from '../decoders';
 import { getAudioPeaks } from '../decoders/audio-peaks';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
@@ -285,9 +285,11 @@ function buildEffects(world: EngineWorld, eid: number): string | null {
 export function renderFills(world: EngineWorld, eid: number): void {
 	const c = world.components;
 	const ctx = world.ctx!;
+	const fills = c.Cache.fills[eid];
 
-	for (const fid of c.Cache.fills[eid]) {
-		if (hasComponent(world, fid, c.Hidden)) continue;
+	for (let index = 0; index < fills.length; index++) {
+		const fid = fills[index];
+		if (hasComponent(world, fid, c.Hidden) || shaderConsumesFill(world, eid, fills, index)) continue;
 		const savedAlpha = ctx.globalAlpha;
 		const savedCO = ctx.globalCompositeOperation;
 		const bi = c.Appearance.blendMode[fid] ?? 0;
@@ -390,11 +392,97 @@ export function renderFills(world: EngineWorld, eid: number): void {
 			ctx.fill();
 		} else if (c.Paint[fid] === PaintType.WAVEFORM) {
 			renderWaveform(world, eid, fid);
+		} else if (c.Paint[fid] === PaintType.SHADER) {
+			renderShaderFill(world, eid, fills, index);
 		}
 
 		ctx.globalCompositeOperation = savedCO;
 		ctx.globalAlpha = savedAlpha;
 	}
+}
+
+/** The current frame of a video/image paint, as a GPU-uploadable source. */
+function shaderSourceBitmap(
+	world: EngineWorld,
+	fid: number,
+	w: number,
+	h: number,
+): { source: GPUCopyExternalImageSource; width: number; height: number } | null {
+	const c = world.components;
+
+	if (c.Paint[fid] === PaintType.IMAGE) {
+		const bitmap = resolveImageDecoder(world, fid)?.decoder?.getBitmap(w, h);
+		return bitmap ? { source: bitmap, width: bitmap.width, height: bitmap.height } : null;
+	}
+	if (c.Paint[fid] === PaintType.VIDEO) {
+		const frame = resolveVideoDecoder(world, fid)?.toBitmap();
+		return frame ? { source: frame, width: frame.width, height: frame.height } : null;
+	}
+	return null;
+}
+
+/**
+ * Whether the fill at `index` is the input of a ready shader paint directly
+ * above it. Only the immediate neighbor counts (a hidden paint in between
+ * decouples the pair). Must mirror `renderShaderFill`'s input selection
+ * exactly — a consumed media paint that the shader then fails to draw would
+ * blank the element, so both sides check pipeline readiness and frame
+ * availability.
+ */
+function shaderConsumesFill(world: EngineWorld, eid: number, fills: number[], index: number): boolean {
+	const c = world.components;
+	const fid = fills[index];
+	if (c.Paint[fid] !== PaintType.IMAGE && c.Paint[fid] !== PaintType.VIDEO) return false;
+
+	const next = fills[index + 1];
+	if (next === undefined || c.Paint[next] !== PaintType.SHADER) return false;
+	if (hasComponent(world, next, c.Hidden)) return false;
+	if (!resolveShaderHost(world, next)?.ready) return false;
+
+	const w = c.Computed.width[eid];
+	const h = c.Computed.height[eid];
+	return shaderSourceBitmap(world, fid, w, h) !== null;
+}
+
+/**
+ * Draws a shader paint: the media paint directly below it in the fill stack
+ * is sampled as the shader's `source` texture and its output lands in the
+ * parent's box in the media paint's place. Without a media paint below the
+ * shader runs procedurally over a transparent source; before the pipeline is
+ * ready it draws nothing and the media, if any, draws normally.
+ */
+function renderShaderFill(world: EngineWorld, eid: number, fills: number[], index: number): void {
+	const c = world.components;
+	const ctx = world.ctx!;
+
+	const host = resolveShaderHost(world, fills[index]);
+	if (!host?.ready) return;
+
+	const w = c.Computed.width[eid];
+	const h = c.Computed.height[eid];
+
+	// A visible media paint directly below is the shader's input. Anything
+	// else (no fill below, a hidden one, a solid/gradient) runs the shader
+	// procedurally over a transparent source, stacking like a normal paint.
+	const mid = fills[index - 1];
+	const isMedia = mid !== undefined
+		&& !hasComponent(world, mid, c.Hidden)
+		&& (c.Paint[mid] === PaintType.IMAGE || c.Paint[mid] === PaintType.VIDEO);
+	let input: ReturnType<typeof shaderSourceBitmap> = null;
+	if (isMedia) {
+		input = shaderSourceBitmap(world, mid, w, h);
+		if (!input) return;
+	}
+
+	const fit = input
+		? getScaledImageProps(c.ScaleMode[mid] ?? 0, input.width, input.height, w, h)
+		: [0, 0, w, h] as [number, number, number, number];
+	const time = (c.Computed.localTime[eid] ?? 0) / world.frameRate;
+
+	ctx.save();
+	ctx.clip();
+	host.draw(ctx, w, h, input?.source ?? null, input?.width ?? 1, input?.height ?? 1, fit, time, c.Shader.uniforms[fills[index]] ?? null);
+	ctx.restore();
 }
 
 function renderShadows(world: EngineWorld, eid: number): void {

@@ -67,6 +67,7 @@ export enum PaintType {
   WAVEFORM,
   HTML,
   SURFACE,
+  SHADER,
 }
 
 export enum EffectType {

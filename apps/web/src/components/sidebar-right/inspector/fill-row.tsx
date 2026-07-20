@@ -35,6 +35,7 @@ const FILL_TYPE_LABELS: Record<PaintType, string> = {
   [PaintType.WAVEFORM]: 'Waveform',
   [PaintType.HTML]: 'Html',
   [PaintType.SURFACE]: 'Surface',
+  [PaintType.SHADER]: 'Shader',
 };
 
 export function FillRow(props: FillRowProps) {

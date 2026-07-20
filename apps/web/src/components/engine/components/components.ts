@@ -8,6 +8,7 @@ import type { Token } from "../utils/text";
 import type { AudioBus as AudioBusInstance } from "../services/audio-bus";
 import type { HtmlHost as HtmlHostInstance } from "../decoders/html";
 import type { SurfaceHost as SurfaceHostInstance } from "../decoders/surface";
+import type { ShaderHost as ShaderHostInstance } from "../decoders/shader";
 import type { ImageDecoder as ImageDecoderInstance } from "../decoders/image";
 import type { VideoDecoderInstance } from "../decoders/video";
 import type { SequenceDecoder as SequenceDecoderInstance } from "../decoders/sequence";
@@ -380,6 +381,13 @@ export const Cache = {
 export const HtmlHost = [] as (HtmlHostInstance | null)[];
 
 export const SurfaceHost = [] as (SurfaceHostInstance | null)[];
+
+export const Shader = {
+  code: [] as string[],
+  uniforms: [] as (Record<string, number | number[] | string> | null)[],
+};
+
+export const ShaderHost = [] as (ShaderHostInstance | null)[];
 
 // Renderer-runtime state on mounted entities (never serialized)
 export type MountData = {

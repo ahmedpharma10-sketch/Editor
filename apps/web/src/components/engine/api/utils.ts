@@ -171,6 +171,17 @@ export function disposeSurfaceHosts(world: EngineWorld, eid: number): void {
   }
 }
 
+export function disposeShaderHosts(world: EngineWorld, eid: number): void {
+  const ShaderHost = world.components.ShaderHost;
+
+  ShaderHost[eid]?.dispose();
+  ShaderHost[eid] = null;
+
+  for (const child of query(world, [ChildOf(eid)])) {
+    disposeShaderHosts(world, child);
+  }
+}
+
 export function disconnectAudioBus(world: EngineWorld, eid: number): void {
   const AudioBus = world.components.AudioBus;
   AudioBus[eid]?.disconnect();

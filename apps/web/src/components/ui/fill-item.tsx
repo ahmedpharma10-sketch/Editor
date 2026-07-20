@@ -407,7 +407,7 @@ function PaintItemIcon(props: PaintItemIconProps) {
         <OpacitySwatch color={color()!} opacity={opacity()} />
       </Show>
 
-      <Show when={type() === PaintType.HTML || type() === PaintType.SURFACE}>
+      <Show when={type() === PaintType.HTML || type() === PaintType.SURFACE || type() === PaintType.SHADER}>
         <div class="flex size-full items-center justify-center bg-muted text-muted-foreground">
           <Icon name="html-small" />
         </div>
@@ -439,6 +439,8 @@ function FillLabel(props: FillLabelProps) {
       return "HTML";
     } else if (type() === PaintType.SURFACE) {
       return "Surface";
+    } else if (type() === PaintType.SHADER) {
+      return "Shader";
     } else {
       const asset = assets.get(assetId() ?? "");
       return asset?.name ?? "Unknown";

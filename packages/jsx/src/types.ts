@@ -178,6 +178,20 @@ export type PatchProps = {
   src?: string | AssetRef;
   /** How the source maps into the box. Default "cover" on `<Video>`, "contain" on `<Image>`. */
   objectFit?: Fit;
+  /**
+   * Fragment-stage WGSL of a `<ShaderPaint>`, applied to the video/image
+   * paint directly below it in the paint stack, or run procedurally (over a
+   * transparent source) when there is none. Entry point
+   * `@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f`;
+   * sample the media with `sampleSource(uv)`.
+   */
+  wgsl?: string;
+  /**
+   * Values for the shader's `@group(1)` uniform declarations, matched by
+   * name: numbers bind to `f32`, arrays of 2-4 to `vec2f`-`vec4f`, CSS
+   * color strings to `vec3f`/`vec4f`.
+   */
+  uniforms?: Record<string, number | number[] | string>;
   /** Decibels: 0 = unity gain, negative attenuates (-6 ≈ half as loud), -Infinity = silence. Use `muted` to silence. Animatable. */
   volume?: Animatable<number>;
   /** Excludes the node's audio from the mix; independent of `volume`. */
@@ -232,6 +246,8 @@ export const PATCH_PROP_KEYS = Object.keys({
   fill: true,
   src: true,
   objectFit: true,
+  wgsl: true,
+  uniforms: true,
   volume: true,
   muted: true,
   fontFamily: true,
@@ -296,11 +312,17 @@ export type ColorStopProps = Required<Pick<PatchProps, "offset" | "color">> &
 
 export type VideoProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "objectFit" | "volume" | "muted" | "syncTo">;
+  Pick<PatchProps, "objectFit" | "volume" | "muted" | "syncTo"> & {
+    /** Paint children, stacked over the media paint created by `src`. */
+    children?: SolidJSX.Element;
+  };
 
 export type ImageProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "objectFit">;
+  Pick<PatchProps, "objectFit"> & {
+    /** Paint children, stacked over the media paint created by `src`. */
+    children?: SolidJSX.Element;
+  };
 
 export type HtmlPaintProps = Pick<PatchProps, "opacity"> & {
   /**
@@ -319,6 +341,10 @@ export type HtmlProps = CommonProps & Pick<HtmlPaintProps, "children">;
 // stub otherwise.
 type HostCanvas = typeof globalThis extends { HTMLCanvasElement: new () => infer T } ? T
   : { width: number; height: number; getContext(contextId: string, options?: unknown): unknown };
+
+/** `<ShaderPaint>` — transforms the media paint directly below it. Takes no children. */
+export type ShaderPaintProps = Required<Pick<PatchProps, "wgsl">> &
+  Pick<PatchProps, "uniforms" | "opacity">;
 
 export type SurfacePaintProps = Pick<PatchProps, "opacity"> & {
   /**

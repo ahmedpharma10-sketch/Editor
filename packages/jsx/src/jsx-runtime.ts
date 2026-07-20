@@ -31,6 +31,7 @@ import type {
   RectProps,
   SceneProps,
   SequenceProps,
+  ShaderPaintProps,
   SolidPaintProps,
   SurfacePaintProps,
   SurfaceProps,
@@ -73,6 +74,7 @@ export declare namespace JSX {
     colorStop: ColorStopProps;
     htmlPaint: HtmlPaintProps;
     html: HtmlProps;
+    shaderPaint: ShaderPaintProps;
     surfacePaint: SurfacePaintProps;
     surface: SurfaceProps;
   }

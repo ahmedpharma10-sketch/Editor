@@ -103,6 +103,7 @@ const BUILT_IN_TAGS: Record<string, string> = {
   solidPaint: "SolidPaint", linearGradientPaint: "LinearGradientPaint",
   radialGradientPaint: "RadialGradientPaint", colorStop: "ColorStop",
   htmlPaint: "HtmlPaint", html: "Html", surfacePaint: "SurfacePaint", surface: "Surface",
+  shaderPaint: "ShaderPaint",
 };
 
 // Tags that exist in both vocabularies. Every collision is SVG-only (HTML has

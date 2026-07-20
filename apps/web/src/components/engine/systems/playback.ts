@@ -4,7 +4,7 @@
 
 import { hasComponent, Not, Or, query } from 'bitecs';
 import { ChildOf, PaintType } from '../components';
-import { resolveAudioDecoder, resolveCaptionDecoder, resolveImageDecoder, resolveSequenceDecoder, resolveVideoDecoder } from '../decoders';
+import { resolveAudioDecoder, resolveCaptionDecoder, resolveImageDecoder, resolveSequenceDecoder, resolveShaderHost, resolveVideoDecoder } from '../decoders';
 import { getParentEntity } from '../api';
 import { getTransitionWindow } from '../utils/transition';
 import { AudioBus } from '../services/audio-bus';
@@ -248,6 +248,11 @@ function forwardDecoders(world: EngineWorld, sid: number, eid: number): void {
 
 			if (c.Paint[fid] === PaintType.IMAGE && visualsEnabled) {
 				forwardImageDecoder(world, sid, eid, fid);
+			}
+
+			if (c.Paint[fid] === PaintType.SHADER && visualsEnabled) {
+				const ready = resolveShaderHost(world, fid)?.whenReady();
+				if (ready) world.promises?.push(ready);
 			}
 		}
 	}

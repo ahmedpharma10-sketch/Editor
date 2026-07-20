@@ -45,6 +45,7 @@ export function SubItemLayer(props: SubItemLayerProps) {
       if (c.Paint[eid()] === PaintType.WAVEFORM) return 'Waveform';
       if (c.Paint[eid()] === PaintType.HTML) return 'HTML';
       if (c.Paint[eid()] === PaintType.SURFACE) return 'Surface';
+      if (c.Paint[eid()] === PaintType.SHADER) return 'Shader';
       return 'Fill';
     }
     if (hasComponent(world, eid(), c.ColorStop)) return 'Stop';

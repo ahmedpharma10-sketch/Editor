@@ -19,6 +19,7 @@ The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the 
 | [paints.md](./paints.md) | `<solidPaint>`, gradients, `<colorStop>` |
 | [html-paint.md](./html-paint.md) | `<html>`: reactive HTML children drawn into the box |
 | [surface-paint.md](./surface-paint.md) | `<surface>`: a ref-provided canvas you draw into, sampled every frame |
+| [shader-paint.md](./shader-paint.md) | `<shaderPaint>`: a WGSL fragment shader over the media paint below it |
 | [media.md](./media.md) | `src` resolution (paths, URLs, asset ids, `AssetRef`) |
 | [timing.md](./timing.md) | `start` / `end` / `sourceIn` / `sourceOut`, time formats |
 | [keyframes.md](./keyframes.md) | Keyframe animation and easing |

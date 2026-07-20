@@ -133,6 +133,12 @@ export function serializeEntity(world: EngineWorld, eid: number): DBEntity {
 	if (hasComponent(world, eid, c.ScaleMode)) {
 		record.ScaleMode = c.ScaleMode[eid];
 	}
+	if (hasComponent(world, eid, c.Shader)) {
+		record.Shader = {
+			code: c.Shader.code[eid],
+			uniforms: c.Shader.uniforms[eid] ?? undefined,
+		};
+	}
 	if (hasComponent(world, eid, c.Volume)) {
 		record.Volume = c.Volume[eid];
 	}
@@ -346,6 +352,9 @@ export function deserializeEntity(world: EngineWorld, eid: number, e: Partial<DB
 	}
 	if (e.ScaleMode !== undefined) {
 		setComponent(world, eid, c.ScaleMode, e.ScaleMode);
+	}
+	if (e.Shader !== undefined) {
+		setComponent(world, eid, c.Shader, e.Shader);
 	}
 	if (e.Volume !== undefined) {
 		setComponent(world, eid, c.Volume, e.Volume);

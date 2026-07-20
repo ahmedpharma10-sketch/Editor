@@ -118,6 +118,12 @@ export function observeWorld(world: EngineWorld) {
     utils.persistEntity(world, eid);
   });
 
+  observe(world, "set", c.Shader, (eid, { code, uniforms }) => {
+    c.Shader.code[eid] = code ?? c.Shader.code[eid] ?? "";
+    c.Shader.uniforms[eid] = uniforms ?? c.Shader.uniforms[eid] ?? null;
+    utils.persistEntity(world, eid);
+  });
+
   observe(world, "set", c.Name, (eid, name) => {
     c.Name[eid] = name ?? c.Name[eid] ?? "";
     utils.persistEntity(world, eid);
@@ -496,6 +502,7 @@ export function observeWorld(world: EngineWorld) {
     utils.disposeDecoders(world, eid);
     utils.disposeHtmlHosts(world, eid);
     utils.disposeSurfaceHosts(world, eid);
+    utils.disposeShaderHosts(world, eid);
     utils.disconnectAudioBus(world, eid);
     utils.unpersistEntity(world, eid);
     world.rebuildTimelineIndex();

@@ -762,6 +762,9 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         appendChild(world, fid, eid);
         this.registerHtmlHost(eid, host);
         break;
+      } case "ShaderPaint": {
+        setComponent(world, eid, c.Paint, PaintType.SHADER);
+        break;
       } case "SurfacePaint": {
         setComponent(world, eid, c.Paint, PaintType.SURFACE);
         const host = this.trackHost(new SurfaceHost());
@@ -1193,6 +1196,35 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         assert(typeof value === "string", "`key` must be a string" + `, value: ${value}`);
         assert(value.trim().length > 0, "`key` must be a non-empty string");
         setComponent(world, eid, c.Key, value.trim());
+        break;
+      }
+      case "wgsl": {
+        assert(c.Paint[eid] === PaintType.SHADER, "`wgsl` only applies to <ShaderPaint>");
+        assert(typeof value === "string", "`wgsl` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`wgsl` must be a non-empty string");
+        setComponent(world, eid, c.Shader, { code: value });
+        break;
+      }
+      case "uniforms": {
+        assert(c.Paint[eid] === PaintType.SHADER, "`uniforms` only applies to <ShaderPaint>");
+        assert(
+          typeof value === "object" && value !== null && !Array.isArray(value),
+          "`uniforms` must be an object of numbers, number arrays, or CSS colors" + `, value: ${value}`,
+        );
+        for (const [uniform, entry] of Object.entries(value)) {
+          if (typeof entry === "number") {
+            assert(Number.isFinite(entry), `uniform \`${uniform}\` must be finite, value: ${entry}`);
+          } else if (Array.isArray(entry)) {
+            assert(
+              entry.length >= 2 && entry.length <= 4 && entry.every((v) => typeof v === "number" && Number.isFinite(v)),
+              `uniform \`${uniform}\` must be an array of 2-4 finite numbers, value: ${entry}`,
+            );
+          } else {
+            assert(typeof entry === "string", `uniform \`${uniform}\` must be a number, number array, or CSS color, value: ${entry}`);
+            assert(parseColor(entry) !== null, `uniform \`${uniform}\` is not a valid CSS color: "${entry}"`);
+          }
+        }
+        setComponent(world, eid, c.Shader, { uniforms: { ...value } });
         break;
       }
       case "fontFamily":
@@ -1706,6 +1738,13 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const objectFit = this.props(eid)?.objectFit as keyof typeof SCALE_MODE_MAP | undefined;
         setComponent(world, fid, c.ScaleMode, objectFit ? SCALE_MODE_MAP[objectFit] : ScaleMode.COVER);
         setComponent(world, fid, c.AssetId, asset.id);
+        // The asset resolves after the element's JSX paint children have
+        // attached, but the media paint belongs at the bottom of the stack:
+        // paint children draw over it, and a shader paint reads it.
+        const fills = query(world, [c.Paint, ChildOf(eid), Not(c.Deleted)]);
+        if (fills.length > 0) {
+          setComponent(world, fid, c.ItemIndex, Math.min(...fills.map((f) => c.ItemIndex[f] ?? 0)) - 1);
+        }
         appendChild(world, fid, eid);
 
         if (!hasComponent(world, eid, c.Size)) {

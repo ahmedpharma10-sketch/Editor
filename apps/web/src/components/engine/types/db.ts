@@ -82,6 +82,10 @@ export interface DBEntity {
 	Blur?: number;
 	AssetId?: string;
 	ScaleMode?: number;
+	Shader?: {
+		code?: string;
+		uniforms?: Record<string, number | number[] | string>;
+	};
 	Volume?: number;
 	Muted?: {};
 	ColorStop?: {

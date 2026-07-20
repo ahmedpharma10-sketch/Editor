@@ -13,10 +13,11 @@ key, so re-mounting an example replaces its scene in place.
 | [05-anime-timeline.tsx](05-anime-timeline.tsx) | `dapi mount examples/05-anime-timeline.tsx` | anime.js timeline seeked from `useTicker`, driving an ECS node and `<html>` content in lockstep |
 | [06-three.tsx](06-three.tsx) | `dapi mount examples/06-three.tsx` | three.js WebGL renderer owning a `<surface>`, glTF model loaded over the network |
 | [07-webgpu.tsx](07-webgpu.tsx) | `dapi mount examples/07-webgpu.tsx` | raw WebGPU on a `<surface>`: a triangle whose colors cycle with composition time |
+| [08-shader-paint.tsx](08-shader-paint.tsx) | `dapi mount examples/08-shader-paint.tsx` | `<shaderPaint>` post-processing a `<video>`: WGSL chromatic aberration + vignette, uniforms patchable live |
 
 Requirements: `02-genai.tsx` consumes generation credits (results are cached per session);
 `04-html-in-canvas.tsx` and `05-anime-timeline.tsx` need Chromium's html-in-canvas API
-(`chrome://flags/#canvas-draw-element`); `07-webgpu.tsx` needs WebGPU; `01-basics.tsx` and
-`06-three.tsx` fetch remote media.
+(`chrome://flags/#canvas-draw-element`); `07-webgpu.tsx` and `08-shader-paint.tsx` need WebGPU;
+`01-basics.tsx`, `06-three.tsx`, and `08-shader-paint.tsx` fetch remote media.
 
 Typecheck with `tsc -p examples --noEmit` (part of `npm run check`).
