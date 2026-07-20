@@ -208,6 +208,12 @@ if (app.requestSingleInstanceLock()) {
     return url;
   });
   mainBridge.handle(MAIN_CHANNELS.WINDOW_IS_FULLSCREEN, () => mainWindow?.isFullScreen() ?? false);
+  mainBridge.handle(MAIN_CHANNELS.WINDOW_CAPTURE, async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No main window");
+    const image = await mainWindow.webContents.capturePage(undefined, { stayHidden: true });
+    const { width, height } = image.getSize();
+    return { base64: image.toPNG().toString("base64"), width, height };
+  });
   mainBridge.handle(MAIN_CHANNELS.HEADLESS_GET_MODE, () => isHeadless());
   mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>

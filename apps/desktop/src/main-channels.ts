@@ -9,7 +9,7 @@
 //
 // CLI traffic uses a separate wire pair (CLI_WIRE in @diffusionstudio/cli/protocol);
 // main forwards it opaquely without inspecting channel names.
-import type { LogEntry } from "@diffusionstudio/cli/protocol";
+import type { LogEntry, ScreenshotResult } from "@diffusionstudio/cli/protocol";
 
 export const MAIN_WIRE = {
   REQUEST: "main:request",
@@ -29,6 +29,7 @@ export const MAIN_CHANNELS = {
   APP_OPEN_EXTERNAL: "app:open-external",
   AUTH_GET_PENDING_CALLBACK: "auth:get-pending-callback",
   WINDOW_IS_FULLSCREEN: "window:is-fullscreen",
+  WINDOW_CAPTURE: "window:capture",
   FILE_TRANSFER: "file:transfer",
   FILE_WRITE_OPEN: "file:write-open",
   FILE_WRITE_CHUNK: "file:write-chunk",
@@ -49,6 +50,7 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.APP_OPEN_EXTERNAL]: { request: { url: string }; response: void };
   [MAIN_CHANNELS.AUTH_GET_PENDING_CALLBACK]: { request: void; response: string | null };
   [MAIN_CHANNELS.WINDOW_IS_FULLSCREEN]: { request: void; response: boolean };
+  [MAIN_CHANNELS.WINDOW_CAPTURE]: { request: void; response: ScreenshotResult };
   [MAIN_CHANNELS.FILE_TRANSFER]: {
     request: { selector: string; absolutePath: string };
     response: void;

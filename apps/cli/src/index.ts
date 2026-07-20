@@ -986,6 +986,21 @@ async function showLogs(opts: LogsOptions): Promise<void> {
   }
 }
 
+type ScreenshotOptions = { output?: string };
+
+async function appScreenshot(opts: ScreenshotOptions): Promise<void> {
+  const dir = opts.output ?? tmpdir();
+  mkdirSync(dir, { recursive: true });
+  try {
+    const { base64, width, height } = await editor.screenshot.query();
+    const path = join(dir, `${randomUUID()}.png`);
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ path, width, height }));
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
 function startSpinner(label: string): () => void {
   if (!process.stderr.isTTY) {
     process.stderr.write(`${label}…\n`);
@@ -1489,6 +1504,14 @@ program
   .option("-n, --tail <n>", "output only the last <n> entries")
   .option("-l, --level <level>", `minimum level to include: "debug", "info", "warning", or "error"`)
   .action((opts: LogsOptions) => showLogs(opts));
+
+program
+  .command("screenshot")
+  .description(
+    `Capture the entire application window as a PNG — the full UI as the user sees it (panels, timeline, asset library, canvas viewport), at the window's current size. The tool for checking what the app itself looks like; to render a node or scene cleanly for composition checks use \`node capture\` instead. Works even when the app was launched hidden (\`open --background\`).`,
+  )
+  .option("-o, --output <dir>", "directory to write the PNG into (default: system temp dir)")
+  .action((opts: ScreenshotOptions) => appScreenshot(opts));
 
 program
   .command("fonts")

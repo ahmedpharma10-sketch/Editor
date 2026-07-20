@@ -9,6 +9,10 @@ export function handleGetFullscreenState() {
   return mainBridge.call(MAIN_CHANNELS.WINDOW_IS_FULLSCREEN, undefined);
 }
 
+export function handleWindowScreenshot() {
+  return () => mainBridge.call(MAIN_CHANNELS.WINDOW_CAPTURE, undefined);
+}
+
 export function handleWindowFullscreenChange(mutate: (fullscreen: boolean) => void) {
   return ({ fullscreen }: { fullscreen: boolean }) => mutate(fullscreen);
 }

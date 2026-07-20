@@ -6,7 +6,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 
 ## Groups
 
-**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`logs`](./logs.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
+**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
@@ -31,6 +31,7 @@ How the surface is divided:
 - [`dapi open`](./open.md): launch the app, or open a file, folder, or deep link
 - [`dapi whoami`](./whoami.md): print the authenticated account
 - [`dapi logs`](./logs.md): recent console output from the running app
+- [`dapi screenshot`](./screenshot.md): capture the entire application window as a PNG
 
 ### Document
 

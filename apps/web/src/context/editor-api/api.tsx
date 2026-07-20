@@ -22,7 +22,7 @@ import { cliBridge, mainBridge } from '@/lib/ipc';
 import { createRouterCaller } from '@/lib/cli-rpc';
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from "@/utils/common";
-import { handleGetFullscreenState, handleWindowFullscreenChange } from "./window";
+import { handleGetFullscreenState, handleWindowFullscreenChange, handleWindowScreenshot } from "./window";
 
 import type { JSX, Accessor } from 'solid-js';
 import type { User } from '@supabase/supabase-js';
@@ -101,6 +101,7 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
     mount: m(handleMount(getEngine)),
     models: q(handleModels()),
     logs: q(handleLogs()),
+    screenshot: q0(handleWindowScreenshot()),
     voices: q0(handleVoices()),
     asset: t.router({
       add: m(handleAssetsAdd(getEngine)),
