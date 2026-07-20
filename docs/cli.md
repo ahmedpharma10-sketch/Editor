@@ -60,7 +60,7 @@ dapi node insert <parentId> (<path> | --code <str>) [-i, --index <N>]
 Same pipeline as `mount`, but inserts the rendered roots as children of an existing entity instead of mounting document roots. Roots take no `key`; every run inserts fresh nodes. `--index` sets the position among the parent's children (node roots only). Also how you extend sub-entities, e.g. adding a stop to a gradient:
 
 ```sh
-dapi node insert <paintId> --code '<ColorStop offset={0.5} color="#FF0055" />'
+dapi node insert <paintId> --code '<colorStop offset={0.5} color="#FF0055" />'
 ```
 
 ### `node patch`

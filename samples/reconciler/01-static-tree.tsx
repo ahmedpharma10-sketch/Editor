@@ -11,25 +11,23 @@
  * Re-mounting replaces the scene in place (same key, same position).
  */
 
-import { ColorStop, Group, LinearGradientPaint, Rect, Scene, Text } from "@diffusionstudio/jsx";
-
 export default () => (
-  <Scene key="sample-static" name="Static tree" width={960} height={540} fill="#101014">
-    <Group x={40} y={40}>
-      <Rect width={200} height={120} cornerRadius={16} fill="#ff4466" />
-      <Rect x={220} width={200} height={120} rotation={8} opacity={0.8}>
-        <LinearGradientPaint>
-          <ColorStop offset={0} color="#22ccff" />
-          <ColorStop offset={1} color="#7744ff" opacity={0.5} />
-        </LinearGradientPaint>
-      </Rect>
-    </Group>
+  <scene key="sample-static" name="Static tree" width={960} height={540} fill="#101014">
+    <group x={40} y={40}>
+      <rect width={200} height={120} cornerRadius={16} fill="#ff4466" />
+      <rect x={220} width={200} height={120} rotation={8} opacity={0.8}>
+        <linearGradientPaint>
+          <colorStop offset={0} color="#22ccff" />
+          <colorStop offset={1} color="#7744ff" opacity={0.5} />
+        </linearGradientPaint>
+      </rect>
+    </group>
 
-    <Text x={40} y={220} fontSize={48} fontFamily="Inter" fontWeight={700}>
+    <text x={40} y={220} fontSize={48} fontFamily="Inter" fontWeight={700}>
       sum = {6 * 7}
-    </Text>
+    </text>
 
-    <Rect
+    <rect
       x={40}
       y={320}
       width={160}
@@ -39,5 +37,5 @@ export default () => (
       end={3}
       animations={[{ type: "fade", phase: "in", duration: 0.5 }]}
     />
-  </Scene>
+  </scene>
 );

@@ -7,14 +7,14 @@
  * timeline tweens plain-object targets; a createEffect seeks it to the
  * scene playhead (looping over the timeline length) and mirrors the values
  * into a store. The same values drive an ECS chip on the canvas and a DOM
- * card drawn via <Html>, so scrubbing or playing keeps both in lockstep,
+ * card drawn via <html>, so scrubbing or playing keeps both in lockstep,
  * including the shared hue. Deterministic: same playhead, same picture.
  */
 
 import { createEffect } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createTimeline } from "animejs";
-import { Html, Rect, Scene, useTicker } from "@diffusionstudio/jsx";
+import { useTicker } from "@diffusionstudio/jsx";
 
 const chip = { x: -160, y: 190, rotation: -90, cornerRadius: 12, opacity: 0 };
 const card = { rise: 90, opacity: 0, progress: 0, hue: 210 };
@@ -40,8 +40,8 @@ export default () => {
   const hue = () => Math.round(v.card.hue);
 
   return (
-    <Scene key="sample-anime" name="Anime timeline" width={960} height={540} fill="#101014">
-      <Rect
+    <scene key="sample-anime" name="Anime timeline" width={960} height={540} fill="#101014">
+      <rect
         x={v.chip.x}
         y={v.chip.y}
         width={160}
@@ -52,7 +52,7 @@ export default () => {
         fill={`hsl(${hue()} 90% 60%)`}
       />
 
-      <Html x={380} y={120} width={500} height={300}>
+      <html x={380} y={120} width={500} height={300}>
         <div
           style={{
             "font-family": "Inter",
@@ -82,7 +82,7 @@ export default () => {
             {Math.round(v.card.progress)}% through the loop
           </div>
         </div>
-      </Html>
-    </Scene>
+      </html>
+    </scene>
   );
 };

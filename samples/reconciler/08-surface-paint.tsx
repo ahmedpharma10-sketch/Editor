@@ -1,5 +1,5 @@
 /* @jsxImportSource @diffusionstudio/jsx */
-/* Ref-provided canvas: the <Surface> element hands its backing bitmap to the
+/* Ref-provided canvas: the <surface> element hands its backing bitmap to the
  * ref callback, which owns it from then on.
  *
  *   dapi mount samples/reconciler/08-surface-paint.tsx
@@ -7,11 +7,11 @@
  * The ref runs once at materialization, inside the mount's reactive owner:
  * the effect below redraws from a signal and the playhead ticker, and the
  * engine samples the bitmap into the node's box every frame. The standalone
- * <SurfacePaint> on the right stacks over a solid fill inside a plain <Rect>.
+ * <surfacePaint> on the right stacks over a solid fill inside a plain <rect>.
  */
 
 import { createEffect, createSignal } from "solid-js";
-import { Scene, Surface, useTicker } from "@diffusionstudio/jsx";
+import { useTicker } from "@diffusionstudio/jsx";
 
 export default () => {
   const { time } = useTicker();
@@ -37,8 +37,8 @@ export default () => {
   });
 
   return (
-    <Scene key="sample-surface" name="Surface paint" width={960} height={540} fill="#101014">
-      <Surface
+    <scene key="sample-surface" name="Surface paint" width={960} height={540} fill="#101014">
+      <surface
         x={40}
         y={60}
         width={520}
@@ -46,6 +46,6 @@ export default () => {
         cornerRadius={16}
         ref={setCanvas}
       />
-    </Scene>
+    </scene>
   );
 };

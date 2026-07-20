@@ -61,7 +61,10 @@ export class EntityNode {
  * content — the ECS world and the DOM are the scene graph, with no shadow
  * tree in between. A tag's case decides which side a node lands on at
  * creation (PascalCase composition elements mint entities, lowercase tags
- * mint DOM nodes), so `setProperty` always has a live target.
+ * mint DOM nodes), so `setProperty` always has a live target. Project files
+ * author camelCase tags; the CLI compile canonicalizes them to the PascalCase
+ * components (SVG ancestry keeps the shared rect/text/image names DOM-side),
+ * so the case split holds by the time tags reach this document.
  */
 type HostNode = EntityNode | Element | Text;
 
@@ -624,7 +627,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
       // belong to the composition elements.
       assert(
         tag !== "audio" && tag !== "video",
-        `<${tag}> is not supported as html content; use the <${tag === "audio" ? "Audio" : "Video"}> composition element instead`,
+        `<${tag}> is not supported as html content; media plays through the <${tag}> composition element outside the html subtree`,
       );
       return SVGElements.has(tag)
         ? document.createElementNS(SVG_NS, tag)
@@ -1312,7 +1315,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     const c = world.components;
 
     if (parent instanceof Element) {
-      assert(node instanceof Element || node instanceof Text, "a composition element cannot be <Html> content");
+      assert(
+        node instanceof Element || node instanceof Text,
+        "a composition element cannot be <html> content; an SVG fragment (<rect>/<text>/<image>) compiles as SVG only inside <svg> or <g>; wrap it",
+      );
       parent.insertBefore(node, anchor instanceof Node ? anchor : null);
       return;
     }
@@ -1354,7 +1360,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     }
 
     if (parent !== STAGE) {
-      assert(!this.htmlHosts.has(parent.eid), "a composition element cannot be <Html> content");
+      assert(
+        !this.htmlHosts.has(parent.eid),
+        "a composition element cannot be <html> content; an SVG fragment (<rect>/<text>/<image>) compiles as SVG only inside <svg> or <g>; wrap it",
+      );
       // Adopted entities already sit under their persisted parent, so this
       // no-ops for them on the initial adopt render; afterwards it moves and
       // resurrects them like any other entity (e.g. a <For> shuffling rows).

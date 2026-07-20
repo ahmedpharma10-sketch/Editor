@@ -8,18 +8,45 @@
  * "./renderer", so this module carries no runtime — only the JSX namespace
  * TypeScript resolves element and prop types from.
  *
- * Composition elements are the PascalCase components in "./elements";
- * intrinsic (lowercase) tags are exclusively DOM vocabulary for `<HtmlPaint>`
- * content, so the case of a tag decides its environment.
+ * Composition elements are camelCase intrinsics (`<scene>`, `<rect>`, ...);
+ * the compile step canonicalizes them to the PascalCase components in
+ * "./elements", so at runtime a tag's case still decides its environment.
+ * Lowercase DOM tags are the vocabulary for `<htmlPaint>` content. The three
+ * names both vocabularies share (`rect`, `text`, `image`) are SVG-only on the
+ * DOM side and resolve lexically at compile time: inside an SVG container
+ * they are SVG content, everywhere else composition elements. Their prop
+ * types are the union of both readings.
  */
 
 import type { JSX as SolidJSX } from "solid-js";
+import type {
+  AudioProps,
+  CaptionsProps,
+  ColorStopProps,
+  GradientPaintProps,
+  GroupProps,
+  HtmlPaintProps,
+  HtmlProps,
+  ImageProps,
+  RectProps,
+  SceneProps,
+  SequenceProps,
+  SolidPaintProps,
+  SurfacePaintProps,
+  SurfaceProps,
+  TextProps,
+  VideoProps,
+} from "./types";
 
 // "canvas" is dropped: a DOM canvas's content doesn't survive
 // drawElementImage, so it is useless inside a paint host (draw with
-// <Surface> instead). "audio" and "video" are dropped: media doesn't play
-// under a paint host — use the <Audio>/<Video> composition elements.
-type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas" | "audio" | "video">;
+// <surface> instead). "audio", "video", and "html" are dropped as DOM tags:
+// media doesn't play under a paint host and a nested <html> is meaningless,
+// so those names belong to the composition elements below.
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas" | "audio" | "video" | "html">;
+
+// The shared names are re-declared below as unions with the composition props.
+type SvgElementTags = Omit<SolidJSX.SVGElementTags, "rect" | "text" | "image">;
 
 export declare namespace JSX {
   // Solid's Element type keeps Solid's control flow (<For>, <Show>, …) and
@@ -30,5 +57,23 @@ export declare namespace JSX {
     children: unknown;
   }
 
-  export interface IntrinsicElements extends HtmlElementTags, SolidJSX.SVGElementTags {}
+  export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
+    scene: SceneProps;
+    group: GroupProps;
+    rect: RectProps | SolidJSX.SVGElementTags["rect"];
+    video: VideoProps;
+    image: ImageProps | SolidJSX.SVGElementTags["image"];
+    audio: AudioProps;
+    text: TextProps | SolidJSX.SVGElementTags["text"];
+    sequence: SequenceProps;
+    captions: CaptionsProps;
+    solidPaint: SolidPaintProps;
+    linearGradientPaint: GradientPaintProps;
+    radialGradientPaint: GradientPaintProps;
+    colorStop: ColorStopProps;
+    htmlPaint: HtmlPaintProps;
+    html: HtmlProps;
+    surfacePaint: SurfacePaintProps;
+    surface: SurfaceProps;
+  }
 }

@@ -9,14 +9,14 @@
  */
 
 import { Show } from "solid-js";
-import { Rect, Scene, Text, useTicker } from "@diffusionstudio/jsx";
+import { useTicker } from "@diffusionstudio/jsx";
 
 export default () => {
   const { time, frame, playing } = useTicker();
 
   return (
-    <Scene key="sample-ticker" name="Ticker" width={960} height={540} fill="#101014">
-      <Rect
+    <scene key="sample-ticker" name="Ticker" width={960} height={540} fill="#101014">
+      <rect
         x={420 + Math.round(Math.cos(time() * 2) * 300)}
         y={220 + Math.round(Math.sin(time() * 2) * 150)}
         width={100}
@@ -25,13 +25,13 @@ export default () => {
         fill="#ffaa22"
       />
 
-      <Text x={40} y={40} fontSize={40} fontFamily="Inter">
+      <text x={40} y={40} fontSize={40} fontFamily="Inter">
         t = {time().toFixed(2)}s / frame {frame()}
-      </Text>
+      </text>
 
       <Show when={playing()}>
-        <Text x={40} y={460} fontSize={36} fontWeight={700}>PLAYING</Text>
+        <text x={40} y={460} fontSize={36} fontWeight={700}>PLAYING</text>
       </Show>
-    </Scene>
+    </scene>
   );
 };

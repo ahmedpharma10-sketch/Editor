@@ -3,12 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
- * The composition elements, as PascalCase components. A capitalized JSX tag
- * compiles to a component reference, so hosts receive PascalCase tags for
- * composition elements and lowercase tags only for DOM content under
- * `<HtmlPaint>` — `createElement` can tell them apart by case alone. The
- * compile step lists these names as babel `builtIns`, so project files use
- * them without imports.
+ * The composition elements, as PascalCase components: the canonical form the
+ * CLI compile rewrites camelCase tags into (`<rect>` -> `Rect`, unless an SVG
+ * container makes it SVG content). Hosts therefore receive PascalCase tags
+ * for composition elements and lowercase tags only for DOM content under
+ * `<htmlPaint>` — `createElement` can tell them apart by case alone. These
+ * exports are the compile target and the ABI of persisted compiled bundles
+ * (which import them by name via the host-module shim), not an authoring
+ * surface.
  */
 
 import { splitProps } from "solid-js";

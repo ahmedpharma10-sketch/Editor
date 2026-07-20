@@ -3,18 +3,15 @@
 Compositions are **Solid JSX modules**. `dapi mount` compiles the module, runs it in the app, and renders every JSX element into an editable node in the document: no hidden DOM, no CSS, no layout pass. All positioning is explicit pixels.
 
 ```tsx
-import { Scene } from "@diffusionstudio/jsx";
-
 export default function Project() {
   return (
-    <Scene key="intro" name="Intro" width={1920} height={1080} fill="black">
+    <scene key="intro" name="Intro" width={1920} height={1080} fill="black">
       {/* ... */}
-    </Scene>
+    </scene>
   );
 }
 ```
 
-The element import is optional at runtime — the compiler auto-imports PascalCase elements used without an in-scope binding — but explicit imports make the file typecheck (`tsc` doesn't see the auto-import).
 
 The module's default export is the project component. Solid's control flow (`<For>`, `<Show>`, …) and primitives (`createSignal`, `createMemo`, …) are available to *compose* the tree; the render is one-shot: after commit, the nodes belong to the document and signal changes no longer affect it. The update path is re-running the mount.
 
@@ -28,25 +25,25 @@ Every top-level element declares its identity with a `key`:
 - Keyed nodes the render no longer produces are **deleted**; the mount owns its keyed roots. Unkeyed nodes (made by hand in the editor) are never touched.
 - Keys must be unique within a render. Give roots a `name` too: the key identifies, the name labels.
 
-The first rendered root becomes the active scene. New roots are auto-placed on the canvas near the viewport center; `<Scene>` has no `x`/`y` because canvas arrangement is an editor concern, not part of the composition.
+The first rendered root becomes the active scene. New roots are auto-placed on the canvas near the viewport center; `<scene>` has no `x`/`y` because canvas arrangement is an editor concern, not part of the composition.
 
 ## Elements
 
 | Element | What it makes |
 | --- | --- |
-| `<Scene>` | A scene; clips children to its `width`×`height`. Document root only; scenes don't nest. |
-| `<Group>` | Container with a transform; give it `fill` to draw a rectangle. |
-| `<Rect>` | A filled rectangle. |
-| `<Text>` | Editable text. |
-| `<Video>` / `<Image>` | Media; `src` is required. |
-| `<Audio>` | Sound only, no spatial props. |
-| `<Sequence>` | Track container for back-to-back clips (positions are explicit); hosts transitions. |
-| `<Captions>` | Styled captions: transcribes the scene's audio, or mounts a transcript given via `src`. |
-| `<Html>` | A rectangle whose children are HTML/SVG, laid out by the browser at the node's box size and drawn into it. Equivalent to a `<Rect>` with an `<HtmlPaint>`. |
-| `<Surface>` | A rectangle whose `ref` hands you a canvas to draw yourself (2d, webgl, webgpu); the bitmap is sampled into the box every frame. Equivalent to a `<Rect>` with a `<SurfacePaint>`. |
-| `<SolidPaint>`, `<LinearGradientPaint>`, `<RadialGradientPaint>`, `<ColorStop>` | Fills, declared as children; see [Paints](#paints). |
+| `<scene>` | A scene; clips children to its `width`×`height`. Document root only; scenes don't nest. |
+| `<group>` | Container with a transform; give it `fill` to draw a rectangle. |
+| `<rect>` | A filled rectangle. |
+| `<text>` | Editable text. |
+| `<video>` / `<image>` | Media; `src` is required. |
+| `<audio>` | Sound only, no spatial props. |
+| `<sequence>` | Track container for back-to-back clips (positions are explicit); hosts transitions. |
+| `<captions>` | Styled captions: transcribes the scene's audio, or mounts a transcript given via `src`. |
+| `<html>` | A rectangle whose children are HTML/SVG, laid out by the browser at the node's box size and drawn into it. Equivalent to a `<rect>` with an `<htmlPaint>`. |
+| `<surface>` | A rectangle whose `ref` hands you a canvas to draw yourself (2d, webgl, webgpu); the bitmap is sampled into the box every frame. Equivalent to a `<rect>` with a `<surfacePaint>`. |
+| `<solidPaint>`, `<linearGradientPaint>`, `<radialGradientPaint>`, `<colorStop>` | Fills, declared as children; see [Paints](#paints). |
 
-User-defined components are ordinary Solid components; only the built-in PascalCase elements produce nodes.
+User-defined components are ordinary Solid components; only the built-in camelCase elements produce nodes.
 
 ### Common props
 
@@ -60,26 +57,26 @@ User-defined components are ordinary Solid components; only the built-in PascalC
 | `opacity` | `1` | `0`–`1`. Animatable. |
 | `cornerRadius` | `0` | Px. Animatable. |
 | `start`, `end`, `sourceIn`, `sourceOut` | see [Timing](#timing) | Temporal placement. |
-| `transition` | none | Cut into the next clip; `<Sequence>` children only. See [Transitions](#transitions). |
+| `transition` | none | Cut into the next clip; `<sequence>` children only. See [Transitions](#transitions). |
 
 Animatable props also take a keyframe list — see [Animation](#animation).
 
 **Every box defaults to its parent's box**, the JSX analog of `position: absolute; inset: 0`. So a centered full-frame title is just:
 
 ```tsx
-<Text textAlign="center" textBaseline="middle" fontSize={128}>Hello</Text>
+<text textAlign="center" textBaseline="middle" fontSize={128}>Hello</text>
 ```
 
 ### Per-element props
 
-- **`<Scene>`**: `key`, `width`, `height` (all required), `name`, `fill`. No timing or transform props.
-- **`<Rect>` / `<Group>`**: `fill` (any CSS color; alpha is ignored, use `opacity`).
-- **`<Video>`**: `src` (required), `objectFit` (`"cover"` | `"contain"` | `"fill"`, default `"cover"`), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo` (see [Audio sync](#audio-sync)).
-- **`<Image>`**: `src` (required), `objectFit` (default `"contain"`).
-- **`<Audio>`**: `src` (required), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo`, timing props.
-- **`<Text>`**: string children (required), `fontFamily` (see `dapi fonts`), `fontSize`, `fontWeight`, `fontStyle`, `fill`, `textAlign`, `textBaseline`.
-- **`<Html>`**: HTML/SVG children. Fully reactive: signals in attributes, styles, and text update the drawn content. Event handlers are dropped (the content is painted, not interactive).
-- **`<Surface>`**: `ref` (required, callback form) receives the backing `HTMLCanvasElement` once at materialization; draw with any context type, create effects inside the ref to redraw from signals or the ticker.
+- **`<scene>`**: `key`, `width`, `height` (all required), `name`, `fill`. No timing or transform props.
+- **`<rect>` / `<group>`**: `fill` (any CSS color; alpha is ignored, use `opacity`).
+- **`<video>`**: `src` (required), `objectFit` (`"cover"` | `"contain"` | `"fill"`, default `"cover"`), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo` (see [Audio sync](#audio-sync)).
+- **`<image>`**: `src` (required), `objectFit` (default `"contain"`).
+- **`<audio>`**: `src` (required), `volume` (dB; `0` = unity, negative attenuates), `muted`, `syncTo`, timing props.
+- **`<text>`**: string children (required), `fontFamily` (see `dapi fonts`), `fontSize`, `fontWeight`, `fontStyle`, `fill`, `textAlign`, `textBaseline`.
+- **`<html>`**: HTML/SVG children. Fully reactive: signals in attributes, styles, and text update the drawn content. Event handlers are dropped (the content is painted, not interactive).
+- **`<surface>`**: `ref` (required, callback form) receives the backing `HTMLCanvasElement` once at materialization; draw with any context type, create effects inside the ref to redraw from signals or the ticker.
 
 These same props are what `dapi node patch` assigns on existing nodes.
 
@@ -92,7 +89,7 @@ These same props are what `dapi node patch` assigns on existing nodes.
 - an **asset id**: an imported library asset (see `dapi asset tree`)
 - an **`AssetRef`**: the value returned by a `generate.*` declaration
 
-To read a source's raw bytes inside an effect instead of mounting it as a node, pass the same input to `useFile`, which resolves it to a `File`. It returns Solid's `createResource` tuple (`[file, { mutate, refetch }]`): the `file` accessor reads `undefined` until it resolves, then the `File`. Useful for drawing a library image onto a `<Surface>` or parsing a data file:
+To read a source's raw bytes inside an effect instead of mounting it as a node, pass the same input to `useFile`, which resolves it to a `File`. It returns Solid's `createResource` tuple (`[file, { mutate, refetch }]`): the `file` accessor reads `undefined` until it resolves, then the `File`. Useful for drawing a library image onto a `<surface>` or parsing a data file:
 
 ```tsx
 import { createSignal, createEffect } from "solid-js";
@@ -108,7 +105,7 @@ createEffect(async () => {
   el.getContext("2d")!.drawImage(await createImageBitmap(f), 0, 0);
 });
 
-// <Surface ref={setCanvas} width={640} height={360} />
+// <surface ref={setCanvas} width={640} height={360} />
 ```
 
 ## Timing
@@ -121,35 +118,35 @@ createEffect(async () => {
 | `sourceIn` / `sourceOut` | The source window to play. Default: the source's natural extent. `end` and `sourceOut` are the same out edge in timeline vs. source time. |
 
 ```tsx
-<Video src="/Movies/clip.mp4" start={5} sourceIn={10} sourceOut={20} />
+<video src="/Movies/clip.mp4" start={5} sourceIn={10} sourceOut={20} />
 // plays source seconds 10-20 (a 10 s clip), beginning at timeline second 5
 
-<Rect start={2} end={5} fill="red" />
+<rect start={2} end={5} fill="red" />
 // a sourceless node placed straight on the timeline: on screen from 2 s to 5 s
 ```
 
-`<Sequence>` groups a track of back-to-back clips and hosts clip [transitions](#transitions). It does not position clips at mount — give each an explicit `start` (the next clip's `start` is the previous clip's end). In the editor it keeps children from overlapping as you drag or regroup them.
+`<sequence>` groups a track of back-to-back clips and hosts clip [transitions](#transitions). It does not position clips at mount — give each an explicit `start` (the next clip's `start` is the previous clip's end). In the editor it keeps children from overlapping as you drag or regroup them.
 
 ### Audio sync
 
 `syncTo` computes a node's `start` by cross-correlating its audio against another element's audio (named by `key`), so two recordings of the same take coincide on the timeline: a lav track against camera audio, two cameras, two microphones. Any pairing with audio tracks works (audio-to-video, audio-to-audio, video-to-video). `muted` silences the side that shouldn't be heard; alignment reads source content regardless of `muted` or `volume`.
 
 ```tsx
-<Video key="camera" src="/Movies/take-3.mp4" sourceOut={45} muted />
-<Audio src="/Movies/lav.wav" syncTo="camera" />
+<video key="camera" src="/Movies/take-3.mp4" sourceOut={45} muted />
+<audio src="/Movies/lav.wav" syncTo="camera" />
 ```
 
 `syncTo` and `start` are mutually exclusive; `sourceIn`/`sourceOut` stay yours, and when omitted the window defaults to the overlap with the target's window. Alignment runs after generated assets land (either side may be generated), locally and cached, and blocks the mount; an alignment too weak to trust fails the mount and the node keeps its default placement.
 
 ## Transitions
 
-A clip inside a `<Sequence>` takes a `transition` prop rendering the cut into the clip that follows it:
+A clip inside a `<sequence>` takes a `transition` prop rendering the cut into the clip that follows it:
 
 ```tsx
-<Sequence>
-  <Video src="/Movies/a.mp4" start={0} end={8} transition={{ type: "fadeToBlack", duration: 0.5 }} />
-  <Video src="/Movies/b.mp4" start={8} />
-</Sequence>
+<sequence>
+  <video src="/Movies/a.mp4" start={0} end={8} transition={{ type: "fadeToBlack", duration: 0.5 }} />
+  <video src="/Movies/b.mp4" start={8} />
+</sequence>
 ```
 
 | Type | Effect |
@@ -161,7 +158,7 @@ A clip inside a `<Sequence>` takes a `transition` prop rendering the cut into th
 | `"fadeToWhite"` | Same, through white. |
 
 - `duration` takes any [time format](cli.md#time-values) (default 1 s) and runs centered on the cut. Timing is untouched: the clips stay back-to-back and the renderer overlaps them only while the transition runs.
-- `transition` only renders on a direct child of `<Sequence>` that has a clip after it. On the last clip it waits until one follows, matching the editor's inspector; outside a sequence the engine drops it.
+- `transition` only renders on a direct child of `<sequence>` that has a clip after it. On the last clip it waits until one follows, matching the editor's inspector; outside a sequence the engine drops it.
 - It's the same transition the inspector edits, and `dapi node patch` takes it like any other prop: a partial value merges into the clip's existing transition (`{ "id": 42, "transition": { "duration": 2 } }` keeps the type), and `"transition": null` removes it.
 
 ## Animation
@@ -169,7 +166,7 @@ A clip inside a `<Sequence>` takes a `transition` prop rendering the cut into th
 Animatable props (`x`, `y`, `width`, `height`, `rotation`, `opacity`, `cornerRadius`, `volume`, `color`, `offset`) accept a keyframe list in place of a static value:
 
 ```tsx
-<Image
+<image
   src="/photo.jpg"
   start={0} end={5}
   x={[
@@ -196,18 +193,18 @@ Animatable props (`x`, `y`, `width`, `height`, `rotation`, `opacity`, `cornerRad
 
 ## Paints
 
-A node's fill is a **paint child**; the `fill` prop is shorthand for a solid paint. Declaring paints as children unlocks gradients and stacking (later paints render on top, including over the media paint of a `<Video>` or `<Image>`):
+A node's fill is a **paint child**; the `fill` prop is shorthand for a solid paint. Declaring paints as children unlocks gradients and stacking (later paints render on top, including over the media paint of a `<video>` or `<image>`):
 
 ```tsx
-<Rect width={640} height={360} cornerRadius={24}>
-  <LinearGradientPaint rotation={90}>
-    <ColorStop offset={0} color="#FF0055" />
-    <ColorStop offset={1} color="#0055FF" />
-  </LinearGradientPaint>
-</Rect>
+<rect width={640} height={360} cornerRadius={24}>
+  <linearGradientPaint rotation={90}>
+    <colorStop offset={0} color="#FF0055" />
+    <colorStop offset={1} color="#0055FF" />
+  </linearGradientPaint>
+</rect>
 ```
 
-`<SolidPaint>` takes `color` (required) and `opacity`; gradient paints take `rotation` and `opacity` and only `<ColorStop>` children (`offset` and `color` required). Colors are any CSS color; alpha is ignored, use `opacity`. `<HtmlPaint>` draws browser-laid-out HTML/SVG children into the node's box; the `<Html>` element is shorthand for a `<Rect>` carrying one. `<SurfacePaint>` draws a canvas your `ref` callback owns into the node's box; the `<Surface>` element is likewise shorthand for a `<Rect>` carrying one.
+`<solidPaint>` takes `color` (required) and `opacity`; gradient paints take `rotation` and `opacity` and only `<colorStop>` children (`offset` and `color` required). Colors are any CSS color; alpha is ignored, use `opacity`. `<htmlPaint>` draws browser-laid-out HTML/SVG children into the node's box; the `<html>` element is shorthand for a `<rect>` carrying one. `<surfacePaint>` draws a canvas your `ref` callback owns into the node's box; the `<surface>` element is likewise shorthand for a `<rect>` carrying one.
 
 ## Generated assets
 
@@ -234,10 +231,10 @@ Declarations are pure: nothing generates until the mount commits, and refs never
 
 ## Captions
 
-`<Captions />` inside a scene transcribes that scene's audio into a styled, timed caption node. It runs after generated assets land and [audio sync](#audio-sync) resolves (so it can caption generated voice-over at its final placement), attaches asynchronously, and is cached against the scene's audible mix, so re-mounting with unchanged audio doesn't re-transcribe.
+`<captions />` inside a scene transcribes that scene's audio into a styled, timed caption node. It runs after generated assets land and [audio sync](#audio-sync) resolves (so it can caption generated voice-over at its final placement), attaches asynchronously, and is cached against the scene's audible mix, so re-mounting with unchanged audio doesn't re-transcribe.
 
 ```tsx
-<Captions preset="spotlight" colors={["#FF0055"]} />
+<captions preset="spotlight" colors={["#FF0055"]} />
 ```
 
 ### Manual captions
@@ -245,7 +242,7 @@ Declarations are pure: nothing generates until the mount commits, and refs never
 `src` supplies the transcript instead of transcribing: a path, URL, or asset id of an `.srt` or `.vtt` subtitle file, or a transcript `.json` (the `dapi transcribe` output format: `[{ text, words: [{ text, start, end }] }]`, times in seconds). Subtitle cues carry no word timings, so word-level presets highlight on timings synthesized within each cue.
 
 ```tsx
-<Captions src="./subtitles.srt" preset="classic" />
+<captions src="./subtitles.srt" preset="classic" />
 ```
 
 Times are scene-relative; set `start` to shift the whole caption track when the transcript was written against a clip that begins later in the scene.
@@ -284,4 +281,4 @@ The CLI strips types without checking them; run `tsc --noEmit` for type safety.
 
 ## Errors
 
-Compile errors surface on stderr before the app is contacted. Evaluate/mount errors (invalid props, a root without `key`, nested `<Scene>`, an unknown or cyclic `syncTo` key, …) abort with **nothing inserted**. Generation errors surface after all generations settle; the mounted tree stays committed and the affected placeholder is left without media. Audio-sync failures (no decodable audio, no reliable alignment) surface the same way; the node keeps its default placement. Runtime errors map back to your source via sourcemaps.
+Compile errors surface on stderr before the app is contacted. Evaluate/mount errors (invalid props, a root without `key`, nested `<scene>`, an unknown or cyclic `syncTo` key, …) abort with **nothing inserted**. Generation errors surface after all generations settle; the mounted tree stays committed and the affected placeholder is left without media. Audio-sync failures (no decodable audio, no reliable alignment) surface the same way; the node keeps its default placement. Runtime errors map back to your source via sourcemaps.

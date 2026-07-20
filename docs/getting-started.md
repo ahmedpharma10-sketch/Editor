@@ -50,9 +50,9 @@ dapi asset tree   # the media library as a folder tree
 Compositions are Solid JSX modules rendered into the document with `dapi mount`. For a one-liner, pass code inline:
 
 ```sh
-dapi mount --code '<Scene key="hello" name="Hello" width={1920} height={1080} fill="black">
-  <Text textAlign="center" textBaseline="middle" fontSize={120} fill="white">Hello World</Text>
-</Scene>'
+dapi mount --code '<scene key="hello" name="Hello" width={1920} height={1080} fill="black">
+  <text textAlign="center" textBaseline="middle" fontSize={120} fill="white">Hello World</text>
+</scene>'
 ```
 
 The `key` is the scene's stable identity: re-running the mount rebuilds that scene in place instead of adding a copy. For anything real, put the module in a file (`dapi mount hero.tsx`) and see [Writing compositions](composition.md).

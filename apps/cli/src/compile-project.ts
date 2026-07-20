@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { transformAsync } from "@babel/core";
 import { build } from "esbuild";
+import type { NodePath, PluginObj, types as BabelTypes } from "@babel/core";
 import type { Plugin } from "esbuild";
 import presetSolid from "babel-preset-solid";
 import presetTypescript from "@babel/preset-typescript";
@@ -92,24 +93,121 @@ function resolveBareSpecifier(spec: string, { cdnBase, importMap }: ResolverConf
   return `${cdnBase}/${spec}`;
 }
 
-// Identifiers babel auto-imports from `moduleName` when used as JSX tags
-// without an in-scope binding: Solid's control-flow defaults plus the
-// PascalCase composition elements, so project files need no imports for tags.
-// Element names must match the components in packages/jsx/src/elements.ts.
-const BUILT_INS = [
-  "For", "Show", "Switch", "Match", "Suspense", "SuspenseList", "Portal", "Index", "Dynamic", "ErrorBoundary",
-  "Scene", "Group", "Rect", "Video", "Image", "Audio", "Text", "Sequence", "Captions",
-  "SolidPaint", "LinearGradientPaint", "RadialGradientPaint", "ColorStop",
-  "HtmlPaint", "Html", "SurfacePaint", "Surface",
-];
+// The camelCase composition vocabulary, canonicalized to the PascalCase
+// components in packages/jsx/src/elements.ts before babel-preset-solid runs.
+// Project files write `<rect>`; the renderer keeps receiving `Rect`, so a
+// tag's case still decides its environment at runtime.
+const BUILT_IN_TAGS: Record<string, string> = {
+  scene: "Scene", group: "Group", rect: "Rect", video: "Video", image: "Image",
+  audio: "Audio", text: "Text", sequence: "Sequence", captions: "Captions",
+  solidPaint: "SolidPaint", linearGradientPaint: "LinearGradientPaint",
+  radialGradientPaint: "RadialGradientPaint", colorStop: "ColorStop",
+  htmlPaint: "HtmlPaint", html: "Html", surfacePaint: "SurfacePaint", surface: "Surface",
+};
+
+// Tags that exist in both vocabularies. Every collision is SVG-only (HTML has
+// no <rect>/<text>/<image>), and SVG content always sits under an SVG-only
+// container, so lexical ancestry resolves them: inside one of the containers
+// below the tag is SVG content, everywhere else it's a composition element.
+// SVG fragments split into their own components must keep an <svg> or <g>
+// wrapper; a bare fragment compiles as composition and the mount rejects it.
+const AMBIGUOUS_TAGS = new Set(["rect", "text", "image"]);
+
+const SVG_CONTAINERS = new Set([
+  "svg", "g", "defs", "symbol", "marker", "mask", "clipPath", "pattern",
+  "filter", "linearGradient", "radialGradient", "textPath", "tspan", "switch",
+]);
+
+// Recognized-but-wrong capitalized tags fail at compile time with a pointed
+// message; anything else unbound is left for the bundler/runtime as usual.
+const PASCAL_ELEMENTS = new Map(Object.entries(BUILT_IN_TAGS).map(([camel, pascal]) => [pascal, camel]));
+
+const SOLID_CONTROL_FLOW = new Set([
+  "For", "Show", "Switch", "Match", "Suspense", "SuspenseList", "Index", "ErrorBoundary",
+]);
+
+/**
+ * Rewrites camelCase composition tags to aliased imports of their PascalCase
+ * components. Aliases (rather than the component names themselves) keep a
+ * user binding that happens to be called `Text` or `Rect` from capturing a
+ * lowercase tag.
+ */
+function canonicalizeTags({ types: t }: { types: typeof BabelTypes }): PluginObj {
+  const hasSvgAncestor = (path: NodePath): boolean =>
+    path.findParent(
+      (p) =>
+        p.isJSXElement() &&
+        t.isJSXIdentifier(p.node.openingElement.name) &&
+        SVG_CONTAINERS.has(p.node.openingElement.name.name),
+    ) !== null;
+
+  return {
+    visitor: {
+      // The whole rewrite runs up front in Program enter: babel merges plugin
+      // and preset visitors into one traversal, and babel-preset-solid
+      // consumes an entire JSX tree on its first visit, so a JSXElement-level
+      // visitor here would lose the race for every non-root tag.
+      Program(path) {
+        // PascalCase name -> local alias, per file.
+        const aliases = new Map<string, string>();
+
+        path.traverse({
+          JSXElement(elementPath) {
+            const name = elementPath.node.openingElement.name;
+            if (!t.isJSXIdentifier(name)) return;
+
+            if (/^[A-Z]/.test(name.name) && !elementPath.scope.hasBinding(name.name)) {
+              const camel = PASCAL_ELEMENTS.get(name.name);
+              if (camel !== undefined) {
+                throw elementPath.buildCodeFrameError(
+                  `<${name.name}> is not a tag; write the composition element as <${camel}>`,
+                );
+              }
+              if (SOLID_CONTROL_FLOW.has(name.name)) {
+                throw elementPath.buildCodeFrameError(
+                  `<${name.name}> needs an import: add \`import { ${name.name} } from "solid-js"\``,
+                );
+              }
+              return;
+            }
+
+            const pascal = BUILT_IN_TAGS[name.name];
+            if (pascal === undefined) return;
+            if (AMBIGUOUS_TAGS.has(name.name) && hasSvgAncestor(elementPath)) return;
+
+            let alias = aliases.get(pascal);
+            if (alias === undefined) {
+              alias = `_$${pascal}`;
+              aliases.set(pascal, alias);
+            }
+            elementPath.node.openingElement.name = t.jsxIdentifier(alias);
+            if (elementPath.node.closingElement) {
+              elementPath.node.closingElement.name = t.jsxIdentifier(alias);
+            }
+          },
+        });
+
+        if (aliases.size === 0) return;
+        const specifiers = [...aliases].map(([name, alias]) =>
+          t.importSpecifier(t.identifier(alias), t.identifier(name)),
+        );
+        path.unshiftContainer(
+          "body",
+          t.importDeclaration(specifiers, t.stringLiteral("@diffusionstudio/jsx")),
+        );
+      },
+    },
+  };
+}
 
 async function transformSolidJsx(source: string, filename: string): Promise<string> {
   const result = await transformAsync(source, {
     filename,
     babelrc: false,
     configFile: false,
+    plugins: [canonicalizeTags],
     presets: [
-      [presetSolid, { generate: "universal", moduleName: "@diffusionstudio/jsx", builtIns: BUILT_INS }],
+      [presetSolid, { generate: "universal", moduleName: "@diffusionstudio/jsx" }],
       [presetTypescript, {}],
     ],
     sourceMaps: "inline",
@@ -159,7 +257,7 @@ function resolverPlugin(config: ResolverConfig): Plugin {
 export type CompileInput = { path: string } | { code: string };
 
 // `--code` ergonomics: a bare JSX expression (no `export default`) is wrapped
-// into a component module, so one-liners like `--code '<Rect width={10} />'`
+// into a component module, so one-liners like `--code '<rect width={10} />'`
 function wrapBareJsx(code: string): string {
   if (/\bexport\s+default\b/.test(code)) return code;
   return `export default () => (\n${code.trim().replace(/;+\s*$/, "")}\n);`;
