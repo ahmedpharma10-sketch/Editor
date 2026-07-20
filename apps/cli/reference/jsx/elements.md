@@ -16,8 +16,8 @@ PascalCase composition elements map 1:1 onto internal node types (lowercase tags
 | [`<SolidPaint>`](./paints.md) | **Solid paint** | Paint child. |
 | [`<LinearGradientPaint>` / `<RadialGradientPaint>`](./paints.md) | **Gradient paint** | Paint child; takes `<ColorStop>` children. |
 | [`<ColorStop>`](./paints.md) | **Gradient color stop** | Valid only inside gradient paints. |
-| [`<Html>`](./html-paint.md) (long form `<HtmlPaint>`) | **Html paint** | Paint child whose children are real, reactive HTML drawn by the browser (html-in-canvas, flagged Chromium API). |
-| [`<Surface>`](./surface-paint.md) (long form `<SurfacePaint>`) | **Surface paint** | Paint child whose `ref` hands you a canvas to draw with any context type (2d, webgl, webgpu); sampled every frame. |
+| [`<Html>`](./html-paint.md) | **Geometry with Html paint** | Children are real, reactive HTML drawn into the box by the browser (html-in-canvas, flagged Chromium API). `<HtmlPaint>` is the paint child form. |
+| [`<Surface>`](./surface-paint.md) | **Geometry with Surface paint** | `ref` hands you a canvas to draw with any context type (2d, webgl, webgpu); sampled every frame. `<SurfacePaint>` is the paint child form. |
 
 User-defined components are ordinary Solid components; they compose the elements above and carry no runtime cost. Only the elements above produce entities.
 

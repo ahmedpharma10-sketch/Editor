@@ -1,6 +1,6 @@
 # `<Surface>`
 
-A paint backed by a **canvas you draw yourself** (long form: `<SurfacePaint>`). The `ref` callback receives a detached `HTMLCanvasElement`; draw into it with any context type — 2d, webgl, webgpu — and the engine samples the bitmap every frame, stretching it into the parent geometry's box. Use it for procedural graphics and for external renderers (three.js, p5, chart libraries) that want to own a canvas.
+An element backed by a **canvas you draw yourself**. The `ref` callback receives a detached `HTMLCanvasElement`; draw into it with any context type — 2d, webgl, webgpu — and the engine samples the bitmap every frame, stretching it into the parent geometry's box. Use it for procedural graphics and for external renderers (three.js, p5, chart libraries) that want to own a canvas.
 
 ```tsx
 <Surface x={40} y={40} width={640} height={360} cornerRadius={24}
