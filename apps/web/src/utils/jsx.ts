@@ -528,7 +528,14 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         assert(this.engine, "captioning requires an engine (author-mode mount)");
         const { asset, trim } = await transcribeScene(this.engine, sceneEid);
         setComponent(world, nodeEid, c.AssetId, asset.id);
-        setComponent(world, nodeEid, c.Trim, trim);
+
+        const props = this.data(nodeEid).props;
+        const hasIn = timingProp(props, "sourceIn") !== undefined;
+        const hasOut = timingProp(props, "sourceOut") !== undefined || timingProp(props, "end") !== undefined;
+        setComponent(world, nodeEid, c.Trim, {
+          start: hasIn ? c.Trim.start[nodeEid] : trim.start,
+          end: hasOut ? c.Trim.end[nodeEid] : trim.end,
+        });
       }
     }
 

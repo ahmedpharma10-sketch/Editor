@@ -378,5 +378,6 @@ export type SequenceProps = Pick<PatchProps, "name"> & {
 
 export type CaptionsProps = Pick<
   PatchProps,
-  "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src" | "start" | "animations"
+  | "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src"
+  | "start" | "end" | "sourceIn" | "sourceOut" | "animations"
 >;

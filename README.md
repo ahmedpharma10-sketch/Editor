@@ -1,8 +1,8 @@
 # Diffusion Studio
 
-**FFmpeg for agents:** a media compositor you drive from the command line, with a generative-AI and vision toolchain built in.
+**FFmpeg for agents:** a multimedia editor you drive from the command line, with generative AI and multimodal understanding built in.
 
-What makes Diffusion Studio different is `dapi`, its CLI: every part of the editor (projects, the scene graph, the asset library, AI generation, rendering) is scriptable over a local socket, with JSON on stdout and deterministic exit codes.
+What sets Diffusion Studio apart is `dapi`: a CLI that makes every part of the editor (projects, scene graphs, assets, AI generation, and rendering) scriptable over a local socket.
 
 ```sh
 dapi open                       # use -b to run the editor headless
