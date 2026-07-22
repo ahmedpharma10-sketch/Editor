@@ -27,7 +27,6 @@ import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { AudioBus } from '../services/audio-bus';
-import { hasLiveHtmlHosts, nextRenderingUpdate } from '../decoders/html';
 import { realizeMounts } from '@/utils/mount';
 
 import type { EngineWorld } from '../api/world';
@@ -244,7 +243,6 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 			const start = performance.now();
 			const startTime = start;
 			const totalFrames = Math.floor(duration * frameRate);
-			const waitForHtmlHosts = hasLiveHtmlHosts(world);
 
 			let audioRenderingDone = false;
 			let audioRenderingCompleted: Promise<AudioBuffer> | null = null;
@@ -276,10 +274,6 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 					playbackSystem(world);
 					await resolverSystem(world);
 					motionSystem(world);
-				}
-
-				if (waitForHtmlHosts) {
-					await nextRenderingUpdate();
 				}
 
 				if (videoEnabled) {

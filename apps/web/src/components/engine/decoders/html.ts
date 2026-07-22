@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import type { EngineWorld } from '../api/world';
-
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 // html-in-canvas (https://github.com/WICG/html-in-canvas). Chromium only,
@@ -18,14 +16,6 @@ export function isHtmlInCanvasSupported(): boolean {
 		&& 'drawElementImage' in CanvasRenderingContext2D.prototype;
 }
 
-/** Whether `world` currently owns or shares any live HTML paint host. */
-export function hasLiveHtmlHosts(world: EngineWorld): boolean {
-	for (const host of world.components.HtmlHost) {
-		if (host) return true;
-	}
-	return false;
-}
-
 /**
  * Resolves after the browser's next rendering update (style/layout/paint) has
  * completed. drawElementImage samples paint records that are only refreshed
@@ -34,11 +24,21 @@ export function hasLiveHtmlHosts(world: EngineWorld): boolean {
  * every frame in the same task samples the records of the last real paint.
  * The task queued from inside rAF runs after that frame's paint, so this
  * costs one vsync, not two.
+ *
+ * Memoized while in flight: every host forwarded in the same tick shares one
+ * rendering update, so a scene with many HTML paints still waits a single rAF
+ * per frame rather than scheduling one per host.
  */
+let pendingRenderingUpdate: Promise<void> | null = null;
+
 export function nextRenderingUpdate(): Promise<void> {
-	return new Promise(resolve => {
-		requestAnimationFrame(() => setTimeout(resolve, 0));
+	pendingRenderingUpdate ??= new Promise(resolve => {
+		requestAnimationFrame(() => setTimeout(() => {
+			pendingRenderingUpdate = null;
+			resolve();
+		}, 0));
 	});
+	return pendingRenderingUpdate;
 }
 
 let htmlCanvas: HTMLCanvasElement | null = null;
