@@ -132,13 +132,14 @@ function describeEntity(world: EngineWorld, eid: number): string {
     if (opacity !== undefined && opacity !== 1) parts.push(`opacity: ${opacity}`);
   }
   const delay = hasComponent(world, eid, c.Delay) ? c.Delay[eid] ?? 0 : 0;
-  if (delay !== 0) parts.push(`start: ${fmtTime(delay)}`);
-  if (hasComponent(world, eid, c.Trim)) {
-    const start = c.Trim.start[eid];
-    const end = c.Trim.end[eid];
-    if (start !== undefined) parts.push(`in: ${fmtTime(start + delay)}`);
-    if (end !== undefined) parts.push(`out: ${fmtTime(end + delay)}`);
-  }
+  const hasTrim = hasComponent(world, eid, c.Trim);
+  const sourceIn = hasTrim ? c.Trim.start[eid] : undefined;
+  const sourceOut = hasTrim ? c.Trim.end[eid] : undefined;
+  const timelineStart = delay + (sourceIn ?? 0);
+  if (timelineStart !== 0) parts.push(`start: ${fmtTime(timelineStart)}`);
+  if (sourceOut !== undefined) parts.push(`end: ${fmtTime(delay + sourceOut)}`);
+  if (sourceIn) parts.push(`sourceIn: ${fmtTime(sourceIn)}`);
+  if (sourceIn && sourceOut !== undefined) parts.push(`sourceOut: ${fmtTime(sourceOut)}`);
   if (hasComponent(world, eid, c.Volume)) {
     const db = c.Volume[eid] ?? 0;
     parts.push(`volume: ${db === -Infinity ? "-inf" : Math.round(db * 10) / 10} dB`);
