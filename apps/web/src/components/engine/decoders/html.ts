@@ -90,7 +90,7 @@ export class HtmlHost {
 		this.element = el;
 	}
 
-	private setSize(width: number, height: number): void {
+	public setSize(width: number, height: number): void {
 		if (width === this.width && height === this.height) return;
 		this.width = width;
 		this.height = height;

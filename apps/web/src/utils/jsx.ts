@@ -299,6 +299,12 @@ type PendingSurface = {
   ref?: (target: unknown) => void;
 };
 
+type PendingHtmlHost = {
+  eid: number;
+  host: HtmlHost;
+  paint: boolean;
+};
+
 export interface WorldDocumentOptions {
   /** Mount into an existing parent entity (e.g. `dapi node insert`). */
   parentEid?: number;
@@ -348,6 +354,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   // Surfaces whose box size (and so ref) can only resolve once their
   // ancestor chain exists — flushed when the subtree connects to the stage.
   private pendingSurfaces: PendingSurface[] = [];
+
+  // Html hosts awaiting their initial box size, resolved once the ancestor
+  // chain exists — flushed alongside surfaces when the subtree connects.
+  private pendingHtmlHosts: PendingHtmlHost[] = [];
 
   // Entities this render minted or adopted — exactly the renderer's element
   // nodes. Traversal filters ECS children through this set so internal
@@ -750,7 +760,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const host = this.trackHost(new HtmlHost());
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, true);
         break;
       } case "Html": {
         // A rect carrying an html paint; the element's children are the
@@ -767,7 +777,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         addComponent(world, fid, c.HtmlHost, false);
         c.HtmlHost[fid] = host;
         appendChild(world, fid, eid);
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, false);
         break;
       } case "ShaderPaint": {
         setComponent(world, eid, c.Paint, PaintType.SHADER);
@@ -1341,6 +1351,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   public insertNode(parent: HostNode, node: HostNode, anchor?: HostNode) {
     this.track(() => this.attach(parent, node, anchor));
     this.flushConnectedSurfaces();
+    this.flushConnectedHtmlHosts();
   }
 
   /**
@@ -1569,10 +1580,25 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     });
   }
 
-  /** Wires an html host to the element the renderer inserts DOM content under. */
-  private registerHtmlHost(eid: number, host: HtmlHost): void {
+  private flushConnectedHtmlHosts(): void {
+    if (this.pendingHtmlHosts.length === 0) return;
+    this.pendingHtmlHosts = this.pendingHtmlHosts.filter((entry) => {
+      if (!this.isConnected(entry.eid)) return true;
+
+      const boxEid = entry.paint ? getParentEntity(this.world, entry.eid) ?? entry.eid : entry.eid;
+      const box = this.resolveBoxSize(boxEid);
+      entry.host.setSize(box.width, box.height);
+      return false;
+    });
+  }
+
+  /**
+   * Wires an html host to the element the renderer inserts DOM content under
+   */
+  private registerHtmlHost(eid: number, host: HtmlHost, paint: boolean): void {
     this.htmlHosts.set(eid, host);
     this.nodeOwner.set(host.element, eid);
+    this.pendingHtmlHosts.push({ eid, host, paint });
   }
 
   /**
@@ -1605,7 +1631,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const host = this.trackHost(new HtmlHost());
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, true);
         break;
       }
       case "Html": {
@@ -1614,7 +1640,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const host = this.trackHost(new HtmlHost());
         addComponent(world, fid, c.HtmlHost, false);
         c.HtmlHost[fid] = host;
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, false);
         break;
       }
     }
