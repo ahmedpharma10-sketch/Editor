@@ -431,7 +431,7 @@ async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const dir = opts.output ?? tmpdir();
   mkdirSync(dir, { recursive: true });
   try {
-    const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp });
+    const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp }, GENERATE);
     for (const [i, { base64 }] of shots.entries()) {
       const path = join(dir, `${randomUUID()}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
