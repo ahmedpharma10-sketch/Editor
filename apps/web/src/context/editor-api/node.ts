@@ -4,9 +4,9 @@
 
 import { entityExists, hasComponent, query, Not } from "bitecs";
 
-import { createEncoder } from "@/components/engine/encode/encoder";
 import { createImageEncoder } from "@/components/engine/encode/image-encoder";
 import { ElectronWritableFileHandle } from "@/lib/electron-file-writable";
+import { renderScene } from "@/context/render";
 
 import {
   AnimationPhase,
@@ -329,24 +329,17 @@ export function handleNodeRender(engine: Accessor<Engine>) {
     }
 
     const target = new ElectronWritableFileHandle(output);
-    e.stop();
-    let result;
-    try {
-      const encoder = await createEncoder(w, {
-        ...(config as Partial<EncoderConfig>),
-        scene: sceneEid,
-        target,
-      });
-      result = await encoder.render();
-    } finally {
-      e.start();
-    }
+    const result = await renderScene(e, {
+      scene: sceneEid,
+      target,
+      config: config as Partial<EncoderConfig>,
+    });
 
     if (result.type !== "success") {
       // Clean up the partial file on cancel / error.
       await target.dispose().catch(() => { });
       if (result.type === "canceled") throw new Error("Export canceled");
-      throw new Error(result.error?.message || "Export failed");
+      throw new Error(result.error.message || "Export failed");
     }
 
     return { path: output };
