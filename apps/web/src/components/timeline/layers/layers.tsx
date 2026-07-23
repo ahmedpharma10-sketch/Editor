@@ -260,16 +260,18 @@ export function Layers() {
             {clock()}
           </span>
         </div>
-        <div
-          data-timeline-layers
-          class="relative h-full z-0 group/layers flex flex-col pb-0.5"
-          onPointerDown={handlePointerDown}
-        >
-          <LayerContextProvider>
-            <Index each={layers()}>
-              {(layer) => <Layer layer={layer()} />}
-            </Index>
-          </LayerContextProvider>
+        <div data-timeline-layers-viewport class="relative h-full z-0 overflow-hidden">
+          <div
+            data-timeline-layers
+            class="min-h-full group/layers flex flex-col pb-0.5"
+            onPointerDown={handlePointerDown}
+          >
+            <LayerContextProvider>
+              <Index each={layers()}>
+                {(layer) => <Layer layer={layer()} />}
+              </Index>
+            </LayerContextProvider>
+          </div>
         </div>
       </div>
     </div>

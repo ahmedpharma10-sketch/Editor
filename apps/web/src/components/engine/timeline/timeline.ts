@@ -137,7 +137,7 @@ export function createTimeline() {
     const layers = layersEl;
 
     const scrollY = c.Timeline.scrollY[sid] ?? 0;
-    const newScrollY = Math.max(0, Math.min(scrollY, container.scrollHeight - container.clientHeight));
+    const newScrollY = Math.max(0, Math.min(scrollY, layers.scrollHeight - container.clientHeight));
 
     c.Timeline.scrollY[sid] = newScrollY;
     layers.style.transform = `translateY(${-newScrollY}px)`;
@@ -273,8 +273,8 @@ export function createTimeline() {
     const layers = document.querySelector<HTMLElement>('[data-timeline-layers]');
     assert(layers, 'Timeline layers element must be defined');
 
-    const layersContainer = document.querySelector<HTMLElement>('[data-timeline-layers-container]');
-    assert(layersContainer, 'Timeline layers container element must be defined');
+    const layersContainer = document.querySelector<HTMLElement>('[data-timeline-layers-viewport]');
+    assert(layersContainer, 'Timeline layers viewport element must be defined');
 
     timeline.pointer = pointer;
     layersEl = layers;
