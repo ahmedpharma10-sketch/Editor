@@ -2,7 +2,7 @@
 
 Renders a scene to a video file. Composes the scene frame-by-frame and muxes the result, writing it to disk. Operates on one scene; scenes are nodes, so this is the node-level render. If `[id]` is omitted, renders the active scene.
 
-Encode settings are passed as a single JSON config: the same object the in-app render method takes (`EncoderConfig`), minus the runtime-only fields the CLI fills in for you (`scene`, `target`, `onProgress`). The whole config is **optional**; omit it to render with the defaults below. The encode window follows the scene's timeline workarea (its `Trim`): the render starts at the workarea start and runs to the scene's end, unless capped earlier with `trim.end`. Renders locally; **no credits** and no authenticated account required.
+Encode settings are passed as a single JSON config: the same object the in-app render method takes (`EncoderConfig`), minus the runtime-only fields the CLI fills in for you (`scene`, `target`, `onProgress`). Renders locally; **no credits** and no authenticated account required.
 
 Like the generators, this is **long-running**: the CLI blocks until the render finishes (or fails) before printing. While waiting, a progress spinner with elapsed time is shown on **stderr** (a single static line when stderr isn't a TTY), so stdout stays clean JSON for piping.
 
@@ -33,9 +33,6 @@ Config shape (every field optional; all defaults shown):
     sampleRate?:       number;           // Hz, e.g. 44100, 48000, 96000; default 48000
     numberOfChannels?: number;           // default 2
   };
-  trim?: {
-    end?: number;   // seconds; cap the encode here. Default the scene's full duration. Caps the workarea end; cannot extend past the scene
-  };
 }
 ```
 
@@ -46,6 +43,8 @@ One JSON object: the absolute path to the written video file.
 ```ts
 { path: string }   // e.g. "/tmp/3f2c1a8e-....mp4", or the --output path
 ```
+
+> Note: you can use `dapi screenshot` to monitor the progress
 
 ## Errors
 
