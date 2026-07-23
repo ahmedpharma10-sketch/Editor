@@ -13,6 +13,7 @@ import {
   deleteEntity,
   isText,
   isScene,
+  getSceneAncestor,
   getEntityTree,
   cloneSubtree,
   serializeEntity,
@@ -293,6 +294,14 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
     const w = e.world;
 
     const eid = resolveNodeEid(w, id);
+
+    if (!hasComponent(w, eid, w.components.Playback)) {
+      const scene = getSceneAncestor(w, eid);
+      const hint = scene !== null ? ` Capture its scene (id ${scene}) instead.` : "";
+      throw new Error(
+        `Node ${id} has no timeline clock and cannot be captured on its own.${hint}`,
+      );
+    }
 
     // `undefined` means the node's first visible frame (the encoder's frame 0).
     let shots = frames;

@@ -107,7 +107,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   const startFrame = c.Computed.start[rootEid] ?? 0;
 
   // Entities in the clone that own a timeline clock
-  const clockEids = clonedEids.filter(eid => hasComponent(world, eid, c.Playback));
+  const clockEids = [...query(world, [c.Playback, Not(c.Deleted)])];
 
   const seek = (frame: number) => {
     const stageFrame = startFrame + frame;
