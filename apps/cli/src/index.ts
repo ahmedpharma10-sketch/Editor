@@ -552,20 +552,11 @@ async function mediaProbe(ref: string): Promise<void> {
   }
 }
 
-type MediaTranscribeOptions = { start?: string; end?: string };
-
-async function mediaTranscribe(ref: string, opts: MediaTranscribeOptions): Promise<void> {
-  const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
-  const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
-  if (start !== undefined && end !== undefined && start >= end) {
-    console.error(`--start (${start}s) must be less than --end (${end}s).`);
-    process.exit(1);
-  }
-
+async function mediaTranscribe(ref: string): Promise<void> {
   const target = resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await editor.media.transcribe.query({ ...target, start, end }, GENERATE);
+    const result = await editor.media.transcribe.query(target, GENERATE);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -1219,9 +1210,7 @@ media
     `Transcribe the speech in a video or audio file and print the timed transcript, with word-level start/end times in seconds. Commonly useful for footage with speakers (talking head, interview), where the word times let you cut on a line. A transcript marks only speech; the gaps are not necessarily silent (music, score, applause).`,
   )
   .argument("<id|path>", "video or audio asset id, or a local file")
-  .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0); --start/--end only limit which words print, the whole asset is always transcribed`)
-  .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
-  .action((ref: string, opts: MediaTranscribeOptions) => mediaTranscribe(ref, opts));
+  .action((ref: string) => mediaTranscribe(ref));
 
 media
   .command("grab")

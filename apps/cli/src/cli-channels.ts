@@ -120,7 +120,7 @@ export type MediaFrameRequest = AssetRef & {
 };
 export type MediaFrameResult = Array<{ time: number; base64: string }>;
 
-export type MediaTranscribeRequest = AssetRef & { start?: number; end?: number };
+export type MediaTranscribeRequest = AssetRef;
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
 export type MediaTranscribeResult = { segments: TranscriptSegment[] };

@@ -211,7 +211,6 @@ const transcripts = new Map<string, TranscriptSegment[]>();
 
 export function handleMediaTranscribe(engine: Accessor<Engine>) {
   return async (req: MediaTranscribeRequest): Promise<MediaTranscribeResult> => {
-    const { start, end } = req;
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
@@ -235,25 +234,8 @@ export function handleMediaTranscribe(engine: Accessor<Engine>) {
       transcripts.set(asset.hash, transcript);
     }
 
-    return { segments: sliceTranscript(transcript, start, end) };
+    return { segments: transcript };
   };
-}
-
-function sliceTranscript(segments: TranscriptSegment[], start?: number, end?: number): TranscriptSegment[] {
-  if (start === undefined && end === undefined) return segments;
-  const from = start ?? 0;
-  const to = end ?? Infinity;
-  const sliced: TranscriptSegment[] = [];
-  for (const segment of segments) {
-    const words = segment.words.filter((w) => w.end > from && w.start < to);
-    if (!words.length) continue;
-    sliced.push(
-      words.length === segment.words.length
-        ? segment
-        : { text: words.map((w) => w.text).join(" "), words },
-    );
-  }
-  return sliced;
 }
 
 export function handleMediaFilmstrip(engine: Accessor<Engine>) {
