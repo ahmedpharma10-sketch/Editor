@@ -106,10 +106,21 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   // computed start is 0 unless it carries a Trim, whose start offsets it.
   const startFrame = c.Computed.start[rootEid] ?? 0;
 
+  // Entities in the clone that own a timeline clock
+  const clockEids = clonedEids.filter(eid => hasComponent(world, eid, c.Playback));
+
   const seek = (frame: number) => {
     const stageFrame = startFrame + frame;
+    const stageSeconds = framesToSeconds(stageFrame, world.frameRate);
     c.Computed.localTime[stageEid] = stageFrame;
-    c.Computed.localTimeInSeconds[stageEid] = framesToSeconds(stageFrame, world.frameRate);
+    c.Computed.localTimeInSeconds[stageEid] = stageSeconds;
+
+    for (const eid of clockEids) {
+      c.Computed.localTime[eid] = stageFrame;
+      c.Computed.localTimeInSeconds[eid] = stageSeconds;
+      c.Playback.playing[eid] = 1;
+    }
+
     world.timestamp.delta = 1000 / world.frameRate;
     world.timestamp.now += world.timestamp.delta;
 
