@@ -27,10 +27,10 @@ export function handleContextGet(engine: Accessor<Engine>) {
 
     const fps = world.frameRate;
     const workarea =
-      activeSceneId !== null && hasComponent(world, activeSceneId, c.Trim)
+      activeSceneId !== null && hasComponent(world, activeSceneId, c.Workarea)
         ? {
-            start: (c.Trim.start[activeSceneId] ?? 0) / fps,
-            end: (c.Trim.end[activeSceneId] ?? 0) / fps,
+            start: (c.Workarea.start[activeSceneId] ?? 0) / fps,
+            end: (c.Workarea.end[activeSceneId] ?? 0) / fps,
           }
         : null;
 

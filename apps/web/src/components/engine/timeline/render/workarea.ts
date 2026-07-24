@@ -37,10 +37,10 @@ export function renderWorkarea(world: EngineWorld, timeline: TimelineContext) {
   const sid = world.selection.scene;
   if (sid === null) return;
   const c = world.components;
-  if (!hasComponent(world, sid, c.Trim)) return;
+  if (!hasComponent(world, sid, c.Workarea)) return;
 
-  const start = c.Trim.start[sid] ?? 0;
-  const stopFrame = c.Trim.end[sid] ?? 0;
+  const start = c.Workarea.start[sid] ?? 0;
+  const stopFrame = c.Workarea.end[sid] ?? 0;
 
   ctx.save();
 
@@ -65,7 +65,7 @@ export function renderWorkarea(world: EngineWorld, timeline: TimelineContext) {
 
       const deltaFrames = pixelsToFrames(world, pointer.position.deltaX);
 
-      setComponent(world, sid, c.Trim, {
+      setComponent(world, sid, c.Workarea, {
         start: workareaDragStart[0] + deltaFrames,
         end: workareaDragStart[1] + deltaFrames,
       });
@@ -76,7 +76,7 @@ export function renderWorkarea(world: EngineWorld, timeline: TimelineContext) {
     }
 
     if (doubleClicked) {
-      removeComponent(world, sid, c.Trim);
+      removeComponent(world, sid, c.Workarea);
     }
 
     ctx.globalCompositeOperation = 'difference';
@@ -103,7 +103,7 @@ export function renderWorkarea(world: EngineWorld, timeline: TimelineContext) {
 
       const deltaFrames = pixelsToFrames(world, pointer.position.deltaX);
 
-      setComponent(world, sid, c.Trim, {
+      setComponent(world, sid, c.Workarea, {
         start: workareaDragStart[0] + deltaFrames,
       });
     }
@@ -127,7 +127,7 @@ export function renderWorkarea(world: EngineWorld, timeline: TimelineContext) {
 
       const deltaFrames = pixelsToFrames(world, pointer.position.deltaX);
 
-      setComponent(world, sid, c.Trim, {
+      setComponent(world, sid, c.Workarea, {
         end: workareaDragStart[1] + deltaFrames,
       });
     }

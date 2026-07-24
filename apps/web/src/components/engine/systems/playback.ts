@@ -37,16 +37,16 @@ function advancePlayhead(world: EngineWorld, eid: number): void {
 		const previousTime = c.Computed.localTimeInSeconds[eid];
 		let time = previousTime + dt * speed;
 
-		const hasTrim = hasComponent(world, eid, c.Trim);
+		const hasWorkarea = hasComponent(world, eid, c.Workarea);
 		const duration = c.Computed.duration[eid];
 		const durationSeconds = duration / fps;
 
-		const maxSeconds = hasTrim
-			? (c.Trim.end[eid] ?? duration) / fps
+		const maxSeconds = hasWorkarea
+			? (c.Workarea.end[eid] ?? duration) / fps
 			: durationSeconds;
 
-		const minSeconds = hasTrim
-			? (c.Trim.start[eid] ?? 0) / fps
+		const minSeconds = hasWorkarea
+			? (c.Workarea.start[eid] ?? 0) / fps
 			: 0;
 
 		if (time >= maxSeconds) {

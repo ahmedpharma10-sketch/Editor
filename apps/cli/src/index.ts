@@ -1110,7 +1110,7 @@ program
   .command("context")
   .alias("ctx")
   .description(
-    `Print essential context about the open project (project, entity count, scenes, active scene, playhead, workarea trim in seconds when set, font families); call this first to orient.`,
+    `Print essential context about the open project (project, entity count, scenes, active scene, playhead, workarea in seconds when set, font families); call this first to orient.`,
   )
   .action(() => context());
 

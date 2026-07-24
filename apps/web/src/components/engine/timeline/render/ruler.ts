@@ -63,7 +63,7 @@ export function renderRuler(world: EngineWorld, timeline: TimelineContext) {
 
     const newStart = pixelsToFrames(world, pointer.position.initialX + scrollX * resolution);
     const newStop = pixelsToFrames(world, pointer.position.currentX + scrollX * resolution);
-    setComponent(world, scene, c.Trim, { start: newStart, end: newStop });
+    setComponent(world, scene, c.Workarea, { start: newStart, end: newStop });
 
     if (pointer.position.currentX > pointer.position.initialX) {
       setCurrentFrame(world, newStop);
