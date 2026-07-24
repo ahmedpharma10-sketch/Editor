@@ -32,12 +32,24 @@ export function isHtmlInCanvasSupported(): boolean {
 let pendingRenderingUpdate: Promise<void> | null = null;
 
 export function nextRenderingUpdate(): Promise<void> {
-	pendingRenderingUpdate ??= new Promise(resolve => {
-		requestAnimationFrame(() => setTimeout(() => {
-			pendingRenderingUpdate = null;
-			resolve();
-		}, 0));
-	});
+	pendingRenderingUpdate ??= Promise.race<void>([
+		new Promise(resolve => {
+			requestAnimationFrame(() => setTimeout(() => {
+				pendingRenderingUpdate = null;
+				resolve();
+			}, 0))
+		}),
+		// A little slower than 60fps (20ms ≈ 50fps): comfortably past a 60Hz vsync so a
+		// live rAF wins the race and we keep waiting for the real paint, while still
+		// capping the per-frame wait when rAF is paused (hidden/headless).
+		new Promise(resolve => {
+			setTimeout(() => {
+				pendingRenderingUpdate = null;
+				resolve();
+			}, 1000 / 50);
+		}),
+	]);
+
 	return pendingRenderingUpdate;
 }
 
