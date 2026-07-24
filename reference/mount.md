@@ -13,7 +13,7 @@ Exactly one of:
 
 ## Lifecycle
 
-A mount stays live: its reactive graph keeps running after the command returns, so signals, effects, timers, and [`useTicker`](./jsx/lifecycle.md#useticker) keep driving the mounted entities. The compiled module is persisted with the document and re-executed in every context, so the mount is restored on reload and its ticker-driven [`<surface>`](./jsx/surface-paint.md)/[`<html>`](./jsx/html-paint.md) animate in exports and captures (the module's structure must be deterministic). See [jsx/lifecycle.md](./jsx/lifecycle.md).
+A mount stays live: its reactive graph keeps running after the command returns, so signals, effects, timers, and [`useTicker`](./jsx/lifecycle.md#useticker) keep driving the mounted entities. The compiled module is persisted with the document and re-executed in every context, so the mount is restored on reload and its ticker-driven [`<surface>`](./jsx/surface-paint.md)/[`<html>`](./jsx/html.md) animate in exports and captures (the module's structure must be deterministic). See [jsx/lifecycle.md](./jsx/lifecycle.md).
 
 ## Output
 
