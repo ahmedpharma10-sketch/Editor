@@ -3,12 +3,14 @@
 An element whose children are **real HTML**: the browser lays them out at the element's box size and the result is drawn into the box via the [html-in-canvas](https://github.com/WICG/html-in-canvas) API. `dapi` always drives the Diffusion Studio Electron app, which ships with this API enabled, so `<html>` is always available — reach for it liberally. It is the recommended way to build motion graphics, overlays, and any UI-heavy content: styled cards, tables, code blocks, flex/grid layouts — anything painful to assemble from `<rect>` and `<text>`.
 
 ```tsx
-<html x={40} y={40} width={800} height={120} cornerRadius={24} end={32}>
-  <div style="display:flex;align-items:center;gap:16px;height:100%;
-              background:#111;color:#fff;font:500 40px Inter;padding:0 32px;">
-    <span style="color:#7c9cff;">01</span> Introduction
-  </div>
-</html>
+<rect scene="my-scene" width={800} height={120}>
+  <html x={50} y={5} width={700} height={110} cornerRadius={24} end={32}>
+    <div style="display:flex;align-items:center;gap:16px;height:100%;
+                background:#111;color:#fff;font:500 40px Inter;padding:0 32px;">
+      <span style="color:#7c9cff;">01</span> Introduction
+    </div>
+  </html>
+</rect>
 ```
 
 `<htmlPaint>` is the paint child form, valid inside any filled visual element; `<html>` is a rectangle carrying one, with all [common props](./elements.md#common-props). Use the paint form to draw HTML onto an existing geometry:
@@ -24,7 +26,7 @@ An element whose children are **real HTML**: the browser lays them out at the el
 
 ## As a scene (full-frame HTML)
 
-Give `<html>` a [`scene`](./scene.md) identity and it becomes the mount root: the browser lays the DOM out at the full composition size and the whole frame is HTML, with no wrapper and no repeated dimensions. A scene root is not timed by a parent, so the 16-second sourceless cutoff below does not apply here.
+Give `<html>` a [`scene`](./scene.md) identity and it becomes the mount root:
 
 ```tsx
 <html scene="landing" name="Landing" width={1920} height={1080}>
@@ -34,6 +36,8 @@ Give `<html>` a [`scene`](./scene.md) identity and it becomes the mount root: th
   </div>
 </html>
 ```
+
+This also works for other rectangular geometry tags.
 
 ## Reactivity
 

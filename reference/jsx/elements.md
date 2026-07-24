@@ -4,7 +4,7 @@ camelCase composition elements map 1:1 onto internal node types. Lowercase DOM v
 
 | Element | Internal node | Notes |
 | ------- | ------------- | ----- |
-| [`<group>`](./group.md) | **Geometry with Group tag** | Container with a transform; auto-fits its size from its children. Takes no `fill` or explicit size. |
+| [`<group>`](./group.md) | **Container with Group tag** | Container with a transform; auto-fits its size from its children. Takes no `fill` or explicit size. |
 | [`<rect>`](./rect.md) | **Geometry with Solid paint** | A filled rectangle; takes only paint children. |
 | [`<video>`](./video.md) | **Geometry with Video paint** | `src` resolves to a video asset. |
 | [`<image>`](./image.md) | **Geometry with Image paint** | `src` resolves to an image asset. |
@@ -18,7 +18,7 @@ camelCase composition elements map 1:1 onto internal node types. Lowercase DOM v
 | [`<html>`](./html-paint.md) | **Geometry with Html paint** | Children are real, reactive HTML drawn into the box by the browser (html-in-canvas, flagged Chromium API). `<htmlPaint>` is the paint child form. |
 | [`<surface>`](./surface-paint.md) | **Geometry with Surface paint** | `ref` hands you a canvas to draw with any context type (2d, webgl, webgpu); sampled every frame. `<surfacePaint>` is the paint child form. |
 
-Any rectangle geometry above (`<rect>`, `<group>`, `<video>`, `<image>`, `<html>`, `<surface>`) becomes a **scene** (the composition root) when given a `scene` identity: it then clips its children to `width`×`height` and is valid only at the document top level. See [scene.md](./scene.md).
+Any rectangle geometry above (`<rect>`, `<video>`, `<image>`, `<html>`, `<surface>`) becomes a **scene** (the composition root) when given a `scene` identity: it then clips its children to `width`×`height` and is valid only at the document top level. See [scene.md](./scene.md).
 
 User-defined components are ordinary Solid components; they compose the elements above and carry no runtime cost. Only the elements above produce entities.
 

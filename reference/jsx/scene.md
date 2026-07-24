@@ -1,6 +1,6 @@
 # Scenes (the `scene` property)
 
-A scene is the composition root: it clips its children to `width`×`height`. The **`scene` property promotes a rectangle geometry** (`<rect>`,`<html>`, `<surface>`) to a mount root. The property's value is the scene's identity across mounts. Scenes are valid **only** at the document top level and do not nest; the first rendered root becomes the active scene (see [roots.md](./roots.md)).
+A scene is the composition root: it clips its children to `width`×`height`. The **`scene` property promotes a rectangle geometry** (`<rect>`,`<html>`, `<surface>`) to a mount root. The property's value is the scene's identity across mounts. Scenes are valid **only** at the document top level; the first rendered root becomes the active scene (see [roots.md](./roots.md)).
 
 ```tsx
 // A plain scene: a rectangle promoted to the root.
@@ -28,9 +28,9 @@ Alongside it a scene uses the ordinary geometry props:
 | ---- | ---- | ------- | ------- |
 | `width`, `height` | `number` | **required** | Composition size in pixels. |
 | `name` | `string` | none | Scene name (recommended). |
-| `fill` | `string` | none | Background fill, any CSS color (alpha is ignored). On `<rect>`/`<group>`; an `<html>` scene paints its own background in CSS. |
+| `fill` | `string` | none | Background fill, any CSS color (alpha is ignored) |
 
 ## Constraints
 
 - **Rectangle geometry only.** `scene` on a `<text>`, paint, or other non-rectangle element is an error.
-- **No placement or timing.** A scene root is not positioned or timed by a parent, so `x`/`y`/`start`/`end`/`transition`/`animations` are rejected on it. Canvas position is an editor concern.
+- **No placement.** A scene root will be auto positioned
