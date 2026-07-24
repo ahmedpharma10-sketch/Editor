@@ -1,6 +1,6 @@
 # `dapi mount (<path> | --code <str>)`
 
-Compiles a Solid JSX project module and executes it in the app, mounting the rendered roots into the document. Like reloading a webpage, re-mounting rebuilds the roots in place instead of adding copies: every top-level element declares its identity in the JSX with a `key`, and `<scene key="intro">` replaces the node carrying that key (or creates it).
+Compiles a Solid JSX project module and executes it in the app, mounting the rendered roots into the document. Like reloading a webpage, re-mounting rebuilds the roots in place instead of adding copies: only a scene is mountable as a root, declaring its identity in the JSX with `scene`, and `<rect scene="intro">` replaces the scene carrying that identity (or creates it).
 
 The full JSX code syntax lives in [jsx/](./jsx/README.md); start with the [pipeline](./jsx/README.md#pipeline) and [roots](./jsx/roots.md).
 

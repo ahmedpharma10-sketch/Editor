@@ -8,7 +8,7 @@
  * "./renderer", so this module carries no runtime — only the JSX namespace
  * TypeScript resolves element and prop types from.
  *
- * Composition elements are camelCase intrinsics (`<scene>`, `<rect>`, ...);
+ * Composition elements are camelCase intrinsics (`<rect>`, `<group>`, ...);
  * the compile step canonicalizes them to the PascalCase components in
  * "./elements", so at runtime a tag's case still decides its environment.
  * Lowercase DOM tags are the vocabulary for `<htmlPaint>` content. The three
@@ -29,7 +29,6 @@ import type {
   HtmlProps,
   ImageProps,
   RectProps,
-  SceneProps,
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
@@ -59,7 +58,6 @@ export declare namespace JSX {
   }
 
   export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
-    scene: SceneProps;
     group: GroupProps;
     rect: RectProps | SolidJSX.SVGElementTags["rect"];
     video: VideoProps;

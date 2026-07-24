@@ -19,7 +19,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 How the surface is divided:
 
 - Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx/](./jsx/README.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots.
-- Scenes are created declaratively via `mount` (`<scene key="...">`); there is no imperative scene command.
+- Scenes are created declaratively via `mount` (the `scene` property on a root, e.g. `<rect scene="...">`); there is no imperative scene command.
 - AI asset generation (image / video / speech / audio) is declared in the project module (`generate.*`, see [jsx/generate.md](./jsx/generate.md)) and produced on mount. `models` and `voices` list what those declarations can reference.
 - Inspecting an existing asset (probe / transcribe / listen / filmstrip / waveform / grab) lives under `media`; writing an asset's original file back to disk is `asset export`.
 - Organizing the library lives under `folder`; moving assets between folders is `asset mv`.

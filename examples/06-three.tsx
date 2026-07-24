@@ -96,8 +96,8 @@ export default function ThreeHelmet() {
   };
 
   return (
-    <scene key="example-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
+    <rect scene="example-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
       <surface x={0} y={0} width={960} height={540} ref={setup} />
-    </scene>
+    </rect>
   );
 }

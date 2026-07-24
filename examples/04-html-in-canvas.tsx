@@ -24,7 +24,7 @@ export default function PromptBox() {
   const cursorOn = createMemo(() => Math.floor(time() * 2) % 2 === 0);
 
   return (
-    <scene key="example-html" name="Prompt box" width={1920} height={1080} fill="#0b0d12">
+    <rect scene="example-html" name="Prompt box" width={1920} height={1080} fill="#0b0d12">
       <html
         x={460}
         y={400}
@@ -60,6 +60,6 @@ export default function PromptBox() {
           </div>
         </div>
       </html>
-    </scene>
+    </rect>
   );
 }

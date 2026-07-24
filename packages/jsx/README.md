@@ -13,13 +13,13 @@ const hero = generate.image({ prompt: "A neon city at night, cinematic" });
 
 export default function Project() {
   return (
-    <scene key="intro" name="Intro" width={1920} height={1080}>
+    <rect scene="intro" name="Intro" width={1920} height={1080}>
       <image src={hero} />
       <text textAlign="center" textBaseline="middle" fontSize={128} fontWeight="bold">
         Hello World
       </text>
       <captions />
-    </scene>
+    </rect>
   );
 }
 ```

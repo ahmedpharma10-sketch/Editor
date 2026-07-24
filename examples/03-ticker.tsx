@@ -25,7 +25,7 @@ export default function Ticker() {
   const eased = createMemo(() => 0.5 - Math.cos(angle()) / 2); // 0..1..0, smooth
 
   return (
-    <scene key="example-ticker" name="Ticker" width={1920} height={1080} fill="#101014">
+    <rect scene="example-ticker" name="Ticker" width={1920} height={1080} fill="#101014">
       {/* center square: rotation and corner radius both derive from progress */}
       <rect
         x={860}
@@ -61,6 +61,6 @@ export default function Ticker() {
       <text x={80} y={64} width={1200} height={60} fontSize={44} fontFamily="Inter">
         t = {time().toFixed(2)}s / frame {frame()} / loop {Math.round(progress() * 100)}%
       </text>
-    </scene>
+    </rect>
   );
 }

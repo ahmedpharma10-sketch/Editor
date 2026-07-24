@@ -1127,7 +1127,7 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <surface>/<html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: only a scene is mountable as a root, carrying its identity in \`scene\`, and a root replaces the scene with that identity or creates it (a new scene, promoted with \`scene\`, becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <surface>/<html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
@@ -1390,7 +1390,7 @@ node
 node
   .command("insert")
   .description(
-    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
+    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except a scene root carrying \`scene\` and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
   )
   .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
   .argument("<code>", "JSX tags to insert, e.g. '<rect width={10} height={10} />' (no export default)")

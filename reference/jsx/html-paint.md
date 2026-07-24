@@ -22,6 +22,19 @@ An element whose children are **real HTML**: the browser lays them out at the el
 ```
 
 
+## As a scene (full-frame HTML)
+
+Give `<html>` a [`scene`](./scene.md) identity and it becomes the mount root: the browser lays the DOM out at the full composition size and the whole frame is HTML, with no wrapper and no repeated dimensions. A scene root is not timed by a parent, so the 16-second sourceless cutoff below does not apply here.
+
+```tsx
+<html scene="landing" name="Landing" width={1920} height={1080}>
+  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+              background:#0b0d12;color:#fff;font:800 120px Inter;">
+    Hello
+  </div>
+</html>
+```
+
 ## Reactivity
 
 The children are part of the project's Solid graph: signals in attributes and text update the live DOM, and the drawn content follows on the next frame. A [`dapi mount`](../mount.md) stays live, so the graph keeps running and `useTicker` or timers can drive the markup:

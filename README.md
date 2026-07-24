@@ -28,7 +28,7 @@ const TITLES = [
 
 export default function Project() {
   return (
-    <scene key="intro" name="Intro" width={1920} height={1080} fill="black">
+    <rect scene="intro" name="Intro" width={1920} height={1080} fill="black">
       <video src={motion} width={1920} height={1080} />
       <sequence>
         <For each={TITLES}>
@@ -48,7 +48,7 @@ export default function Project() {
           )}
         </For>
       </sequence>
-    </scene>
+    </rect>
   );
 }
 ```

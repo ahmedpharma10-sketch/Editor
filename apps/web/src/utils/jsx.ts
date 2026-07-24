@@ -49,7 +49,7 @@ import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
 import { assert, assertAllSettled, parseColor } from "@/utils";
 
 import type { AssetInput, AssetRef, AssetSpecInput, ProjectDocument, ProjectTick } from "@diffusionstudio/jsx";
-import type { Engine, EngineWorld, MountData } from "@/components/engine";
+import type { AABB, Engine, EngineWorld, MountData } from "@/components/engine";
 import type { GenerationMemo } from "@/utils/jsx-generation";
 
 export class EntityNode {
@@ -369,6 +369,11 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   // Adopted entities keep their persisted (possibly hand-edited) values
   // through the initial adopt render; only post-commit effects write.
   private adopted = new Set<number>();
+
+  // World-space boxes of the new roots this mount has already placed. A fresh
+  // root has no computed layout yet, so `findEmptyPlacement` cannot see it in
+  // the world; recording each placement here keeps sibling roots from stacking.
+  private placedRootBoxes: AABB[] = [];
 
   // Entities this render soft-deleted via removeNode. Solid's reconciler
   // shuffles by removing and re-inserting nodes, so re-attaching one of
@@ -690,14 +695,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     const eid = createEntity(world);
 
     switch (tag) {
-      case "Scene": {
-        setComponent(world, eid, c.Geometry, GeometryType.RECT);
-        addComponent(world, eid, c.Scene);
-        addComponent(world, eid, c.ClipsContent);
-        setComponent(world, eid, c.Playback, {});
-        setComponent(world, eid, c.Name, getNextName(world, "Scene"));
-        break;
-      } case "Group": {
+      case "Group": {
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         addComponent(world, eid, c.Group);
         setComponent(world, eid, c.Name, getNextName(world, "Group"));
@@ -1215,6 +1213,24 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         setComponent(world, eid, c.Key, value.trim());
         break;
       }
+      case "scene": {
+        // Promotes a rectangle geometry to a scene (mount root): it carries the
+        // Scene markers, and the `scene` value is the root's identity (stamped
+        // onto Key, which insertRoot uses to replace a scene on re-mount).
+        assert(typeof value === "string", "`scene` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`scene` must be a non-empty string");
+        assert(
+          c.Geometry[eid] === GeometryType.RECT,
+          "`scene` only applies to a rectangle geometry (`<rect>`, `<group>`, `<html>`, `<image>`, `<video>`)",
+        );
+        if (!hasComponent(world, eid, c.Scene)) {
+          addComponent(world, eid, c.Scene);
+          addComponent(world, eid, c.ClipsContent);
+          setComponent(world, eid, c.Playback, {});
+        }
+        setComponent(world, eid, c.Key, value.trim());
+        break;
+      }
       case "wgsl": {
         assert(c.Paint[eid] === PaintType.SHADER, "`wgsl` only applies to <ShaderPaint>");
         assert(typeof value === "string", "`wgsl` must be a string" + `, value: ${value}`);
@@ -1414,6 +1430,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         !this.htmlHosts.has(parent.eid),
         "a composition element cannot be <html> content; an SVG fragment (<rect>/<text>/<image>) compiles as SVG only inside <svg> or <g>; wrap it",
       );
+      assert(
+        this.adopted.has(node.eid) || !hasComponent(world, node.eid, c.Scene),
+        "a scene cannot be nested: the `scene` property is valid only at the document root",
+      );
       // Adopted entities already sit under their persisted parent, so this
       // no-ops for them on the initial adopt render; afterwards it moves and
       // resurrects them like any other entity (e.g. a <For> shuffling rows).
@@ -1434,17 +1454,22 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     if (this.stageEid !== undefined) {
       this.attachEntity(eid, this.stageEid);
     } else {
-      assert(hasComponent(world, eid, c.Geometry), "this element cannot be a document root");
+      assert(
+        hasComponent(world, eid, c.Scene),
+        'only a scene can be a mount root: promote a rectangle geometry with `scene`, e.g. <rect scene="main" width={1920} height={1080}>',
+      );
       const key = c.Key[eid];
-      assert(key !== undefined, "`key` is required for `root` nodes");
 
       // Find and replace node with the same key
       const existing = query(world, [c.Key, Not(c.Deleted)])
         .find((other) => other !== eid && c.Key[other] === key);
 
       if (existing === undefined) {
-        const width = c.Computed.width[eid] ?? 0;
-        const height = c.Computed.height[eid] ?? 0;
+        const { width, height } = this.props(eid) ?? {};
+        assert(
+          typeof width === "number" && typeof height === "number",
+          "a scene requires numeric `width` and `height`",
+        );
         setComponent(world, eid, c.Position, this.findPlacement(width, height));
       } else {
         setComponent(world, eid, c.Position, {
@@ -1739,7 +1764,13 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   }
 
   private findPlacement(width: number, height: number): { x: number; y: number } {
-    const center = findEmptyPlacement(this.world, width, height, PLACEMENT_GAP);
+    const center = findEmptyPlacement(this.world, width, height, PLACEMENT_GAP, this.placedRootBoxes);
+    this.placedRootBoxes.push({
+      minX: center.x - width / 2,
+      minY: center.y - height / 2,
+      maxX: center.x + width / 2,
+      maxY: center.y + height / 2,
+    });
     return {
       x: Math.round(center.x - width / 2),
       y: Math.round(center.y - height / 2),
