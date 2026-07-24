@@ -27,7 +27,7 @@ type ImageEncoderConfig = {
   eid: number;
   /** Frames to capture, relative to the entity's first visible frame. */
   frames: number[];
-  /** Stamp each capture with its HH:MM:SS:FF label (frame-relative). */
+  /** Stamp each capture with the HH:MM:SS:FF timecode of the rendered frame. */
   timestamp?: boolean;
   /** Target output height in px (default: the entity's native size). */
   resolution?: number;
@@ -204,7 +204,8 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
           // The render system leaves the camera transform on the context;
           // the label is drawn in device space.
           offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
-          const label = formatTimestamp(framesToSeconds(frame, world.frameRate), world.frameRate);
+          const stampFrame = startFrame + frame;
+          const label = formatTimestamp(framesToSeconds(stampFrame, world.frameRate), world.frameRate);
           stampTimestampLabel(offscreenCtx, offscreenCanvas.height, label);
         }
 
