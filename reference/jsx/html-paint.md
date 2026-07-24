@@ -39,6 +39,29 @@ Give `<html>` a [`scene`](./scene.md) identity and it becomes the mount root:
 
 This also works for other rectangular geometry tags.
 
+## Minimize hosts
+
+Each `<html>` is a separate browser layout and read-back — cheap enough to reach for liberally, but every host is real work per frame. **Keep the number of `<html>` hosts to a minimum: when several pieces of HTML temporally align (they are on screen over the same span), author them as one host, not many.** Lay the pieces out with CSS *inside* a single `<html>` instead of scattering them across sibling `<html>` elements:
+
+```tsx
+// Prefer: one host, internal layout
+<html width={1920} height={1080} end={TOTAL}>
+  <div style="width:100%;height:100%;display:grid;
+              grid-template-rows:auto 1fr auto;font:500 40px Inter;color:#fff;">
+    <header style="padding:32px;">Title</header>
+    <main style="display:flex;align-items:center;justify-content:center;">Body</main>
+    <footer style="padding:32px;">Footer</footer>
+  </div>
+</html>
+
+// Avoid: three hosts that all live over the same span
+<html …>…header…</html>
+<html …>…body…</html>
+<html …>…footer…</html>
+```
+
+Reach for separate hosts only when the pieces genuinely differ in timing (different `start`/`end`), need independent keyframed props (position, opacity), or must interleave in draw order with non-HTML elements. Content that enters and exits together belongs in one host.
+
 ## Reactivity
 
 The children are part of the project's Solid graph: signals in attributes and text update the live DOM, and the drawn content follows on the next frame. A [`dapi mount`](../mount.md) stays live, so the graph keeps running and `useTicker` or timers can drive the markup:
