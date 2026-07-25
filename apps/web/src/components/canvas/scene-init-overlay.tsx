@@ -46,7 +46,8 @@ export function SceneInitOverlay(props: DropOverlayProps) {
   let buttonRef: HTMLButtonElement | undefined;
 
   const showOverlay = createMemo(() => {
-    return initialized() && world.timelineIndex().root === null && getAllEntities(world).length === 0;
+    world.timelineIndex(); // ensures reactivity
+    return initialized() && getAllEntities(world).length === 0;
   });
 
   const aspectRatio = () => {
