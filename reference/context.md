@@ -12,11 +12,13 @@ One JSON object:
 
 ```ts
 {
-  project:        { id: string; name: string };
+  projectId:      string;
   entityCount:    number;
-  scenes:         Array<{ id: number; name: string; size: Size }>;
+  scenes:         number[];        // ids of the top-level scenes
   activeSceneId:  number | null;   // null if no scene is active
   currentFrame:   number;          // current timeline playhead position, in frames
+  workarea:       { start: number; end: number } | null;   // seconds, null if the active scene has none
   fontFamilies:   string[];
+  selection:      number[];        // ids of the selected nodes, empty if nothing is selected
 }
 ```
