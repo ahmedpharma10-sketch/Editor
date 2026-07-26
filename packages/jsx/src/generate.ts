@@ -49,6 +49,7 @@ export type GenerateVoiceOptions = {
 export type GenerateAudioOptions = {
   prompt: string;
   model?: string;
+  duration?: number;
 };
 
 export type AssetSpecInput =
@@ -118,6 +119,9 @@ export const generate = {
 
   audio(opts: GenerateAudioOptions): AssetRef {
     requirePrompt(opts.prompt, "audio");
+    if (opts.duration !== undefined && (!Number.isFinite(opts.duration) || opts.duration <= 0)) {
+      throw new Error("generate.audio: duration must be a positive number of seconds");
+    }
     return new AssetRef({ type: "audio", ...opts });
   },
 };

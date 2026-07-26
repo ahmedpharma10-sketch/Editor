@@ -51,6 +51,7 @@ const voiceover = generate.voice({
 
 const ambience = generate.audio({
   prompt: "distant ocean waves, low wind, calm coastal ambience",
+  duration: 10,
 });
 
 export default function GenAi() {

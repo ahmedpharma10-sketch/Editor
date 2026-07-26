@@ -54,7 +54,7 @@ type ResolvedSpec =
   | { type: "image"; model: string; prompt: string; aspectRatio: AspectRatio; seed?: number; refIds: string[] }
   | { type: "video"; model: string; prompt: string; aspectRatio: AspectRatio; duration: number; audio: boolean; seed?: number; startFrameId?: string; endFrameId?: string }
   | { type: "voice"; model: string; prompt: string; voice: string }
-  | { type: "audio"; model: string; prompt: string };
+  | { type: "audio"; model: string; prompt: string; duration?: number };
 
 /**
  * In-flight generations per world, keyed by `generationKey`, so identical
@@ -153,6 +153,7 @@ async function resolveSpec(world: EngineWorld, spec: AssetSpecInput, memo: Gener
         type: "audio",
         model: spec.model ?? PROMPT_INPUT_AUDIO_MODEL_OPTIONS[0].id,
         prompt: spec.prompt,
+        duration: spec.duration,
       };
     }
   }
@@ -187,7 +188,6 @@ function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
           ? await Promise.all(spec.refIds.map((id) => uploadInput(world, id)))
           : undefined;
 
-        console.log("requesting image generation", spec.model, spec.prompt, spec.aspectRatio, spec.seed, images);
         return await trpc.generateImage.mutate({
           model: spec.model,
           prompt: spec.prompt,
@@ -205,7 +205,6 @@ function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
           spec.endFrameId ? uploadInput(world, spec.endFrameId) : undefined,
         ]);
 
-        console.log("requesting video generation", spec.model, spec.prompt, spec.aspectRatio, spec.duration, spec.audio, spec.seed, startFrame, endFrame);
         return await trpc.generateVideo.mutate({
           model: spec.model,
           prompt: spec.prompt,
@@ -219,7 +218,6 @@ function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
       })();
     }
     case "voice": {
-      console.log("requesting voice generation", spec.model, spec.prompt, spec.voice);
       return trpc.textToSpeech.mutate({
         model: spec.model,
         prompt: spec.prompt,
@@ -227,10 +225,10 @@ function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
       });
     }
     case "audio": {
-      console.log("requesting audio generation", spec.model, spec.prompt);
       return trpc.generateSound.mutate({
         model: spec.model,
         prompt: spec.prompt,
+        duration: spec.duration,
       });
     }
   }
