@@ -8,7 +8,7 @@
 
 Transcription is **asynchronous and non-blocking**: the caption node is inserted at commit and its transcript attaches once ready. Because it reads the scene's audio, it runs **after** any generated assets in the scene have landed and after [audio sync](./audio-sync.md) has resolved; captioning a generated `voice`/`audio` track transcribes the finished audio at its final placement. The scene must contain an unmuted audio or video source; otherwise the caption node is left empty.
 
-Transcripts are **cached**: every transcript asset records a fingerprint of the scene's audible mix (source content, placement, source offset, playback rate, gain). When a scene's fingerprint matches an existing transcript, that asset is reused instead of transcribing again; re-mounting a project with unchanged audio consumes no credits. Any change to the scene's audio invalidates the fingerprint, and so does a new `seed`.
+Transcripts are **cached**: every transcript asset records a fingerprint of the scene's audible mix (source content, placement, source offset, playback rate, gain). When a scene's fingerprint matches an existing transcript, that asset is reused instead of transcribing again; re-mounting a project with unchanged audio consumes no credits. Any change to the scene's audio invalidates the fingerprint.
 
 ## Props
 

@@ -1,13 +1,55 @@
 # Diffusion Studio
 
-**FFmpeg for agents:** a multimedia editor you drive from the command line, with generative AI and multimodal understanding built in.
-
-What sets Diffusion Studio apart is `dapi`: a CLI that makes every part of the editor (projects, scene graphs, assets, AI generation, and rendering) scriptable over a local socket.
+Diffusion Studio lets your agent make videos. The agent writes a composition in TSX. The `dapi` CLI mounts it into the editor. Every element stays editable. Think of it as **FFmpeg for agents**, with generative AI and multimodal understanding built in.
 
 ```sh
 dapi open                       # use -b to run the editor headless
 dapi mount hero.tsx             # render a composition into it
 dapi node render -o hero.mp4    # encode the scene to disk
+```
+
+## Getting started
+
+Use with Claude Code, Codex, Cursor, Copilot, or Gemini CLI. Install the skill once, globally:
+
+```sh
+npx skills add diffusionstudio/skills -g
+```
+
+`/editor` is the main skill you'll use. Ask for what you want in plain language.
+
+## Prompt examples
+
+**Video understanding and reasoning**
+
+```text
+/editor In three bullets, explain what starts the conflict. Include timestamps. https://youtu.be/aqz-KE-bpKQ
+
+/editor Name three recurring locations and give one visual cue that distinguishes each. https://youtu.be/dQw4w9WgXcQ
+```
+
+**Motion graphics**
+
+```text
+/editor Recreate the 3blue1brown animation from https://youtu.be/HEfHFsfGXjs, closely matching its visual style, pacing, framing, colors, labels, and transitions. Use the exact collision mathematics from Gregory Galperin's original paper, do not approximate the physics.
+
+/editor Create a ~20-second promo for vercel-labs/native in Vercel's presentation style. Research its official website, GitHub, and brand guidelines; use authentic assets and verified product features, with crisp typography, polished motion, and a strong final CTA.
+```
+
+**Video editing**
+
+```text
+/editor edit the footage in /path/to/folder
+
+/editor turn this footage into a polished YouTube video. Add readable captions and an attention-grabbing graphic in the opening to give viewers a strong visual hook.
+```
+
+**Clipping**
+
+```text
+/editor Can you pull the best 30-second moment from https://youtu.be/MtQ0qxyf-Ds and make a vertical version for social?
+
+/editor Make a 15-second version of this launch video. https://x.com/claudeai/status/2045156267690213649
 ```
 
 ## Compositions as code
