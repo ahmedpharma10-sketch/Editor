@@ -41,35 +41,39 @@ export function hasAudioSources(world: EngineWorld, sceneEid: number): boolean {
  * content, placement, source offset, rate, and gain. Volume fades and audio
  * transitions are not captured; they don't change the spoken words.
  */
-export function sceneAudioFingerprint(world: EngineWorld, sceneEid: number): string {
+export function sceneAudioFingerprint(world: EngineWorld, sceneEid: number, seed?: number): string {
   const c = world.components;
   const entries: string[] = [];
 
   for (const eid of getEntityTree(world, sceneEid)) {
     if (hasComponent(world, eid, c.Muted)) continue;
 
-    // Video paints carry the asset; their timing lives on the geometry parent.
-    let timingEid = eid;
-    if (hasComponent(world, eid, c.Paint) && c.Paint[eid] === PaintType.VIDEO) {
-      timingEid = getParentEntity(world, eid) ?? eid;
-    } else if (!hasComponent(world, eid, c.Audio)) {
-      continue;
+    let audioEid: number | null = null;
+
+    if (c.Paint[eid] === PaintType.VIDEO) {
+      audioEid = getParentEntity(world, eid) ?? null;
     }
 
-    const asset = c.AssetId[eid] ? world.assets.get(c.AssetId[eid]) : undefined;
-    if (!asset) continue;
+    if (!hasComponent(world, eid, c.Audio)) {
+      audioEid = eid;
+    }
+
+
+    const asset = world.assets.get(c.AssetId[eid] ?? "");
+    if (audioEid === null || !asset) continue;
 
     entries.push([
       asset.hash,
-      c.Computed.start[timingEid] ?? 0,
-      c.Computed.end[timingEid] ?? 0,
-      c.Computed.delay[timingEid] ?? 0,
-      c.PlaybackRate[timingEid] ?? 1,
-      c.Volume[timingEid] ?? 0,
+      c.Computed.start[audioEid] ?? 0,
+      c.Computed.end[audioEid] ?? 0,
+      c.Computed.delay[audioEid] ?? 0,
+      c.PlaybackRate[audioEid] ?? 1,
+      c.Volume[audioEid] ?? 0,
     ].join(":"));
   }
 
-  return `v1:${fnv1a(entries.sort().join("|"))}`;
+  const mix = entries.sort().join("|");
+  return `v1:${fnv1a(seed === undefined ? mix : `${mix}#seed=${seed}`)}`;
 }
 
 function fnv1a(input: string): string {
@@ -96,6 +100,7 @@ export async function transcribeScene(
   engine: Engine,
   sceneEid: number,
   onStatus?: (status: TranscribeStatus) => void,
+  seed?: number,
 ) {
   const world = engine.world;
   const c = world.components;
@@ -107,7 +112,7 @@ export async function transcribeScene(
     throw new Error("No audio found. Add an audio or video clip to the scene to generate captions.");
   }
 
-  const generationKey = sceneAudioFingerprint(world, sceneEid);
+  const generationKey = sceneAudioFingerprint(world, sceneEid, seed);
   const cached = Array.from(world.assets.values())
     .find(a => a.type === "TRANSCRIPT" && a.generationKey === generationKey);
 

@@ -230,6 +230,12 @@ export type PatchProps = {
    * horizontal placement. Defaults to the preset's own alignment.
    */
   verticalAlign?: "top" | "center" | "bottom";
+  /**
+   * Transcription seed — `<Captions>` only. Part of the transcript cache key,
+   * so a new value bypasses the cached transcript and transcribes the scene
+   * again; reusing a value replays that take from cache.
+   */
+  seed?: number;
 };
 
 /** Every PatchProps key, at runtime — the `dapi node patch` allowlist. */
@@ -271,6 +277,7 @@ export const PATCH_PROP_KEYS = Object.keys({
   preset: true,
   colors: true,
   verticalAlign: true,
+  seed: true,
 } satisfies Record<keyof PatchProps, true>) as ReadonlyArray<keyof PatchProps>;
 
 type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
@@ -372,5 +379,5 @@ export type SequenceProps = Pick<PatchProps, "name"> & {
 export type CaptionsProps = Pick<
   PatchProps,
   | "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src"
-  | "start" | "end" | "sourceIn" | "sourceOut" | "animations"
+  | "start" | "end" | "sourceIn" | "sourceOut" | "animations" | "seed"
 >;

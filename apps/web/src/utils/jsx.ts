@@ -536,15 +536,19 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     // Handle captioning queue
     {
       for (const { eid: nodeEid, type } of this.queue) {
-        if (hasComponent(world, nodeEid, c.Deleted) || type !== "caption" || c.AssetId[nodeEid]) continue;
+        if (hasComponent(world, nodeEid, c.Deleted) || type !== "caption") continue;
+
+        const props = this.data(nodeEid).props;
+        const seed = props.seed as number | undefined;
+        if (c.AssetId[nodeEid] && (seed === undefined || props.src !== undefined)) continue;
+
         const sceneEid = getSceneAncestor(world, nodeEid);
         if (!sceneEid || !hasAudioSources(world, sceneEid)) continue;
 
         assert(this.engine, "captioning requires an engine (author-mode mount)");
-        const { asset, trim } = await transcribeScene(this.engine, sceneEid);
+        const { asset, trim } = await transcribeScene(this.engine, sceneEid, undefined, seed);
         setComponent(world, nodeEid, c.AssetId, asset.id);
 
-        const props = this.data(nodeEid).props;
         const hasIn = timingProp(props, "sourceIn") !== undefined;
         const hasOut = timingProp(props, "sourceOut") !== undefined || timingProp(props, "end") !== undefined;
         setComponent(world, nodeEid, c.Trim, {
@@ -1359,6 +1363,13 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         setComponent(world, eid, c.Caption, { verticalAlign: CAPTION_ALIGN_MAP[value as keyof typeof CAPTION_ALIGN_MAP] });
         // A live decoder has already placed the box from the old alignment.
         c.CaptionDecoder[eid]?.reposition(world, eid);
+        break;
+      } case "seed": {
+        assert(hasComponent(world, eid, c.Caption), "`seed` only applies to <Captions>");
+        assert(typeof value === "number", "`seed` must be a number" + `, value: ${value}`);
+        if (!this.committed && !this.queue.some((item) => item.type === "caption" && item.eid === eid)) {
+          this.queue.push({ eid, type: "caption" });
+        }
         break;
       }
     }
