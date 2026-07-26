@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.gif" alt="Diffusion Studio" width="100%" />
+</p>
+
 # Diffusion Studio
 
 Diffusion Studio lets your agent make videos. The agent writes a composition in TSX. The `dapi` CLI mounts it into the editor. Every element stays editable. Think of it as **FFmpeg for agents**, with generative AI and multimodal understanding built in.
