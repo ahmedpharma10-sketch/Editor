@@ -2,7 +2,9 @@
   <img src="assets/banner.gif" alt="Diffusion Studio" width="100%" />
 </p>
 
-# Diffusion Studio
+[![](https://img.shields.io/discord/1115673443141156924?style=flat&logo=discord&logoColor=white&color=5865F2)](https://discord.com/invite/zPQJrNGuFB)
+[![](https://img.shields.io/badge/Follow%20for-Updates-black?logo=x&logoColor=white)](https://x.com/diffusionhq)
+[![](https://img.shields.io/badge/Combinator-F24-orange?logo=ycombinator&logoColor=white)](https://www.ycombinator.com/companies/diffusion-studio)
 
 Diffusion Studio lets your agent make videos. The agent writes a composition in TSX. The `dapi` CLI mounts it into the editor. Every element stays editable. Think of it as **FFmpeg for agents**, with generative AI and multimodal understanding built in.
 
