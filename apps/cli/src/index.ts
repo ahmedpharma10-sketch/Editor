@@ -445,7 +445,7 @@ async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   try {
     const shots = await editor.node.capture.query({ id: eid, frames }, GENERATE);
     for (const [i, { base64, timecode }] of shots.entries()) {
-      const path = join(dir, `${timecode.replaceAll(":", "-")}.png`);
+      const path = join(dir, timecodeFilename(timecode));
       writeFileSync(path, Buffer.from(base64, "base64"));
       console.log(JSON.stringify({ time: times[i], path }));
     }
@@ -526,7 +526,7 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
   try {
     const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, auto: opts.auto });
     for (const { time, timecode, base64 } of frames) {
-      const path = join(dir, `${timecode.replaceAll(":", "-")}.png`);
+      const path = join(dir, timecodeFilename(timecode));
       writeFileSync(path, Buffer.from(base64, "base64"));
       console.log(JSON.stringify({ time, path }));
     }
@@ -612,6 +612,11 @@ function parseTimeArg(value: string, flag: string, allowNegative = false): numbe
     process.exit(1);
   }
   return seconds;
+}
+
+function timecodeFilename(timecode: string): string {
+  const [hh, mm, ss, ff] = timecode.split(":");
+  return `${hh}h${mm}m${ss}s${ff}f.png`;
 }
 
 // Parse the window/scale flags shared by `filmstrip` and `waveform`.
@@ -1304,7 +1309,7 @@ media
   .command("grab")
   .alias("sample")
   .description(
-    `Decode frames of a video file and write them as PNGs (local render, no credits), each named after its HH-MM-SS-FF timecode. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
+    `Decode frames of a video file and write them as PNGs (local render, no credits), each named after its timecode (e.g. 00h00m01s15f.png). Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
   )
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
@@ -1466,7 +1471,7 @@ node
 node
   .command("capture")
   .description(
-    `Render a node in isolation to PNGs, one per position, each named after the HH-MM-SS-FF timecode of the frame rendered. The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
+    `Render a node in isolation to PNGs, one per position, each named after the timecode of the frame rendered (e.g. 00h00m01s15f.png). The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)

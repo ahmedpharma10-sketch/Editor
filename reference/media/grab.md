@@ -1,6 +1,6 @@
 # `dapi media grab <id|path>`
 
-Decodes one or more frames of a video asset at the given times and writes each to a PNG file named after its `HH-MM-SS-FF` timecode (e.g. `00-00-01-12.png`); like [`node capture`](../node/capture.md), but grabs the asset's own pixels at full resolution (unlike `node capture`, which captures the composited canvas). Renders locally; no credits.
+Decodes one or more frames of a video asset at the given times and writes each to a PNG file named after its timecode, hours through frames (e.g. `00h00m01s12f.png`); like [`node capture`](../node/capture.md), but grabs the asset's own pixels at full resolution (unlike `node capture`, which captures the composited canvas). Renders locally; no credits.
 
 ## Input
 
@@ -18,7 +18,7 @@ Decodes one or more frames of a video asset at the given times and writes each t
 JSON Lines, one object per requested timestamp, in the requested order:
 
 ```ts
-{ time: number; path: string }   // time = the requested timestamp in seconds; path = the written PNG, named HH-MM-SS-FF.png
+{ time: number; path: string }   // time = the requested timestamp in seconds; path = the written PNG, e.g. …/00h00m01s12f.png
 ```
 
 ## Errors

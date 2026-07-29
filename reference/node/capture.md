@@ -1,6 +1,6 @@
 # `dapi node capture <id> [-t, --time <time...>]`
 
-Renders a node in isolation and writes one PNG per timeline position, each named after the `HH-MM-SS-FF` timecode of the frame actually rendered (e.g. `00-00-01-12.png`). The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background; siblings and overlapping scene content are not included, so capture a scene id to check composition. To grab a video asset's own pixels at full resolution instead of the composited node, use [`media grab`](../media/grab.md).
+Renders a node in isolation and writes one PNG per timeline position, each named after the timecode of the frame actually rendered, hours through frames (e.g. `00h00m01s12f.png`). The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background; siblings and overlapping scene content are not included, so capture a scene id to check composition. To grab a video asset's own pixels at full resolution instead of the composited node, use [`media grab`](../media/grab.md).
 
 
 ## Input
@@ -14,5 +14,5 @@ Renders a node in isolation and writes one PNG per timeline position, each named
 One JSON object per line (JSON Lines), in the order the times were given: the requested time in seconds and the absolute path to the written PNG.
 
 ```ts
-{ time: number, path: string }   // e.g. { "time": 1.5, "path": "/tmp/dapi-capture-3f2c1a8e/00-00-01-15.png" }
+{ time: number, path: string }   // e.g. { "time": 1.5, "path": "/tmp/dapi-capture-3f2c1a8e/00h00m01s15f.png" }
 ```
