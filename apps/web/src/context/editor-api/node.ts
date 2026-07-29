@@ -37,6 +37,7 @@ import type {
   NodeRenderRequest,
   NodeRenderResult,
 } from "@diffusionstudio/cli/channels";
+import type { CapturedImage } from "@/components/engine/encode/image-encoder";
 import type { EncoderConfig } from "@/components/engine/encode/interfaces";
 import type { Accessor } from "solid-js";
 
@@ -289,7 +290,7 @@ export function handleNodeGrep(engine: Accessor<Engine>) {
 }
 
 export function handleNodeCapture(engine: Accessor<Engine>) {
-  return async ({ id, frames, timestamp }: { id: number; frames?: number[]; timestamp?: boolean }): Promise<{ base64: string }[]> => {
+  return async ({ id, frames }: { id: number; frames?: number[] }): Promise<CapturedImage[]> => {
     const e = engine();
     const w = e.world;
 
@@ -312,7 +313,6 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
     const encoder = await createImageEncoder(w, {
       eid,
       frames: shots,
-      timestamp: timestamp !== false,
       resolution: 720,
     });
     const result = await encoder.render();
@@ -320,7 +320,7 @@ export function handleNodeCapture(engine: Accessor<Engine>) {
     if (result.type === "canceled") throw new Error("Capture canceled");
     if (result.type === "error") throw result.error;
 
-    return result.data.map((base64) => ({ base64 }));
+    return result.data;
   };
 }
 

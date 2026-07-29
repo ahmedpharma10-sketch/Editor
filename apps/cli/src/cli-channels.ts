@@ -115,10 +115,10 @@ export type MediaFrameRequest = AssetRef & {
   start?: number;
   end?: number;
   quality?: FrameQuality;
-  timestamp?: boolean;
   auto?: boolean;
 };
-export type MediaFrameResult = Array<{ time: number; base64: string }>;
+
+export type MediaFrameResult = Array<{ time: number; timecode: string; base64: string }>;
 
 export type MediaTranscribeRequest = AssetRef;
 export type TranscriptWord = { text: string; start: number; end: number };

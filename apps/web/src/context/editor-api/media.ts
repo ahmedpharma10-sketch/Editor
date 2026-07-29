@@ -6,7 +6,7 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { pickInformativeTimes } from './frame-triage';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp, stampTimestampLabel } from '@/components/engine';
+import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp } from '@/components/engine';
 import { assert } from '@/utils';
 import {
   transcodeForTranscription,
@@ -113,7 +113,7 @@ const AUTO_MAX_FRAMES = 30;
 
 export function handleMediaFrame(engine: Accessor<Engine>) {
   return async (req: MediaFrameRequest) => {
-    const { times, count, start, end, quality, timestamp, auto } = req;
+    const { times, count, start, end, quality, auto } = req;
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
@@ -185,20 +185,17 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
       const sink = new CanvasSink(track, width !== undefined ? { width } : undefined);
       const timestamps = ordered.map(({ time }) => firstTimestamp + time);
 
-      const result: Array<{ time: number; base64: string }> = new Array(requested.length);
+      const result: Array<{ time: number; timecode: string; base64: string }> = new Array(requested.length);
       let i = 0;
       for await (const wrapped of sink.canvasesAtTimestamps(timestamps)) {
         const { time, index } = ordered[i++];
         assert(wrapped, `No frame found at ${time}s.`);
 
-        // The webgpu getContext overload muddies inference on the canvas union.
-        const ctx = wrapped.canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-
-        if (ctx && timestamp !== false) {
-          stampTimestampLabel(ctx, wrapped.canvas.height, formatTimestamp(time, asset.frameRate));
-        }
-
-        result[index] = { time, base64: await canvasToPngBase64(wrapped.canvas) };
+        result[index] = {
+          time,
+          timecode: formatTimestamp(time, asset.frameRate),
+          base64: await canvasToPngBase64(wrapped.canvas),
+        };
       }
       return result;
     } finally {

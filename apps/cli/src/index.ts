@@ -432,7 +432,7 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type CaptureOptions = { time?: string[]; timestamp?: boolean; output?: string };
+type CaptureOptions = { time?: string[]; output?: string };
 
 async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const eid = parseNodeIds([id])[0];
@@ -440,12 +440,12 @@ async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
   const frames = times.map((t) => Math.round(t * TIME_FPS));
 
-  const dir = opts.output ?? tmpdir();
+  const dir = opts.output ?? join(tmpdir(), `dapi-capture-${randomUUID().slice(0, 8)}`);
   mkdirSync(dir, { recursive: true });
   try {
-    const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp }, GENERATE);
-    for (const [i, { base64 }] of shots.entries()) {
-      const path = join(dir, `${randomUUID()}.png`);
+    const shots = await editor.node.capture.query({ id: eid, frames }, GENERATE);
+    for (const [i, { base64, timecode }] of shots.entries()) {
+      const path = join(dir, `${timecode.replaceAll(":", "-")}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
       console.log(JSON.stringify({ time: times[i], path }));
     }
@@ -465,7 +465,6 @@ type MediaFrameOptions = {
   start?: string;
   end?: string;
   quality?: string;
-  timestamp?: boolean;
   uncapped?: boolean;
   output?: string;
   auto?: boolean;
@@ -522,12 +521,12 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
   }
 
   const target = resolveAssetRef(ref);
-  const dir = opts.output ?? tmpdir();
+  const dir = opts.output ?? join(tmpdir(), `dapi-grab-${randomUUID().slice(0, 8)}`);
   mkdirSync(dir, { recursive: true });
   try {
-    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp, auto: opts.auto });
-    for (const { time, base64 } of frames) {
-      const path = join(dir, `${randomUUID()}.png`);
+    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, auto: opts.auto });
+    for (const { time, timecode, base64 } of frames) {
+      const path = join(dir, `${timecode.replaceAll(":", "-")}.png`);
       writeFileSync(path, Buffer.from(base64, "base64"));
       console.log(JSON.stringify({ time, path }));
     }
@@ -1305,7 +1304,7 @@ media
   .command("grab")
   .alias("sample")
   .description(
-    `Decode frames of a video file and write them as PNGs (local render, no credits), each stamped in the top-left with its HH:MM:SS:FF timestamp. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
+    `Decode frames of a video file and write them as PNGs (local render, no credits), each named after its HH-MM-SS-FF timecode. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
   )
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
@@ -1314,9 +1313,8 @@ media
   .option("-s, --start <time>", `with --count or --auto, start of the window to sample (seconds, "45f" frames, or "MM:SS"; default: 0)`)
   .option("-e, --end <time>", `with --count or --auto, end of the window to sample (seconds, "45f" frames, or "MM:SS"; default: asset duration)`)
   .option("-q, --quality <preset>", "frame resolution: small (384x384, default), medium (768x768), large (1536x1536), or fullres (native)")
-  .option("--no-timestamp", "don't stamp each frame with its HH:MM:SS:FF timestamp label")
   .option("--uncapped", "lift the 100-frame safety cap (grabbing many frames is slow and token-heavy)")
-  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((ref: string, opts: MediaFrameOptions) => mediaFrame(ref, opts));
 
 media
@@ -1468,12 +1466,11 @@ node
 node
   .command("capture")
   .description(
-    `Render a node in isolation to PNGs, one per position, each stamped in the top-left with its HH:MM:SS:FF timestamp. The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
+    `Render a node in isolation to PNGs, one per position, each named after the HH-MM-SS-FF timecode of the frame rendered. The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
-  .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
-  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node

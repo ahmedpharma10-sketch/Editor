@@ -1,6 +1,6 @@
 # `dapi media grab <id|path>`
 
-Decodes one or more frames of a video asset at the given times and writes each to a PNG file; like [`node capture`](../node/capture.md), but grabs the asset's own pixels at full resolution (unlike `node capture`, which captures the composited canvas). Renders locally; no credits.
+Decodes one or more frames of a video asset at the given times and writes each to a PNG file named after its `HH-MM-SS-FF` timecode (e.g. `00-00-01-12.png`); like [`node capture`](../node/capture.md), but grabs the asset's own pixels at full resolution (unlike `node capture`, which captures the composited canvas). Renders locally; no credits.
 
 ## Input
 
@@ -10,16 +10,15 @@ Decodes one or more frames of a video asset at the given times and writes each t
 - `-s, --start <time>`: with `--count`, the start of the window to sample (optional; `Time` value; default `0`).
 - `-e, --end <time>`: with `--count`, the end of the window to sample (optional; `Time` value; default the asset duration).
 - `-q, --quality <preset>`: per-frame resolution preset (optional; default `small`). One of `small` (384x384), `medium` (768x768), `large` (1536x1536), or `fullres` (native). Each caps the total pixel count while preserving aspect ratio.
-- `--no-timestamp`: don't stamp each frame with its `HH:MM:SS:FF` timestamp label (optional; the label is drawn by default).
 - `--uncapped`: lift the 100-frame safety cap (optional). Without it, requesting more than 100 frames (via `--count` or `--time`) is rejected.
-- `-o, --output <dir>`: directory to write the PNGs into (optional; default the system temp directory). Each frame is written as a uuid-named `.png`.
+- `-o, --output <dir>`: directory to write the PNGs into (optional; default a fresh `dapi-grab-*` directory in the system temp directory, so runs never overwrite each other). Writing into the same directory twice overwrites frames whose timecode matches; requested times that land on the same frame share one file.
 
 ## Output
 
 JSON Lines, one object per requested timestamp, in the requested order:
 
 ```ts
-{ time: number; path: string }   // time = the requested timestamp in seconds; path = the written PNG
+{ time: number; path: string }   // time = the requested timestamp in seconds; path = the written PNG, named HH-MM-SS-FF.png
 ```
 
 ## Errors

@@ -17,7 +17,7 @@ import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { realizeMounts } from '@/utils/mount';
-import { framesToSeconds, formatTimestamp, stampTimestampLabel } from '../utils';
+import { framesToSeconds, formatTimestamp } from '../utils';
 import { assert } from '@/utils';
 
 import type { EngineWorld } from '../api/world';
@@ -27,14 +27,15 @@ type ImageEncoderConfig = {
   eid: number;
   /** Frames to capture, relative to the entity's first visible frame. */
   frames: number[];
-  /** Stamp each capture with the HH:MM:SS:FF timecode of the rendered frame. */
-  timestamp?: boolean;
   /** Target output height in px (default: the entity's native size). */
   resolution?: number;
 };
 
+/** One capture: the PNG plus the HH:MM:SS:FF timecode of the frame rendered. */
+export type CapturedImage = { base64: string; timecode: string };
+
 export type ImageExportResult =
-  | { type: 'success'; data: string[] }
+  | { type: 'success'; data: CapturedImage[] }
   | { type: 'canceled' }
   | { type: 'error'; error: Error };
 
@@ -187,7 +188,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
 
   const render = async (): Promise<ImageExportResult> => {
     try {
-      const images: string[] = [];
+      const images: CapturedImage[] = [];
 
       for (const frame of config.frames) {
         if (canceled) {
@@ -200,16 +201,11 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
         transformSystem(world);
         renderSystem(world);
 
-        if (config.timestamp) {
-          // The render system leaves the camera transform on the context;
-          // the label is drawn in device space.
-          offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
-          const stampFrame = startFrame + frame;
-          const label = formatTimestamp(framesToSeconds(stampFrame, world.frameRate), world.frameRate);
-          stampTimestampLabel(offscreenCtx, offscreenCanvas.height, label);
-        }
-
-        images.push(await toBase64Png(offscreenCanvas));
+        const stampFrame = startFrame + frame;
+        images.push({
+          base64: await toBase64Png(offscreenCanvas),
+          timecode: formatTimestamp(framesToSeconds(stampFrame, world.frameRate), world.frameRate),
+        });
       }
 
       return { type: 'success', data: images };
