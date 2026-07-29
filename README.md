@@ -113,7 +113,7 @@ Everything a mount produces stays a first-class editor node, so a person can pic
 
 ## Seeing and hearing the media
 
-Cutting footage requires looking at it. The CLI ships the inspection tools an agent needs to work with media it cannot watch:
+Cutting footage requires understanding it. The CLI ships the inspection tools an agent needs to work with media it cannot watch:
 
 ```sh
 dapi media probe clip.mp4                                # container + codec metadata, like ffprobe
@@ -140,6 +140,7 @@ dapi node capture                                        # see the canvas itself
 | `dapi screenshot` / `dapi logs` | The app itself: capture the window, read recent console output |
 | `dapi fetch` | Download a video from yt/tt/ig, ready for `dapi asset add` |
 | `dapi whoami` | The authenticated account |
+| `dapi report` | Report a bug in the CLI or the app: diagnostics bundled, prefilled GitHub issue link |
 
 Conventions throughout: single results are one JSON value, collections are JSON Lines, errors go to stderr with exit code `1`. Everything is built to be piped, grepped, and driven by a program.
 
