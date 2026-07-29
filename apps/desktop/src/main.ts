@@ -12,6 +12,7 @@ import { startCliServer, stopCliServer, isHeadless } from "./cli-server";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
+import type { DeepLinkChannel } from "./main-channels";
 import type { LogEntry } from "@diffusionstudio/cli/protocol";
 
 const DEV_URL = "http://localhost:5173";
@@ -56,7 +57,10 @@ if (app.isPackaged && !process.argv.includes("--hidden")) {
 const openWrites = new Map<string, { handle: FileHandle; path: string }>();
 
 let mainWindow: BrowserWindow | null = null;
-let pendingAuthUrl: string | null = null;
+
+// Deep links that arrived before the renderer could take them, keyed by the
+// channel they belong to so auth and checkout never drain each other's link.
+const pendingDeepLinks = new Map<DeepLinkChannel, string>();
 
 // Renderer console mirror, served to the CLI via LOGS_GET. Lives in main so
 // it survives reloads and captures everything the devtools console shows
@@ -89,13 +93,40 @@ function isHiddenLaunch(argv: string[]): boolean {
   return argv.includes("--hidden");
 }
 
-function deliverAuthUrl(url: string) {
+// diffusion://auth/callback → auth, diffusion://checkout/callback → checkout.
+function deepLinkChannel(url: string): DeepLinkChannel | null {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return null;
+  }
+
+  if (host === "auth") return MAIN_CHANNELS.AUTH_CALLBACK;
+  if (host === "checkout") return MAIN_CHANNELS.CHECKOUT_CALLBACK;
+  return null;
+}
+
+function deliverDeepLink(url: string) {
+  const channel = deepLinkChannel(url);
+  if (!channel) return;
+
+  // A link that arrives before the page can receive it is parked rather than
+  // pushed: the renderer's subscription only exists once the component holding
+  // it mounts, which is well after did-finish-load. Parked links are handed
+  // over by the take* handlers below, which every consumer calls on mount.
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isLoading()) {
-    pendingAuthUrl = url;
+    pendingDeepLinks.set(channel, url);
     return;
   }
 
-  mainBridge.emit(mainWindow, MAIN_CHANNELS.AUTH_CALLBACK, { url });
+  mainBridge.emit(mainWindow, channel, { url });
+}
+
+function takePendingDeepLink(channel: DeepLinkChannel): string | null {
+  const url = pendingDeepLinks.get(channel) ?? null;
+  pendingDeepLinks.delete(channel);
+  return url;
 }
 
 async function setFileInputFiles(selector: string, absolutePath: string) {
@@ -132,13 +163,6 @@ function createWindow(show = true) {
   });
 
   captureConsole(mainWindow);
-
-  mainWindow.webContents.on("did-finish-load", () => {
-    if (pendingAuthUrl) {
-      mainBridge.emit(mainWindow, MAIN_CHANNELS.AUTH_CALLBACK, { url: pendingAuthUrl });
-    }
-    pendingAuthUrl = null;
-  });
 
   applyCornerRadius(MACOS_CORNER_RADIUS);
   applyBackdrop();
@@ -187,7 +211,7 @@ if (process.defaultApp && process.argv.length >= 2) {
 if (app.requestSingleInstanceLock()) {
   app.on("second-instance", (_event, argv) => {
     const url = findProtocolUrl(argv);
-    if (url) deliverAuthUrl(url);
+    if (url) deliverDeepLink(url);
 
     const hidden = isHiddenLaunch(argv);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -202,15 +226,16 @@ if (app.requestSingleInstanceLock()) {
 
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    deliverAuthUrl(url);
+    deliverDeepLink(url);
   });
 
   mainBridge.handle(MAIN_CHANNELS.APP_OPEN_EXTERNAL, ({ url }) => shell.openExternal(url));
-  mainBridge.handle(MAIN_CHANNELS.AUTH_GET_PENDING_CALLBACK, () => {
-    const url = pendingAuthUrl;
-    pendingAuthUrl = null;
-    return url;
-  });
+  mainBridge.handle(MAIN_CHANNELS.AUTH_GET_PENDING_CALLBACK, () =>
+    takePendingDeepLink(MAIN_CHANNELS.AUTH_CALLBACK),
+  );
+  mainBridge.handle(MAIN_CHANNELS.CHECKOUT_GET_PENDING_CALLBACK, () =>
+    takePendingDeepLink(MAIN_CHANNELS.CHECKOUT_CALLBACK),
+  );
   mainBridge.handle(MAIN_CHANNELS.WINDOW_IS_FULLSCREEN, () => mainWindow?.isFullScreen() ?? false);
   mainBridge.handle(MAIN_CHANNELS.WINDOW_CAPTURE, async () => {
     if (!mainWindow || mainWindow.isDestroyed()) throw new Error("No main window");
@@ -268,7 +293,7 @@ if (app.requestSingleInstanceLock()) {
     session.defaultSession.setDevicePermissionHandler(() => true);
 
     const url = findProtocolUrl(process.argv);
-    if (url) pendingAuthUrl = url;
+    if (url) deliverDeepLink(url);
 
     startCliServer();
     createWindow(!isHiddenLaunch(process.argv));

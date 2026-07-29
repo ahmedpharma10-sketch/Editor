@@ -18,6 +18,7 @@ const config: ForgeConfig = {
     appCategoryType: 'public.app-category.video',
     appVersion: version,
     icon: './assets/icon',
+    protocols: [{ name: 'Diffusion Studio', schemes: ['diffusion'] }],
     prune: false,
     ignore: (path) =>
       path !== '' &&

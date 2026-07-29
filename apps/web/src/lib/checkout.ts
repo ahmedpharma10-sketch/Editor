@@ -11,6 +11,8 @@ import type {
 } from "@diffusionstudio/api-contract";
 
 import { trpc } from "./trpc";
+import { mainBridge } from "./ipc";
+import { MAIN_CHANNELS } from "@desktop/main-channels";
 
 function toastMessage(err: unknown, fallback: string): string {
   // Empty / non-JSON 500 bodies (e.g. upstream crashed before tRPC could
@@ -69,11 +71,31 @@ export function getTopupPrice(tier: TopupCredits): number {
   return Math.round(credits * CREDIT_RATE * (1 + markup));
 }
 
+const ELECTRON_CHECKOUT_REDIRECT =
+  "https://app.diffusion.studio/checkout/electron-callback.html";
+
 function successAndCancelUrls(): { successUrl: string; cancelUrl: string } {
+  if (window.desktop) {
+    return {
+      successUrl: `${ELECTRON_CHECKOUT_REDIRECT}?status=success`,
+      cancelUrl: `${ELECTRON_CHECKOUT_REDIRECT}?status=cancel`,
+    };
+  }
+
   const cancelUrl = window.location.href;
   const success = new URL(window.location.href);
   success.searchParams.set("checkout", "success");
   return { successUrl: success.toString(), cancelUrl };
+}
+
+/** Hands the URL to the system browser on desktop; navigates in place on web. */
+async function openCheckoutUrl(url: string): Promise<void> {
+  if (window.desktop) {
+    await mainBridge.call(MAIN_CHANNELS.APP_OPEN_EXTERNAL, { url });
+    return;
+  }
+
+  window.location.href = url;
 }
 
 export async function startSubscriptionCheckout(input: {
@@ -85,7 +107,7 @@ export async function startSubscriptionCheckout(input: {
       ...input,
       ...successAndCancelUrls(),
     });
-    window.location.href = url;
+    await openCheckoutUrl(url);
   } catch (err) {
     toast.error(toastMessage(err, "Checkout failed"));
   }
@@ -99,13 +121,25 @@ export async function startTopupCheckout(
       creditQuantity,
       ...successAndCancelUrls(),
     });
-    window.location.href = url;
+    await openCheckoutUrl(url);
   } catch (err) {
     toast.error(toastMessage(err, "Checkout failed"));
   }
 }
 
 export async function openBillingPortal(): Promise<void> {
+  if (window.desktop) {
+    try {
+      const { url } = await trpc.createBillingPortal.mutate();
+      await mainBridge.call(MAIN_CHANNELS.APP_OPEN_EXTERNAL, { url });
+    } catch (err) {
+      toast.error(toastMessage(err, "Failed to open billing portal"));
+    }
+    return;
+  }
+
+  // Web opens the tab up front so the click still counts as a user gesture by
+  // the time the portal URL comes back.
   const tab = window.open("", "_blank");
   if (!tab) return;
 
