@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createEffect, createContext, useContext, onCleanup, createResource } from "solid-js";
+import { createEffect, createContext, useContext, onCleanup, onMount, createResource } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import { useEngine } from '@/context/engine';
+import { useProjectId } from '@/hooks/use-project-id';
 import { useAuth } from '@/context/auth';
 import { t, q, m, q0, m0 } from "@/lib/cli-rpc";
 import { handleContextGet } from "./context";
@@ -40,6 +41,7 @@ type EditorApiContextValue = {
 const EditorApiContext = createContext<EditorApiContextValue>();
 
 export function EditorApiProvider(props: EditorApiProviderProps) {
+  const projectId = useProjectId();
   const engine = useEngine();
   const auth = useAuth();
   const [, setParams] = useSearchParams();
@@ -60,17 +62,19 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
 
   createEffect(() => {
     document.documentElement.dataset.fullscreen = String(isFullscreen());
+  });
 
+  onMount(() => {
     if (!window.desktop) return;
+    onCleanup(mainBridge.handle(MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE, handleWindowFullscreenChange(mutate)));
+  });
+
+  createEffect(() => {
+    if (!window.desktop || !engine.initialized() || projectId() !== engine.world.projectId) return;
+
 
     const router = createAppRouter({ getEngine, getUser, requireAuth, setParams });
-    const unsubRouter = cliBridge.register(createRouterCaller(router));
-    const unsubScreenChange = mainBridge.handle(MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE, handleWindowFullscreenChange(mutate));
-
-    onCleanup(() => {
-      unsubRouter();
-      unsubScreenChange();
-    });
+    onCleanup(cliBridge.register(createRouterCaller(router)));
   });
 
   return (

@@ -6,6 +6,7 @@ import type { Engine } from "@/components/engine";
 import type { Accessor } from "solid-js";
 
 import { createProject, deleteProject, getProject, getProjectName, listRecentProjects, DEFAULT_PROJECT_ID } from "@/components/engine/db";
+import { whenProjectReady } from "@/context/engine";
 import { useSearchParams } from "@solidjs/router";
 
 export function handleProjectActive(engine: Accessor<Engine>) {
@@ -34,6 +35,10 @@ export function handleProjectCreate(_engine: Accessor<Engine>, setParams: Return
   return async ({ name }: { name?: string }) => {
     const entry = await createProject(name);
     setParams({ project: entry.id, dashboard: undefined }, { replace: true });
+    // Opening is a search param write; the engine for the new project mounts
+    // and restores after it. Hold the reply until that lands so the next CLI
+    // command can't run against the outgoing project's world.
+    await whenProjectReady(entry.id);
     return { id: entry.id, name: entry.name };
   }
 }
@@ -58,6 +63,7 @@ export function handleProjectOpen(_engine: Accessor<Engine>, setParams: ReturnTy
     const entry = await getProject(id);
     if (!entry) return null;
     setParams({ project: entry.id, dashboard: undefined }, { replace: true });
+    await whenProjectReady(entry.id);
     return { id: entry.id, name: entry.name };
   }
 }
