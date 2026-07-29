@@ -50,7 +50,7 @@ export function PurchaseSuccess() {
   return (
     <Show when={params.checkout === "success" || deepLinkSuccess()}>
       <div
-        class="pointer-events-auto fixed inset-0 z-[999] flex flex-col items-center justify-center gap-2 bg-popover/30 backdrop-blur-3xl"
+        class="pointer-events-auto fixed inset-0 z-[999] flex flex-col items-center justify-center gap-2 bg-overlay-strong"
         onClick={close}
       >
         <Icon name="confirm-check" class="size-12 text-foreground" />
