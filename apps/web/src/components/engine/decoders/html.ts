@@ -103,23 +103,18 @@ export class HtmlHost {
 	}
 
 	/**
-	 * Resolves once this host is safe to rasterize: every `<img>` in its
-	 * subtree has decoded (or failed), and only then does the rendering update
-	 * that refreshes the paint records run. Offline renders await this per
-	 * frame, so an image still in flight can't paint as an empty box, and a
-	 * source that lands late still makes it into the records that frame.
+	 * Resolves asynchronously loaded html resources.
 	 */
 	public whenReady(): Promise<void> {
-		const decoding: Promise<unknown>[] = [];
+		const pending: Promise<unknown>[] = [document.fonts.ready];
 		for (const image of this.element.querySelectorAll('img')) {
 			// `complete` covers loaded, failed, and srcless images alike; the
 			// rest are still in flight, and a failed decode just paints nothing.
 			if (image.complete) continue;
-			decoding.push(image.decode().catch(() => undefined));
+			pending.push(image.decode().catch(() => undefined));
 		}
 
-		if (decoding.length === 0) return nextRenderingUpdate();
-		return Promise.all(decoding).then(() => nextRenderingUpdate());
+		return Promise.all(pending).then(() => nextRenderingUpdate());
 	}
 
 	public setSize(width: number, height: number): void {

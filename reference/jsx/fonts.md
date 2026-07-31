@@ -22,7 +22,7 @@ In [`<html>`](./html.md) you style text with ordinary CSS, so **use a locally in
 </html>
 ```
 
-Remote web fonts (a Google Fonts `<link>`, or an `@font-face` with a `url()` source) do render, but nothing waits for the fetch. Stay on local families from [`dapi fonts`](../fonts.md) and the output is deterministic.
+Remote web fonts work too (a Google Fonts `<link>`, or an `@font-face` with a `url()` source). However the cost is that every render then depends on the network and on the font host staying up, so a local family from [`dapi fonts`](../fonts.md) is the safer default for anything you have to be able to re-render on demand.
 
 If you want to pin an exact variant, declare an `@font-face` whose source is the CSS `local()` string that `dapi fonts` reports for that variant (never a `url()`):
 
