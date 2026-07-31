@@ -6,7 +6,7 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { pickInformativeTimes } from './frame-triage';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimestamp } from '@/components/engine';
+import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimecode, composeSheet, planSheet, planSheetSizes, sheetTimecode } from '@/components/engine';
 import { assert } from '@/utils';
 import {
   transcodeForTranscription,
@@ -17,7 +17,7 @@ import {
 
 import type { Engine } from "@/components/engine";
 import type { Asset } from "@/components/engine/db";
-import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaProbeRequest, AssetRef, MediaTranscribeRequest, MediaTranscribeResult, MediaFilmstripRequest, MediaFilmstripResult, MediaWaveformRequest, MediaWaveformResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaFrameResult, TimecodedImage, MediaProbeRequest, AssetRef, MediaTranscribeRequest, MediaTranscribeResult, MediaFilmstripRequest, MediaFilmstripResult, MediaWaveformRequest, MediaWaveformResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
 import type { Accessor } from "solid-js";
 
 /**
@@ -112,8 +112,9 @@ const FRAME_QUALITY_BUDGETS = {
 const AUTO_MAX_FRAMES = 30;
 
 export function handleMediaFrame(engine: Accessor<Engine>) {
-  return async (req: MediaFrameRequest) => {
+  return async (req: MediaFrameRequest): Promise<MediaFrameResult> => {
     const { times, count, start, end, quality, auto } = req;
+    const combine = req.combine ?? true;
     const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
@@ -147,7 +148,7 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
       });
     }
 
-    const budget = FRAME_QUALITY_BUDGETS[quality ?? "small"];
+    const budget = FRAME_QUALITY_BUDGETS[quality ?? (combine ? "fullres" : "small")];
 
     const blob = await getAssetFile(asset);
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
@@ -171,10 +172,21 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
       // only the width lets the sink derive a matching height.
       const displayWidth = await track.getDisplayWidth();
       const displayHeight = await track.getDisplayHeight();
-      let width: number | undefined;
+      let sourceWidth = displayWidth;
+      let sourceHeight = displayHeight;
       if (budget > 0 && displayWidth * displayHeight > budget) {
-        width = Math.max(1, Math.round(displayWidth * Math.sqrt(budget / (displayWidth * displayHeight))));
+        const scale = Math.sqrt(budget / (displayWidth * displayHeight));
+        sourceWidth = Math.max(1, Math.round(displayWidth * scale));
+        sourceHeight = Math.max(1, Math.round(displayHeight * scale));
       }
+
+      // Lay the sheets out up front: the largest cell across them sets the
+      // decode size, so no frame is decoded bigger than it will be drawn.
+      const sizes = combine ? planSheetSizes(requested.length, req.perSheet) : [];
+      const plans = sizes.map((n) => planSheet(n, { width: sourceWidth, height: sourceHeight }));
+      const width = combine
+        ? Math.min(sourceWidth, Math.max(...plans.map((plan) => plan.cellWidth)))
+        : sourceWidth;
 
       // Decode in ascending order (the sink's fast path), remember each
       // entry's original slot so output mirrors the requested order.
@@ -182,21 +194,52 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
 
       // No pool: each yielded canvas is fresh, so converting to PNG can't race
       // the generator's read-ahead reusing a pooled canvas.
-      const sink = new CanvasSink(track, width !== undefined ? { width } : undefined);
+      const sink = new CanvasSink(track, width < displayWidth ? { width } : undefined);
       const timestamps = ordered.map(({ time }) => firstTimestamp + time);
 
-      const result: Array<{ time: number; timecode: string; base64: string }> = new Array(requested.length);
+      // Which sheet each frame belongs to, and where that sheet starts.
+      const sheetOf: number[] = [];
+      const sheetStart: number[] = [];
+      for (const [sheet, size] of sizes.entries()) {
+        sheetStart.push(sheetOf.length);
+        for (let k = 0; k < size; k++) sheetOf.push(sheet);
+      }
+      const missing = [...sizes];
+
+      const cells: Array<{ at: number; timecode: string }> = new Array(requested.length);
+      const canvases: Array<CanvasImageSource | undefined> = new Array(requested.length);
+      const result: TimecodedImage[] = new Array(combine ? sizes.length : requested.length);
+
       let i = 0;
       for await (const wrapped of sink.canvasesAtTimestamps(timestamps)) {
         const { time, index } = ordered[i++];
         assert(wrapped, `No frame found at ${time}s.`);
+        const timecode = formatTimecode(time, asset.frameRate);
+        cells[index] = { at: time, timecode };
 
-        result[index] = {
-          time,
-          timecode: formatTimestamp(time, asset.frameRate),
-          base64: await canvasToPngBase64(wrapped.canvas),
+        if (!combine) {
+          result[index] = { timecode, base64: await canvasToPngBase64(wrapped.canvas) };
+          continue;
+        }
+
+        // Compose a sheet as soon as its last frame lands and drop the
+        // canvases, so a long run never holds every decoded frame at once.
+        canvases[index] = wrapped.canvas;
+        const sheet = sheetOf[index];
+        if (--missing[sheet] > 0) continue;
+
+        const from = sheetStart[sheet];
+        const to = from + sizes[sheet];
+        result[sheet] = {
+          timecode: sheetTimecode(cells.slice(from, to)),
+          base64: composeSheet(
+            canvases.slice(from, to).map((canvas, k) => ({ image: canvas!, label: cells[from + k].timecode })),
+            plans[sheet],
+          ),
         };
+        for (let k = from; k < to; k++) canvases[k] = undefined;
       }
+
       return result;
     } finally {
       input.dispose();

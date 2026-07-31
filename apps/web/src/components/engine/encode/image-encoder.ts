@@ -17,7 +17,7 @@ import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { realizeMounts } from '@/utils/mount';
-import { framesToSeconds, formatTimestamp } from '../utils';
+import { framesToSeconds, formatTimecode } from '../utils';
 import { assert } from '@/utils';
 
 import type { EngineWorld } from '../api/world';
@@ -31,7 +31,7 @@ type ImageEncoderConfig = {
   resolution?: number;
 };
 
-/** One capture: the PNG plus the HH:MM:SS:FF timecode of the frame rendered. */
+/** One capture: the PNG plus the timecode of the frame rendered, e.g. `01s15f`. */
 export type CapturedImage = { base64: string; timecode: string };
 
 export type ImageExportResult =
@@ -173,13 +173,18 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
 
   const boundsWidth = Math.max(1, bounds.maxX - bounds.minX);
   const boundsHeight = Math.max(1, bounds.maxY - bounds.minY);
-  const scale = config.resolution ? config.resolution / boundsHeight : 1;
 
-  offscreenCanvas.width = Math.max(1, Math.round(boundsWidth * scale));
-  offscreenCanvas.height = Math.max(1, Math.round(boundsHeight * scale));
+  /** Re-target the output height; callers that lay frames out do this once measured. */
+  const resize = (height?: number) => {
+    const scale = height ? height / boundsHeight : 1;
+    offscreenCanvas.width = Math.max(1, Math.round(boundsWidth * scale));
+    offscreenCanvas.height = Math.max(1, Math.round(boundsHeight * scale));
+    world.resolution = scale;
+  };
+
+  resize(config.resolution);
   // Shift the measured box onto the canvas so the node is centered in view;
   // the camera translation is scaled by world.resolution at render time.
-  world.resolution = scale;
   world.camera.e = -bounds.minX;
   world.camera.f = -bounds.minY;
 
@@ -204,7 +209,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
         const stampFrame = startFrame + frame;
         images.push({
           base64: await toBase64Png(offscreenCanvas),
-          timecode: formatTimestamp(framesToSeconds(stampFrame, world.frameRate), world.frameRate),
+          timecode: formatTimecode(framesToSeconds(stampFrame, world.frameRate), world.frameRate),
         });
       }
 
@@ -224,6 +229,8 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   return {
     render,
     cancel,
+    resize,
+    bounds: { width: boundsWidth, height: boundsHeight },
   };
 }
 

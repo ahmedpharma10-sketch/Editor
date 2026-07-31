@@ -17,7 +17,8 @@ import { listLocalFonts } from "./fonts";
 import { buildIssueReport } from "./report";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { AssetRef, EncoderConfigInput, FrameQuality, LogEntry, LogLevel, NodePatch } from "./protocol";
+import { MAX_FRAMES_PER_SHEET } from "./protocol";
+import type { AssetRef, EncoderConfigInput, FrameQuality, LogEntry, LogLevel, NodePatch, TimecodedImage } from "./protocol";
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
@@ -432,23 +433,23 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type CaptureOptions = { time?: string[]; output?: string };
+type CaptureOptions = { time?: string[]; output?: string; separate?: boolean; perSheet?: string };
 
 async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const eid = parseNodeIds([id])[0];
 
   const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
   const frames = times.map((t) => Math.round(t * TIME_FPS));
+  const perSheet = parsePerSheet(opts.perSheet, opts.separate);
 
   const dir = opts.output ?? join(tmpdir(), `dapi-capture-${randomUUID().slice(0, 8)}`);
   mkdirSync(dir, { recursive: true });
   try {
-    const shots = await editor.node.capture.query({ id: eid, frames }, GENERATE);
-    for (const [i, { base64, timecode }] of shots.entries()) {
-      const path = join(dir, timecodeFilename(timecode));
-      writeFileSync(path, Buffer.from(base64, "base64"));
-      console.log(JSON.stringify({ time: times[i], path }));
-    }
+    const images = await editor.node.capture.query(
+      { id: eid, frames, combine: !opts.separate, perSheet },
+      GENERATE,
+    );
+    writeImages(images, dir);
   } catch (e) {
     handleSocketError(e);
   }
@@ -468,6 +469,8 @@ type MediaFrameOptions = {
   uncapped?: boolean;
   output?: string;
   auto?: boolean;
+  separate?: boolean;
+  perSheet?: string;
 };
 
 async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
@@ -520,16 +523,23 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
     quality = opts.quality as FrameQuality;
   }
 
+  const perSheet = parsePerSheet(opts.perSheet, opts.separate);
   const target = resolveAssetRef(ref);
   const dir = opts.output ?? join(tmpdir(), `dapi-grab-${randomUUID().slice(0, 8)}`);
   mkdirSync(dir, { recursive: true });
   try {
-    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, auto: opts.auto });
-    for (const { time, timecode, base64 } of frames) {
-      const path = join(dir, timecodeFilename(timecode));
-      writeFileSync(path, Buffer.from(base64, "base64"));
-      console.log(JSON.stringify({ time, path }));
-    }
+    const images = await editor.media.frame.query({
+      ...target,
+      times,
+      count,
+      start,
+      end,
+      quality,
+      auto: opts.auto,
+      combine: !opts.separate,
+      perSheet,
+    });
+    writeImages(images, dir);
   } catch (e) {
     handleSocketError(e);
   }
@@ -614,9 +624,29 @@ function parseTimeArg(value: string, flag: string, allowNegative = false): numbe
   return seconds;
 }
 
-function timecodeFilename(timecode: string): string {
-  const [hh, mm, ss, ff] = timecode.split(":");
-  return `${hh}h${mm}m${ss}s${ff}f.png`;
+// Frames and contact sheets arrive in the same shape: the app stamps each
+// image with its timecode (`08s10f`, or `0f-08s10f` for a sheet), which is the
+// filename too.
+function writeImages(images: TimecodedImage[], dir: string): void {
+  for (const { timecode, base64 } of images) {
+    const path = join(dir, `${timecode}.png`);
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ timecode, path }));
+  }
+}
+
+function parsePerSheet(value: string | undefined, separate?: boolean): number | undefined {
+  if (value === undefined) return undefined;
+  if (separate) {
+    console.error("--per-sheet lays out contact sheets; it cannot be combined with --separate.");
+    process.exit(1);
+  }
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_FRAMES_PER_SHEET) {
+    console.error(`--per-sheet must be an integer between 1 and ${MAX_FRAMES_PER_SHEET} (got "${value}")`);
+    process.exit(1);
+  }
+  return n;
 }
 
 // Parse the window/scale flags shared by `filmstrip` and `waveform`.
@@ -997,12 +1027,26 @@ function formatLogEntry(entry: LogEntry): string {
 
 type ScreenshotOptions = { output?: string };
 
+// `diffusion-studio_2026-07-31_08-55-12.png`
+function screenshotFilename(taken: Date, attempt: number): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const date = [taken.getFullYear(), pad(taken.getMonth() + 1), pad(taken.getDate())].join("-");
+  const time = [pad(taken.getHours()), pad(taken.getMinutes()), pad(taken.getSeconds())].join("-");
+  const slug = APP_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return `${slug}_${date}_${time}${attempt > 1 ? `-${attempt}` : ""}.png`;
+}
+
 async function appScreenshot(opts: ScreenshotOptions): Promise<void> {
   const dir = opts.output ?? tmpdir();
   mkdirSync(dir, { recursive: true });
   try {
     const { base64, width, height } = await editor.screenshot.query();
-    const path = join(dir, `${randomUUID()}.png`);
+    const taken = new Date();
+    let attempt = 1;
+    let path = join(dir, screenshotFilename(taken, attempt));
+    while (existsSync(path)) {
+      path = join(dir, screenshotFilename(taken, ++attempt));
+    }
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path, width, height }));
   } catch (e) {
@@ -1309,7 +1353,7 @@ media
   .command("grab")
   .alias("sample")
   .description(
-    `Decode frames of a video file and write them as PNGs (local render, no credits), each named after its timecode (e.g. 00h00m01s15f.png). Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
+    `Decode frames of a video file and write them as PNGs (local render, no credits). By default the frames are merged into contact sheets: up to 12 per image, each cell labelled with its timecode (\`08s10f\`, zero segments dropped) and drawn as large as fits, so a handful of frames arrives as one high-resolution picture instead of a directory to open one by one (\`--separate\` writes a PNG per frame). Grabs the asset's own pixels, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level; past ~12 frames prefer \`media filmstrip\`.`,
   )
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
@@ -1317,7 +1361,9 @@ media
   .option("-a, --auto", "scan the clip at 2fps and keep a frame each time the footage settles into a new visual state (transitions are waited out, so picks stay sharp); returns at most --count frames (default cap: 30), static footage like screen recordings returns far fewer; requires WebGPU")
   .option("-s, --start <time>", `with --count or --auto, start of the window to sample (seconds, "45f" frames, or "MM:SS"; default: 0)`)
   .option("-e, --end <time>", `with --count or --auto, end of the window to sample (seconds, "45f" frames, or "MM:SS"; default: asset duration)`)
-  .option("-q, --quality <preset>", "frame resolution: small (384x384, default), medium (768x768), large (1536x1536), or fullres (native)")
+  .option("-q, --quality <preset>", "frame resolution: small (384x384), medium (768x768), large (1536x1536), or fullres (native); default: as large as the sheet cell allows, or small with --separate")
+  .option("-S, --separate", "write one PNG per frame instead of merging them into contact sheets")
+  .option("--per-sheet <n>", "frames per contact sheet, 1-12; fewer frames means a larger cell each (default: as many as fit)")
   .option("--uncapped", "lift the 100-frame safety cap (grabbing many frames is slow and token-heavy)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((ref: string, opts: MediaFrameOptions) => mediaFrame(ref, opts));
@@ -1471,10 +1517,12 @@ node
 node
   .command("capture")
   .description(
-    `Render a node in isolation to PNGs, one per position, each named after the timecode of the frame rendered (e.g. 00h00m01s15f.png). The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
+    `Render a node in isolation to PNGs. By default the positions are merged into contact sheets: up to 12 per image, each cell labelled with its timecode (\`08s10f\`, zero segments dropped) and rendered as large as fits, so a few positions arrive as one high-resolution picture instead of a directory to open one by one (\`--separate\` writes a PNG per position, at 720p height, keeping the alpha channel). The node is drawn offscreen, tightly framed to its own bounds on a transparent background; siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
+  .option("-S, --separate", "write one PNG per position instead of merging them into contact sheets")
+  .option("--per-sheet <n>", "positions per contact sheet, 1-12; fewer means a larger cell each (default: as many as fit)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 

@@ -10,7 +10,7 @@ The shot is taken from the app's own window buffer, so it works even when the wi
 
 ## Output
 
-One JSON object: the absolute path to a freshly written PNG with a uuid filename, plus the image's pixel dimensions.
+One JSON object: the absolute path to a freshly written PNG, plus the image's pixel dimensions.
 
 ```ts
 { path: string, width: number, height: number }

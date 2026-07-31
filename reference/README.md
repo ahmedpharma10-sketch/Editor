@@ -50,7 +50,7 @@ How the surface is divided:
 - [`dapi node ls`](./node/ls.md): raw entity records
 - [`dapi node tree`](./node/tree.md): an entity's subtree as nested JSON
 - [`dapi node grep`](./node/grep.md): search entity records with a regex
-- [`dapi node capture`](./node/capture.md): capture a node as a PNG
+- [`dapi node capture`](./node/capture.md): capture a node to a labelled contact sheet, or one PNG per position
 - [`dapi node insert`](./node/insert.md): insert JSX tags into an existing parent
 - [`dapi node rm`](./node/rm.md): delete entities
 - [`dapi node cp`](./node/cp.md): deep-clone nodes
@@ -78,7 +78,7 @@ How the surface is divided:
 
 - [`dapi media probe`](./media/probe.md): container and track metadata
 - [`dapi media transcribe`](./media/transcribe.md): timed speech transcript
-- [`dapi media grab`](./media/grab.md): decode video frames to PNGs
+- [`dapi media grab`](./media/grab.md): decode video frames to a labelled contact sheet, or one PNG per frame
 - [`dapi media filmstrip`](./media/filmstrip.md): grid of video frames as a PNG
 - [`dapi media waveform`](./media/waveform.md): audio waveform PNG with silence highlighting
 - [`dapi media listen`](./media/listen.md): AI description of an audio track

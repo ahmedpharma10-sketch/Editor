@@ -87,15 +87,34 @@ const SILENCE_THRESHOLD = 12; // peak value (0-255) at/below which audio counts 
 const SILENCE_MIN_SECONDS = 0.4;
 const AUDIO_RULER_FRAME_RATE = 30;
 
-export function formatTimestamp(seconds: number, frameRate: number): string {
+function splitTimecode(seconds: number, frameRate: number): [hours: number, minutes: number, seconds: number, frames: number] {
   const fps = Math.max(1, Math.round(frameRate));
   const totalFrames = Math.round(seconds * fps);
-  const frames = totalFrames % fps;
   const totalSeconds = Math.floor(totalFrames / fps);
-  const hh = Math.floor(totalSeconds / 3600);
-  const mm = Math.floor((totalSeconds % 3600) / 60);
-  const ss = totalSeconds % 60;
-  return [hh, mm, ss, frames].map((v) => String(v).padStart(2, '0')).join(':');
+  return [
+    Math.floor(totalSeconds / 3600),
+    Math.floor((totalSeconds % 3600) / 60),
+    totalSeconds % 60,
+    totalFrames % fps,
+  ];
+}
+
+/** `HH:MM:SS:FF`, fixed width so ruler ticks line up. */
+export function formatTimestamp(seconds: number, frameRate: number): string {
+  return splitTimecode(seconds, frameRate).map((v) => String(v).padStart(2, '0')).join(':');
+}
+
+/**
+ * The same timecode with its zero segments dropped, for labels and filenames:
+ * `08s10f`, `01m05s`, `0f`. Each segment carries its unit, so nothing is
+ * ambiguous once the empty ones are gone.
+ */
+export function formatTimecode(seconds: number, frameRate: number): string {
+  const units = ['h', 'm', 's', 'f'];
+  const stamp = splitTimecode(seconds, frameRate)
+    .map((value, i) => (value === 0 ? '' : `${String(value).padStart(2, '0')}${units[i]}`))
+    .join('');
+  return stamp || '0f';
 }
 
 // Draws a timestamp label into the top-left corner of a canvas: white text with
@@ -104,8 +123,9 @@ export function stampTimestampLabel(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   height: number,
   label: string,
+  options?: { minBandHeight?: number },
 ): void {
-  const bandHeight = Math.max(20, Math.round(height * 0.06));
+  const bandHeight = Math.max(options?.minBandHeight ?? 20, Math.round(height * 0.06));
   const fontSize = Math.round(bandHeight * 0.72);
   const paddingLeft = Math.round(bandHeight * 0.4);
   const y = paddingLeft + bandHeight / 2;
