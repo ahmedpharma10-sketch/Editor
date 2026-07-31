@@ -19,6 +19,7 @@
  */
 
 import type { JSX as SolidJSX } from "solid-js";
+import type { AssetInput } from "./generate";
 import type {
   AudioProps,
   CaptionsProps,
@@ -43,7 +44,12 @@ import type {
 // <surface> instead). "audio", "video", and "html" are dropped as DOM tags:
 // media doesn't play under a paint host and a nested <html> is meaningless,
 // so those names belong to the composition elements below.
-type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas" | "audio" | "video" | "html">;
+type HtmlElementTags = Omit<SolidJSX.HTMLElementTags, "canvas" | "audio" | "video" | "html" | "img">;
+
+// `<img>` keeps every DOM attribute but takes the composition `src` inputs:
+// a path, an asset id, a URL, or a `generate.*` ref all resolve through the
+// host, and `data:`/`blob:` sources pass through to the browser untouched.
+type ImgTag = Omit<SolidJSX.HTMLElementTags["img"], "src"> & { src?: AssetInput };
 
 // The shared names are re-declared below as unions with the composition props.
 type SvgElementTags = Omit<SolidJSX.SVGElementTags, "rect" | "text" | "image">;
@@ -58,6 +64,7 @@ export declare namespace JSX {
   }
 
   export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
+    img: ImgTag;
     group: GroupProps;
     rect: RectProps | SolidJSX.SVGElementTags["rect"];
     video: VideoProps;

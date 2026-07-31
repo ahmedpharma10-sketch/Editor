@@ -22,7 +22,7 @@ In [`<html>`](./html.md) you style text with ordinary CSS, so **use a locally in
 </html>
 ```
 
-Remote web fonts do not work: a Google Fonts `<link>` or an `@font-face` with a `url()` source is a cross-origin subresource, and those are excluded from the painted read-back (the same rule that drops remote images, see [html.md](./html.md#requirements-and-limitations)). The glyphs would render on screen but come out blank in `dapi node capture` and exports. Stay on families from [`dapi fonts`](../fonts.md).
+Remote web fonts (a Google Fonts `<link>`, or an `@font-face` with a `url()` source) do render, but nothing waits for the fetch. Stay on local families from [`dapi fonts`](../fonts.md) and the output is deterministic.
 
 If you want to pin an exact variant, declare an `@font-face` whose source is the CSS `local()` string that `dapi fonts` reports for that variant (never a `url()`):
 

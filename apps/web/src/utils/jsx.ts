@@ -27,6 +27,7 @@ import {
   deleteEntity,
   findAssetDuration,
   findGeometryAsset,
+  getAssetFile,
   getEntityTree,
   getNextName,
   getParentEntity,
@@ -81,6 +82,10 @@ function timingProp(props: Record<string, unknown> | undefined, name: "start" | 
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+// `src` values an html `<img>` carries straight to the browser; anything else
+// is a composition source the host has to resolve first.
+const DIRECT_SRC_RE = /^(?:data|blob):/i;
 
 // Multiple new scenes are laid side by side in render order.
 const PLACEMENT_GAP = 40;
@@ -391,6 +396,14 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   // wrapper for <Html>, the paint entity for <HtmlPaint>).
   private htmlHosts = new Map<number, HtmlHost>();
 
+  // Object URLs minted for host-resolved <img> sources: a reactive `src` swap
+  // frees the one its element held, and teardown frees whatever is left.
+  private objectUrls = new Map<HTMLImageElement, string>();
+
+  // Per-element request counter, so a slow resolution that a newer `src` has
+  // already superseded doesn't land on top of it.
+  private imageEpochs = new WeakMap<HTMLImageElement, number>();
+
   // One stable handle per entity: Solid's reconciliation compares host nodes
   // by object identity, so traversal must return the same instance that
   // `createElement` handed out.
@@ -431,6 +444,8 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   public disposeHosts(): void {
     for (const host of this.createdHosts) host.dispose();
     this.createdHosts.length = 0;
+    for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
+    this.objectUrls.clear();
   }
 
   // Set once `commit()` finishes. A mount keeps its reactive graph running
@@ -912,6 +927,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     if (name === "children" || name === "ref" || value === undefined || node instanceof Text) return;
 
     if (node instanceof Element) {
+      if (name === "src" && node instanceof HTMLImageElement) {
+        this.setImageSource(node, value);
+        return;
+      }
       setDomProperty(node, name, value);
       return;
     }
@@ -1829,6 +1848,80 @@ export class WorldDocument implements ProjectDocument<HostNode> {
 
       setComponent(world, eid, c.Name, asset.name);
     });
+  }
+
+  /**
+   * `src` of an `<img>` inside html content. It takes the same inputs as a
+   * composition `src` — a path, an asset id, a URL, or a `generate.*` ref —
+   * which the module can't read itself, so they resolve through the host into
+   * an object URL. Sources the browser can already fetch (`data:`, `blob:`)
+   * are set as they are.
+   */
+  private setImageSource(el: HTMLImageElement, value: unknown): void {
+    const epoch = (this.imageEpochs.get(el) ?? 0) + 1;
+    this.imageEpochs.set(el, epoch);
+
+    if (typeof value === "string" && DIRECT_SRC_RE.test(value)) {
+      this.pointImageAt(el, value, false);
+      return;
+    }
+
+    // An empty `src` is the placeholder a signal reads before its source
+    // exists, so it clears the element rather than failing the render.
+    if (typeof value === "string" && value.trim().length === 0) {
+      this.releaseImageUrl(el);
+      el.removeAttribute("src");
+      return;
+    }
+
+    assert(
+      isAssetRef(value) || typeof value === "string",
+      "an <img> `src` must be a path, URL, asset id, or `generate.*` ref" + `, value: ${value}`,
+    );
+
+    this.trackImageLoad((async () => {
+      const input = value as AssetInput;
+      const asset = isAssetRef(input)
+        ? await resolveGeneratedAsset(this.world, input, new Map())
+        : await resolveAsset(this.world, input);
+      const file = await getAssetFile(asset);
+
+      // A newer `src` claimed this element while the old one resolved.
+      if (this.imageEpochs.get(el) !== epoch) return;
+
+      this.pointImageAt(el, URL.createObjectURL(file), true);
+      // Decoded here rather than at draw time so the first frame that samples
+      // this subtree already has pixels; a broken source just paints nothing.
+      await el.decode().catch(() => undefined);
+    })());
+  }
+
+  /** Points the element at `url`, freeing the object URL it held before. */
+  private pointImageAt(el: HTMLImageElement, url: string, owned: boolean): void {
+    this.releaseImageUrl(el);
+    if (owned) this.objectUrls.set(el, url);
+    el.src = url;
+  }
+
+  /** Frees the object URL this element holds, if it minted one. */
+  private releaseImageUrl(el: HTMLImageElement): void {
+    const url = this.objectUrls.get(el);
+    if (url === undefined) return;
+    URL.revokeObjectURL(url);
+    this.objectUrls.delete(el);
+  }
+
+  /**
+   * Makes an image source part of what a render waits for: `commit()` for the
+   * initial mount, so export and capture have it by frame 0, and the world's
+   * promise queue, which offline renders drain before every frame — that is
+   * what catches a live mount swapping `src` mid-timeline. Only the commit
+   * copy rejects; a source that breaks later must not take an export down.
+   */
+  private trackImageLoad(promise: Promise<void>): void {
+    this.world.promises?.push(promise.catch(() => undefined));
+    if (this.committed) promise.catch(console.error);
+    else this.promises.push(promise);
   }
 
 }

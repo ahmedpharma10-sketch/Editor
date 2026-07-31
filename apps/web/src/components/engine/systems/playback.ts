@@ -5,7 +5,6 @@
 import { hasComponent, Not, Or, query } from 'bitecs';
 import { ChildOf, PaintType } from '../components';
 import { resolveAudioDecoder, resolveCaptionDecoder, resolveImageDecoder, resolveSequenceDecoder, resolveShaderHost, resolveVideoDecoder } from '../decoders';
-import { nextRenderingUpdate } from '../decoders/html';
 import { getParentEntity } from '../api';
 import { getTransitionWindow } from '../utils/transition';
 import { AudioBus } from '../services/audio-bus';
@@ -211,7 +210,7 @@ function forwardAudioDecoder(world: EngineWorld, sid: number, eid: number, aid?:
 function forwardHtmlHost(world: EngineWorld, eid: number, fid: number): void {
 	const c = world.components;
 	if (world.mode === 'realtime' || c.Computed.visibility[eid] !== 1 || !c.HtmlHost[fid]) return;
-	world.promises?.push(nextRenderingUpdate());
+	world.promises?.push(c.HtmlHost[fid].whenReady());
 }
 
 function forwardImageDecoder(world: EngineWorld, _sid: number, _eid: number, fid: number): void {
