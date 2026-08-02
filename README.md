@@ -140,7 +140,7 @@ dapi node capture                                        # see the canvas itself
 | `dapi screenshot` / `dapi logs` | The app itself: capture the window, read recent console output |
 | `dapi fetch` | Download a video from yt/tt/ig, ready for `dapi asset add` |
 | `dapi whoami` | The authenticated account |
-| `dapi report` | Report a bug in the CLI or the app: diagnostics bundled, prefilled GitHub issue link |
+| `dapi report` | Report a bug in the CLI or the app: diagnostics bundled, filed as a GitHub issue via `gh` |
 
 Conventions throughout: single results are one JSON value, collections are JSON Lines, errors go to stderr with exit code `1`. Everything is built to be piped, grepped, and driven by a program.
 

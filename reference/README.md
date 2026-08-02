@@ -32,7 +32,7 @@ How the surface is divided:
 - [`dapi whoami`](./whoami.md): print the authenticated account
 - [`dapi logs`](./logs.md): recent console output from the running app
 - [`dapi screenshot`](./screenshot.md): capture the entire application window as a PNG
-- [`dapi report`](./report.md): file a bug report about the CLI or the app, with diagnostics attached
+- [`dapi report`](./report.md): file a GitHub issue about a bug in the CLI or the app, with diagnostics attached
 
 ### Document
 
@@ -123,4 +123,4 @@ Time inputs take the `Time` format unless noted otherwise. Times in **outputs** 
 - **Unix-style names are canonical:** list/read is `ls`, delete is `rm`, duplicate is `cp`, move/reparent is `mv`, search is `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls`. Commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.
 - **Exit codes:** `0` on success, `1` on any error (missing file, app not running, invalid input, IPC error).
-- **App must be running:** every command except `open`, `fonts`, and `fetch` talks to the open Diffusion Studio instance. If the app isn't running, the CLI prints an instruction to launch it and exits `1`. `report` is the one command that reads from the app but tolerates its absence, recording it in the report instead of failing.
+- **App must be running:** every command except `open`, `fonts`, and `fetch` talks to the open Diffusion Studio instance. If the app isn't running, the CLI prints an instruction to launch it and exits `1`. `report` is the one command that reads from the app but tolerates its absence, recording it in the issue instead of failing.

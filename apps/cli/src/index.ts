@@ -14,7 +14,7 @@ import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
 import { editor, errnoCode, waitForCliSocket, GENERATE_TIMEOUT_MS } from "./cli-client";
 import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
-import { buildIssueReport } from "./report";
+import { buildIssueBody, createIssue } from "./report";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
 import { MAX_FRAMES_PER_SHEET } from "./protocol";
@@ -1054,7 +1054,7 @@ async function appScreenshot(opts: ScreenshotOptions): Promise<void> {
   }
 }
 
-type IssueOptions = { body?: string; command?: string[]; logs?: string; output?: string; open?: boolean };
+type IssueOptions = { body?: string; command?: string[]; logs?: string; open?: boolean };
 
 const ISSUE_LOG_TAIL = 50;
 
@@ -1091,42 +1091,25 @@ async function reportIssue(title: string, opts: IssueOptions): Promise<void> {
     }
   }
 
-  const slug = summary.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-|-$/g, "");
-  const filename = `dapi-report-${slug || "untitled"}-${randomUUID().slice(0, 8)}.md`;
-
-  let path: string;
-  let dir: string;
-  if (opts.output === undefined) {
-    dir = tmpdir();
-    path = join(dir, filename);
-  } else {
-    const output = isAbsolute(opts.output) ? opts.output : resolve(process.cwd(), opts.output);
-    // A trailing separator always means a directory, as does an existing one.
-    const isDir = /[\\/]$/.test(opts.output) || (existsSync(output) && statSync(output).isDirectory());
-    dir = isDir ? output : dirname(output);
-    path = isDir ? join(output, filename) : output;
-  }
-
-  const { markdown, url, truncated } = buildIssueReport({
+  const body = buildIssueBody({
     title: summary,
     body: opts.body,
     commands: opts.command,
     logs,
     appStatus,
     version,
-    reportPath: path,
   });
 
+  let url: string;
   try {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path, markdown);
+    url = await createIssue(summary, body);
   } catch (e) {
-    console.error(`Could not write the report to ${path}: ${(e as Error).message}`);
+    console.error((e as Error).message);
     process.exit(1);
   }
 
   if (opts.open) openInBrowser(url);
-  console.log(JSON.stringify({ path, url, truncated }));
+  console.log(JSON.stringify({ url }));
 }
 
 function startSpinner(label: string): () => void {
@@ -1645,14 +1628,13 @@ program
   .command("report")
   .alias("issue")
   .description(
-    `Report a bug in dapi or the app itself. Writes a markdown report with diagnostics attached (dapi version, platform, recent app logs) and prints a prefilled GitHub issue URL; nothing is submitted, a human reviews and opens it.`,
+    `Report a bug in dapi or the app itself. Files a GitHub issue on diffusionstudio/editor with diagnostics attached (dapi version, platform, recent app logs) and prints its URL. Submits immediately and publicly through the gh CLI, which must be installed and authenticated; there is no review step, so only report real defects and check the attached logs for anything private.`,
   )
   .argument("<title>", "one-line summary of the problem")
   .option("-b, --body <text>", "what happened, in markdown: expected vs actual, and anything the diagnostics won't show")
   .option("-c, --command <cmd...>", "the dapi command(s) that reproduce it, in order; repeatable")
   .option("--logs <n>", `trailing app log entries to attach (0 to omit; default: ${ISSUE_LOG_TAIL})`)
-  .option("-o, --output <path>", "file path, or directory to write the report into (default: system temp dir)")
-  .option("--open", "open the prefilled GitHub issue page in the default browser")
+  .option("--open", "open the created issue in the default browser")
   .action((title: string, opts: IssueOptions) => reportIssue(title, opts));
 
 program

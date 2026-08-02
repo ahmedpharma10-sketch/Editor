@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { spawn } from "node:child_process";
 import { arch, platform, release } from "node:os";
 
-const ISSUE_URL = "https://github.com/diffusionstudio/editor/issues/new";
+const REPO = "diffusionstudio/editor";
 
-// GitHub answers a prefilled issue URL with 414 well before the 8 KB mark, so
-// the link carries a trimmed body and points at the full report on disk.
-const MAX_URL_LENGTH = 6000;
+export const GH_MISSING =
+  "gh (GitHub CLI) is not installed, so the issue cannot be filed. Install it from https://cli.github.com, run `gh auth login`, then retry.";
 
 export type IssueInput = {
   title: string;
@@ -17,10 +17,7 @@ export type IssueInput = {
   logs?: string[];       // already formatted log lines, oldest first
   appStatus: string;     // "running", "not running", "not checked", or why it was unreachable
   version: string;
-  reportPath: string;    // where the full report is written; referenced when the URL is truncated
 };
-
-export type IssueReport = { markdown: string; url: string; truncated: boolean };
 
 function fence(language: string, content: string): string {
   return `\`\`\`${language}\n${content}\n\`\`\``;
@@ -36,35 +33,7 @@ function environmentTable(input: IssueInput): string {
   return ["| | |", "| --- | --- |", ...rows.map(([k, v]) => `| ${k} | ${v} |`)].join("\n");
 }
 
-// encodeURIComponent throws on a lone surrogate, which slicing the body mid
-// emoji can produce; dropping the orphan half is enough to keep the search safe.
-function encodedLength(text: string): number {
-  const code = text.charCodeAt(text.length - 1);
-  const safe = code >= 0xd800 && code <= 0xdbff ? text.slice(0, -1) : text;
-  return encodeURIComponent(safe).length;
-}
-
-function issueUrl(title: string, body: string, reportPath: string): { url: string; truncated: boolean } {
-  const base = `${ISSUE_URL}?title=${encodeURIComponent(title)}&body=`;
-  const room = MAX_URL_LENGTH - base.length;
-  if (encodedLength(body) <= room) return { url: base + encodeURIComponent(body), truncated: false };
-
-  const note = `\n\n_Truncated for the link — full report: ${reportPath}_\n`;
-  const budget = room - encodedLength(note);
-
-  // Longest prefix of the body that still fits, by binary search on characters:
-  // percent-encoding is per-character, so the encoded length grows monotonically.
-  let lo = 0;
-  let hi = body.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (encodedLength(body.slice(0, mid)) <= budget) lo = mid;
-    else hi = mid - 1;
-  }
-  return { url: base + encodeURIComponent(body.slice(0, lo) + note), truncated: true };
-}
-
-export function buildIssueReport(input: IssueInput): IssueReport {
+export function buildIssueBody(input: IssueInput): string {
   const sections: string[] = [];
 
   if (input.body?.trim()) sections.push(input.body.trim());
@@ -72,8 +41,39 @@ export function buildIssueReport(input: IssueInput): IssueReport {
   sections.push(`## Environment\n\n${environmentTable(input)}`);
   if (input.logs?.length) sections.push(`## App logs\n\n${fence("", input.logs.join("\n"))}`);
 
-  const body = sections.join("\n\n");
-  const { url, truncated } = issueUrl(input.title, body, input.reportPath);
+  return `${sections.join("\n\n")}\n`;
+}
 
-  return { markdown: `# ${input.title}\n\n${body}\n`, url, truncated };
+// --repo is explicit because dapi runs from the user's project, not a checkout
+// of the editor; the body goes over stdin so a long log tail can't blow the
+// argv size limit.
+export function createIssue(title: string, body: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const gh = spawn("gh", ["issue", "create", "--repo", REPO, "--title", title, "--body-file", "-"]);
+
+    let stdout = "";
+    let stderr = "";
+    gh.stdout.on("data", (chunk) => (stdout += chunk));
+    gh.stderr.on("data", (chunk) => (stderr += chunk));
+
+    gh.on("error", (e) => {
+      reject((e as NodeJS.ErrnoException).code === "ENOENT" ? new Error(GH_MISSING) : e);
+    });
+    gh.on("close", (code) => {
+      if (code !== 0) {
+        // gh explains itself well (not authenticated, no access, rate limited).
+        reject(new Error(stderr.trim() || `gh issue create exited with code ${code}`));
+        return;
+      }
+      const url = stdout.trim().split("\n").pop() ?? "";
+      if (!url.startsWith("https://")) {
+        reject(new Error(`gh issue create did not print an issue URL: ${stdout.trim() || "(no output)"}`));
+        return;
+      }
+      resolve(url);
+    });
+
+    gh.stdin.on("error", () => { }); // gh exiting early (auth failure) breaks the pipe
+    gh.stdin.end(body);
+  });
 }
