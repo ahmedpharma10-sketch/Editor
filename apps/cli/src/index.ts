@@ -102,17 +102,6 @@ async function openTarget(target: string | undefined, background: boolean): Prom
   openApp(target, background);
 }
 
-function openInBrowser(url: string): void {
-  const os = platform();
-  if (os === "darwin") {
-    spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
-  } else if (os === "win32") {
-    spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
-  } else {
-    spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
-  }
-}
-
 function handleSocketError(e: unknown): never {
   const code = errnoCode(e);
   if (code === "ENOENT" || code === "ECONNREFUSED") {
@@ -1054,7 +1043,7 @@ async function appScreenshot(opts: ScreenshotOptions): Promise<void> {
   }
 }
 
-type IssueOptions = { body?: string; command?: string[]; logs?: string; open?: boolean };
+type IssueOptions = { body?: string; command?: string[]; logs?: string };
 
 const ISSUE_LOG_TAIL = 50;
 
@@ -1108,7 +1097,6 @@ async function reportIssue(title: string, opts: IssueOptions): Promise<void> {
     process.exit(1);
   }
 
-  if (opts.open) openInBrowser(url);
   console.log(JSON.stringify({ url }));
 }
 
@@ -1634,7 +1622,6 @@ program
   .option("-b, --body <text>", "what happened, in markdown: expected vs actual, and anything the diagnostics won't show")
   .option("-c, --command <cmd...>", "the dapi command(s) that reproduce it, in order; repeatable")
   .option("--logs <n>", `trailing app log entries to attach (0 to omit; default: ${ISSUE_LOG_TAIL})`)
-  .option("--open", "open the created issue in the default browser")
   .action((title: string, opts: IssueOptions) => reportIssue(title, opts));
 
 program
