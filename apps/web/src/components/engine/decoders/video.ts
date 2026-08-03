@@ -7,7 +7,9 @@ import { addComponent } from '../api/events';
 import { getAssetFile } from '../api/assets';
 import { assert } from '@/utils/common';
 import { FrameCache } from './frame-cache';
+import { getKeyframeIndex } from './keyframe-index';
 
+import type { KeyframeIndex } from './keyframe-index';
 import type { EngineWorld } from '../api/world';
 import type { VideoAsset } from '../db';
 
@@ -31,6 +33,12 @@ const FORWARD_BIAS_FRAMES = 24;
  * ensure the target frame is surfaced.
  */
 const DRAIN_FRAMES = 8;
+
+/**
+ * How far the preview may drift from the requested frame. A neighbour this close
+ * beats holding the last drawn frame while the exact one is still decoding.
+ */
+const DISPLAY_TOLERANCE_FRAMES = 4;
 
 /**
  * Total pixel budget of the preview frame cache
@@ -62,6 +70,7 @@ export class VideoBuffer {
 
 	private currentFrame: number = -1;
 	private isDirty: boolean = true;
+	private keyframes: KeyframeIndex | null = null;
 
 	private lastFrameIndex: number = 0;
 	private seekGeneration = 0;
@@ -85,6 +94,8 @@ export class VideoBuffer {
 			const videoTrack = await getVideoTrack(this.asset);
 
 			assert(videoTrack, 'Video track not found');
+
+			this.keyframes = getKeyframeIndex(this.asset.id, videoTrack);
 
 			await this.queue.init(videoTrack);
 
@@ -212,14 +223,14 @@ export class VideoBuffer {
 		const live = !!(this.iterator && this.queue.isAlive && cursor);
 
 		let reuse = live && cursor!.timestamp < untilSecs;
-		let keyPacket: EncodedPacket | null = null;
+		let keyTimestamp = this.keyframes?.floor(fromSecs) ?? null;
 
 		// If the cursor lags far behind the range start, skip forward to the nearest
 		// keyframe rather than decoding through the whole gap.
 		const biasSecs = FORWARD_BIAS_FRAMES / this.asset.frameRate;
 		if (reuse && cursor!.timestamp < fromSecs - biasSecs) {
-			keyPacket = (await this.packetSink?.getKeyPacket(fromSecs)) ?? null;
-			if (keyPacket && keyPacket.timestamp - cursor!.timestamp > biasSecs) {
+			keyTimestamp ??= (await this.packetSink?.getKeyPacket(fromSecs))?.timestamp ?? null;
+			if (keyTimestamp !== null && keyTimestamp - cursor!.timestamp > biasSecs) {
 				reuse = false; // jumping to the keyframe
 			}
 		}
@@ -227,7 +238,7 @@ export class VideoBuffer {
 		// we cant reuse the iterator, so we need to reseed the decoder
 		// and get create a new iterator
 		if (!reuse) {
-			keyPacket ??= (await this.packetSink?.getKeyPacket(fromSecs)) ?? null;
+			const keyPacket = (await this.packetSink?.getKeyPacket(keyTimestamp ?? fromSecs)) ?? null;
 			if (!keyPacket) return;
 			await this.iterator?.return();
 			this.iterator = this.packetSink?.packets(keyPacket) ?? null;
@@ -252,7 +263,9 @@ export class VideoBuffer {
 
 	public toBitmap() {
 		if (this.isDirty && this.currentFrame >= 0) {
-			const tile = this.cache.findTile(this.currentFrame);
+
+			const nearest = this.cache.findNearest(this.currentFrame, DISPLAY_TOLERANCE_FRAMES);
+			const tile = nearest === undefined ? undefined : this.cache.findTile(nearest);
 			const ctx = this.ctx;
 
 			if (tile && (this.canvas.width !== tile.width || this.canvas.height !== tile.height)) {

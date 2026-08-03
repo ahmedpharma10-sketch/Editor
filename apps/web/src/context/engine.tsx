@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createEngine, invalidateAssets } from '@/components/engine';
-import { clearAudioPeaksCache, clearAudioTrackCache, clearVideoTrackCache } from '@/components/engine/decoders';
+import { clearAudioPeaksCache, clearAudioTrackCache, clearKeyframeIndexCache, clearVideoTrackCache } from '@/components/engine/decoders';
 import { clearImageThumbnailCache } from '@/components/engine/timeline/render/image';
 import { markProjectOpened, setProjectThumbnail } from '@/components/engine/db';
 import { captureCanvasThumbnail } from '@/components/engine/thumbnail';
@@ -143,6 +143,7 @@ export function EngineProvider(props: EngineProviderProps) {
       clearAudioPeaksCache();
       clearAudioTrackCache();
       clearVideoTrackCache();
+      clearKeyframeIndexCache();
       clearImageThumbnailCache();
 
       for (const eid of getAllEntities(engine.world)) {

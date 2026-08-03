@@ -7,6 +7,7 @@ export * from './audio-peaks';
 export * from './caption';
 export * from './html';
 export * from './image';
+export * from './keyframe-index';
 export * from './sequence';
 export * from './shader';
 export * from './time-stretcher';
