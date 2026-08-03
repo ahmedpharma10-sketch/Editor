@@ -50,6 +50,16 @@ const CACHE_PIXEL_BUDGET = 768 * 432 * 81; // 81 tiles at 768x432
  */
 const MAX_TILE_PIXELS = 1280 * 720;
 
+/**
+ * Two seeks arriving closer together than this are treated as one continuous drag.
+ */
+const SCRUB_EVENT_WINDOW_MS = 250;
+
+/**
+ * Quiet period after the last scrub seek before the exact frame is resolved.
+ */
+const SCRUB_SETTLE_MS = 120;
+
 const MIN_CACHE_COUNT = 30;
 const MAX_CACHE_COUNT = 81;
 
@@ -72,11 +82,26 @@ export class VideoBuffer {
 	private isDirty: boolean = true;
 	private keyframes: KeyframeIndex | null = null;
 
+	/**
+	 * Frame the preview is aiming to show. Tracks `currentFrame` except while scrubbing,
+	 * where it points at the covering keyframe instead of the requested frame.
+	 */
+	private displayFrame: number = -1;
+
+	/**
+	 * Keyframes a scrub is waiting on. The preview keeps showing the last one that landed
+	 * until the next arrives, so a drag never blanks out for the length of a decode.
+	 * Holds several at once: decoder output trails submission by a handful of packets.
+	 */
+	private readonly pendingScrub = new Set<number>();
+
 	private lastFrameIndex: number = 0;
 	private seekGeneration = 0;
 	private seekLock: Promise<void> = Promise.resolve();
 	private iterator: AsyncGenerator<EncodedPacket, void, unknown> | null = null;
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
+	private settleTimer: ReturnType<typeof setTimeout> | null = null;
+	private lastSeekAt: number = -Infinity;
 
 	public constructor(asset: VideoAsset) {
 		this.asset = asset;
@@ -114,10 +139,16 @@ export class VideoBuffer {
 		const frameIndex = this.secondsToFrames(timestampSeconds);
 		this.cache.insert(frame, frameIndex);
 		this.isDirty = true;
+
+		// A scrub keyframe takes over the preview the moment it lands, and only then:
+		// matching on the index keeps frames from an abandoned fill out of the display.
+		if (this.pendingScrub.delete(frameIndex)) {
+			this.displayFrame = frameIndex;
+		}
 	}
 
 	public seekTo(frame: number, frameRate: number): undefined {
-		let targetFrame = Math.round((frame / frameRate) * this.asset.frameRate);
+		const targetFrame = Math.round((frame / frameRate) * this.asset.frameRate);
 
 		const isEmpty = !this.packetSink;
 		const isCurrentFrame = targetFrame === this.currentFrame;
@@ -130,15 +161,104 @@ export class VideoBuffer {
 		}
 
 		const previousFrame = this.currentFrame;
-		const forward = this.isBlockedFrame(targetFrame)
-			? targetFrame >= previousFrame
-			: true;
-
+		const consecutive = performance.now() - this.lastSeekAt < SCRUB_EVENT_WINDOW_MS;
+		this.lastSeekAt = performance.now();
 
 		this.currentFrame = targetFrame;
 		this.isDirty = true;
 
 		this.touch();
+
+		// A run of large jumps is a drag, not a playback step. Walking each GOP to the
+		// exact frame costs more than the gap between pointer events, so every walk gets
+		// cancelled by the next one and nothing ever paints.
+		const jumped = Math.abs(targetFrame - previousFrame) > FORWARD_BIAS_FRAMES;
+
+		if (consecutive && jumped && this.scrubTo(targetFrame)) {
+			return;
+		}
+
+		this.exactSeekTo(targetFrame, previousFrame);
+	}
+
+	/**
+	 * Paints the keyframe covering `targetFrame` rather than the frame itself: one packet,
+	 * no walk through the GOP. Returns false when the keyframe index cannot place the
+	 * target yet, leaving the caller to fall back to an exact seek.
+	 */
+	private scrubTo(targetFrame: number): boolean {
+		const keyTimestamp = this.keyframes?.floor(this.framesToSeconds(targetFrame)) ?? null;
+
+		if (keyTimestamp === null) {
+			return false;
+		}
+
+		const keyFrame = this.secondsToFrames(keyTimestamp);
+		this.scheduleSettle();
+
+		// Supersedes any fill still running for a position we have already left.
+		const generation = ++this.seekGeneration;
+
+		// Consecutive positions inside one GOP resolve to a keyframe we already hold.
+		if (this.cache.has(keyFrame)) {
+			this.displayFrame = keyFrame;
+			return true;
+		}
+
+		this.pendingScrub.add(keyFrame);
+
+		this.seekLock = this.seekLock
+			.then(() => this.decodeKeyframe(keyTimestamp, generation))
+			.catch(() => { });
+
+		return true;
+	}
+
+	private async decodeKeyframe(keyTimestamp: number, generation: number): Promise<void> {
+		if (generation !== this.seekGeneration) return;
+
+		const keyPacket = await this.packetSink?.getKeyPacket(keyTimestamp);
+		if (!keyPacket || generation !== this.seekGeneration) return;
+
+		// Seed the iterator here as well, so the settle pass continues forward from this
+		// keyframe instead of reseeding the decoder a second time.
+		await this.iterator?.return();
+		const iterator = this.packetSink?.packets(keyPacket) ?? null;
+		this.iterator = iterator;
+		if (!iterator) return;
+
+		if (!this.queue.isAlive) {
+			this.queue.reseed();
+		}
+
+		const { value: packet } = await iterator.next();
+		if (packet) {
+			await this.queue.decode(packet);
+		}
+	}
+
+	/**
+	 * Re-runs the seek for real once the drag stops.
+	 */
+	private scheduleSettle() {
+		if (this.settleTimer !== null) {
+			clearTimeout(this.settleTimer);
+		}
+
+		this.settleTimer = setTimeout(() => {
+			this.settleTimer = null;
+			if (this.mode !== 'alive' || this.errored) return;
+			this.exactSeekTo(this.currentFrame, this.currentFrame);
+		}, SCRUB_SETTLE_MS);
+	}
+
+	private exactSeekTo(targetFrame: number, previousFrame: number) {
+		this.displayFrame = targetFrame;
+		this.pendingScrub.clear();
+
+		const forward = this.isBlockedFrame(targetFrame)
+			? targetFrame >= previousFrame
+			: true;
 
 		const generation = ++this.seekGeneration;
 
@@ -146,20 +266,21 @@ export class VideoBuffer {
 		this.cache.leftFrameIndex = left;
 		this.cache.rightFrameIndex = right;
 
+		let seed = targetFrame;
 		let run: Promise<void>
 		if (forward) {
-			while (this.isBlockedFrame(targetFrame) && targetFrame <= this.cache.rightFrameIndex) {
-				targetFrame++;
+			while (this.isBlockedFrame(seed) && seed <= this.cache.rightFrameIndex) {
+				seed++;
 			}
 
-			run = this.seekLock.then(() => this.fillCache([targetFrame, this.cache.rightFrameIndex], generation));
+			run = this.seekLock.then(() => this.fillCache([seed, this.cache.rightFrameIndex], generation));
 		} else {
-			while (this.cache.has(targetFrame) && targetFrame >= this.cache.leftFrameIndex) {
-				targetFrame--;
+			while (this.cache.has(seed) && seed >= this.cache.leftFrameIndex) {
+				seed--;
 			}
 
 			// TODO: Find a better solution for DRAIN_FRAMES
-			run = this.seekLock.then(() => this.fillCache([this.cache.leftFrameIndex, targetFrame + DRAIN_FRAMES], generation));
+			run = this.seekLock.then(() => this.fillCache([this.cache.leftFrameIndex, seed + DRAIN_FRAMES], generation));
 		}
 
 		// Run after the previous seek finishes — never concurrently.
@@ -264,9 +385,9 @@ export class VideoBuffer {
 	}
 
 	public toBitmap() {
-		if (this.isDirty && this.currentFrame >= 0) {
+		if (this.isDirty && this.displayFrame >= 0) {
 
-			const nearest = this.cache.findNearest(this.currentFrame, DISPLAY_TOLERANCE_FRAMES);
+			const nearest = this.cache.findNearest(this.displayFrame, DISPLAY_TOLERANCE_FRAMES);
 			const tile = nearest === undefined ? undefined : this.cache.findTile(nearest);
 			const ctx = this.ctx;
 
@@ -316,6 +437,12 @@ export class VideoBuffer {
 			this.idleTimer = null;
 		}
 
+		if (this.settleTimer !== null) {
+			clearTimeout(this.settleTimer);
+			this.settleTimer = null;
+		}
+
+		this.pendingScrub.clear();
 		this.cache.dispose();
 		this.queue.dispose();
 		this.iterator?.return();
@@ -331,6 +458,12 @@ export class VideoBuffer {
 			this.idleTimer = null;
 		}
 
+		if (this.settleTimer !== null) {
+			clearTimeout(this.settleTimer);
+			this.settleTimer = null;
+		}
+
+		this.pendingScrub.clear();
 		this.cache.dispose();
 		this.queue.dispose();
 		this.iterator?.return();
