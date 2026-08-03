@@ -77,7 +77,6 @@ export class VideoBuffer {
 	private seekLock: Promise<void> = Promise.resolve();
 	private iterator: AsyncGenerator<EncodedPacket, void, unknown> | null = null;
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
-	private iteratorStart: number = Infinity;
 
 	public constructor(asset: VideoAsset) {
 		this.asset = asset;
@@ -176,14 +175,18 @@ export class VideoBuffer {
 	}
 
 	/**
-	 * Whether `frame` is already taken care of — decoded into the cache, or still in-flight
+	 * Whether `frame` is already taken care of — decoded into the cache, or still in-flight.
 	 */
 	private isBlockedFrame(frame: number) {
 		if (this.cache.has(frame)) return true;
-		const cursor = this.queue.lastSubmitted;
-		if (!cursor || this.iteratorStart === Infinity) return false;
-		return frame >= this.secondsToFrames(this.iteratorStart)
-			&& frame <= this.secondsToFrames(cursor.timestamp);
+
+		for (const micros of this.queue.inFlight) {
+			if (this.secondsToFrames(micros / 1e6) === frame) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private computeWindow(targetFrame: number, forward: boolean): [number, number] {
@@ -242,7 +245,6 @@ export class VideoBuffer {
 			if (!keyPacket) return;
 			await this.iterator?.return();
 			this.iterator = this.packetSink?.packets(keyPacket) ?? null;
-			this.iteratorStart = keyPacket.timestamp;
 		}
 
 		if (!this.queue.isAlive) {
@@ -318,7 +320,6 @@ export class VideoBuffer {
 		this.queue.dispose();
 		this.iterator?.return();
 		this.iterator = null;
-		this.iteratorStart = Infinity;
 	}
 
 	public dispose() {
@@ -334,7 +335,6 @@ export class VideoBuffer {
 		this.queue.dispose();
 		this.iterator?.return();
 		this.iterator = null;
-		this.iteratorStart = Infinity;
 
 		// Release the display canvas backing store.
 		this.canvas.width = 0;
@@ -348,6 +348,7 @@ class VideoDecoderQueue {
 	private resolver: ReturnType<typeof Promise.withResolvers> | null = null;
 	private callback: (frame: VideoFrame) => void;
 	public lastSubmitted: EncodedPacket | null = null;
+	public readonly inFlight = new Set<number>();
 
 	public constructor(callback: (frame: VideoFrame) => void) {
 		this.callback = callback;
@@ -368,10 +369,19 @@ class VideoDecoderQueue {
 		this.resolver?.resolve(null);
 		this.resolver = null;
 		this.lastSubmitted = null;
+		this.inFlight.clear();
 	}
 
 	private handleOutput(frame: VideoFrame) {
 		this.resolver?.resolve(null);
+		this.inFlight.delete(frame.timestamp);
+
+		for (const micros of this.inFlight) {
+			if (micros < frame.timestamp) {
+				this.inFlight.delete(micros);
+			}
+		}
+
 		this.callback(frame);
 		frame.close();
 	}
@@ -414,6 +424,7 @@ class VideoDecoderQueue {
 			this.lastSubmitted = null;
 			this.resolver?.resolve(null);
 			this.resolver = null;
+			this.inFlight.clear();
 			return;
 		}
 
@@ -423,6 +434,7 @@ class VideoDecoderQueue {
 
 		this.decoder.decode(packet.toEncodedVideoChunk());
 		this.lastSubmitted = packet;
+		this.inFlight.add(packet.microsecondTimestamp);
 
 		await this.resolver?.promise;
 	}
@@ -435,6 +447,7 @@ class VideoDecoderQueue {
 		this.decoder = null;
 		this.lastSubmitted = null;
 		this.resolver = null;
+		this.inFlight.clear();
 	}
 }
 
