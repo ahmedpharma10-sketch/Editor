@@ -6,11 +6,20 @@ export const MIN_CLIP_HEIGHT = 28;
 export const MAX_CLIP_HEIGHT = 116;
 export const KEYFRAME_TRACK_HEIGHT = 32;
 export const TARGET_MAJOR_TICK_DISTANCE = 160;
-export const TIMELINE_RESOLUTION_RANGE = [0.03, 12] as const;
+
+export const TIMELINE_RESOLUTION_RANGE = [0.03, 120] as const;
 export const DEFAULT_TIMELINE_RESOLUTION = 1 / 0.7;
-export const DEFAULT_CLIP_HEIGHT = 32;
+export const DEFAULT_CLIP_HEIGHT = 40;
 
 export const TIMELINE_PADDING_LEFT = 8;
+
+export const WHEEL_LINE_HEIGHT = 16;
+export const WHEEL_PAGE_HEIGHT = 600;
+
+export const ZOOM_DELTA_CLAMP = 50;
+export const ZOOM_SENSITIVITY = 0.01;
+
+export const SCROLL_X_SENSITIVITY = 2;
 
 export const CLICK_DISTANCE_THRESHOLD = 5;
 export const DOUBLE_CLICK_THRESHOLD = 500;
