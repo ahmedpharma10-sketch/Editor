@@ -4,7 +4,7 @@
 
 import { hasComponent, None, Not, Or, query } from "bitecs";
 import { ChildOf, computeLocalMatrix, decompose2D, duplicateSelection, getParentEntity, identity2D, multiply2D, quadsIntersect, rectToQuad, rotate2D, scale2D, translate2D, type Mat2D, type Point, type Quad, transformPoint, invert2D, getSceneAncestor, isPointerInEntity, appendChild, removeChild, togglePlayback, switchActiveScene, transformSystem, clearComponent, computeGroupBounds } from "..";
-import { addComponent, removeComponent, setComponent, clearSelectedAssets } from "../api";
+import { addComponent, removeComponent, setComponent, clearSelectedAssets, findKeyframeTrackEntity } from "../api";
 import { resizeEntity } from "./resize";
 import { syncInteractiveState } from "./utils";
 import { buildSnapCandidatesFromCorners, buildSnapCandidatesFromQuad, entityAnchor, entityOffset, entityQuad, entityWorldMat, findSnapTarget, getMarqueeQuad, getSelectionMaskSnapshot, getSelectionTransfromSnapshot, getSnapCandidatesSnapshot, mountNameInput, snapshotSelectionMask, snapshotSelectionTransforms, snapshotSnapCandidates, updateResizeCursor, updateRotationCursor } from "../utils/interaction";
@@ -768,7 +768,7 @@ export function handleMaskInteraction(world: EngineWorld, event: DispatchedPoint
         } catch { /* ignore */ }
       }
 
-      if (!sceneHitTarget && inScene && parentEid !== null) {
+      if (!sceneHitTarget && inScene && parentEid !== null && !hasPositionKeyframes(world, eid)) {
         try {
           removeChild(world, eid, parentEid);
           reparented = true;
@@ -845,6 +845,11 @@ function getPointerInitialPoint(world: EngineWorld, mat: Mat2D) {
   assert(inverse, 'Matrix must be invertible');
 
   return transformPoint(inverse, initialX, initialY);
+}
+
+function hasPositionKeyframes(world: EngineWorld, eid: number) {
+  return findKeyframeTrackEntity(world, eid, 'position.x') !== null
+    || findKeyframeTrackEntity(world, eid, 'position.y') !== null;
 }
 
 function findSceneHitTarget(world: EngineWorld, x: number, y: number) {
