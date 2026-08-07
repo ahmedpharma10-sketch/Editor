@@ -17,40 +17,18 @@ export function isHtmlInCanvasSupported(): boolean {
 }
 
 /**
- * Resolves after the browser's next rendering update (style/layout/paint) has
- * completed. drawElementImage samples paint records that are only refreshed
- * while the host canvas paints, so an offline render loop that mutates the
- * paint's DOM must yield one rendering update before rasterizing — otherwise
- * every frame in the same task samples the records of the last real paint.
- * The task queued from inside rAF runs after that frame's paint, so this
- * costs one vsync, not two.
- *
- * Memoized while in flight: every host forwarded in the same tick shares one
- * rendering update, so a scene with many HTML paints still waits a single rAF
- * per frame rather than scheduling one per host.
+ * Resolves after the browser's next rendering update (style/layout/paint) has completed.
  */
-let pendingRenderingUpdate: Promise<void> | null = null;
-
 export function nextRenderingUpdate(): Promise<void> {
-	pendingRenderingUpdate ??= Promise.race<void>([
-		new Promise(resolve => {
-			requestAnimationFrame(() => setTimeout(() => {
-				pendingRenderingUpdate = null;
-				resolve();
-			}, 0))
-		}),
-		// A little slower than 60fps (20ms ≈ 50fps): comfortably past a 60Hz vsync so a
-		// live rAF wins the race and we keep waiting for the real paint, while still
-		// capping the per-frame wait when rAF is paused (hidden/headless).
-		new Promise(resolve => {
-			setTimeout(() => {
-				pendingRenderingUpdate = null;
-				resolve();
-			}, 1000 / 50);
-		}),
-	]);
+	return new Promise(resolve => {
+		// timeout in case requestAnimationFrame is not called
+		const timeout = setTimeout(resolve, 250);
 
-	return pendingRenderingUpdate;
+		requestAnimationFrame(() => {
+			clearTimeout(timeout);
+			setTimeout(resolve, 0);
+		});
+	});
 }
 
 let htmlCanvas: HTMLCanvasElement | null = null;
@@ -105,8 +83,17 @@ export class HtmlHost {
 	/**
 	 * Resolves asynchronously loaded html resources.
 	 */
-	public whenReady(): Promise<void> {
+	public whenReady(timeInSeconds: number): Promise<void> {
+		// sync animations
+		for (const animation of this.element.getAnimations({ subtree: true })) {
+			if (animation.playState !== 'paused') animation.pause();
+			animation.currentTime = timeInSeconds * 1000;
+		}
+
+		// wait for fonts to be ready
 		const pending: Promise<unknown>[] = [document.fonts.ready];
+
+		// wait for images to be ready
 		for (const image of this.element.querySelectorAll('img')) {
 			// `complete` covers loaded, failed, and srcless images alike; the
 			// rest are still in flight, and a failed decode just paints nothing.
