@@ -14,11 +14,8 @@ identity, so re-mounting an example replaces its scene in place.
 | [06-three.tsx](06-three.tsx) | `dapi mount examples/06-three.tsx` | three.js WebGL renderer owning a `<surface>`, glTF model loaded over the network |
 | [07-webgpu.tsx](07-webgpu.tsx) | `dapi mount examples/07-webgpu.tsx` | raw WebGPU on a `<surface>`: a triangle whose colors cycle with composition time |
 | [08-shader-paint.tsx](08-shader-paint.tsx) | `dapi mount examples/08-shader-paint.tsx` | `<shaderPaint>` post-processing a `<video>`: WGSL chromatic aberration + vignette, uniforms patchable live |
-| [09-html-scene.tsx](09-html-scene.tsx) | `dapi mount examples/09-html-scene.tsx` | an HTML scene: `<html scene=...>` as the mount root, the whole frame laid out as DOM and counting up from the playhead |
 
 Requirements: `02-genai.tsx` consumes generation credits (results are cached per session);
-`04-html-in-canvas.tsx`, `05-anime-timeline.tsx`, and `09-html-scene.tsx` need Chromium's
-html-in-canvas API (`chrome://flags/#canvas-draw-element`); `07-webgpu.tsx` and `08-shader-paint.tsx` need WebGPU;
 `01-basics.tsx`, `06-three.tsx`, and `08-shader-paint.tsx` fetch remote media.
 
 Typecheck with `tsc -p examples --noEmit` (part of `npm run check`).

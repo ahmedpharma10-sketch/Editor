@@ -125,10 +125,9 @@ export type PatchProps = {
   /**
    * Promotes this element to a scene (mount root), and is the root's stable
    * identity across mounts: re-mounting replaces the scene carrying the same
-   * `scene` value, or creates it if absent. Only valid on a rectangle geometry
-   * (`<rect>`, `<group>`, `<html>`, `<image>`, `<video>`); a scene root cannot
-   * also carry placement or timing props (`x`/`y`/`start`/`end`/`transition`/
-   * `animations`) or a separate `key`.
+   * `scene` value, or creates it if absent. Only valid on `<rect>`; a scene
+   * root cannot also carry placement or timing props (`x`/`y`/`start`/`end`/
+   * `transition`/`animations`) or a separate `key`.
    */
   scene?: string;
   /** Human-readable node name. */
