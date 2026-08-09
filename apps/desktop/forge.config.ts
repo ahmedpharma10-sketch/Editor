@@ -52,8 +52,8 @@ const config: ForgeConfig = {
         window: { size: { width: 658, height: 498 } },
       },
       contents: (opts) => [
-        { x: 188, y: 344, type: 'file', path: opts.appPath },
-        { x: 470, y: 344, type: 'link', path: '/Applications' },
+        { x: 188, y: 217, type: 'file', path: opts.appPath },
+        { x: 470, y: 217, type: 'link', path: '/Applications' },
       ],
     }),
   ],
