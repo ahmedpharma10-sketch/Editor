@@ -6,6 +6,7 @@ import { mainBridge } from "@/lib/ipc";
 import { MAIN_CHANNELS } from "@desktop/main-channels";
 
 export function handleGetFullscreenState() {
+  if (!window.desktop) return Promise.resolve(false);
   return mainBridge.call(MAIN_CHANNELS.WINDOW_IS_FULLSCREEN, undefined);
 }
 
