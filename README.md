@@ -193,3 +193,5 @@ npm run lint     # lint all workspaces
 ## License
 
 [MPL-2.0](LICENSE)
+
+The brand assets in [apps/desktop/assets](apps/desktop/assets) are not covered by this license. Copyright (c) Diffusion Studio Inc. All rights reserved.
