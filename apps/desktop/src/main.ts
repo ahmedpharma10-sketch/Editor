@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
 import { updateElectronApp } from "update-electron-app";
 import { startCliServer, stopCliServer, isHeadless } from "./cli-server";
+import { trackInstall } from "./analytics";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
@@ -296,6 +297,7 @@ if (app.requestSingleInstanceLock()) {
     if (url) deliverDeepLink(url);
 
     startCliServer();
+    trackInstall();
     createWindow(!isHiddenLaunch(process.argv));
   });
 
