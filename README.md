@@ -26,16 +26,6 @@ npx skills add diffusionstudio/skills -g
 
 ## Prompt examples
 
-**Video understanding and reasoning**
-
-```text
-/editor In three bullets, explain what starts the conflict. Include timestamps. https://youtu.be/aqz-KE-bpKQ
-```
-
-```text
-/editor Name three recurring locations and give one visual cue that distinguishes each. https://youtu.be/dQw4w9WgXcQ
-```
-
 **Motion graphics**
 
 ```text
@@ -64,6 +54,17 @@ npx skills add diffusionstudio/skills -g
 
 ```text
 /editor Make a 15-second version of this launch video. https://x.com/claudeai/status/2045156267690213649
+```
+
+
+**Video understanding and reasoning**
+
+```text
+/watch In three bullets, explain what starts the conflict. Include timestamps. https://youtu.be/aqz-KE-bpKQ
+```
+
+```text
+/watch Name three recurring locations and give one visual cue that distinguishes each. https://youtu.be/dQw4w9WgXcQ
 ```
 
 ## Compositions as code
