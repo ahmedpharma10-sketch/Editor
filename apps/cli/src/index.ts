@@ -32,6 +32,11 @@ const HIDDEN_FLAG = "--hidden";
 function openApp(target?: string, background = false): void {
   const isUrl = !!target && target.startsWith(`${PROTOCOL}://`);
   const os = platform();
+  // The bin wrapper exports ELECTRON_RUN_AS_NODE to run this CLI through the
+  // app's Electron binary. `open`/`start` forward our environment to the app,
+  // where the flag would make Electron boot as plain Node and exit instantly,
+  // so launch with it stripped.
+  const { ELECTRON_RUN_AS_NODE: _, ...env } = process.env;
 
   if (os === "darwin") {
     const args: string[] = [];
@@ -47,7 +52,7 @@ function openApp(target?: string, background = false): void {
       args.push("--args", HIDDEN_FLAG);
     }
 
-    spawn("open", args, { detached: true, stdio: "ignore" }).unref();
+    spawn("open", args, { detached: true, stdio: "ignore", env }).unref();
     return;
   }
 
@@ -55,7 +60,7 @@ function openApp(target?: string, background = false): void {
     const arg = target ?? APP_NAME;
     const args = ["/c", "start", "", arg];
     if (background) args.push(HIDDEN_FLAG);
-    spawn("cmd", args, { detached: true, stdio: "ignore" }).unref();
+    spawn("cmd", args, { detached: true, stdio: "ignore", env }).unref();
     return;
   }
 
@@ -68,11 +73,11 @@ function openApp(target?: string, background = false): void {
   if (bin) {
     const args = target ? [target] : [];
     if (background) args.push(HIDDEN_FLAG);
-    spawn(bin, args, { detached: true, stdio: "ignore" }).unref();
+    spawn(bin, args, { detached: true, stdio: "ignore", env }).unref();
     return;
   }
   if (isUrl) {
-    spawn("xdg-open", [target!], { detached: true, stdio: "ignore" }).unref();
+    spawn("xdg-open", [target!], { detached: true, stdio: "ignore", env }).unref();
     return;
   }
   console.error(`Could not locate "${APP_NAME}" on this system.`);
