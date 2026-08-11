@@ -47,7 +47,7 @@ function Title(props: { text: string; start: Time; end: Time }) {
 
 export default function Basics() {
   return (
-    <scene key="example-basics" name="Basics" width={1920} height={1080} fill="black">
+    <rect scene="example-basics" name="Basics" width={1920} height={1080} fill="black">
       <sequence name="A-roll">
         <video
           src={`${VIDEOS}/sintel-short.mp4`}
@@ -76,6 +76,6 @@ export default function Basics() {
       <For each={TITLES}>{(t) => <Title {...t} />}</For>
 
       <audio name="Music bed" src={MUSIC} start={0} end={12} volume={-16} />
-    </scene>
+    </rect>
   );
 }

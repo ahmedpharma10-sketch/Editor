@@ -20,7 +20,20 @@ export async function captureCanvasThumbnail(
   const ctx = offscreen.getContext('2d');
   if (!ctx) return null;
 
-  ctx.drawImage(canvas, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+  const targetAspect = THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT;
+  let sw = canvas.width;
+  let sh = canvas.height;
+  let sx = 0;
+  let sy = 0;
+  if (sw / sh > targetAspect) {
+    sw = sh * targetAspect;
+    sx = (canvas.width - sw) / 2;
+  } else {
+    sh = sw / targetAspect;
+    sy = (canvas.height - sh) / 2;
+  }
+
+  ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
 
   return new Promise((resolve) => {
     offscreen.toBlob(

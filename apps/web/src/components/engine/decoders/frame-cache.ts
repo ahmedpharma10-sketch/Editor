@@ -131,13 +131,18 @@ export class FrameCache {
     return this.tiles.some(t => t.frameIndex === frameIndex);
   }
 
+  /**
+   * Frame index of the cached frame closest to `frameIndex`, or `undefined` when
+   * nothing is cached within `tolerance`. Ties resolve to the earlier frame, so a
+   * playhead sitting between two cached frames never shows one that hasn't played yet.
+   */
   public findNearest(frameIndex: number, tolerance: number): number | undefined {
     let best: number | undefined;
     let bestDistance = tolerance + 1;
 
     for (const tile of this.tiles) {
       const distance = Math.abs(tile.frameIndex - frameIndex);
-      if (distance < bestDistance) {
+      if (distance < bestDistance || (best !== undefined && distance === bestDistance && tile.frameIndex < best)) {
         bestDistance = distance;
         best = tile.frameIndex;
       }

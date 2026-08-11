@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import type { EngineWorld } from '../api/world';
-
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 // html-in-canvas (https://github.com/WICG/html-in-canvas). Chromium only,
@@ -18,26 +16,18 @@ export function isHtmlInCanvasSupported(): boolean {
 		&& 'drawElementImage' in CanvasRenderingContext2D.prototype;
 }
 
-/** Whether `world` currently owns or shares any live HTML paint host. */
-export function hasLiveHtmlHosts(world: EngineWorld): boolean {
-	for (const host of world.components.HtmlHost) {
-		if (host) return true;
-	}
-	return false;
-}
-
 /**
- * Resolves after the browser's next rendering update (style/layout/paint) has
- * completed. drawElementImage samples paint records that are only refreshed
- * while the host canvas paints, so an offline render loop that mutates the
- * paint's DOM must yield one rendering update before rasterizing — otherwise
- * every frame in the same task samples the records of the last real paint.
- * The task queued from inside rAF runs after that frame's paint, so this
- * costs one vsync, not two.
+ * Resolves after the browser's next rendering update (style/layout/paint) has completed.
  */
 export function nextRenderingUpdate(): Promise<void> {
 	return new Promise(resolve => {
-		requestAnimationFrame(() => setTimeout(resolve, 0));
+		// timeout in case requestAnimationFrame is not called
+		const timeout = setTimeout(resolve, 250);
+
+		requestAnimationFrame(() => {
+			clearTimeout(timeout);
+			setTimeout(resolve, 0);
+		});
 	});
 }
 
@@ -90,7 +80,31 @@ export class HtmlHost {
 		this.element = el;
 	}
 
-	private setSize(width: number, height: number): void {
+	/**
+	 * Resolves asynchronously loaded html resources.
+	 */
+	public whenReady(timeInSeconds: number): Promise<void> {
+		// sync animations
+		for (const animation of this.element.getAnimations({ subtree: true })) {
+			if (animation.playState !== 'paused') animation.pause();
+			animation.currentTime = timeInSeconds * 1000;
+		}
+
+		// wait for fonts to be ready
+		const pending: Promise<unknown>[] = [document.fonts.ready];
+
+		// wait for images to be ready
+		for (const image of this.element.querySelectorAll('img')) {
+			// `complete` covers loaded, failed, and srcless images alike; the
+			// rest are still in flight, and a failed decode just paints nothing.
+			if (image.complete) continue;
+			pending.push(image.decode().catch(() => undefined));
+		}
+
+		return Promise.all(pending).then(() => nextRenderingUpdate());
+	}
+
+	public setSize(width: number, height: number): void {
 		if (width === this.width && height === this.height) return;
 		this.width = width;
 		this.height = height;

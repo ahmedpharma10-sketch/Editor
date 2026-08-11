@@ -27,6 +27,7 @@ import {
   deleteEntity,
   findAssetDuration,
   findGeometryAsset,
+  getAssetFile,
   getEntityTree,
   getNextName,
   getParentEntity,
@@ -49,7 +50,7 @@ import { resolveAsset, resolveGeneratedAsset } from "@/utils/jsx-generation";
 import { assert, assertAllSettled, parseColor } from "@/utils";
 
 import type { AssetInput, AssetRef, AssetSpecInput, ProjectDocument, ProjectTick } from "@diffusionstudio/jsx";
-import type { Engine, EngineWorld, MountData } from "@/components/engine";
+import type { AABB, Engine, EngineWorld, MountData } from "@/components/engine";
 import type { GenerationMemo } from "@/utils/jsx-generation";
 
 export class EntityNode {
@@ -81,6 +82,10 @@ function timingProp(props: Record<string, unknown> | undefined, name: "start" | 
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+// `src` values an html `<img>` carries straight to the browser; anything else
+// is a composition source the host has to resolve first.
+const DIRECT_SRC_RE = /^(?:data|blob):/i;
 
 // Multiple new scenes are laid side by side in render order.
 const PLACEMENT_GAP = 40;
@@ -299,6 +304,12 @@ type PendingSurface = {
   ref?: (target: unknown) => void;
 };
 
+type PendingHtmlHost = {
+  eid: number;
+  host: HtmlHost;
+  paint: boolean;
+};
+
 export interface WorldDocumentOptions {
   /** Mount into an existing parent entity (e.g. `dapi node insert`). */
   parentEid?: number;
@@ -349,6 +360,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   // ancestor chain exists — flushed when the subtree connects to the stage.
   private pendingSurfaces: PendingSurface[] = [];
 
+  // Html hosts awaiting their initial box size, resolved once the ancestor
+  // chain exists — flushed alongside surfaces when the subtree connects.
+  private pendingHtmlHosts: PendingHtmlHost[] = [];
+
   // Entities this render minted or adopted — exactly the renderer's element
   // nodes. Traversal filters ECS children through this set so internal
   // sub-entities (a <Text>'s paint) and hand-added children stay invisible
@@ -359,6 +374,11 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   // Adopted entities keep their persisted (possibly hand-edited) values
   // through the initial adopt render; only post-commit effects write.
   private adopted = new Set<number>();
+
+  // World-space boxes of the new roots this mount has already placed. A fresh
+  // root has no computed layout yet, so `findEmptyPlacement` cannot see it in
+  // the world; recording each placement here keeps sibling roots from stacking.
+  private placedRootBoxes: AABB[] = [];
 
   // Entities this render soft-deleted via removeNode. Solid's reconciler
   // shuffles by removing and re-inserting nodes, so re-attaching one of
@@ -375,6 +395,14 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   // Html host per element the renderer inserts DOM content under (the
   // wrapper for <Html>, the paint entity for <HtmlPaint>).
   private htmlHosts = new Map<number, HtmlHost>();
+
+  // Object URLs minted for host-resolved <img> sources: a reactive `src` swap
+  // frees the one its element held, and teardown frees whatever is left.
+  private objectUrls = new Map<HTMLImageElement, string>();
+
+  // Per-element request counter, so a slow resolution that a newer `src` has
+  // already superseded doesn't land on top of it.
+  private imageEpochs = new WeakMap<HTMLImageElement, number>();
 
   // One stable handle per entity: Solid's reconciliation compares host nodes
   // by object identity, so traversal must return the same instance that
@@ -416,6 +444,8 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   public disposeHosts(): void {
     for (const host of this.createdHosts) host.dispose();
     this.createdHosts.length = 0;
+    for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
+    this.objectUrls.clear();
   }
 
   // Set once `commit()` finishes. A mount keeps its reactive graph running
@@ -521,14 +551,25 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     // Handle captioning queue
     {
       for (const { eid: nodeEid, type } of this.queue) {
-        if (hasComponent(world, nodeEid, c.Deleted) || type !== "caption" || c.AssetId[nodeEid]) continue;
+        if (hasComponent(world, nodeEid, c.Deleted) || type !== "caption") continue;
+
+        const props = this.data(nodeEid).props;
+        const seed = props.seed as number | undefined;
+        if (c.AssetId[nodeEid] && (seed === undefined || props.src !== undefined)) continue;
+
         const sceneEid = getSceneAncestor(world, nodeEid);
         if (!sceneEid || !hasAudioSources(world, sceneEid)) continue;
 
         assert(this.engine, "captioning requires an engine (author-mode mount)");
-        const { asset, trim } = await transcribeScene(this.engine, sceneEid);
+        const { asset, trim } = await transcribeScene(this.engine, sceneEid, undefined, seed);
         setComponent(world, nodeEid, c.AssetId, asset.id);
-        setComponent(world, nodeEid, c.Trim, trim);
+
+        const hasIn = timingProp(props, "sourceIn") !== undefined;
+        const hasOut = timingProp(props, "sourceOut") !== undefined || timingProp(props, "end") !== undefined;
+        setComponent(world, nodeEid, c.Trim, {
+          start: hasIn ? c.Trim.start[nodeEid] : trim.start,
+          end: hasOut ? c.Trim.end[nodeEid] : trim.end,
+        });
       }
     }
 
@@ -673,14 +714,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     const eid = createEntity(world);
 
     switch (tag) {
-      case "Scene": {
-        setComponent(world, eid, c.Geometry, GeometryType.RECT);
-        addComponent(world, eid, c.Scene);
-        addComponent(world, eid, c.ClipsContent);
-        setComponent(world, eid, c.Playback, {});
-        setComponent(world, eid, c.Name, getNextName(world, "Scene"));
-        break;
-      } case "Group": {
+      case "Group": {
         setComponent(world, eid, c.Geometry, GeometryType.RECT);
         addComponent(world, eid, c.Group);
         setComponent(world, eid, c.Name, getNextName(world, "Group"));
@@ -743,7 +777,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const host = this.trackHost(new HtmlHost());
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, true);
         break;
       } case "Html": {
         // A rect carrying an html paint; the element's children are the
@@ -760,7 +794,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         addComponent(world, fid, c.HtmlHost, false);
         c.HtmlHost[fid] = host;
         appendChild(world, fid, eid);
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, false);
         break;
       } case "ShaderPaint": {
         setComponent(world, eid, c.Paint, PaintType.SHADER);
@@ -893,6 +927,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     if (name === "children" || name === "ref" || value === undefined || node instanceof Text) return;
 
     if (node instanceof Element) {
+      if (name === "src" && node instanceof HTMLImageElement) {
+        this.setImageSource(node, value);
+        return;
+      }
       setDomProperty(node, name, value);
       return;
     }
@@ -1198,6 +1236,24 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         setComponent(world, eid, c.Key, value.trim());
         break;
       }
+      case "scene": {
+        // Promotes a rectangle geometry to a scene (mount root): it carries the
+        // Scene markers, and the `scene` value is the root's identity (stamped
+        // onto Key, which insertRoot uses to replace a scene on re-mount).
+        assert(typeof value === "string", "`scene` must be a string" + `, value: ${value}`);
+        assert(value.trim().length > 0, "`scene` must be a non-empty string");
+        assert(
+          c.Geometry[eid] === GeometryType.RECT,
+          "`scene` only applies to a rectangle geometry (`<rect>`, `<group>`, `<html>`, `<image>`, `<video>`)",
+        );
+        if (!hasComponent(world, eid, c.Scene)) {
+          addComponent(world, eid, c.Scene);
+          addComponent(world, eid, c.ClipsContent);
+          setComponent(world, eid, c.Playback, {});
+        }
+        setComponent(world, eid, c.Key, value.trim());
+        break;
+      }
       case "wgsl": {
         assert(c.Paint[eid] === PaintType.SHADER, "`wgsl` only applies to <ShaderPaint>");
         assert(typeof value === "string", "`wgsl` must be a string" + `, value: ${value}`);
@@ -1327,6 +1383,13 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         // A live decoder has already placed the box from the old alignment.
         c.CaptionDecoder[eid]?.reposition(world, eid);
         break;
+      } case "seed": {
+        assert(hasComponent(world, eid, c.Caption), "`seed` only applies to <Captions>");
+        assert(typeof value === "number", "`seed` must be a number" + `, value: ${value}`);
+        if (!this.committed && !this.queue.some((item) => item.type === "caption" && item.eid === eid)) {
+          this.queue.push({ eid, type: "caption" });
+        }
+        break;
       }
     }
   }
@@ -1334,6 +1397,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   public insertNode(parent: HostNode, node: HostNode, anchor?: HostNode) {
     this.track(() => this.attach(parent, node, anchor));
     this.flushConnectedSurfaces();
+    this.flushConnectedHtmlHosts();
   }
 
   /**
@@ -1396,6 +1460,10 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         !this.htmlHosts.has(parent.eid),
         "a composition element cannot be <html> content; an SVG fragment (<rect>/<text>/<image>) compiles as SVG only inside <svg> or <g>; wrap it",
       );
+      assert(
+        this.adopted.has(node.eid) || !hasComponent(world, node.eid, c.Scene),
+        "a scene cannot be nested: the `scene` property is valid only at the document root",
+      );
       // Adopted entities already sit under their persisted parent, so this
       // no-ops for them on the initial adopt render; afterwards it moves and
       // resurrects them like any other entity (e.g. a <For> shuffling rows).
@@ -1416,17 +1484,22 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     if (this.stageEid !== undefined) {
       this.attachEntity(eid, this.stageEid);
     } else {
-      assert(hasComponent(world, eid, c.Geometry), "this element cannot be a document root");
+      assert(
+        hasComponent(world, eid, c.Scene),
+        'only a scene can be a mount root: promote a rectangle geometry with `scene`, e.g. <rect scene="main" width={1920} height={1080}>',
+      );
       const key = c.Key[eid];
-      assert(key !== undefined, "`key` is required for `root` nodes");
 
       // Find and replace node with the same key
       const existing = query(world, [c.Key, Not(c.Deleted)])
         .find((other) => other !== eid && c.Key[other] === key);
 
       if (existing === undefined) {
-        const width = c.Computed.width[eid] ?? 0;
-        const height = c.Computed.height[eid] ?? 0;
+        const { width, height } = this.props(eid) ?? {};
+        assert(
+          typeof width === "number" && typeof height === "number",
+          "a scene requires numeric `width` and `height`",
+        );
         setComponent(world, eid, c.Position, this.findPlacement(width, height));
       } else {
         setComponent(world, eid, c.Position, {
@@ -1562,10 +1635,25 @@ export class WorldDocument implements ProjectDocument<HostNode> {
     });
   }
 
-  /** Wires an html host to the element the renderer inserts DOM content under. */
-  private registerHtmlHost(eid: number, host: HtmlHost): void {
+  private flushConnectedHtmlHosts(): void {
+    if (this.pendingHtmlHosts.length === 0) return;
+    this.pendingHtmlHosts = this.pendingHtmlHosts.filter((entry) => {
+      if (!this.isConnected(entry.eid)) return true;
+
+      const boxEid = entry.paint ? getParentEntity(this.world, entry.eid) ?? entry.eid : entry.eid;
+      const box = this.resolveBoxSize(boxEid);
+      entry.host.setSize(box.width, box.height);
+      return false;
+    });
+  }
+
+  /**
+   * Wires an html host to the element the renderer inserts DOM content under
+   */
+  private registerHtmlHost(eid: number, host: HtmlHost, paint: boolean): void {
     this.htmlHosts.set(eid, host);
     this.nodeOwner.set(host.element, eid);
+    this.pendingHtmlHosts.push({ eid, host, paint });
   }
 
   /**
@@ -1598,7 +1686,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const host = this.trackHost(new HtmlHost());
         addComponent(world, eid, c.HtmlHost, false);
         c.HtmlHost[eid] = host;
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, true);
         break;
       }
       case "Html": {
@@ -1607,7 +1695,7 @@ export class WorldDocument implements ProjectDocument<HostNode> {
         const host = this.trackHost(new HtmlHost());
         addComponent(world, fid, c.HtmlHost, false);
         c.HtmlHost[fid] = host;
-        this.registerHtmlHost(eid, host);
+        this.registerHtmlHost(eid, host, false);
         break;
       }
     }
@@ -1706,7 +1794,13 @@ export class WorldDocument implements ProjectDocument<HostNode> {
   }
 
   private findPlacement(width: number, height: number): { x: number; y: number } {
-    const center = findEmptyPlacement(this.world, width, height, PLACEMENT_GAP);
+    const center = findEmptyPlacement(this.world, width, height, PLACEMENT_GAP, this.placedRootBoxes);
+    this.placedRootBoxes.push({
+      minX: center.x - width / 2,
+      minY: center.y - height / 2,
+      maxX: center.x + width / 2,
+      maxY: center.y + height / 2,
+    });
     return {
       x: Math.round(center.x - width / 2),
       y: Math.round(center.y - height / 2),
@@ -1754,6 +1848,80 @@ export class WorldDocument implements ProjectDocument<HostNode> {
 
       setComponent(world, eid, c.Name, asset.name);
     });
+  }
+
+  /**
+   * `src` of an `<img>` inside html content. It takes the same inputs as a
+   * composition `src` — a path, an asset id, a URL, or a `generate.*` ref —
+   * which the module can't read itself, so they resolve through the host into
+   * an object URL. Sources the browser can already fetch (`data:`, `blob:`)
+   * are set as they are.
+   */
+  private setImageSource(el: HTMLImageElement, value: unknown): void {
+    const epoch = (this.imageEpochs.get(el) ?? 0) + 1;
+    this.imageEpochs.set(el, epoch);
+
+    if (typeof value === "string" && DIRECT_SRC_RE.test(value)) {
+      this.pointImageAt(el, value, false);
+      return;
+    }
+
+    // An empty `src` is the placeholder a signal reads before its source
+    // exists, so it clears the element rather than failing the render.
+    if (typeof value === "string" && value.trim().length === 0) {
+      this.releaseImageUrl(el);
+      el.removeAttribute("src");
+      return;
+    }
+
+    assert(
+      isAssetRef(value) || typeof value === "string",
+      "an <img> `src` must be a path, URL, asset id, or `generate.*` ref" + `, value: ${value}`,
+    );
+
+    this.trackImageLoad((async () => {
+      const input = value as AssetInput;
+      const asset = isAssetRef(input)
+        ? await resolveGeneratedAsset(this.world, input, new Map())
+        : await resolveAsset(this.world, input);
+      const file = await getAssetFile(asset);
+
+      // A newer `src` claimed this element while the old one resolved.
+      if (this.imageEpochs.get(el) !== epoch) return;
+
+      this.pointImageAt(el, URL.createObjectURL(file), true);
+      // Decoded here rather than at draw time so the first frame that samples
+      // this subtree already has pixels; a broken source just paints nothing.
+      await el.decode().catch(() => undefined);
+    })());
+  }
+
+  /** Points the element at `url`, freeing the object URL it held before. */
+  private pointImageAt(el: HTMLImageElement, url: string, owned: boolean): void {
+    this.releaseImageUrl(el);
+    if (owned) this.objectUrls.set(el, url);
+    el.src = url;
+  }
+
+  /** Frees the object URL this element holds, if it minted one. */
+  private releaseImageUrl(el: HTMLImageElement): void {
+    const url = this.objectUrls.get(el);
+    if (url === undefined) return;
+    URL.revokeObjectURL(url);
+    this.objectUrls.delete(el);
+  }
+
+  /**
+   * Makes an image source part of what a render waits for: `commit()` for the
+   * initial mount, so export and capture have it by frame 0, and the world's
+   * promise queue, which offline renders drain before every frame — that is
+   * what catches a live mount swapping `src` mid-timeline. Only the commit
+   * copy rejects; a source that breaks later must not take an export down.
+   */
+  private trackImageLoad(promise: Promise<void>): void {
+    this.world.promises?.push(promise.catch(() => undefined));
+    if (this.committed) promise.catch(console.error);
+    else this.promises.push(promise);
   }
 
 }

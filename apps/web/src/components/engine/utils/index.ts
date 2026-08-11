@@ -9,5 +9,6 @@ export * from './time';
 export * from './sort';
 export * from './cursor';
 export * from './transcode';
+export * from './contact-sheet';
 export * from './audio-sync';
 export * from './captions';

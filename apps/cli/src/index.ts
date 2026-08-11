@@ -14,9 +14,11 @@ import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
 import { editor, errnoCode, waitForCliSocket, GENERATE_TIMEOUT_MS } from "./cli-client";
 import { compileProject } from "./compile-project";
 import { listLocalFonts } from "./fonts";
+import { buildIssueBody, createIssue } from "./report";
 import { openFolder } from "./open-folder";
 import { fetchVideo } from "./ytdlp";
-import type { AssetRef, EncoderConfigInput, FrameQuality, LogLevel, NodePatch } from "./protocol";
+import { MAX_FRAMES_PER_SHEET } from "./protocol";
+import type { AssetRef, EncoderConfigInput, FrameQuality, LogEntry, LogLevel, NodePatch, TimecodedImage } from "./protocol";
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
@@ -30,6 +32,11 @@ const HIDDEN_FLAG = "--hidden";
 function openApp(target?: string, background = false): void {
   const isUrl = !!target && target.startsWith(`${PROTOCOL}://`);
   const os = platform();
+  // The bin wrapper exports ELECTRON_RUN_AS_NODE to run this CLI through the
+  // app's Electron binary. `open`/`start` forward our environment to the app,
+  // where the flag would make Electron boot as plain Node and exit instantly,
+  // so launch with it stripped.
+  const { ELECTRON_RUN_AS_NODE: _, ...env } = process.env;
 
   if (os === "darwin") {
     const args: string[] = [];
@@ -45,7 +52,7 @@ function openApp(target?: string, background = false): void {
       args.push("--args", HIDDEN_FLAG);
     }
 
-    spawn("open", args, { detached: true, stdio: "ignore" }).unref();
+    spawn("open", args, { detached: true, stdio: "ignore", env }).unref();
     return;
   }
 
@@ -53,7 +60,7 @@ function openApp(target?: string, background = false): void {
     const arg = target ?? APP_NAME;
     const args = ["/c", "start", "", arg];
     if (background) args.push(HIDDEN_FLAG);
-    spawn("cmd", args, { detached: true, stdio: "ignore" }).unref();
+    spawn("cmd", args, { detached: true, stdio: "ignore", env }).unref();
     return;
   }
 
@@ -66,11 +73,11 @@ function openApp(target?: string, background = false): void {
   if (bin) {
     const args = target ? [target] : [];
     if (background) args.push(HIDDEN_FLAG);
-    spawn(bin, args, { detached: true, stdio: "ignore" }).unref();
+    spawn(bin, args, { detached: true, stdio: "ignore", env }).unref();
     return;
   }
   if (isUrl) {
-    spawn("xdg-open", [target!], { detached: true, stdio: "ignore" }).unref();
+    spawn("xdg-open", [target!], { detached: true, stdio: "ignore", env }).unref();
     return;
   }
   console.error(`Could not locate "${APP_NAME}" on this system.`);
@@ -420,23 +427,23 @@ async function grepNodes(pattern: string, id: string | undefined, opts: NodeGrep
   }
 }
 
-type CaptureOptions = { time?: string[]; timestamp?: boolean; output?: string };
+type CaptureOptions = { time?: string[]; output?: string; separate?: boolean; perSheet?: string };
 
 async function nodeCapture(id: string, opts: CaptureOptions): Promise<void> {
   const eid = parseNodeIds([id])[0];
 
   const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
   const frames = times.map((t) => Math.round(t * TIME_FPS));
+  const perSheet = parsePerSheet(opts.perSheet, opts.separate);
 
-  const dir = opts.output ?? tmpdir();
+  const dir = opts.output ?? join(tmpdir(), `dapi-capture-${randomUUID().slice(0, 8)}`);
   mkdirSync(dir, { recursive: true });
   try {
-    const shots = await editor.node.capture.query({ id: eid, frames, timestamp: opts.timestamp });
-    for (const [i, { base64 }] of shots.entries()) {
-      const path = join(dir, `${randomUUID()}.png`);
-      writeFileSync(path, Buffer.from(base64, "base64"));
-      console.log(JSON.stringify({ time: times[i], path }));
-    }
+    const images = await editor.node.capture.query(
+      { id: eid, frames, combine: !opts.separate, perSheet },
+      GENERATE,
+    );
+    writeImages(images, dir);
   } catch (e) {
     handleSocketError(e);
   }
@@ -453,10 +460,11 @@ type MediaFrameOptions = {
   start?: string;
   end?: string;
   quality?: string;
-  timestamp?: boolean;
   uncapped?: boolean;
   output?: string;
   auto?: boolean;
+  separate?: boolean;
+  perSheet?: string;
 };
 
 async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
@@ -509,16 +517,23 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
     quality = opts.quality as FrameQuality;
   }
 
+  const perSheet = parsePerSheet(opts.perSheet, opts.separate);
   const target = resolveAssetRef(ref);
-  const dir = opts.output ?? tmpdir();
+  const dir = opts.output ?? join(tmpdir(), `dapi-grab-${randomUUID().slice(0, 8)}`);
   mkdirSync(dir, { recursive: true });
   try {
-    const frames = await editor.media.frame.query({ ...target, times, count, start, end, quality, timestamp: opts.timestamp, auto: opts.auto });
-    for (const { time, base64 } of frames) {
-      const path = join(dir, `${randomUUID()}.png`);
-      writeFileSync(path, Buffer.from(base64, "base64"));
-      console.log(JSON.stringify({ time, path }));
-    }
+    const images = await editor.media.frame.query({
+      ...target,
+      times,
+      count,
+      start,
+      end,
+      quality,
+      auto: opts.auto,
+      combine: !opts.separate,
+      perSheet,
+    });
+    writeImages(images, dir);
   } catch (e) {
     handleSocketError(e);
   }
@@ -552,20 +567,11 @@ async function mediaProbe(ref: string): Promise<void> {
   }
 }
 
-type MediaTranscribeOptions = { start?: string; end?: string };
-
-async function mediaTranscribe(ref: string, opts: MediaTranscribeOptions): Promise<void> {
-  const start = opts.start !== undefined ? parseTimeArg(opts.start, "--start") : undefined;
-  const end = opts.end !== undefined ? parseTimeArg(opts.end, "--end") : undefined;
-  if (start !== undefined && end !== undefined && start >= end) {
-    console.error(`--start (${start}s) must be less than --end (${end}s).`);
-    process.exit(1);
-  }
-
+async function mediaTranscribe(ref: string): Promise<void> {
   const target = resolveAssetRef(ref);
   const stop = startSpinner("Transcribing asset");
   try {
-    const result = await editor.media.transcribe.query({ ...target, start, end }, GENERATE);
+    const result = await editor.media.transcribe.query(target, GENERATE);
     stop();
     console.log(JSON.stringify(result));
   } catch (e) {
@@ -610,6 +616,31 @@ function parseTimeArg(value: string, flag: string, allowNegative = false): numbe
     process.exit(1);
   }
   return seconds;
+}
+
+// Frames and contact sheets arrive in the same shape: the app stamps each
+// image with its timecode (`08s10f`, or `0f-08s10f` for a sheet), which is the
+// filename too.
+function writeImages(images: TimecodedImage[], dir: string): void {
+  for (const { timecode, base64 } of images) {
+    const path = join(dir, `${timecode}.png`);
+    writeFileSync(path, Buffer.from(base64, "base64"));
+    console.log(JSON.stringify({ timecode, path }));
+  }
+}
+
+function parsePerSheet(value: string | undefined, separate?: boolean): number | undefined {
+  if (value === undefined) return undefined;
+  if (separate) {
+    console.error("--per-sheet lays out contact sheets; it cannot be combined with --separate.");
+    process.exit(1);
+  }
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_FRAMES_PER_SHEET) {
+    console.error(`--per-sheet must be an integer between 1 and ${MAX_FRAMES_PER_SHEET} (got "${value}")`);
+    process.exit(1);
+  }
+  return n;
 }
 
 // Parse the window/scale flags shared by `filmstrip` and `waveform`.
@@ -974,31 +1005,104 @@ async function showLogs(opts: LogsOptions): Promise<void> {
 
   try {
     const entries = await editor.logs.query({ tail, level: opts.level as LogLevel | undefined });
-    const pad = (n: number, w = 2) => String(n).padStart(w, "0");
-    for (const entry of entries) {
-      const d = new Date(entry.ts);
-      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
-      const source = entry.source ? `  (${entry.source})` : "";
-      console.log(`${time} [${entry.level}] ${entry.message}${source}`);
-    }
+    for (const entry of entries) console.log(formatLogEntry(entry));
   } catch (e) {
     handleSocketError(e);
   }
 }
 
+function formatLogEntry(entry: LogEntry): string {
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  const d = new Date(entry.ts);
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+  const source = entry.source ? `  (${entry.source})` : "";
+  return `${time} [${entry.level}] ${entry.message}${source}`;
+}
+
 type ScreenshotOptions = { output?: string };
+
+// `diffusion-studio_2026-07-31_08-55-12.png`
+function screenshotFilename(taken: Date, attempt: number): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const date = [taken.getFullYear(), pad(taken.getMonth() + 1), pad(taken.getDate())].join("-");
+  const time = [pad(taken.getHours()), pad(taken.getMinutes()), pad(taken.getSeconds())].join("-");
+  const slug = APP_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return `${slug}_${date}_${time}${attempt > 1 ? `-${attempt}` : ""}.png`;
+}
 
 async function appScreenshot(opts: ScreenshotOptions): Promise<void> {
   const dir = opts.output ?? tmpdir();
   mkdirSync(dir, { recursive: true });
   try {
     const { base64, width, height } = await editor.screenshot.query();
-    const path = join(dir, `${randomUUID()}.png`);
+    const taken = new Date();
+    let attempt = 1;
+    let path = join(dir, screenshotFilename(taken, attempt));
+    while (existsSync(path)) {
+      path = join(dir, screenshotFilename(taken, ++attempt));
+    }
     writeFileSync(path, Buffer.from(base64, "base64"));
     console.log(JSON.stringify({ path, width, height }));
   } catch (e) {
     handleSocketError(e);
   }
+}
+
+type IssueOptions = { body?: string; command?: string[]; logs?: string };
+
+const ISSUE_LOG_TAIL = 50;
+
+async function reportIssue(title: string, opts: IssueOptions): Promise<void> {
+  const summary = title.trim();
+  if (!summary) {
+    console.error("A one-line title is required.");
+    process.exit(1);
+  }
+
+  let tail = ISSUE_LOG_TAIL;
+  if (opts.logs !== undefined) {
+    const n = Number(opts.logs);
+    if (!Number.isInteger(n) || n < 0) {
+      console.error(`--logs must be a non-negative integer (got "${opts.logs}")`);
+      process.exit(1);
+    }
+    tail = n;
+  }
+
+  // The app being broken (or down) is exactly what gets reported, so a failed
+  // log read is recorded in the report rather than failing the command.
+  let logs: string[] | undefined;
+  let appStatus = "not checked";
+  if (tail > 0) {
+    try {
+      logs = (await editor.logs.query({ tail })).map(formatLogEntry);
+      appStatus = "running";
+    } catch (e) {
+      const code = errnoCode(e);
+      appStatus = code === "ENOENT" || code === "ECONNREFUSED"
+        ? "not running"
+        : `unreachable (${(e as Error).message})`;
+    }
+  }
+
+  const body = buildIssueBody({
+    title: summary,
+    body: opts.body,
+    commands: opts.command,
+    logs,
+    appStatus,
+    version,
+  });
+
+  let url: string;
+  try {
+    url = await createIssue(summary, body);
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
+
+  console.log(JSON.stringify({ url }));
 }
 
 function startSpinner(label: string): () => void {
@@ -1119,7 +1223,7 @@ program
   .command("context")
   .alias("ctx")
   .description(
-    `Print essential context about the open project (project, entity count, scenes, active scene, playhead, font families); call this first to orient.`,
+    `Print essential context about the open project. Call this first to orient: "this" or "here" may refer to the selection (spatial) or workarea (temporal).`,
   )
   .action(() => context());
 
@@ -1136,7 +1240,7 @@ program
 program
   .command("mount")
   .description(
-    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: each top-level element carries a \`key\`, and a root replaces the node with that key or creates it (a new <scene key> becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <surface>/<html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
+    `Compile a Solid JSX project module and mount its roots into the canvas. Re-mounting reconciles rather than duplicates: only a scene is mountable as a root, carrying its identity in \`scene\`, and a root replaces the scene with that identity or creates it (a new scene, promoted with \`scene\`, becomes the active scene and the camera focuses it). A mount stays live: its reactive graph keeps running (signals, effects, timers, \`useTicker\`), and the persisted module is re-executed in every context, so the mount is restored on reload and ticker-driven <surface>/<html> animate in exports and captures (structure must be deterministic). Long-running when the module declares AI assets (blocks until generation finishes). Compile errors fail before the app is contacted; inspect the result with \`dapi context\` or \`dapi node tree\`.`,
   )
   .argument("[path]", "path to a .tsx / .jsx / .ts / .js entry module")
   .option("--code <str>", "inline module source; export default wrapper optional for bare JSX")
@@ -1219,15 +1323,13 @@ media
     `Transcribe the speech in a video or audio file and print the timed transcript, with word-level start/end times in seconds. Commonly useful for footage with speakers (talking head, interview), where the word times let you cut on a line. A transcript marks only speech; the gaps are not necessarily silent (music, score, applause).`,
   )
   .argument("<id|path>", "video or audio asset id, or a local file")
-  .option("-s, --start <time>", `start of the range to print — seconds, "45f" frames, or "MM:SS" (default: 0); --start/--end only limit which words print, the whole asset is always transcribed`)
-  .option("-e, --end <time>", `end of the range to print — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
-  .action((ref: string, opts: MediaTranscribeOptions) => mediaTranscribe(ref, opts));
+  .action((ref: string) => mediaTranscribe(ref));
 
 media
   .command("grab")
   .alias("sample")
   .description(
-    `Decode frames of a video file and write them as PNGs (local render, no credits), each stamped in the top-left with its HH:MM:SS:FF timestamp. Grabs the asset's own pixels at full resolution, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level.`,
+    `Decode frames of a video file and write them as PNGs (local render, no credits). By default the frames are merged into contact sheets: up to 12 per image, each cell labelled with its timecode (\`08s10f\`, zero segments dropped) and drawn as large as fits, so a handful of frames arrives as one high-resolution picture instead of a directory to open one by one (\`--separate\` writes a PNG per frame). Grabs the asset's own pixels, unlike \`node capture\` which renders the composited node. The recommended tool for understanding a video at the frame level; past ~12 frames prefer \`media filmstrip\`.`,
   )
   .argument("<id|path>", "video asset id, or a local video file to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
@@ -1235,10 +1337,11 @@ media
   .option("-a, --auto", "scan the clip at 2fps and keep a frame each time the footage settles into a new visual state (transitions are waited out, so picks stay sharp); returns at most --count frames (default cap: 30), static footage like screen recordings returns far fewer; requires WebGPU")
   .option("-s, --start <time>", `with --count or --auto, start of the window to sample (seconds, "45f" frames, or "MM:SS"; default: 0)`)
   .option("-e, --end <time>", `with --count or --auto, end of the window to sample (seconds, "45f" frames, or "MM:SS"; default: asset duration)`)
-  .option("-q, --quality <preset>", "frame resolution: small (384x384, default), medium (768x768), large (1536x1536), or fullres (native)")
-  .option("--no-timestamp", "don't stamp each frame with its HH:MM:SS:FF timestamp label")
+  .option("-q, --quality <preset>", "frame resolution: small (384x384), medium (768x768), large (1536x1536), or fullres (native); default: as large as the sheet cell allows, or small with --separate")
+  .option("-S, --separate", "write one PNG per frame instead of merging them into contact sheets")
+  .option("--per-sheet <n>", "frames per contact sheet, 1-12; fewer frames means a larger cell each (default: as many as fit)")
   .option("--uncapped", "lift the 100-frame safety cap (grabbing many frames is slow and token-heavy)")
-  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((ref: string, opts: MediaFrameOptions) => mediaFrame(ref, opts));
 
 media
@@ -1390,18 +1493,19 @@ node
 node
   .command("capture")
   .description(
-    `Render a node in isolation to PNGs, one per position, each stamped in the top-left with its HH:MM:SS:FF timestamp. The node is drawn offscreen at 720p height, tightly framed to its own bounds on a transparent background — siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
+    `Render a node in isolation to PNGs. By default the positions are merged into contact sheets: up to 12 per image, each cell labelled with its timecode (\`08s10f\`, zero segments dropped) and rendered as large as fits, so a few positions arrive as one high-resolution picture instead of a directory to open one by one (\`--separate\` writes a PNG per position, at 720p height, keeping the alpha channel). The node is drawn offscreen, tightly framed to its own bounds on a transparent background; siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
   .argument("<id>", "node id to capture")
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
-  .option("--no-timestamp", "don't stamp each capture with its HH:MM:SS:FF timestamp label")
-  .option("-o, --output <dir>", "directory to write the PNGs into (default: system temp dir)")
+  .option("-S, --separate", "write one PNG per position instead of merging them into contact sheets")
+  .option("--per-sheet <n>", "positions per contact sheet, 1-12; fewer means a larger cell each (default: as many as fit)")
+  .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((id: string, opts: CaptureOptions) => nodeCapture(id, opts));
 
 node
   .command("insert")
   .description(
-    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except <scene> and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
+    `Insert JSX tags as children of an existing entity. The payload is an inline JSX fragment, e.g. \`'<rect width={10} height={10} />'\` — bare tags, no \`export default\`: an insert renders once and is discarded, so there is no live graph to drive (use \`dapi mount\` for anything reactive). Otherwise it shares the \`mount\` pipeline, including AI asset generation, but inserts fresh entities every run rather than reconciling by key, and deletes nothing. Roots must be valid children of the parent (a node takes any element or paint except a scene root carrying \`scene\` and <colorStop>; a gradient paint takes only <colorStop> roots, which is how you add a stop to a gradient).`,
   )
   .argument("<parentId>", "entity id of the parent to insert into — a node, or a gradient paint for <colorStop> roots")
   .argument("<code>", "JSX tags to insert, e.g. '<rect width={10} height={10} />' (no export default)")
@@ -1512,6 +1616,18 @@ program
   )
   .option("-o, --output <dir>", "directory to write the PNG into (default: system temp dir)")
   .action((opts: ScreenshotOptions) => appScreenshot(opts));
+
+program
+  .command("report")
+  .alias("issue")
+  .description(
+    `Report a bug in dapi or the app itself. Files a GitHub issue on diffusionstudio/editor with diagnostics attached (dapi version, platform, recent app logs) and prints its URL. Submits immediately and publicly through the gh CLI, which must be installed and authenticated; there is no review step, so only report real defects and check the attached logs for anything private.`,
+  )
+  .argument("<title>", "one-line summary of the problem")
+  .option("-b, --body <text>", "what happened, in markdown: expected vs actual, and anything the diagnostics won't show")
+  .option("-c, --command <cmd...>", "the dapi command(s) that reproduce it, in order; repeatable")
+  .option("--logs <n>", `trailing app log entries to attach (0 to omit; default: ${ISSUE_LOG_TAIL})`)
+  .action((title: string, opts: IssueOptions) => reportIssue(title, opts));
 
 program
   .command("fonts")

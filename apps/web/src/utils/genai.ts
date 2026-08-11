@@ -61,6 +61,7 @@ export function findEmptyPlacement(
   width: number,
   height: number,
   gap: number,
+  extra: AABB[] = [],
 ): { x: number; y: number } {
   const center = getViewportCenter(world);
   const viewport = getViewportBounds(world);
@@ -69,7 +70,10 @@ export function findEmptyPlacement(
   const LocalTransform = c.LocalTransform;
   const Computed = c.Computed;
 
-  const boxes: AABB[] = [];
+  // `extra` boxes are content the world can't report yet — e.g. sibling roots
+  // placed earlier in the same mount, whose layout has not been computed. They
+  // are avoided and anchored beside like any existing box.
+  const boxes: AABB[] = [...extra];
   for (const cid of query(world, [Or(c.Geometry, c.Group), Not(ChildOf('*')), Not(c.Deleted), Not(c.Hidden), Not(c.Generating)])) {
     const w = Computed.width[cid];
     const h = Computed.height[cid];

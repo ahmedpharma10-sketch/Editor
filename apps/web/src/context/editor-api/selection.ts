@@ -90,10 +90,13 @@ function toNodeRef(world: EngineWorld, eid: number): NodeRef {
   };
 }
 
-function selectedNodes(world: EngineWorld): NodeRef[] {
+export function selectedNodeIds(world: EngineWorld): number[] {
   const c = world.components;
-  const eids = query(world, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer), Not(c.Deleted)]);
-  return [...eids].map((eid) => toNodeRef(world, eid));
+  return [...query(world, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer), Not(c.Deleted)])];
+}
+
+function selectedNodes(world: EngineWorld): NodeRef[] {
+  return selectedNodeIds(world).map((eid) => toNodeRef(world, eid));
 }
 
 export function handleSelectionList(engine: Accessor<Engine>) {
@@ -120,9 +123,7 @@ export function handleSelectionSet(engine: Accessor<Engine>) {
 export function handleSelectionFocus(engine: Accessor<Engine>) {
   return async () => {
     const { world, camera } = engine();
-    const c = world.components;
-    const eids = [...query(world, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer), Not(c.Deleted)])];
-    camera.focusEntities(eids);
+    camera.focusEntities(selectedNodeIds(world));
     return selectedNodes(world);
   }
 }

@@ -115,12 +115,32 @@ export type MediaFrameRequest = AssetRef & {
   start?: number;
   end?: number;
   quality?: FrameQuality;
-  timestamp?: boolean;
   auto?: boolean;
+  combine?: boolean;
+  perSheet?: number;
 };
-export type MediaFrameResult = Array<{ time: number; base64: string }>;
 
-export type MediaTranscribeRequest = AssetRef & { start?: number; end?: number };
+/** Beyond this the cells get too small to be worth the tokens; use `filmstrip`. */
+export const MAX_FRAMES_PER_SHEET = 12;
+
+/**
+ * One written image: a single frame stamped with its timecode, or a contact
+ * sheet stamped with the span it covers (`0f-08s10f`).
+ */
+export type TimecodedImage = { timecode: string; base64: string };
+
+export type MediaFrameResult = TimecodedImage[];
+
+export type NodeCaptureRequest = {
+  id: number;
+  frames?: number[];
+  combine?: boolean;
+  perSheet?: number;
+};
+
+export type NodeCaptureResult = TimecodedImage[];
+
+export type MediaTranscribeRequest = AssetRef;
 export type TranscriptWord = { text: string; start: number; end: number };
 export type TranscriptSegment = { text: string; words: TranscriptWord[] };
 export type MediaTranscribeResult = { segments: TranscriptSegment[] };

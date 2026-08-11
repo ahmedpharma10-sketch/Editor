@@ -275,6 +275,12 @@ export const Trim = {
   end: [] as number[],
 };
 
+// Explicit playback/export window on a scene
+export const Workarea = {
+  start: [] as number[],
+  end: [] as number[],
+};
+
 // Constraint anchoring — stores CONSTRAINT_TYPES values (0=MIN, 1=MAX, 2=CENTER).
 export const Constraint = {
   horizontal: [] as number[],

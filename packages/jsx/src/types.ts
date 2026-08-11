@@ -117,11 +117,19 @@ export type CaptionPreset =
  */
 export type PatchProps = {
   /**
-   * Stable identity across mounts — required when the element is a document
-   * root: re-mounting replaces the node carrying the same key, or creates it
-   * if absent.
+   * A within-render label so another node can reference this one: `syncTo`
+   * names the `key` of the clip it aligns against. Not a mount mechanism, and
+   * invalid on a scene root, which is identified by `scene`.
    */
   key?: string;
+  /**
+   * Promotes this element to a scene (mount root), and is the root's stable
+   * identity across mounts: re-mounting replaces the scene carrying the same
+   * `scene` value, or creates it if absent. Only valid on `<rect>`; a scene
+   * root cannot also carry placement or timing props (`x`/`y`/`start`/`end`/
+   * `transition`/`animations`) or a separate `key`.
+   */
+  scene?: string;
   /** Human-readable node name. */
   name?: string;
   /** Position relative to the parent, px. Defaults to 0. Animatable. */
@@ -221,11 +229,18 @@ export type PatchProps = {
    * horizontal placement. Defaults to the preset's own alignment.
    */
   verticalAlign?: "top" | "center" | "bottom";
+  /**
+   * Transcription seed — `<Captions>` only. Part of the transcript cache key,
+   * so a new value bypasses the cached transcript and transcribes the scene
+   * again; reusing a value replays that take from cache.
+   */
+  seed?: number;
 };
 
 /** Every PatchProps key, at runtime — the `dapi node patch` allowlist. */
 export const PATCH_PROP_KEYS = Object.keys({
   key: true,
+  scene: true,
   name: true,
   x: true,
   y: true,
@@ -261,6 +276,7 @@ export const PATCH_PROP_KEYS = Object.keys({
   preset: true,
   colors: true,
   verticalAlign: true,
+  seed: true,
 } satisfies Record<keyof PatchProps, true>) as ReadonlyArray<keyof PatchProps>;
 
 type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
@@ -268,26 +284,9 @@ type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
 type CommonProps = TimingProps &
   Pick<
     PatchProps,
-    | "key" | "name" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
+    | "key" | "scene" | "name" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
     | "opacity" | "cornerRadius" | "transition" | "animations"
   >;
-
-export type SceneProps = {
-  /**
-   * Stable identity across mounts — required: re-mounting replaces the scene
-   * carrying the same key, or creates it if absent.
-   */
-  key: string;
-  /** Human-readable scene name — recommended, e.g. `name="Intro"`. */
-  name?: string;
-  /** Composition width in pixels. Required. */
-  width: number;
-  /** Composition height in pixels. Required. */
-  height: number;
-  /** Background fill, any CSS color (alpha is ignored). */
-  fill?: string;
-  children?: SolidJSX.Element;
-};
 
 export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
   children?: SolidJSX.Element;
@@ -378,5 +377,6 @@ export type SequenceProps = Pick<PatchProps, "name"> & {
 
 export type CaptionsProps = Pick<
   PatchProps,
-  "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src" | "start" | "animations"
+  | "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src"
+  | "start" | "end" | "sourceIn" | "sourceOut" | "animations" | "seed"
 >;

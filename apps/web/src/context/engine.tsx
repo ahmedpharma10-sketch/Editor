@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createEngine, invalidateAssets } from '@/components/engine';
-import { clearAudioPeaksCache, clearAudioTrackCache, clearVideoTrackCache } from '@/components/engine/decoders';
+import { clearAudioPeaksCache, clearAudioTrackCache, clearKeyframeIndexCache, clearVideoTrackCache } from '@/components/engine/decoders';
 import { clearImageThumbnailCache } from '@/components/engine/timeline/render/image';
 import { markProjectOpened, setProjectThumbnail } from '@/components/engine/db';
 import { captureCanvasThumbnail } from '@/components/engine/thumbnail';
@@ -36,6 +36,37 @@ type EngineProviderProps = {
 };
 
 type GrantableHandle = FileSystemDirectoryHandle | FileSystemFileHandle | ElectronFileHandle;;
+
+// Project-swap readiness barrier.
+const readyWaiters = new Map<string, Set<() => void>>();
+let readyProjectId: string | null = null;
+
+function markProjectReady(id: string): void {
+  readyProjectId = id;
+  const waiters = readyWaiters.get(id);
+  if (!waiters) return;
+  readyWaiters.delete(id);
+  for (const resolve of waiters) resolve();
+}
+
+export function whenProjectReady(id: string, timeoutMs = 30_000): Promise<void> {
+  if (readyProjectId === id) return Promise.resolve();
+
+  const { promise, resolve } = Promise.withResolvers<void>();
+  const waiters = readyWaiters.get(id) ?? new Set<() => void>();
+  waiters.add(resolve);
+  readyWaiters.set(id, waiters);
+
+  // Best-effort: a project whose engine never initializes (init threw) must
+  // not hang the caller forever.
+  const timer = setTimeout(() => {
+    readyWaiters.get(id)?.delete(resolve);
+    console.warn(`[engine] timed out waiting for project ${id} to become ready`);
+    resolve();
+  }, timeoutMs);
+
+  return promise.then(() => clearTimeout(timer));
+}
 
 export function EngineProvider(props: EngineProviderProps) {
   const engine = createEngine(props.projectId);
@@ -86,6 +117,8 @@ export function EngineProvider(props: EngineProviderProps) {
 
     await engine.init(canvas);
 
+    markProjectReady(props.projectId);
+
     // Detect filesystem handles whose permission was lost across reloads, then
     // open a dialog so the user can re-grant in a real click handler — the
     // requestPermission API requires a transient user activation.
@@ -110,6 +143,7 @@ export function EngineProvider(props: EngineProviderProps) {
       clearAudioPeaksCache();
       clearAudioTrackCache();
       clearVideoTrackCache();
+      clearKeyframeIndexCache();
       clearImageThumbnailCache();
 
       for (const eid of getAllEntities(engine.world)) {
@@ -121,6 +155,8 @@ export function EngineProvider(props: EngineProviderProps) {
   });
 
   onCleanup(() => {
+    if (readyProjectId === props.projectId) readyProjectId = null;
+
     // Capture thumbnail before disposing the engine
     const canvas = engine.world.canvas;
     captureCanvasThumbnail(canvas).then((blob) => {

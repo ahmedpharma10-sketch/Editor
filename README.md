@@ -1,13 +1,70 @@
-# Diffusion Studio
+<p align="center">
+  <img src="assets/banner.gif" alt="Diffusion Studio" width="100%" />
+</p>
 
-**FFmpeg for agents:** a media compositor you drive from the command line, with a generative-AI and vision toolchain built in.
+[![](https://img.shields.io/discord/1115673443141156924?style=flat&logo=discord&logoColor=white&color=5865F2)](https://discord.com/invite/zPQJrNGuFB)
+[![](https://img.shields.io/badge/Follow%20for-Updates-black?logo=x&logoColor=white)](https://x.com/diffusionhq)
+[![](https://img.shields.io/badge/Combinator-F24-orange?logo=ycombinator&logoColor=white)](https://www.ycombinator.com/companies/diffusion-studio)
 
-What makes Diffusion Studio different is `dapi`, its CLI: every part of the editor (projects, the scene graph, the asset library, AI generation, rendering) is scriptable over a local socket, with JSON on stdout and deterministic exit codes.
+**Diffusion Studio** lets your agents make videos. The agent writes a composition in TSX. The `dapi` CLI mounts it into the editor. Every element stays editable. Think of it as **FFmpeg for agents**, with generative AI and multimodal understanding built in.
 
 ```sh
 dapi open                       # use -b to run the editor headless
 dapi mount hero.tsx             # render a composition into it
 dapi node render -o hero.mp4    # encode the scene to disk
+```
+
+## Getting started
+
+Use with Claude Code, Codex, Cursor, Copilot, or Gemini CLI. Install the skill once, globally:
+
+```sh
+npx skills add diffusionstudio/skills -g
+```
+
+`/editor` is the main skill you'll use. Ask for what you want in plain language.
+
+## Prompt examples
+
+**Motion graphics**
+
+```text
+/editor Recreate the 3blue1brown animation from https://youtu.be/HEfHFsfGXjs, closely matching its visual style, pacing, framing, colors, labels, and transitions. Use the exact collision mathematics from Gregory Galperin's original paper, do not approximate the physics.
+```
+
+```text
+/editor Create a ~20-second promo for vercel-labs/native in Vercel's presentation style. Research its official website, GitHub, and brand guidelines; use authentic assets and verified product features, with crisp typography, polished motion, and a strong final CTA.
+```
+
+**Video editing**
+
+```text
+/editor edit the footage in /path/to/folder
+```
+
+```text
+/editor turn this footage into a polished YouTube video. Add readable captions and an attention-grabbing graphic in the opening to give viewers a strong visual hook.
+```
+
+**Clipping**
+
+```text
+/editor Can you pull the best 30-second moment from https://youtu.be/MtQ0qxyf-Ds and make a vertical version for social?
+```
+
+```text
+/editor Make a 15-second version of this launch video. https://x.com/claudeai/status/2045156267690213649
+```
+
+
+**Video understanding and reasoning**
+
+```text
+/watch In three bullets, explain what starts the conflict. Include timestamps. https://youtu.be/aqz-KE-bpKQ
+```
+
+```text
+/watch Name three recurring locations and give one visual cue that distinguishes each. https://youtu.be/dQw4w9WgXcQ
 ```
 
 ## Compositions as code
@@ -28,7 +85,7 @@ const TITLES = [
 
 export default function Project() {
   return (
-    <scene key="intro" name="Intro" width={1920} height={1080} fill="black">
+    <rect scene="intro" name="Intro" width={1920} height={1080} fill="black">
       <video src={motion} width={1920} height={1080} />
       <sequence>
         <For each={TITLES}>
@@ -48,7 +105,7 @@ export default function Project() {
           )}
         </For>
       </sequence>
-    </scene>
+    </rect>
   );
 }
 ```
@@ -57,7 +114,7 @@ Everything a mount produces stays a first-class editor node, so a person can pic
 
 ## Seeing and hearing the media
 
-Cutting footage requires looking at it. The CLI ships the inspection tools an agent needs to work with media it cannot watch:
+Cutting footage requires understanding it. The CLI ships the inspection tools an agent needs to work with media it cannot watch:
 
 ```sh
 dapi media probe clip.mp4                                # container + codec metadata, like ffprobe
@@ -84,6 +141,7 @@ dapi node capture                                        # see the canvas itself
 | `dapi screenshot` / `dapi logs` | The app itself: capture the window, read recent console output |
 | `dapi fetch` | Download a video from yt/tt/ig, ready for `dapi asset add` |
 | `dapi whoami` | The authenticated account |
+| `dapi report` | Report a bug in the CLI or the app: diagnostics bundled, filed as a GitHub issue via `gh` |
 
 Conventions throughout: single results are one JSON value, collections are JSON Lines, errors go to stderr with exit code `1`. Everything is built to be piped, grepped, and driven by a program.
 
@@ -136,3 +194,5 @@ npm run lint     # lint all workspaces
 ## License
 
 [MPL-2.0](LICENSE)
+
+The brand assets in [apps/desktop/assets](apps/desktop/assets) are not covered by this license. Copyright (c) Diffusion Studio Inc. All rights reserved.

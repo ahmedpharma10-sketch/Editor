@@ -98,7 +98,7 @@ function resolveBareSpecifier(spec: string, { cdnBase, importMap }: ResolverConf
 // Project files write `<rect>`; the renderer keeps receiving `Rect`, so a
 // tag's case still decides its environment at runtime.
 const BUILT_IN_TAGS: Record<string, string> = {
-  scene: "Scene", group: "Group", rect: "Rect", video: "Video", image: "Image",
+  group: "Group", rect: "Rect", video: "Video", image: "Image",
   audio: "Audio", text: "Text", sequence: "Sequence", captions: "Captions",
   solidPaint: "SolidPaint", linearGradientPaint: "LinearGradientPaint",
   radialGradientPaint: "RadialGradientPaint", colorStop: "ColorStop",

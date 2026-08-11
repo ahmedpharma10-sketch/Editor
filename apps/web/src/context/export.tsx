@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createContext, useContext, createSignal, batch, onCleanup, onMount } from "solid-js";
+import { createContext, useContext, onCleanup, onMount } from "solid-js";
 import { toast } from "somoto";
 import { assert, downloadObject } from "@/utils";
 import { useEngine } from "@/context/engine";
 import { useProjectId } from "@/hooks/use-project-id";
 import { getProjectName } from "@/components/engine/db/global-db";
-import { createEncoder } from "@/components/engine/encode/encoder";
 import { track } from "@/lib/analytics";
 import { ExportProgress, type ExportConfig } from "@/components/sidebar-right/inspector/export-progress";
+import { renderScene, renderOverlay, cancelRender } from "@/context/render";
 import {
   MIME_TYPES,
   getDefaultExportTemplate,
@@ -31,13 +31,10 @@ export function ExportProvider(props: { children: JSX.Element }) {
   const { world } = engine;
   const projectId = useProjectId();
 
-  const [exporting, setExporting] = createSignal(false);
-  const [progress, setProgress] = createSignal(0);
-  const [remaining, setRemaining] = createSignal<{ minutes: number; seconds: number }>();
-  const [activeConfig, setActiveConfig] = createSignal<ExportConfig>();
-  const [duration, setDuration] = createSignal(0);
+  const exporting = () => !!renderOverlay();
 
-  let cancelExport: (() => void) | undefined;
+  const sceneDurationSeconds = (sceneEid: number) =>
+    world.components.Computed.duration[sceneEid] / world.frameRate;
 
   const exportScene: ExportContextValue["exportScene"] = async (sceneEid, config) => {
     if (!sceneEid) return;
@@ -70,65 +67,30 @@ export function ExportProvider(props: { children: JSX.Element }) {
       return;
     }
 
-    engine.stop();
-
-    const sceneDuration = () => {
-      const frameRate = world.frameRate;
-      const Computed = world.components.Computed;
-      return Computed.duration[sceneEid] / frameRate;
-    };
-
-    batch(() => {
-      setExporting(true);
-      setProgress(0);
-      setRemaining(undefined);
-      setActiveConfig(config);
-      setDuration(sceneDuration());
-    });
-
     track('export_started', {
       format,
       resolution: config.video?.resolution,
       fps: config.video?.fps,
       video_codec: config.video?.codec,
       audio_codec: config.audio?.codec,
-      scene_duration_s: Math.round(sceneDuration()),
+      scene_duration_s: Math.round(sceneDurationSeconds(sceneEid)),
     });
     const startedAt = performance.now();
 
     try {
-      const encoder = await createEncoder(world, {
-        ...config,
-        target,
-        scene: sceneEid,
-        onProgress(p) {
-          const percent = Math.round((p.progress / p.total) * 100);
-          const r = p.remaining;
-          batch(() => {
-            setProgress(percent);
-            setRemaining({
-              minutes: r.getUTCMinutes(),
-              seconds: r.getUTCSeconds(),
-            });
-          });
-        },
-      });
-
-      cancelExport = encoder.cancel;
-
-      const result = await encoder.render();
+      const result = await renderScene(engine, { scene: sceneEid, target, config });
 
       if (result.type === "error") {
         console.error("Export failed:", result.error);
         toast.error("Export failed", {
-          description: (result.error as Error | undefined)?.message,
+          description: result.error.message,
         });
         track('export_failed', {
           format,
           duration_ms: Math.round(performance.now() - startedAt),
-          error: (result.error as Error | undefined)?.message?.slice(0, 200) ?? 'unknown',
+          error: result.error.message?.slice(0, 200) ?? 'unknown',
         });
-      } else {
+      } else if (result.type === "success") {
         toast("Export complete", {
           description: "Your video has been successfully exported",
         });
@@ -136,7 +98,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
           format,
           resolution: config.video?.resolution,
           fps: config.video?.fps,
-          scene_duration_s: Math.round(sceneDuration()),
+          scene_duration_s: Math.round(sceneDurationSeconds(sceneEid)),
           duration_ms: Math.round(performance.now() - startedAt),
         });
       }
@@ -150,10 +112,6 @@ export function ExportProvider(props: { children: JSX.Element }) {
         duration_ms: Math.round(performance.now() - startedAt),
         error: (e as Error).message?.slice(0, 200) ?? 'unknown',
       });
-    } finally {
-      cancelExport = undefined;
-      setExporting(false);
-      engine.start();
     }
   };
 
@@ -204,12 +162,12 @@ export function ExportProvider(props: { children: JSX.Element }) {
     <ExportContext.Provider value={{ exportScene, exportCurrentFrame, exporting }}>
       {props.children}
       <ExportProgress
-        open={exporting()}
-        progress={progress()}
-        remaining={remaining()}
-        config={activeConfig()}
-        duration={duration()}
-        onCancel={() => cancelExport?.()}
+        open={!!renderOverlay()}
+        progress={renderOverlay()?.progress ?? 0}
+        remaining={renderOverlay()?.remaining}
+        config={renderOverlay()?.config as ExportConfig | undefined}
+        duration={renderOverlay()?.duration ?? 0}
+        onCancel={cancelRender}
       />
     </ExportContext.Provider>
   );

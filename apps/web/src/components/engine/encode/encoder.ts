@@ -19,7 +19,7 @@ import { hasComponent, Hierarchy, Not, Or, query } from 'bitecs';
 import { ChildOf } from '../components';
 import { createEngineWorld, switchActiveScene } from '../api';
 import { recomputeEntityTimeRange } from '../api/utils';
-import { addComponent, removeComponent } from '../api/events';
+import { addComponent } from '../api/events';
 import { playbackSystem } from '../systems/playback';
 import { motionSystem } from '../systems/motion';
 import { transformSystem } from '../systems/transform';
@@ -27,7 +27,6 @@ import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
 import { getEntityTree } from '../api/query';
 import { AudioBus } from '../services/audio-bus';
-import { hasLiveHtmlHosts, nextRenderingUpdate } from '../decoders/html';
 import { realizeMounts } from '@/utils/mount';
 
 import type { EngineWorld } from '../api/world';
@@ -44,15 +43,14 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 	const sceneHeight = sourceComponents.Computed.height[sourceSceneEid];
 	const sceneEnd = sourceComponents.Computed.end[sourceSceneEid];
 
-	// Honor the scene's Trim component (the timeline workarea): render only the
-	// frames between Trim.start and Trim.end instead of the full scene
-	// duration.
-	const hasWorkarea = hasComponent(sourceWorld, sourceSceneEid, sourceComponents.Trim);
+	// Honor the scene's Workarea component: render only the frames between
+	// Workarea.start and Workarea.end instead of the full scene duration.
+	const hasWorkarea = hasComponent(sourceWorld, sourceSceneEid, sourceComponents.Workarea);
 	const workareaStart = hasWorkarea
-		? Math.max(0, Math.min(sceneEnd, sourceComponents.Trim.start[sourceSceneEid] ?? 0))
+		? Math.max(0, Math.min(sceneEnd, sourceComponents.Workarea.start[sourceSceneEid] ?? 0))
 		: 0;
 	const workareaEnd = hasWorkarea
-		? Math.max(workareaStart, Math.min(sceneEnd, sourceComponents.Trim.end[sourceSceneEid] ?? sceneEnd))
+		? Math.max(workareaStart, Math.min(sceneEnd, sourceComponents.Workarea.end[sourceSceneEid] ?? sceneEnd))
 		: sceneEnd;
 	const workareaFrames = workareaEnd - workareaStart;
 
@@ -115,13 +113,10 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 	switchActiveScene(world, sceneEid);
 
 	const c = world.components;
-	// Drop the scene's Trim in the offline world — the encoder drives the
-	// playhead explicitly within the workarea window, and leaving Trim in place
-	// would only affect the (skipped) realtime advancePlayhead branch anyway.
-	if (hasComponent(world, sceneEid, c.Trim)) {
-		// Render-only mutation on the offline world — keep it off the undo stack.
-		removeComponent(world, sceneEid, c.Trim, false);
-	}
+	// The workarea (Workarea component) is runtime-only and never serialized, so
+	// it isn't cloned into the offline world — nothing to strip here. The encoder
+	// drives the playhead explicitly within the [workareaStart, workareaEnd]
+	// window computed from the source scene above.
 	c.Computed.localTimeInSeconds[sceneEid] = playheadStartSeconds;
 	c.Computed.localTime[sceneEid] = Math.round(playheadStartSeconds * frameRate);
 	c.Playback.playing[sceneEid] = 1;
@@ -244,7 +239,6 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 			const start = performance.now();
 			const startTime = start;
 			const totalFrames = Math.floor(duration * frameRate);
-			const waitForHtmlHosts = hasLiveHtmlHosts(world);
 
 			let audioRenderingDone = false;
 			let audioRenderingCompleted: Promise<AudioBuffer> | null = null;
@@ -276,10 +270,6 @@ export async function createEncoder(sourceWorld: EngineWorld, config: EncoderCon
 					playbackSystem(world);
 					await resolverSystem(world);
 					motionSystem(world);
-				}
-
-				if (waitForHtmlHosts) {
-					await nextRenderingUpdate();
 				}
 
 				if (videoEnabled) {

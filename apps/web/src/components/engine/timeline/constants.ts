@@ -6,6 +6,22 @@ import { secondsToFrames } from "../utils";
 
 export const RULER_INTERVALS = [
   {
+    numerator: secondsToFrames(600),
+    denominator: 10,
+  },
+  {
+    numerator: secondsToFrames(300),
+    denominator: 5,
+  },
+  {
+    numerator: secondsToFrames(120),
+    denominator: 4,
+  },
+  {
+    numerator: secondsToFrames(60),
+    denominator: 6,
+  },
+  {
     numerator: secondsToFrames(30),
     denominator: 10,
   },

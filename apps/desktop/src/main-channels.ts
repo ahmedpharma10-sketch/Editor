@@ -28,6 +28,7 @@ export const MAIN_CHANNELS = {
   // Renderer→Main requests
   APP_OPEN_EXTERNAL: "app:open-external",
   AUTH_GET_PENDING_CALLBACK: "auth:get-pending-callback",
+  CHECKOUT_GET_PENDING_CALLBACK: "checkout:get-pending-callback",
   WINDOW_IS_FULLSCREEN: "window:is-fullscreen",
   WINDOW_CAPTURE: "window:capture",
   FILE_TRANSFER: "file:transfer",
@@ -40,15 +41,23 @@ export const MAIN_CHANNELS = {
 
   // Main→Renderer events
   AUTH_CALLBACK: "auth:callback",
+  CHECKOUT_CALLBACK: "checkout:callback",
   WINDOW_FULLSCREEN_CHANGE: "window:fullscreen-change",
   HEADLESS_MODE: "headless:mode",
 } as const;
 
 export type MainChannel = (typeof MAIN_CHANNELS)[keyof typeof MAIN_CHANNELS];
 
+// Events fed by a `diffusion://` deep link. Main routes each link to exactly
+// one of these by its host, so auth and checkout never consume each other's.
+export type DeepLinkChannel =
+  | typeof MAIN_CHANNELS.AUTH_CALLBACK
+  | typeof MAIN_CHANNELS.CHECKOUT_CALLBACK;
+
 export type MainRequestMap = {
   [MAIN_CHANNELS.APP_OPEN_EXTERNAL]: { request: { url: string }; response: void };
   [MAIN_CHANNELS.AUTH_GET_PENDING_CALLBACK]: { request: void; response: string | null };
+  [MAIN_CHANNELS.CHECKOUT_GET_PENDING_CALLBACK]: { request: void; response: string | null };
   [MAIN_CHANNELS.WINDOW_IS_FULLSCREEN]: { request: void; response: boolean };
   [MAIN_CHANNELS.WINDOW_CAPTURE]: { request: void; response: ScreenshotResult };
   [MAIN_CHANNELS.FILE_TRANSFER]: {
@@ -78,6 +87,7 @@ export type MainRequestChannel = keyof MainRequestMap;
 
 export type MainEventMap = {
   [MAIN_CHANNELS.AUTH_CALLBACK]: { url: string };
+  [MAIN_CHANNELS.CHECKOUT_CALLBACK]: { url: string };
   [MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE]: { fullscreen: boolean };
   [MAIN_CHANNELS.HEADLESS_MODE]: { active: boolean };
 };

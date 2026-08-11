@@ -40,7 +40,7 @@ export default function AnimeTimeline() {
   const hue = () => Math.round(v.card.hue);
 
   return (
-    <scene key="example-anime" name="Anime timeline" width={960} height={540} fill="#101014">
+    <rect scene="example-anime" name="Anime timeline" width={960} height={540} fill="#101014">
       <rect
         x={v.chip.x}
         y={v.chip.y}
@@ -84,6 +84,6 @@ export default function AnimeTimeline() {
           </div>
         </div>
       </html>
-    </scene>
+    </rect>
   );
 }

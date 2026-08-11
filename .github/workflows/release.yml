@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Provide client env for web build
+        run: cp apps/web/.env.example apps/web/.env
+
       - name: Import signing certificate
         env:
           MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}

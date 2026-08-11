@@ -42,7 +42,7 @@ export function ExportProgress(props: ExportProgressProps) {
   return (
     <Show when={props.open}>
       <Portal>
-        <div class="fixed inset-0 z-50 bg-popover/30 backdrop-blur-3xl" />
+        <div class="fixed inset-0 z-50 bg-overlay-strong" />
         <div class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="flex w-full max-w-md flex-col items-center px-6">
             <h4 class="text-lg">Exporting Composition</h4>

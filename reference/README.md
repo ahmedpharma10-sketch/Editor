@@ -6,7 +6,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 
 ## Groups
 
-**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
+**Top-level:** [`open`](./open.md), [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`report`](./report.md), [`context`](./context.md) (alias `ctx`), [`mount`](./mount.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
@@ -19,7 +19,7 @@ Each feature command has its own file (linked below). The JSX code syntax consum
 How the surface is divided:
 
 - Declarative composition happens through `mount`, which renders a Solid JSX project into the canvas (see [jsx/](./jsx/README.md)); `node insert` runs the same pipeline but inserts the rendered nodes into an existing parent entity instead of mounting document roots.
-- Scenes are created declaratively via `mount` (`<scene key="...">`); there is no imperative scene command.
+- Scenes are created declaratively via `mount` (the `scene` property on a root, e.g. `<rect scene="...">`); there is no imperative scene command.
 - AI asset generation (image / video / speech / audio) is declared in the project module (`generate.*`, see [jsx/generate.md](./jsx/generate.md)) and produced on mount. `models` and `voices` list what those declarations can reference.
 - Inspecting an existing asset (probe / transcribe / listen / filmstrip / waveform / grab) lives under `media`; writing an asset's original file back to disk is `asset export`.
 - Organizing the library lives under `folder`; moving assets between folders is `asset mv`.
@@ -32,6 +32,7 @@ How the surface is divided:
 - [`dapi whoami`](./whoami.md): print the authenticated account
 - [`dapi logs`](./logs.md): recent console output from the running app
 - [`dapi screenshot`](./screenshot.md): capture the entire application window as a PNG
+- [`dapi report`](./report.md): file a GitHub issue about a bug in the CLI or the app, with diagnostics attached
 
 ### Document
 
@@ -49,7 +50,7 @@ How the surface is divided:
 - [`dapi node ls`](./node/ls.md): raw entity records
 - [`dapi node tree`](./node/tree.md): an entity's subtree as nested JSON
 - [`dapi node grep`](./node/grep.md): search entity records with a regex
-- [`dapi node capture`](./node/capture.md): capture a node as a PNG
+- [`dapi node capture`](./node/capture.md): capture a node to a labelled contact sheet, or one PNG per position
 - [`dapi node insert`](./node/insert.md): insert JSX tags into an existing parent
 - [`dapi node rm`](./node/rm.md): delete entities
 - [`dapi node cp`](./node/cp.md): deep-clone nodes
@@ -77,7 +78,7 @@ How the surface is divided:
 
 - [`dapi media probe`](./media/probe.md): container and track metadata
 - [`dapi media transcribe`](./media/transcribe.md): timed speech transcript
-- [`dapi media grab`](./media/grab.md): decode video frames to PNGs
+- [`dapi media grab`](./media/grab.md): decode video frames to a labelled contact sheet, or one PNG per frame
 - [`dapi media filmstrip`](./media/filmstrip.md): grid of video frames as a PNG
 - [`dapi media waveform`](./media/waveform.md): audio waveform PNG with silence highlighting
 - [`dapi media listen`](./media/listen.md): AI description of an audio track
@@ -122,4 +123,4 @@ Time inputs take the `Time` format unless noted otherwise. Times in **outputs** 
 - **Unix-style names are canonical:** list/read is `ls`, delete is `rm`, duplicate is `cp`, move/reparent is `mv`, search is `grep`. The longer English forms (`list`, `remove`, `duplicate`, `move`) are aliases of the Unix forms, not the other way around. `get` is a universal alias for `ls`. Commands without a natural Unix equivalent (`tree`, `rename`, `patch`, `add`, `create`, `active`, `context`, `whoami`, `open`, `focus`, `set`) keep their descriptive names.
 - **Stderr:** human-readable error messages.
 - **Exit codes:** `0` on success, `1` on any error (missing file, app not running, invalid input, IPC error).
-- **App must be running:** every command except `open`, `fonts`, and `fetch` talks to the open Diffusion Studio instance. If the app isn't running, the CLI prints an instruction to launch it and exits `1`.
+- **App must be running:** every command except `open`, `fonts`, and `fetch` talks to the open Diffusion Studio instance. If the app isn't running, the CLI prints an instruction to launch it and exits `1`. `report` is the one command that reads from the app but tolerates its absence, recording it in the issue instead of failing.

@@ -110,8 +110,8 @@ export default function WebgpuTriangle() {
   onCleanup(() => gpu()?.device.destroy());
 
   return (
-    <scene key="example-webgpu" name="WebGPU triangle" width={960} height={540} fill="#0b0d12">
+    <rect scene="example-webgpu" name="WebGPU triangle" width={960} height={540} fill="#0b0d12">
       <surface x={0} y={0} width={960} height={540} ref={setup} />
-    </scene>
+    </rect>
   );
 }

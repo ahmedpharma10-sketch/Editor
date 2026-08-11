@@ -14,7 +14,17 @@ import {
   renderLayers,
 } from "./render";
 import { pixelsToFrames, updateTimelineTransform } from "./utils";
-import { DEFAULT_TIMELINE_RESOLUTION, TIMELINE_RESOLUTION_RANGE, TIMELINE_PADDING_LEFT, RULER_HEIGHT } from "./config";
+import {
+  DEFAULT_TIMELINE_RESOLUTION,
+  TIMELINE_RESOLUTION_RANGE,
+  TIMELINE_PADDING_LEFT,
+  RULER_HEIGHT,
+  WHEEL_LINE_HEIGHT,
+  WHEEL_PAGE_HEIGHT,
+  ZOOM_DELTA_CLAMP,
+  ZOOM_SENSITIVITY,
+  SCROLL_X_SENSITIVITY,
+} from "./config";
 import { useEngine } from "@/context/engine";
 import { useCursor } from "@/hooks/use-cursor";
 import { createTimelineContext } from "./world";
@@ -137,7 +147,7 @@ export function createTimeline() {
     const layers = layersEl;
 
     const scrollY = c.Timeline.scrollY[sid] ?? 0;
-    const newScrollY = Math.max(0, Math.min(scrollY, container.scrollHeight - container.clientHeight));
+    const newScrollY = Math.max(0, Math.min(scrollY, layers.scrollHeight - container.clientHeight));
 
     c.Timeline.scrollY[sid] = newScrollY;
     layers.style.transform = `translateY(${-newScrollY}px)`;
@@ -156,7 +166,7 @@ export function createTimeline() {
     if (sid === null) return;
     const scrollX = c.Timeline.scrollX[sid] ?? 0;
     const resolution = c.Timeline.resolution[sid] || DEFAULT_TIMELINE_RESOLUTION;
-    const minScrollX = -TIMELINE_PADDING_LEFT / resolution;
+    const { deltaX, deltaY } = normalizeWheel(event);
 
     // Prioritize: Z (zoom) > X (horizontal) > Y (vertical)
     // Only one axis can be scrolled at a time
@@ -165,24 +175,24 @@ export function createTimeline() {
       const rect = timeline.canvas?.getBoundingClientRect();
       const timelineX = event.clientX - (rect?.left ?? 0);
 
-      let newResolution = resolution;
-      newResolution *= 1.01 ** -event.deltaY;
+      const dy = clamp(deltaY, -ZOOM_DELTA_CLAMP, ZOOM_DELTA_CLAMP);
+      let newResolution = resolution * Math.exp(-dy * ZOOM_SENSITIVITY);
       newResolution = clamp(newResolution, 1 / TIMELINE_RESOLUTION_RANGE[1], 1 / TIMELINE_RESOLUTION_RANGE[0]);
 
       let newScrollX = scrollX + timelineX / resolution - timelineX / newResolution;
-      newScrollX = Math.max(minScrollX, newScrollX);
+      newScrollX = Math.max(-TIMELINE_PADDING_LEFT / newResolution, newScrollX);
       c.Timeline.scrollX[sid] = newScrollX;
       c.Timeline.resolution[sid] = newResolution;
-    } else if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+    } else if (Math.abs(deltaX) > Math.abs(deltaY)) {
       // Horizontal scroll (X axis) - when horizontal movement is dominant
-      const frameDelta = event.deltaX / resolution;
+      const frameDelta = (deltaX * SCROLL_X_SENSITIVITY) / resolution;
 
       let newScrollX = scrollX + frameDelta;
-      newScrollX = Math.max(minScrollX, newScrollX);
+      newScrollX = Math.max(-TIMELINE_PADDING_LEFT / resolution, newScrollX);
       c.Timeline.scrollX[sid] = newScrollX;
     } else {
       // Vertical scroll (Y axis) - default when no other conditions match
-      c.Timeline.scrollY[sid] = (c.Timeline.scrollY[sid] ?? 0) + event.deltaY;
+      c.Timeline.scrollY[sid] = (c.Timeline.scrollY[sid] ?? 0) + deltaY;
 
       applyScroll();
     }
@@ -209,10 +219,12 @@ export function createTimeline() {
     const sid = world.selection.scene;
     if (sid === null) return;
 
-    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-      layerScrollX += event.deltaX;
+    const { deltaX, deltaY } = normalizeWheel(event);
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      layerScrollX += deltaX;
     } else {
-      c.Timeline.scrollY[sid] = (c.Timeline.scrollY[sid] ?? 0) + event.deltaY;
+      c.Timeline.scrollY[sid] = (c.Timeline.scrollY[sid] ?? 0) + deltaY;
     }
 
     applyScroll();
@@ -273,8 +285,8 @@ export function createTimeline() {
     const layers = document.querySelector<HTMLElement>('[data-timeline-layers]');
     assert(layers, 'Timeline layers element must be defined');
 
-    const layersContainer = document.querySelector<HTMLElement>('[data-timeline-layers-container]');
-    assert(layersContainer, 'Timeline layers container element must be defined');
+    const layersContainer = document.querySelector<HTMLElement>('[data-timeline-layers-viewport]');
+    assert(layersContainer, 'Timeline layers viewport element must be defined');
 
     timeline.pointer = pointer;
     layersEl = layers;
@@ -300,4 +312,14 @@ export function createTimeline() {
     clientToFrame,
     setMinimized,
   };
+}
+
+function normalizeWheel(event: WheelEvent) {
+  const scale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+    ? WHEEL_LINE_HEIGHT
+    : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+      ? WHEEL_PAGE_HEIGHT
+      : 1;
+
+  return { deltaX: event.deltaX * scale, deltaY: event.deltaY * scale };
 }

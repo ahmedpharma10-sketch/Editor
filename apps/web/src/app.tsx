@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Router, HashRouter, Route } from '@solidjs/router';
+import { Router, HashRouter, Route, useLocation } from '@solidjs/router';
 import { ColorModeProvider } from '@kobalte/core';
 import { Show, type JSX } from 'solid-js';
 import { Toaster } from "@/components/ui/sonner";
@@ -34,6 +34,18 @@ function AuthGate(props: { children: JSX.Element }) {
   );
 }
 
+function EnvironmentOverlays() {
+  const location = useLocation();
+  const onCheckoutPage = () => location.pathname.startsWith('/checkout');
+
+  return (
+    <Show when={!onCheckoutPage()}>
+      <ScreenTooSmall />
+      <UnsupportedBrowser />
+    </Show>
+  );
+}
+
 function App() {
   const RouterComponent = window.desktop ? HashRouter : Router;
   return (
@@ -48,8 +60,7 @@ function App() {
             </AuthProvider>
           </AppContextMenu>
           <Toaster />
-          <ScreenTooSmall />
-          <UnsupportedBrowser />
+          <EnvironmentOverlays />
           <PersistRoute />
         </ColorModeProvider>
       )}

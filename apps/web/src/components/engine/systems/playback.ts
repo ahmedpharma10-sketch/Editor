@@ -36,16 +36,16 @@ function advancePlayhead(world: EngineWorld, eid: number): void {
 		const previousTime = c.Computed.localTimeInSeconds[eid];
 		let time = previousTime + dt * speed;
 
-		const hasTrim = hasComponent(world, eid, c.Trim);
+		const hasWorkarea = hasComponent(world, eid, c.Workarea);
 		const duration = c.Computed.duration[eid];
 		const durationSeconds = duration / fps;
 
-		const maxSeconds = hasTrim
-			? (c.Trim.end[eid] ?? duration) / fps
+		const maxSeconds = hasWorkarea
+			? (c.Workarea.end[eid] ?? duration) / fps
 			: durationSeconds;
 
-		const minSeconds = hasTrim
-			? (c.Trim.start[eid] ?? 0) / fps
+		const minSeconds = hasWorkarea
+			? (c.Workarea.start[eid] ?? 0) / fps
 			: 0;
 
 		if (time >= maxSeconds) {
@@ -207,6 +207,12 @@ function forwardAudioDecoder(world: EngineWorld, sid: number, eid: number, aid?:
 	}
 }
 
+function forwardHtmlHost(world: EngineWorld, sid: number, eid: number, fid: number): void {
+	const c = world.components;
+	if (world.mode === 'realtime' || c.Computed.visibility[eid] !== 1 || !c.HtmlHost[fid]) return;
+	world.promises?.push(c.HtmlHost[fid].whenReady(c.Computed.localTimeInSeconds[sid] ?? 0));
+}
+
 function forwardImageDecoder(world: EngineWorld, _sid: number, _eid: number, fid: number): void {
 	const resolvedDecoder = resolveImageDecoder(world, fid);
 	if (!resolvedDecoder) return;
@@ -248,6 +254,10 @@ function forwardDecoders(world: EngineWorld, sid: number, eid: number): void {
 
 			if (c.Paint[fid] === PaintType.IMAGE && visualsEnabled) {
 				forwardImageDecoder(world, sid, eid, fid);
+			}
+
+			if (c.Paint[fid] === PaintType.HTML && visualsEnabled) {
+				forwardHtmlHost(world, sid, eid, fid);
 			}
 
 			if (c.Paint[fid] === PaintType.SHADER && visualsEnabled) {

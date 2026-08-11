@@ -15,10 +15,9 @@ import { motionSystem } from '../systems/motion';
 import { transformSystem } from '../systems/transform';
 import { renderSystem } from '../systems/render';
 import { cloneFromRecords, serializeEntity } from '../api/serialize';
-import { hasLiveHtmlHosts, nextRenderingUpdate } from '../decoders/html';
 import { getEntityTree } from '../api/query';
 import { realizeMounts } from '@/utils/mount';
-import { framesToSeconds, formatTimestamp, stampTimestampLabel } from '../utils';
+import { framesToSeconds, formatTimecode } from '../utils';
 import { assert } from '@/utils';
 
 import type { EngineWorld } from '../api/world';
@@ -28,14 +27,15 @@ type ImageEncoderConfig = {
   eid: number;
   /** Frames to capture, relative to the entity's first visible frame. */
   frames: number[];
-  /** Stamp each capture with its HH:MM:SS:FF label (frame-relative). */
-  timestamp?: boolean;
   /** Target output height in px (default: the entity's native size). */
   resolution?: number;
 };
 
+/** One capture: the PNG plus the timecode of the frame rendered, e.g. `01s15f`. */
+export type CapturedImage = { base64: string; timecode: string };
+
 export type ImageExportResult =
-  | { type: 'success'; data: string[] }
+  | { type: 'success'; data: CapturedImage[] }
   | { type: 'canceled' }
   | { type: 'error'; error: Error };
 
@@ -107,10 +107,21 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   // computed start is 0 unless it carries a Trim, whose start offsets it.
   const startFrame = c.Computed.start[rootEid] ?? 0;
 
+  // Entities in the clone that own a timeline clock
+  const clockEids = [...query(world, [c.Playback, Not(c.Deleted)])];
+
   const seek = (frame: number) => {
     const stageFrame = startFrame + frame;
+    const stageSeconds = framesToSeconds(stageFrame, world.frameRate);
     c.Computed.localTime[stageEid] = stageFrame;
-    c.Computed.localTimeInSeconds[stageEid] = framesToSeconds(stageFrame, world.frameRate);
+    c.Computed.localTimeInSeconds[stageEid] = stageSeconds;
+
+    for (const eid of clockEids) {
+      c.Computed.localTime[eid] = stageFrame;
+      c.Computed.localTimeInSeconds[eid] = stageSeconds;
+      c.Playback.playing[eid] = 1;
+    }
+
     world.timestamp.delta = 1000 / world.frameRate;
     world.timestamp.now += world.timestamp.delta;
 
@@ -162,13 +173,18 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
 
   const boundsWidth = Math.max(1, bounds.maxX - bounds.minX);
   const boundsHeight = Math.max(1, bounds.maxY - bounds.minY);
-  const scale = config.resolution ? config.resolution / boundsHeight : 1;
 
-  offscreenCanvas.width = Math.max(1, Math.round(boundsWidth * scale));
-  offscreenCanvas.height = Math.max(1, Math.round(boundsHeight * scale));
+  /** Re-target the output height; callers that lay frames out do this once measured. */
+  const resize = (height?: number) => {
+    const scale = height ? height / boundsHeight : 1;
+    offscreenCanvas.width = Math.max(1, Math.round(boundsWidth * scale));
+    offscreenCanvas.height = Math.max(1, Math.round(boundsHeight * scale));
+    world.resolution = scale;
+  };
+
+  resize(config.resolution);
   // Shift the measured box onto the canvas so the node is centered in view;
   // the camera translation is scaled by world.resolution at render time.
-  world.resolution = scale;
   world.camera.e = -bounds.minX;
   world.camera.f = -bounds.minY;
 
@@ -177,8 +193,7 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
 
   const render = async (): Promise<ImageExportResult> => {
     try {
-      const images: string[] = [];
-      const waitForHtmlHosts = hasLiveHtmlHosts(world);
+      const images: CapturedImage[] = [];
 
       for (const frame of config.frames) {
         if (canceled) {
@@ -189,20 +204,13 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
         await resolverSystem(world);
         motionSystem(world);
         transformSystem(world);
-        if (waitForHtmlHosts) {
-          await nextRenderingUpdate();
-        }
         renderSystem(world);
 
-        if (config.timestamp) {
-          // The render system leaves the camera transform on the context;
-          // the label is drawn in device space.
-          offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
-          const label = formatTimestamp(framesToSeconds(frame, world.frameRate), world.frameRate);
-          stampTimestampLabel(offscreenCtx, offscreenCanvas.height, label);
-        }
-
-        images.push(await toBase64Png(offscreenCanvas));
+        const stampFrame = startFrame + frame;
+        images.push({
+          base64: await toBase64Png(offscreenCanvas),
+          timecode: formatTimecode(framesToSeconds(stampFrame, world.frameRate), world.frameRate),
+        });
       }
 
       return { type: 'success', data: images };
@@ -221,6 +229,8 @@ export async function createImageEncoder(sourceWorld: EngineWorld, config: Image
   return {
     render,
     cancel,
+    resize,
+    bounds: { width: boundsWidth, height: boundsHeight },
   };
 }
 

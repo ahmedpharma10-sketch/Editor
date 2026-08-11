@@ -87,15 +87,34 @@ const SILENCE_THRESHOLD = 12; // peak value (0-255) at/below which audio counts 
 const SILENCE_MIN_SECONDS = 0.4;
 const AUDIO_RULER_FRAME_RATE = 30;
 
-export function formatTimestamp(seconds: number, frameRate: number): string {
+function splitTimecode(seconds: number, frameRate: number): [hours: number, minutes: number, seconds: number, frames: number] {
   const fps = Math.max(1, Math.round(frameRate));
   const totalFrames = Math.round(seconds * fps);
-  const frames = totalFrames % fps;
   const totalSeconds = Math.floor(totalFrames / fps);
-  const hh = Math.floor(totalSeconds / 3600);
-  const mm = Math.floor((totalSeconds % 3600) / 60);
-  const ss = totalSeconds % 60;
-  return [hh, mm, ss, frames].map((v) => String(v).padStart(2, '0')).join(':');
+  return [
+    Math.floor(totalSeconds / 3600),
+    Math.floor((totalSeconds % 3600) / 60),
+    totalSeconds % 60,
+    totalFrames % fps,
+  ];
+}
+
+/** `HH:MM:SS:FF`, fixed width so ruler ticks line up. */
+export function formatTimestamp(seconds: number, frameRate: number): string {
+  return splitTimecode(seconds, frameRate).map((v) => String(v).padStart(2, '0')).join(':');
+}
+
+/**
+ * The same timecode with its zero segments dropped, for labels and filenames:
+ * `08s10f`, `01m05s`, `0f`. Each segment carries its unit, so nothing is
+ * ambiguous once the empty ones are gone.
+ */
+export function formatTimecode(seconds: number, frameRate: number): string {
+  const units = ['h', 'm', 's', 'f'];
+  const stamp = splitTimecode(seconds, frameRate)
+    .map((value, i) => (value === 0 ? '' : `${String(value).padStart(2, '0')}${units[i]}`))
+    .join('');
+  return stamp || '0f';
 }
 
 // Draws a timestamp label into the top-left corner of a canvas: white text with
@@ -104,8 +123,9 @@ export function stampTimestampLabel(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   height: number,
   label: string,
+  options?: { minBandHeight?: number },
 ): void {
-  const bandHeight = Math.max(20, Math.round(height * 0.06));
+  const bandHeight = Math.max(options?.minBandHeight ?? 20, Math.round(height * 0.06));
   const fontSize = Math.round(bandHeight * 0.72);
   const paddingLeft = Math.round(bandHeight * 0.4);
   const y = paddingLeft + bandHeight / 2;
@@ -462,8 +482,13 @@ type SamplerOptions = {
 async function downsampleAudio(track: InputAudioTrack, options: SamplerOptions) {
   const sink = new AudioSampleSink(track);
   const iterator = options.range ? sink.samples(...options.range) : sink.samples();
+  const framesPerPeak = track.sampleRate / options.peaksPerSecond;
 
-  const peaks: Uint8ClampedArray<ArrayBuffer>[] = [];
+  const peaks: number[] = [];
+  let frameCursor = 0; // frames consumed since the range start
+  let currentPeak = 0; // index of the peak currently being accumulated
+  let peakMax = 0;
+
   for await (const sample of iterator) {
     try {
       const size = sample.allocationSize({ format: 'f32', planeIndex: 0 });
@@ -472,44 +497,26 @@ async function downsampleAudio(track: InputAudioTrack, options: SamplerOptions) 
 
       const numChannels = sample.numberOfChannels;
       const numFrames = floats.length / numChannels;
-      const duration = sample.duration;
 
-      // Downsample to peaksPerSecond
-      const targetPeaks = Math.ceil(duration * options.peaksPerSecond);
-      const downsampledBytes = new Uint8ClampedArray(targetPeaks);
-
-      // Downsample by calculating peaks directly for target positions
-      const ratio = numFrames / targetPeaks;
-
-      for (let i = 0; i < targetPeaks; i++) {
-        const start = Math.floor(i * ratio);
-        const end = Math.floor((i + 1) * ratio);
-        let max = 0;
-
-        for (let frameIdx = start; frameIdx < end && frameIdx < numFrames; frameIdx++) {
-          for (let ch = 0; ch < numChannels; ch++) {
-            const floatIdx = frameIdx * numChannels + ch;
-            max = Math.max(max, Math.sqrt(Math.abs(floats[floatIdx])));
-          }
+      for (let frameIdx = 0; frameIdx < numFrames; frameIdx++) {
+        while (currentPeak < Math.floor(frameCursor / framesPerPeak)) {
+          peaks.push(Math.floor(255 * peakMax));
+          peakMax = 0;
+          currentPeak++;
         }
 
-        downsampledBytes[i] = Math.floor(255 * max);
+        for (let ch = 0; ch < numChannels; ch++) {
+          peakMax = Math.max(peakMax, Math.sqrt(Math.abs(floats[frameIdx * numChannels + ch])));
+        }
+        frameCursor++;
       }
-
-      peaks.push(downsampledBytes);
     } finally {
       sample.close();
     }
   }
 
-  const length = peaks.reduce((acc, peak) => acc + peak.length, 0);
-  const mergedPeaks = new Uint8ClampedArray(length);
+  // Flush the final in-progress peak.
+  if (frameCursor > 0) peaks.push(Math.floor(255 * peakMax));
 
-  let offset = 0;
-  for (const peak of peaks) {
-    mergedPeaks.set(peak, offset);
-    offset += peak.length;
-  }
-
-  return mergedPeaks;
+  return Uint8ClampedArray.from(peaks);
 }

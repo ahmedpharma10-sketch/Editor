@@ -449,6 +449,12 @@ export function observeWorld(world: EngineWorld) {
     utils.persistEntity(world, eid);
   });
 
+  observe(world, "set", c.Workarea, (eid, { start, end }) => {
+    const fallbackEnd = c.Computed.duration[eid] ?? DEFAULT_DURATION_FRAMES;
+    c.Workarea.start[eid] = start ?? c.Workarea.start[eid] ?? 0;
+    c.Workarea.end[eid] = end ?? c.Workarea.end[eid] ?? fallbackEnd;
+  });
+
   observe(world, "set", c.Constraint, (eid, { horizontal, vertical }) => {
     c.Constraint.horizontal[eid] = horizontal ?? c.Constraint.horizontal[eid] ?? ConstraintType.MIN;
     c.Constraint.vertical[eid] = vertical ?? c.Constraint.vertical[eid] ?? ConstraintType.MIN;
