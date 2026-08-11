@@ -1,1 +1,2 @@
-// Font loading and fixtures (moves wholesale from engine/font/).
+// Font loading; fixtures and utils follow from engine/font/.
+export * from './types';
