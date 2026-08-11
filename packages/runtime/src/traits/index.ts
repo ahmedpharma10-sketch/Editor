@@ -1,1 +1,12 @@
-// Re-exports all trait definitions.
+export * from './relations';
+export * from './node';
+export * from './transform';
+export * from './style';
+export * from './text';
+export * from './timing';
+export * from './audio';
+export * from './motion';
+export * from './derived';
+export * from './media';
+export * from './interaction';
+export * from './world';

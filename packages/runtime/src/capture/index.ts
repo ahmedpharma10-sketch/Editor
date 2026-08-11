@@ -1,1 +1,2 @@
-// Capture and encoding: encoder, buffer, format, image-encoder (moves wholesale from engine/encode/).
+// Capture and encoding: encoder, buffer, image-encoder (move wholesale from engine/encode/).
+export * from './format';

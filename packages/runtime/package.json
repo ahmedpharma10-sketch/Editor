@@ -21,7 +21,8 @@
     "video"
   ],
   "dependencies": {
-    "koota": "^0.6.6"
+    "koota": "^0.6.6",
+    "mediabunny": "^1.32.2"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
