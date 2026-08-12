@@ -21,6 +21,7 @@
     "video"
   ],
   "dependencies": {
+    "animejs": "^4.4.1",
     "koota": "^0.6.6",
     "mediabunny": "^1.32.2"
   },

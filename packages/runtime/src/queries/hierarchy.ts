@@ -4,14 +4,32 @@
 
 import { Not } from 'koota';
 
-import { ChildOf, Deleted, Computed, Name, Playback, PlaybackRate } from '../traits';
-import { isScene } from './predicates';
+import { ChildOf, Deleted, Computed, Name, Playback, PlaybackRate, DocumentRoot } from '../traits';
+import { isDocument, isScene } from './predicates';
 
 import type { Entity, World, QueryParameter } from 'koota';
+
+/** The world's document root (see DocumentRoot). */
+export function getDocument(world: World): Entity {
+	const document = world.queryFirst(DocumentRoot);
+	if (document === undefined) throw new Error('World has no document root');
+	return document;
+}
 
 export function getParentEntity(entity: Entity | null | undefined): Entity | null {
 	if (!entity) return null;
 	return entity.targetFor(ChildOf) ?? null;
+}
+
+/**
+ * Parent node, or null when the parent is the document root (or missing).
+ * Use this wherever "top-level" matters; getParentEntity returns the raw
+ * parent including the document.
+ */
+export function getParentNode(entity: Entity | null | undefined): Entity | null {
+	const parent = getParentEntity(entity);
+	if (parent === null || isDocument(parent)) return null;
+	return parent;
 }
 
 /**
@@ -62,9 +80,9 @@ export function getNodeLocalFrame(node: Entity): number {
 
 	let current: Entity | null = node;
 	while (current) {
-		const parent = getParentEntity(current);
+		const parent = getParentNode(current);
 
-		// must be a root playback entity
+		// must be a top-level playback entity
 		if (current.has(Playback) && parent === null) {
 			const currentTime = current.get(Computed)?.localTime ?? 0;
 			return Math.round((currentTime - delay) * playbackRate);

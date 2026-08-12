@@ -15,6 +15,12 @@ import type { FontSource } from '../fonts/types';
 
 export const Project = trait({ id: '' });
 
+// Tag on the single document root entity every runtime world owns. All
+// rendered entities are its descendants (ChildOf), so "top-level" means
+// "direct child of the document", never "has no parent". Destroying it
+// cascades through the whole document tree.
+export const DocumentRoot = trait();
+
 export type RuntimeMode = 'realtime' | 'offline-video' | 'offline-audio';
 
 export const Mode = trait({ value: 'realtime' as RuntimeMode });

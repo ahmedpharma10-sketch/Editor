@@ -1,0 +1,28 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import { getStore } from 'koota';
+
+import type { ExtractStore, Trait, World } from 'koota';
+
+const registered = new WeakMap<World, WeakSet<Trait>>();
+
+/**
+ * Direct SoA store access for hot paths (bitecs-style array indexing by
+ * entity.id(), no snapshots, no change events). koota registers a trait's
+ * store lazily on first add/query and bare getStore throws before that, so
+ * this wrapper registers the trait once per world.
+ */
+export function store<T extends Trait>(world: World, trait: T): ExtractStore<T> {
+	let traits = registered.get(world);
+	if (!traits) {
+		traits = new WeakSet();
+		registered.set(world, traits);
+	}
+	if (!traits.has(trait)) {
+		world.query(trait);
+		traits.add(trait);
+	}
+	return getStore(world, trait);
+}

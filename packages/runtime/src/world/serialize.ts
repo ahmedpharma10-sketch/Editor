@@ -14,8 +14,9 @@ import {
 	Chars, TextStyle,
 	Delay, PlaybackRate, Trim, Playback, Sequential, Transition, ClipHeight, Expanded,
 	Volume, Muted,
-	KeyframeTrack, Keyframe, Animation,
+	KeyframeTrack, Keyframe, Animation, DocumentRoot,
 } from '../traits';
+import { getDocument } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
 
@@ -229,7 +230,7 @@ export function serializeEntity(entity: Entity): EntityRecord {
 		record.Expanded = {};
 	}
 	const parent = entity.targetFor(ChildOf);
-	if (parent !== undefined) {
+	if (parent !== undefined && !parent.has(DocumentRoot)) {
 		record.ChildOf = parent;
 	}
 	if (entity.has(IsMask)) {
@@ -639,6 +640,8 @@ export function cloneFromRecords(world: World, records: EntityRecord[]) {
 		eidMap.set(record.eid, world.spawn());
 	}
 
+	const document = getDocument(world);
+
 	for (const record of records) {
 		const entity = eidMap.get(record.eid)!;
 		const copy = { ...record };
@@ -646,6 +649,9 @@ export function cloneFromRecords(world: World, records: EntityRecord[]) {
 		try {
 			if (copy.ChildOf !== undefined) {
 				copy.ChildOf = eidMap.get(copy.ChildOf) ?? copy.ChildOf;
+			} else {
+				// Parentless record = top-level entity; hang it off the document.
+				copy.ChildOf = document;
 			}
 
 			deserializeEntity(entity, copy);

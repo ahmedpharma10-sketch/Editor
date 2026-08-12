@@ -2,14 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Not, Or, getStore } from 'koota';
+import { Not, Or } from 'koota';
 
+import { store } from '../world/store';
 import {
 	ChildOf, Geometry, Group, Deleted, Hidden, Sequential, AdjustmentLayer,
 	Culled, Flip, Anchor, Computed, Cache, LocalTransform, WorldTransform,
 	WorldBounds, Camera, RenderSurface,
 } from '../traits';
-import { getParentEntity } from '../queries/hierarchy';
+import { getDocument, getParentNode } from '../queries/hierarchy';
 
 import {
 	multiply2D,
@@ -25,18 +26,18 @@ import {
 import type { Entity, World } from 'koota';
 
 // This system writes derived per-frame data (LocalTransform, WorldTransform,
-// WorldBounds, Computed group bounds) straight into trait stores via getStore:
-// no snapshots, no change events, matching the bitecs SoA hot path.
+// WorldBounds, Computed group bounds) straight into trait stores: no
+// snapshots, no change events, matching the bitecs SoA hot path.
 
 /**
  * Compute the local 2D affine matrix from Offset, Rotation, Scale,
  * Anchor, Skew and Size. Stores the result in LocalTransform.
  */
 export function computeLocalMatrix(world: World, entity: Entity): void {
-	const flip = getStore(world, Flip);
-	const anchor = getStore(world, Anchor);
-	const computed = getStore(world, Computed);
-	const local = getStore(world, LocalTransform);
+	const flip = store(world, Flip);
+	const anchor = store(world, Anchor);
+	const computed = store(world, Computed);
+	const local = store(world, LocalTransform);
 	const eid = entity.id();
 
 	const positionX = computed.positionX[eid] + computed.offsetX[eid];
@@ -69,8 +70,8 @@ export function computeLocalMatrix(world: World, entity: Entity): void {
  * For top-level entities (no entity parent), the camera × DPR matrix is used.
  */
 export function computeWorldTransform(world: World, entity: Entity, parentEntity: Entity | null): void {
-	const worldStore = getStore(world, WorldTransform);
-	const localStore = getStore(world, LocalTransform);
+	const worldStore = store(world, WorldTransform);
+	const localStore = store(world, LocalTransform);
 	const eid = entity.id();
 
 	if (localStore.a[eid] === undefined) {
@@ -120,9 +121,9 @@ export function computeWorldTransform(world: World, entity: Entity, parentEntity
  * Compute world-space AABB from world transform and size.
  */
 export function computeWorldBounds(world: World, entity: Entity): void {
-	const boundsStore = getStore(world, WorldBounds);
-	const worldStore = getStore(world, WorldTransform);
-	const computed = getStore(world, Computed);
+	const boundsStore = store(world, WorldBounds);
+	const worldStore = store(world, WorldTransform);
+	const computed = store(world, Computed);
 	const eid = entity.id();
 
 	const worldMat: Mat2D = {
@@ -152,7 +153,7 @@ function cullEntity(world: World, entity: Entity, parentEntity: Entity | null): 
 		// Without a render surface (headless world) nothing is culled.
 		const canvas = world.get(RenderSurface)?.canvas;
 		if (canvas) {
-			const boundsStore = getStore(world, WorldBounds);
+			const boundsStore = store(world, WorldBounds);
 			const eid = entity.id();
 			intersect = aabbsIntersect({
 				minX: boundsStore.minX[eid],
@@ -189,12 +190,12 @@ function cullEntity(world: World, entity: Entity, parentEntity: Entity | null): 
  * resolution here.
  */
 export function computeGroupBounds(world: World, entity: Entity): void {
-	const computed = getStore(world, Computed);
-	const localStore = getStore(world, LocalTransform);
+	const computed = store(world, Computed);
+	const localStore = store(world, LocalTransform);
 	const eid = entity.id();
 
 	if (entity.has(Sequential)) {
-		const parent = getParentEntity(entity);
+		const parent = getParentNode(entity);
 		if (parent !== null) {
 			const pid = parent.id();
 			computed.width[eid] = computed.width[pid];
@@ -241,18 +242,18 @@ export function computeGroupBounds(world: World, entity: Entity): void {
 }
 
 function adjustLayers(world: World, adjust: Entity): void {
-	const computed = getStore(world, Computed);
-	const localStore = getStore(world, LocalTransform);
+	const computed = store(world, Computed);
+	const localStore = store(world, LocalTransform);
 	const aid = adjust.id();
 
 	if (computed.visibility[aid] === 0 || adjust.has(Hidden)) return;
 
 	// get next non sequential parent
 	let slot = adjust;
-	let parent = getParentEntity(slot);
+	let parent = getParentNode(slot);
 	while (parent !== null && parent.has(Sequential)) {
 		slot = parent;
-		parent = getParentEntity(slot);
+		parent = getParentNode(slot);
 	}
 	if (parent === null) return;
 
@@ -316,12 +317,8 @@ export function transformSystem(world: World): void {
 		}
 	};
 
-	// koota cannot express "has no ChildOf target" as an indexed query
-	// (bitecs allowed Not(ChildOf('*'))), so roots are filtered per candidate.
-	for (const entity of world.query(Or(Geometry, Group), Not(Deleted))) {
-		if (entity.targetFor(ChildOf) === undefined) {
-			walk(entity, null);
-		}
+	for (const entity of world.query(Or(Geometry, Group), ChildOf(getDocument(world)), Not(Deleted))) {
+		walk(entity, null);
 	}
 
 	for (const adjust of world.query(AdjustmentLayer, Not(Deleted))) {
