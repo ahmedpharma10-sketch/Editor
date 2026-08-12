@@ -16,7 +16,7 @@ import {
 	Volume, Muted,
 	KeyframeTrack, Keyframe, Animation, DocumentRoot,
 } from '../traits';
-import { getDocument } from '../queries/hierarchy';
+import { createEntity } from '../actions/entities';
 
 import type { Entity, World } from 'koota';
 
@@ -637,10 +637,8 @@ export function cloneFromRecords(world: World, records: EntityRecord[]) {
 	const eidMap = new Map<number, Entity>();
 
 	for (const record of records) {
-		eidMap.set(record.eid, world.spawn());
+		eidMap.set(record.eid, createEntity(world));
 	}
-
-	const document = getDocument(world);
 
 	for (const record of records) {
 		const entity = eidMap.get(record.eid)!;
@@ -649,9 +647,6 @@ export function cloneFromRecords(world: World, records: EntityRecord[]) {
 		try {
 			if (copy.ChildOf !== undefined) {
 				copy.ChildOf = eidMap.get(copy.ChildOf) ?? copy.ChildOf;
-			} else {
-				// Parentless record = top-level entity; hang it off the document.
-				copy.ChildOf = document;
 			}
 
 			deserializeEntity(entity, copy);

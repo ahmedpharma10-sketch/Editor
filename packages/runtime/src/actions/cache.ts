@@ -24,64 +24,69 @@ import type { Entity, World } from 'koota';
 /**
  * Refresh the parent's Cache lists that the attached/detached entity
  * participates in. Call after a ChildOf change with the affected parent.
+ * `exclude` drops one entity from the fresh lists: koota fires relation
+ * remove events while the departing child is still present in the old
+ * parent's queries.
  */
-export function rebuildCaches(world: World, entity: Entity, parent: Entity | null) {
+export function rebuildCaches(world: World, entity: Entity, parent: Entity | null, exclude: Entity | null = null) {
 	if (parent === null || isDocument(parent)) return;
 	if (!parent.has(Cache)) parent.add(Cache);
 
 	const cache = store(world, Cache);
 	const pid = parent.id();
+	const collect = (...params: Parameters<World['query']>) =>
+		[...world.query(...params)].filter(e => e !== exclude);
 
 	if (entity.has(Geometry) || entity.has(Group) || entity.has(AdjustmentLayer)) {
-		cache.children[pid] = [...world.query(
+		cache.children[pid] = collect(
 			Or(Geometry, Group, AdjustmentLayer), ChildOf(parent), Not(IsMask), Not(Deleted),
-		)].sort(sortByItemIndex);
+		).sort(sortByItemIndex);
 	}
 
 	if (entity.has(IsMask)) {
-		cache.masks[pid] = [...world.query(Geometry, IsMask, ChildOf(parent), Not(Deleted))]
+		cache.masks[pid] = collect(Geometry, IsMask, ChildOf(parent), Not(Deleted))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(KeyframeTrack)) {
 		const node = findClosestParentGeometry(parent);
-		aggregateKeyframeTracks(world, node);
+		aggregateKeyframeTracks(world, node, exclude);
 		resetAnimatedValues(world, node);
 	}
 
 	if (entity.has(Keyframe)) {
-		cache.keyframes[pid] = [...world.query(Keyframe, ChildOf(parent), Not(Deleted))]
+		cache.keyframes[pid] = collect(Keyframe, ChildOf(parent), Not(Deleted))
 			.sort(sortByFrame);
 	}
 
 	if (entity.has(Animation)) {
-		cache.animations[pid] = [...world.query(Animation, ChildOf(parent), Not(Deleted))]
+		cache.animations[pid] = collect(Animation, ChildOf(parent), Not(Deleted))
 			.sort(sortByItemIndex);
 		resetAnimatedValues(world, parent);
 	}
 
 	if (entity.has(Paint)) {
-		cache.fills[pid] = [...world.query(Paint, ChildOf(parent), Not(Deleted))]
+		cache.fills[pid] = collect(Paint, ChildOf(parent), Not(Deleted))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(Stroke)) {
-		cache.strokes[pid] = [...world.query(Stroke, ChildOf(parent), Not(Deleted))]
+		cache.strokes[pid] = collect(Stroke, ChildOf(parent), Not(Deleted))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(Effect)) {
-		cache.effects[pid] = [...world.query(Effect, ChildOf(parent), Not(Shadow), Not(Deleted))]
+		cache.effects[pid] = collect(Effect, ChildOf(parent), Not(Shadow), Not(Deleted))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(Shadow)) {
-		cache.shadows[pid] = [...world.query(Shadow, ChildOf(parent), Not(Effect), Not(Deleted))]
+		cache.shadows[pid] = collect(Shadow, ChildOf(parent), Not(Effect), Not(Deleted))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(TextRange)) {
-		cache.textRanges[pid] = [...world.query(TextRange, ChildOf(parent), Not(Deleted))]
+		cache.textRanges[pid] = collect(TextRange, ChildOf(parent), Not(Deleted))
 			.sort(sortByItemIndex);
 	}
 }
@@ -104,7 +109,7 @@ export function findClosestParentGeometry(entity: Entity): Entity | null {
  * `target` field on each track so consumers iterating the cache can look up
  * the animated entity without walking ChildOf.
  */
-export function aggregateKeyframeTracks(world: World, node: Entity | null): void {
+export function aggregateKeyframeTracks(world: World, node: Entity | null, exclude: Entity | null = null): void {
 	if (node === null) return;
 	if (!node.has(Cache)) node.add(Cache);
 
@@ -113,6 +118,7 @@ export function aggregateKeyframeTracks(world: World, node: Entity | null): void
 
 	const walk = (entity: Entity) => {
 		for (const child of world.query(ChildOf(entity), Not(Deleted))) {
+			if (child === exclude) continue;
 			if (child.has(KeyframeTrack)) {
 				keyframeTrack.target[child.id()] = getParentNode(child);
 				tracks.push(child);

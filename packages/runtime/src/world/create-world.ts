@@ -4,6 +4,7 @@
 
 import { createWorld } from 'koota';
 
+import { observeWorld } from './observers';
 import {
 	DocumentRoot,
 	Project,
@@ -50,6 +51,9 @@ export function createRuntimeWorld(projectId: string) {
 
 	// The document root all rendered entities hang off (see DocumentRoot).
 	world.spawn(DocumentRoot);
+
+	// Cache upkeep, Computed mirrors, and time-range reactions.
+	observeWorld(world);
 
 	return world;
 }

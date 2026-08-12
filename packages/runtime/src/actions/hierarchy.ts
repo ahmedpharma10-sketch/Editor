@@ -5,6 +5,8 @@
 // Parenting and ordering actions (was api/hierarchy.ts). ChildOf is exclusive,
 // so re-parenting is a single add; "no parent" does not exist under the
 // document root model: detached entities go back to being document children.
+// Cache/size/constraint/time-range fixups ride on the ChildOf events (see
+// world/observers.ts), so these functions only validate and re-target.
 
 import { Not, Or } from 'koota';
 
@@ -14,9 +16,6 @@ import {
 import { getDocument, getEntityTree, getParentNode } from '../queries/hierarchy';
 import { assert } from '../utils/assert';
 import { sortByItemIndex } from '../utils/sort';
-import { rebuildCaches } from './cache';
-import { propagateSize, resolveConstraintOffsets } from './resize';
-import { reactToChildAttached } from './timing';
 
 import type { Entity, World } from 'koota';
 
@@ -28,10 +27,6 @@ export function appendChild(world: World, entity: Entity, parent: Entity): void 
 	assert(!getEntityTree(world, entity).includes(parent), 'Cannot parent entity into its own subtree');
 
 	entity.add(ChildOf(parent));
-	rebuildCaches(world, entity, parent);
-	propagateSize(world, entity);
-	resolveConstraintOffsets(world, entity);
-	reactToChildAttached(world, entity);
 }
 
 export function removeChild(world: World, entity: Entity, parent: Entity): void {
@@ -39,7 +34,6 @@ export function removeChild(world: World, entity: Entity, parent: Entity): void 
 
 	// Back to top-level: re-target to the document (never drop ChildOf).
 	entity.add(ChildOf(getDocument(world)));
-	rebuildCaches(world, entity, parent);
 }
 
 /**

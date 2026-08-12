@@ -50,7 +50,7 @@ export function resizeEntity(world: World, entity: Entity, params: ResizeParams)
 		...(width !== undefined && { width: Math.round(width) }),
 		...(height !== undefined && { height: Math.round(height) }),
 	});
-	propagateSize(world, entity);
+	// The Size observer propagates Computed sizes; constraints resolve here.
 	resolveConstraintOffsets(world, entity);
 
 	if (width !== undefined) {
