@@ -42,6 +42,9 @@ Working doc for migrating the editor engine from bitecs (in `apps/web/src/compon
 | System schedule | `src/systems/schedule.ts` | `runSystems(world)`: playback → motion → transform → render, shared by the realtime tick and the capture loop |
 | Encoders | `packages/encoder` (`@diffusionstudio/encoder`) | `engine/encode/*` extracted into its OWN package, not `src/capture/`: createEncoder + createImageEncoder as pure consumers of the runtime's public API. See semantic notes |
 | Timecode helpers | `src/utils/time.ts` | `formatTimecode`/`formatTimestamp` (from `utils/transcode.ts`; the image encoder stamps captures with them) |
+| Audio sync | `src/media/audio-sync.ts` | Moved near-verbatim (FFT cross-correlation over RMS envelopes; pure math + mediabunny) |
+| Transcode + previews | `src/media/transcode.ts` | transcodeForTranscription/ForAnalysis, filmstripAsset, waveformAsset, stampTimestampLabel. Preview canvases became OffscreenCanvas + convertToBlob (worker-capable) instead of document.createElement + toDataURL |
+| Contact sheets | `packages/encoder/src/contact-sheet.ts` | Sheets compose image-encoder captures, so they live in the encoder package. It now OWNS `MAX_FRAMES_PER_SHEET` (was `@diffusionstudio/cli/channels`; the CLI imports it from here once rewired). composeSheet is async (OffscreenCanvas) |
 | Seeds (types only, rest follows) | `src/utils/text.ts` (Token/Line/TokenOptions), `src/capture/format.ts` (ContainerFormat) | The remaining engine files merge into these on their slice |
 
 Verification style used so far: `npx tsc --noEmit` in the package, plus throwaway `smoke-test.tmp.ts` in the package root run with `npm exec --yes tsx@latest -- smoke-test.tmp.ts`, deleted afterwards (no test infra in the package yet). koota caps live worlds at 16; call `world.destroy()` in test loops.
@@ -101,9 +104,8 @@ Every world spawns one entity tagged `DocumentRoot` (`createRuntimeWorld`). All 
 
 ## Remaining work (suggested order)
 
-1. **Remaining utils**: captions (needs the encoder package, so it lands there or app-side), contact-sheet, audio-sync, transcode (timecode helpers already moved; audit the rest for DOM/app deps; DOM-touching ones stay app-side).
-2. **App rewrite** (`apps/web`): engine shell wires canvas/AudioContext/DPR into world traits, app-side world traits (input, HUD, selection tool, history, store, timelineIndex signal), history/persistence via koota events (including wrapping the folder/asset model ops with Dexie writes, font persistence around `loadWebFont` + `restoreFonts`/`getLocalFonts`, re-implementing `syncInteractiveState` over `ChildOf(document)` queries: `Not(ChildOf('*'))` throws in koota, and re-adding the editing-surface `syncKeyframeTrack` calls the observers slice dropped), Deleted-tombstone pruning + `unpersistEntity`, UI to `packages/koota-solid` hooks, timeline UI consumes new `TimelineNode.entity`. Delete `engine/components`, `engine/api` progressively.
-3. **CLI**: point node capture at the runtime + encoder packages.
+1. **App rewrite** (`apps/web`): engine shell wires canvas/AudioContext/DPR into world traits, app-side world traits (input, HUD, selection tool, history, store, timelineIndex signal), history/persistence via koota events (including wrapping the folder/asset model ops with Dexie writes, font persistence around `loadWebFont` + `restoreFonts`/`getLocalFonts`, re-implementing `syncInteractiveState` over `ChildOf(document)` queries: `Not(ChildOf('*'))` throws in koota, and re-adding the editing-surface `syncKeyframeTrack` calls the observers slice dropped), Deleted-tombstone pruning + `unpersistEntity`, UI to `packages/koota-solid` hooks, timeline UI consumes new `TimelineNode.entity`. `utils/captions.ts` (trpc/upload/encoder-driven) stays app-side, rewired to `@diffusionstudio/encoder`. Delete `engine/components`, `engine/api` progressively.
+2. **CLI**: point node capture at the runtime + encoder packages (incl. importing `MAX_FRAMES_PER_SHEET` from the encoder instead of defining it in `cli-channels.ts`).
 
 ## Layout reminders
 

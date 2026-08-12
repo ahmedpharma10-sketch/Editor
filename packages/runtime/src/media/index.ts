@@ -5,6 +5,7 @@
 export * from './audio';
 export * from './audio-bus';
 export * from './audio-peaks';
+export * from './audio-sync';
 export * from './caption';
 export * from './dispose';
 export * from './frame-cache';
@@ -15,4 +16,5 @@ export * from './sequence';
 export * from './shader';
 export * from './surface';
 export * from './time-stretcher';
+export * from './transcode';
 export * from './video';
