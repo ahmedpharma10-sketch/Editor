@@ -7,6 +7,7 @@ import { trait, type Entity } from 'koota';
 import { createLiveMounts } from '../utils/live-mounts';
 
 import type { FontSource } from '../fonts/types';
+import type { Asset, Folder } from '../assets/types';
 
 // Singleton state attached to the world itself (world.get/world.set).
 // Replaces the bitecs createWorld({...}) context bag. Only headless runtime
@@ -63,6 +64,16 @@ export const AudioEngine = trait({
 
 // Fonts registered for text layout.
 export const Fonts = trait({ list: () => [] as FontSource[] });
+
+// Asset metadata by id (model only; the app persists and rehydrates it).
+export const Assets = trait(() => new Map<string, Asset>());
+
+// Asset-library folder tree by id (model only, like Assets).
+export const Folders = trait(() => new Map<string, Folder>());
+
+// Allocation state for the project's shared asset/folder id space (sqids
+// over a monotonic counter), so an id never refers to both kinds.
+export const AssetIds = trait({ counter: 0 });
 
 // Live JSX mount registry; running graphs advance once per frame.
 export const Mounts = trait(() => createLiveMounts());

@@ -16,6 +16,9 @@ import {
 	RenderSurface,
 	AudioEngine,
 	Fonts,
+	Assets,
+	Folders,
+	AssetIds,
 	Mounts,
 	FramePromises,
 } from '../traits/world';
@@ -38,6 +41,9 @@ export function createRuntimeWorld(projectId: string) {
 		RenderSurface,
 		AudioEngine,
 		Fonts,
+		Assets,
+		Folders,
+		AssetIds,
 		Mounts,
 		FramePromises,
 	);

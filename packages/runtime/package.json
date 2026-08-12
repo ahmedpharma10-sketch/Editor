@@ -23,7 +23,8 @@
   "dependencies": {
     "animejs": "^4.4.1",
     "koota": "^0.6.6",
-    "mediabunny": "^1.32.2"
+    "mediabunny": "^1.32.2",
+    "sqids": "^0.3.0"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
