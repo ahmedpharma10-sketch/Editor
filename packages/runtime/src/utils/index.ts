@@ -7,3 +7,4 @@ export * from './live-mounts';
 export * from './sort';
 export * from './text-motion';
 export * from './time';
+export * from './transition';

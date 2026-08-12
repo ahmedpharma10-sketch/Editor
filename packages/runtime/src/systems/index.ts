@@ -2,3 +2,4 @@
 export * from './transform';
 export * from './motion';
 export * from './gradients';
+export * from './playback';
