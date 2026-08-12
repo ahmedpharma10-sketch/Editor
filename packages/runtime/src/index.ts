@@ -9,6 +9,7 @@ export * from './actions';
 export * from './assets/types';
 export * from './systems';
 export * from './math';
+export * from './media';
 export * from './capture';
 export * from './fonts';
 export * from './utils';

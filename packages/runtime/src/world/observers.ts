@@ -18,7 +18,7 @@
 
 import { store } from './store';
 import {
-	ChildOf, Deleted, Sequential, Group, Scene, Audio, Paint, AssetId,
+	ChildOf, Deleted, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
 	Delay, PlaybackRate, Trim, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Appearance, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
@@ -26,6 +26,10 @@ import {
 } from '../traits';
 import { getParentEntity } from '../queries/hierarchy';
 import { rebuildCaches } from '../actions/cache';
+import {
+	disposeDecoders, disposeHtmlHosts, disposeSurfaceHosts, disposeShaderHosts,
+	disconnectAudioBus,
+} from '../media/dispose';
 import {
 	reactToChildAttached, reactToChildDetached, reactToAssetChange,
 	reactToPaintChange, recomputeEntityTimeRange, propagateTimeRangeDown,
@@ -49,6 +53,7 @@ export function observeWorld(world: World): () => void {
 		rebuildCaches(world, child, parent);
 		propagateSize(world, child);
 		resolveConstraintOffsets(world, child);
+		disconnectAudioBus(world, child);
 		reactToChildAttached(world, child);
 	}));
 
@@ -56,12 +61,26 @@ export function observeWorld(world: World): () => void {
 	// still present in the old parent's queries, so it is excluded by hand.
 	subs.push(world.onRemove(ChildOf('*'), (child, parent) => {
 		rebuildCaches(world, child, parent, child);
+		disconnectAudioBus(world, child);
 	}));
 
 	subs.push(world.onAdd(Deleted, (entity) => {
 		// The Not(Deleted) cache queries already skip the tombstone.
 		rebuildCaches(world, entity, getParentEntity(entity));
 		reactToChildDetached(world, entity);
+		// A tombstoned subtree keeps its records for undo, but its live media
+		// handles must not linger.
+		disposeDecoders(world, entity);
+		disposeHtmlHosts(world, entity);
+		disposeSurfaceHosts(world, entity);
+		disposeShaderHosts(world, entity);
+		disconnectAudioBus(world, entity);
+	}));
+
+	// Off-screen entities release their decoders (frame caches are the bulk
+	// of media memory); the next resolve recreates them.
+	subs.push(world.onAdd(Culled, (entity) => {
+		disposeDecoders(world, entity);
 	}));
 
 	subs.push(world.onRemove(Deleted, (entity) => {

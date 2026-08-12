@@ -13,17 +13,20 @@ export const Chars = trait({ value: '' });
 
 // Text style properties, shared between a text node and its TextRange
 // sub-entities. On a text node this is the default style; on a range
-// sub-entity it overrides.
+// sub-entity it overrides. All fields default to undefined: a range override
+// carries ONLY its explicitly set fields (a sparse store slot means "inherit
+// from the node"), and the node-level fallbacks (16px, Inter, 400, ...) live
+// in the text renderer's accessors.
 export const TextStyle = trait({
-	leading: 1.2,
-	fontSize: 16,
-	fontFamily: '',
-	fontWeight: '400',
-	fontStyle: FontStyle.NORMAL as FontStyle,
-	textAlign: TextAlign.LEFT as TextAlign,
-	textBaseline: TextBaseline.TOP as TextBaseline,
-	textCase: TextCase.ORIGINAL as TextCase,
-	letterSpacing: 0, // extra spacing between characters (px)
+	leading: undefined as number | undefined,
+	fontSize: undefined as number | undefined,
+	fontFamily: undefined as string | undefined,
+	fontWeight: undefined as string | undefined,
+	fontStyle: undefined as FontStyle | undefined,
+	textAlign: undefined as TextAlign | undefined,
+	textBaseline: undefined as TextBaseline | undefined,
+	textCase: undefined as TextCase | undefined,
+	letterSpacing: undefined as number | undefined, // extra spacing between characters (px)
 });
 
 // Character range a TextStyle override applies to; end null = to the end.

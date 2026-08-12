@@ -1,2 +1,3 @@
-// Font loading; fixtures and utils follow from engine/font/.
 export * from './types';
+export * from './fixtures';
+export * from './utils';

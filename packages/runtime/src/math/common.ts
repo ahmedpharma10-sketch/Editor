@@ -16,3 +16,7 @@ export function degToRad(deg: number): number {
 export function radToDeg(rad: number): number {
 	return rad * RAD_TO_DEG;
 }
+
+export function clamp(value: number, min: number, max: number): number {
+	return Math.min(Math.max(value, min), max);
+}

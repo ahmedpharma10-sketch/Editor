@@ -10,7 +10,7 @@ import { store } from '../world/store';
 import { DEFAULT_DURATION_FRAMES } from '../constants';
 import {
 	Geometry, Group, Paint, Audio, Caption, Cache, Computed, Delay,
-	PlaybackRate, Trim,
+	PlaybackRate, Trim, CaptionDecoderHandle,
 } from '../traits';
 import { isGroupLike } from '../queries/predicates';
 import { getParentNode } from '../queries/hierarchy';
@@ -139,8 +139,12 @@ export function reactToAssetChange(world: World, entity: Entity) {
 	} else if (entity.has(Audio)) {
 		reactToGeometryDurationChange(world, entity);
 	} else if (entity.has(Caption)) {
-		// Re-pointed transcript: the caption decoder must re-resolve with the
-		// new asset. Decoder disposal moves in with the media slice.
+		// Re-pointed transcript: drop the decoder so it re-resolves with the
+		// new asset.
+		if (entity.has(CaptionDecoderHandle)) {
+			entity.get(CaptionDecoderHandle)?.dispose();
+			entity.set(CaptionDecoderHandle, null);
+		}
 	}
 }
 

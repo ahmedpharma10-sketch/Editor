@@ -20,6 +20,8 @@ export interface AssetDirectoryHandle {
 
 export type TranscriptWord = { text: string; start: number; end: number };
 
+export type WordGroup = TranscriptWord[];
+
 export type Transcript = { text: string; words: TranscriptWord[] }[];
 
 interface AssetBase {

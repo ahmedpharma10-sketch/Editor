@@ -1,1 +1,18 @@
-// Media decoding: video, audio, image, sequence, caption/, html, shader, surface, frame-cache, time-stretcher (moves wholesale from engine/decoders/).
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+export * from './audio';
+export * from './audio-bus';
+export * from './audio-peaks';
+export * from './caption';
+export * from './dispose';
+export * from './frame-cache';
+export * from './html';
+export * from './image';
+export * from './keyframe-index';
+export * from './sequence';
+export * from './shader';
+export * from './surface';
+export * from './time-stretcher';
+export * from './video';
