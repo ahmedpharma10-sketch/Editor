@@ -1,1 +1,2 @@
-// Re-exports deterministic systems. Browser-only systems (input, keyboard, camera, hud, dom) stay in apps/web.
+// Deterministic systems. Browser-only systems (input, keyboard, camera, hud, dom) stay in apps/web.
+export * from './transform';

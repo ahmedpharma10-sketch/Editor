@@ -18,6 +18,9 @@ import {
 	Mounts,
 	FramePromises,
 } from '../traits/world';
+import {
+	Anchor, Cache, Computed, Flip, LocalTransform, WorldBounds, WorldTransform,
+} from '../traits';
 
 /**
  * World with the headless runtime singletons attached. The host injects its
@@ -26,7 +29,7 @@ import {
  * top (input, history, persistence, asset stores).
  */
 export function createRuntimeWorld(projectId: string) {
-	return createWorld(
+	const world = createWorld(
 		Project({ id: projectId }),
 		Mode,
 		ActiveScene,
@@ -40,6 +43,14 @@ export function createRuntimeWorld(projectId: string) {
 		Mounts,
 		FramePromises,
 	);
+
+	// koota registers a trait's store on first add/query; getStore alone
+	// throws. Prime the stores the per-frame systems write through getStore
+	// (bitecs-style, without the trait necessarily being on the entity) so
+	// they run safely on a fresh world.
+	world.spawn(Anchor, Cache, Computed, Flip, LocalTransform, WorldBounds, WorldTransform).destroy();
+
+	return world;
 }
 
 export type RuntimeWorld = ReturnType<typeof createRuntimeWorld>;
