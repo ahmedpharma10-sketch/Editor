@@ -8,6 +8,7 @@ import { createLiveMounts } from '../utils/live-mounts';
 
 import type { FontSource } from '../fonts/types';
 import type { Asset, Folder } from '../assets/types';
+import type { Quad } from '../math/aabb';
 
 // Singleton state attached to the world itself (world.get/world.set).
 // Replaces the bitecs createWorld({...}) context bag. Only headless runtime
@@ -84,3 +85,26 @@ export const Mounts = trait(() => createLiveMounts());
 export const FramePromises = trait({
 	list: () => null as (Promise<unknown> | null)[] | null,
 });
+
+export type EntityTarget = {
+	kind: 'entity';
+	id: Entity;
+};
+
+export type HudTarget = {
+	kind: 'hud';
+	id: string;
+	quad: Quad;
+};
+
+// Paint-order hit regions collected during a render pass (topmost last). The
+// render system pushes callback-less entries for Interactive entities and the
+// stage canvas; the app's input system clears the list each frame, pushes its
+// HUD controls with handlers attached, and maps callback-less targets to its
+// default interaction handlers.
+export type HitRegion = {
+	target: EntityTarget | HudTarget;
+	callback?: (world: unknown, event: unknown) => void;
+};
+
+export const HitRegions = trait({ list: () => [] as HitRegion[] });

@@ -22,6 +22,7 @@ import {
 	AssetIds,
 	Mounts,
 	FramePromises,
+	HitRegions,
 } from '../traits/world';
 
 /**
@@ -47,6 +48,7 @@ export function createRuntimeWorld(projectId: string) {
 		AssetIds,
 		Mounts,
 		FramePromises,
+		HitRegions,
 	);
 
 	// The document root all rendered entities hang off (see DocumentRoot).

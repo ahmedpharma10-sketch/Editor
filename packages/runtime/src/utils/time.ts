@@ -26,6 +26,36 @@ export function framesToSeconds(frames: number = 0, fps: number = 30) {
 	return snapToMs(frames / fps);
 }
 
+function splitTimecode(seconds: number, frameRate: number): [hours: number, minutes: number, seconds: number, frames: number] {
+	const fps = Math.max(1, Math.round(frameRate));
+	const totalFrames = Math.round(seconds * fps);
+	const totalSeconds = Math.floor(totalFrames / fps);
+	return [
+		Math.floor(totalSeconds / 3600),
+		Math.floor((totalSeconds % 3600) / 60),
+		totalSeconds % 60,
+		totalFrames % fps,
+	];
+}
+
+/** `HH:MM:SS:FF`, fixed width so ruler ticks line up. */
+export function formatTimestamp(seconds: number, frameRate: number): string {
+	return splitTimecode(seconds, frameRate).map((v) => String(v).padStart(2, '0')).join(':');
+}
+
+/**
+ * The same timecode with its zero segments dropped, for labels and filenames:
+ * `08s10f`, `01m05s`, `0f`. Each segment carries its unit, so nothing is
+ * ambiguous once the empty ones are gone.
+ */
+export function formatTimecode(seconds: number, frameRate: number): string {
+	const units = ['h', 'm', 's', 'f'];
+	const stamp = splitTimecode(seconds, frameRate)
+		.map((value, i) => (value === 0 ? '' : `${String(value).padStart(2, '0')}${units[i]}`))
+		.join('');
+	return stamp || '0f';
+}
+
 /**
  * Computes the trim start frame (local) for a given entity,
  * based on the specified start frame (global) and playback rate.
