@@ -3,6 +3,7 @@ name: Bump Homebrew cask
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   bump-cask:
@@ -14,6 +15,10 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
+          # On workflow_dispatch there is no release event; fall back to the latest release.
+          if [ -z "$TAG" ]; then
+            TAG=$(curl -sf https://api.github.com/repos/diffusionstudio/editor/releases/latest | jq -r .tag_name)
+          fi
           VERSION="${TAG#v}"
           curl -sfL -o app.dmg "https://github.com/diffusionstudio/editor/releases/download/${TAG}/Diffusion-Studio-arm64.dmg"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -29,6 +34,10 @@ jobs:
           cd tap
           sed -i "s|^  version \".*\"|  version \"${VERSION}\"|" Casks/editor.rb
           sed -i "s|^  sha256 \".*\"|  sha256 \"${SHA256}\"|" Casks/editor.rb
+          if git diff --quiet; then
+            echo "Cask already at ${VERSION}, nothing to do"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "Bump editor cask to ${VERSION}"
