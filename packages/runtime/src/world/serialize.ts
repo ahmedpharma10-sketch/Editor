@@ -21,10 +21,11 @@ import { createEntity } from '../actions/entities';
 import type { Entity, World } from 'koota';
 
 /**
- * Persisted document record for one entity. Field names and value shapes are
- * the storage format: they must stay stable across the bitecs to koota
- * migration so existing projects keep loading (enums stay numbers, Playback
- * persists loop as 0/1, tags persist as {} and Hidden/ClipsContent as true).
+ * Plain-object snapshot of one entity's traits. Used to clone entity
+ * subtrees in-memory (copy/paste, duplicate, split-on-overlap) via
+ * serialize -> deserialize onto fresh entities. Not a persisted format —
+ * no storage or backward-compatibility guarantees; persistence is a
+ * separate, not-yet-built app-side concern.
  */
 export interface EntityRecord {
 	id: string;
