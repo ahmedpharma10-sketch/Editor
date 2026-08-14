@@ -4,6 +4,7 @@
 
 import { useEngine } from "@/context/engine";
 import { loadAsset, getAssetFile } from "@/components/engine";
+import { EngineCanvas } from "@/engine";
 import { Toolbar } from "./toolbar";
 import { DrawOverlay } from "./draw-overlay";
 import { toast } from "somoto"
@@ -146,18 +147,23 @@ export function Canvas() {
 
   return (
     <div class="relative size-full bg-background">
-      <div class="absolute inset-0">
+      <div
+        class="absolute inset-0"
+        on:drop={handleDropEvent}
+        on:dragover={handleDragOver}
+      >
         <Toolbar />
         <DrawOverlay />
         <SceneInitOverlay
           onDrop={handleDropEvent}
           onDragOver={handleDragOver}
         />
+        <EngineCanvas />
+
+        {/** Deprecated bitecs canvas */}
         <canvas
           id={MAIN_CANVAS_ID}
-          class="absolute inset-0 z-1"
-          on:drop={handleDropEvent}
-          on:dragover={handleDragOver}
+          class="absolute inset-0 opacity-0 pointer-events-none"
         />
       </div>
     </div>

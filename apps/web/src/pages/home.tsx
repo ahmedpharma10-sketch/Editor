@@ -14,6 +14,7 @@ import { useProjectId } from '@/hooks/use-project-id';
 import { useSearchParams } from '@solidjs/router';
 import { ECSProvider } from '@/context/ecs';
 import { TimelineProvider } from '@/context/timeline';
+import { EngineProvider as KootaEngineProvider } from '@/engine';
 
 export function HomePage() {
   const projectId = useProjectId();
@@ -25,24 +26,26 @@ export function HomePage() {
      */
     <Show when={projectId()} keyed>
       {(id) => (
-        <EngineProvider projectId={id}>
-          <EditorApiProvider>
-            <TimelineProvider>
-              <ECSProvider>
-                <ExportProvider>
-                  <PromptInputProvider>
-                    <LayoutProvider>
-                      <EditorPage />
-                    </LayoutProvider>
-                  </PromptInputProvider>
-                  <Show when={!params.project || !!params.dashboard}>
-                    <Dashboard />
-                  </Show>
-                </ExportProvider>
-              </ECSProvider>
-            </TimelineProvider>
-          </EditorApiProvider>
-        </EngineProvider>
+        <KootaEngineProvider projectId={id}>
+          <EngineProvider projectId={id}>
+            <EditorApiProvider>
+              <TimelineProvider>
+                <ECSProvider>
+                  <ExportProvider>
+                    <PromptInputProvider>
+                      <LayoutProvider>
+                        <EditorPage />
+                      </LayoutProvider>
+                    </PromptInputProvider>
+                    <Show when={!params.project || !!params.dashboard}>
+                      <Dashboard />
+                    </Show>
+                  </ExportProvider>
+                </ECSProvider>
+              </TimelineProvider>
+            </EditorApiProvider>
+          </EngineProvider>
+        </KootaEngineProvider>
       )}
     </Show>
   )

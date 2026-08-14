@@ -4,4 +4,5 @@
 
 export * from './create-engine';
 export * from './context';
+export * from './canvas';
 export * from './hooks';
