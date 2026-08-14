@@ -4,7 +4,7 @@
 
 import { Assets } from "./assets";
 import { useLayout } from "@/context/layout";
-import { useEditorApi } from "@/context/editor-api";
+import { useEditorApi } from "@/context/dapi";
 import { createSignal, Show } from "solid-js";
 import { Button } from "../ui/button";
 import { Icon } from "../ui/icon";

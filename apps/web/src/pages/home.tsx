@@ -8,7 +8,7 @@ import { LayoutProvider } from "@/context/layout";
 import { Dashboard } from '@/components/dashboard';
 import { PromptInputProvider } from "@/context/prompt-input";
 import { EngineProvider } from '@/context/engine';
-import { EditorApiProvider } from '@/context/editor-api';
+import { EditorApiProvider } from '@/context/dapi';
 import { ExportProvider } from '@/context/export';
 import { useProjectId } from '@/hooks/use-project-id';
 import { useSearchParams } from '@solidjs/router';
