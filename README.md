@@ -11,6 +11,8 @@
 
 **Diffusion Studio** is an open-source video editor built for agents. It bundles video analysis tools like speech-to-text and multimodal understanding with an editable timeline into a single CLI: everything agents need to edit videos and generate motion graphics.
 
+Every output opens in a full video editing interface, so you can pick up and refine exactly where the agent left off.
+
 ## Getting started
 
 Use with Claude Code, Codex, Cursor, Copilot, or Gemini CLI. Install the skill once, globally:
