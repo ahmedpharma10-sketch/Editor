@@ -4,6 +4,17 @@ import { isWorld } from '../utils/is-world';
 import { access, createStableTrait, type MaybeAccessor } from '../utils/reactive-args';
 import { useWorld } from '../world/use-world';
 
+// Overloads split the trait union so T infers from a plain trait argument;
+// a single MaybeAccessor<T | RelationPair<T>> parameter defeats inference
+// and silently widens the result to Accessor<any>.
+export function useTrait<T extends Trait>(
+	target: MaybeAccessor<Entity | World | undefined | null>,
+	trait: T | RelationPair<T>
+): Accessor<TraitRecord<T> | undefined>;
+export function useTrait<T extends Trait>(
+	target: MaybeAccessor<Entity | World | undefined | null>,
+	trait: Accessor<T | RelationPair<T>>
+): Accessor<TraitRecord<T> | undefined>;
 export function useTrait<T extends Trait>(
 	target: MaybeAccessor<Entity | World | undefined | null>,
 	trait: MaybeAccessor<T | RelationPair<T>>

@@ -1,9 +1,22 @@
 import { $internal, type Entity, type RelationPair, type Trait, type TraitRecord, type World } from 'koota';
-import { createEffect, onCleanup, untrack } from 'solid-js';
+import { createEffect, onCleanup, untrack, type Accessor } from 'solid-js';
 import { isWorld } from '../utils/is-world';
 import { access, createStableTrait, type MaybeAccessor } from '../utils/reactive-args';
 import { useWorld } from '../world/use-world';
 
+// See use-trait.ts: the union must be split across overloads, not baked
+// into a single MaybeAccessor<T | RelationPair<T>> parameter, or T fails to
+// infer from a plain trait argument and callback silently widens to any.
+export function useTraitEffect<T extends Trait>(
+	target: MaybeAccessor<Entity | World>,
+	trait: T | RelationPair<T>,
+	callback: (value: TraitRecord<T> | undefined) => void
+): void;
+export function useTraitEffect<T extends Trait>(
+	target: MaybeAccessor<Entity | World>,
+	trait: Accessor<T | RelationPair<T>>,
+	callback: (value: TraitRecord<T> | undefined) => void
+): void;
 export function useTraitEffect<T extends Trait>(
 	target: MaybeAccessor<Entity | World>,
 	trait: MaybeAccessor<T | RelationPair<T>>,
