@@ -24,12 +24,14 @@ export class Engine {
 	readonly world: RuntimeWorld;
 
 	private canvas: HTMLCanvasElement | null = null;
-	private readonly audioContext: AudioContext;
-	private readonly ownsAudioContext: boolean;
 	private _running = false;
 	private rafId: number | null = null;
-	// null => the next step() produces delta 0 (first frame, or first frame after a resume).
 	private lastTimestamp: number | null = null;
+
+	private readonly audioContext: AudioContext;
+	private readonly ownsAudioContext: boolean;
+	private readonly runningListeners = new Set<(running: boolean) => void>();
+	private readonly boundLoop = (timestamp: number): void => this.loop(timestamp);
 
 	public constructor(projectId: string, options: EngineOptions = {}) {
 		this.world = createRuntimeWorld(projectId);
@@ -41,6 +43,19 @@ export class Engine {
 
 	public get running(): boolean {
 		return this._running;
+	}
+
+	/**
+	 * Subscribe to start()/stop() transitions.
+	 */
+	public onRunningChange(listener: (running: boolean) => void): () => void {
+		this.runningListeners.add(listener);
+		return () => this.runningListeners.delete(listener);
+	}
+
+	private setRunning(running: boolean): void {
+		this._running = running;
+		for (const listener of this.runningListeners) listener(running);
 	}
 
 	public mount(canvas: HTMLCanvasElement): void {
@@ -78,18 +93,18 @@ export class Engine {
 
 	private loop(timestamp: number): void {
 		this.step(timestamp);
-		this.rafId = requestAnimationFrame(this.loop);
+		this.rafId = requestAnimationFrame(this.boundLoop);
 	}
 
 	public start(): void {
 		if (this._running) return;
-		this._running = true;
+		this.setRunning(true);
 		this.lastTimestamp = null;
-		this.rafId = requestAnimationFrame(this.loop);
+		this.rafId = requestAnimationFrame(this.boundLoop);
 	}
 
 	public stop(): void {
-		this._running = false;
+		this.setRunning(false);
 		if (this.rafId !== null) {
 			cancelAnimationFrame(this.rafId);
 			this.rafId = null;
