@@ -12,14 +12,9 @@ import type { ExportResult } from "@/components/engine/encode/types";
 import type { ExportConfig } from "@/components/sidebar-right/inspector/export-progress";
 
 /**
- * Unified scene render path.
- *
- * Both the UI export (`ExportProvider.exportScene`) and the headless CLI render
- * (`handleNodeRender` for `dapi node render`) funnel through {@link renderScene}
- * so they share one implementation of: the "Exporting Composition" overlay, the
- * engine stop/start lifecycle, encoder creation, progress reporting, and cancel
- * wiring. Callers only supply what differs (where the file comes from, and any
- * analytics/toasts/cleanup around the result).
+ * Unified scene render path, used by the UI export (`ExportProvider.exportScene`):
+ * the "Exporting Composition" overlay, the engine stop/start lifecycle, encoder
+ * creation, progress reporting, and cancel wiring all live in {@link renderScene}.
  */
 
 export type RenderOverlayState = {

@@ -25,4 +25,4 @@ Paint elements are valid inside any filled visual element (`<rect>`, `<text>`, `
 
 Colors accept any CSS color; alpha is ignored (use `opacity`). `color`, `opacity`, and `offset` are animatable (see [keyframes.md](./keyframes.md)), so gradients can animate. Paints have no spatial or timing props and cannot be document roots.
 
-Paints are live entities like any other: patch them with [`dapi node patch`](../node/patch.md), and add a stop to an existing gradient with [`dapi node insert`](../node/insert.md) (`node insert <paintId> '<colorStop offset={0.5} color="#FF0055" />'`).
+Paints are live entities like any other: patch them with `dapi node patch`, and add a stop to an existing gradient with `dapi node insert` (`node insert <paintId> '<colorStop offset={0.5} color="#FF0055" />'`).

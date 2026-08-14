@@ -384,52 +384,6 @@ async function probeMediaMetadata(file: Blob, mimeType: string) {
 }
 
 /**
- * Stores a compiled project module (the source a `dapi mount` executed) as a
- * content-addressed SCRIPT asset, so any world can re-run it. The hash is a
- * SHA-256 of the module text, so identical re-mounts dedup to one asset. The
- * bytes live as a `.js` file in the same OPFS `assets` folder as any media.
- */
-export async function createScriptAsset(world: EngineWorld, code: string): Promise<Asset> {
-  const state = assetState(world);
-
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
-  const hash = 'script:' + Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  const existing = Array.from(world.assets.values()).find((asset) => asset.hash === hash);
-  if (existing) return existing;
-
-  const id = allocateId(world);
-  const mimeType = 'text/javascript';
-  const uniqueName = id + mimeTypeToExtension(mimeType);
-
-  const directory = await state.directoryHandle;
-  const assetsFolder = await directory.getDirectoryHandle('assets', { create: true });
-  const fileHandle = await assetsFolder.getFileHandle(uniqueName, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(new Blob([code], { type: mimeType }));
-  await writable.close();
-
-  const file = await fileHandle.getFile();
-
-  return saveAsset(world, {
-    id,
-    hash,
-    createdAt: new Date().toISOString(),
-    lastModified: file.lastModified,
-    name: uniqueName,
-    mimeType,
-    size: file.size,
-    handle: fileHandle,
-    generationId: null,
-    generationKey: null,
-    folderId: null,
-    type: 'SCRIPT',
-  });
-}
-
-/**
  * Describes a local file as an ephemeral Asset: full metadata, but no id
  * allocation and no persistence — the library is never touched. The path
  * doubles as the id so errors and results name the file.

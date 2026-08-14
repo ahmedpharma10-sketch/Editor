@@ -6,7 +6,7 @@ A project is structured like a SolidJS app: a **root** is established on the can
 
 The markup is **pseudo-SVG**: elements like `<rect>`, `<text>`, `<linearGradientPaint>`, and `<colorStop>` mirror SVG's shape-and-paint model, but the tags and props are the editor's own (see [elements.md](./elements.md)), not the SVG spec.
 
-The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the project's roots into the document, and [`dapi node insert`](../node/insert.md) runs the same pipeline into an existing parent entity. [`dapi node patch`](../node/patch.md) assigns the same props on existing nodes.
+> **Status:** the CLI commands that drove this pipeline (`dapi mount`, `dapi node insert`, `dapi node patch`, and the rest of `dapi node`/`dapi asset`/`dapi project`/`dapi folder`/`dapi selection`) have been removed pending a rebuild where JSX becomes the source of truth for the document. This file documents the contract they will implement again: mounting a project's roots into the document, inserting into an existing parent entity, and assigning props on existing nodes. `dapi node capture` survived the cut as the top-level [`dapi capture`](../capture.md), unrelated to authoring — it only renders an existing node to PNGs.
 
 ## Contents
 
@@ -35,8 +35,8 @@ The pipeline is driven by two commands: [`dapi mount`](../mount.md) renders the 
 
 ## Pipeline
 
-1. **Compile**: the CLI bundles the entry file with esbuild + `babel-preset-solid` in `universal` mode, so JSX compiles against the editor's renderer runtime (`@diffusionstudio/jsx`) instead of the DOM. Compile errors fail here, before the app is contacted.
-2. **Ship**: the resulting single-file ESM bundle is sent to the running app over the local socket.
+1. **Compile**: the entry file bundles with esbuild + `babel-preset-solid` in `universal` mode, so JSX compiles against the editor's renderer runtime (`@diffusionstudio/jsx`) instead of the DOM. Compile errors fail here, before the app is contacted.
+2. **Ship**: the resulting single-file ESM bundle is delivered to the running app.
 3. **Evaluate**: the app imports the module. Top-level code (including top-level `await`) runs to completion. The module's **default export** is the project component.
 4. **Mount**: the component tree is rendered into a **staging root**. The universal renderer materializes each element as an ECS entity with the appropriate components (see [elements.md](./elements.md)). Mounting is synchronous; an error here aborts the import with nothing inserted.
 5. **Commit**: the rendered roots are reconciled against the document (see [roots.md](./roots.md)) as a **single undoable operation** that also covers the generated assets below.

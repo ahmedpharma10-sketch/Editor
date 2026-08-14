@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
- * JSX mounts (`dapi mount`) keep their Solid reactive graph running after
+ * JSX mounts keep their Solid reactive graph running after
  * the mount lands, so signals, effects, and timers keep driving the mounted
  * entities. A run stays alive until the world is
  * disposed or a later mount claims one of its root keys: the keyed root

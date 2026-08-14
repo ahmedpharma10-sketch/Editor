@@ -1,6 +1,6 @@
 # Captions
 
-`<captions />` inside a scene transcribes that scene's audio into a caption node: a styled, timed transcript, produced on import. To caption an already-open scene, insert one with [`dapi node insert`](../node/insert.md).
+`<captions />` inside a scene transcribes that scene's audio into a caption node: a styled, timed transcript, produced on import. To caption an already-open scene, insert one with `dapi node insert`.
 
 ```tsx
 <captions />

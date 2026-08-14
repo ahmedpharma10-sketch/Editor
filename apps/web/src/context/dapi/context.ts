@@ -3,11 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { ChildOf } from "@/components/engine/components";
-import { getAllEntities, hasComponent, Not, query } from "bitecs";
-import { selectedNodeIds } from "./selection";
+import { getAllEntities, hasComponent, Not, Or, query } from "bitecs";
 
-import type { Engine } from "@/components/engine";
+import type { Engine, EngineWorld } from "@/components/engine";
 import type { Accessor } from "solid-js";
+
+function selectedNodeIds(world: EngineWorld): number[] {
+  const c = world.components;
+  return [...query(world, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer), Not(c.Deleted)])];
+}
 
 export function handleContextGet(engine: Accessor<Engine>) {
   return async () => {

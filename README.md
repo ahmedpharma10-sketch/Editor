@@ -8,12 +8,6 @@
 
 **Diffusion Studio** lets your agents make videos. The agent writes a composition in TSX. The `dapi` CLI mounts it into the editor. Every element stays editable. Think of it as **FFmpeg for agents**, with generative AI and multimodal understanding built in.
 
-```sh
-dapi open                       # use -b to run the editor headless
-dapi mount hero.tsx             # render a composition into it
-dapi node render -o hero.mp4    # encode the scene to disk
-```
-
 ## Getting started
 
 Use with Claude Code, Codex, Cursor, Copilot, or Gemini CLI. Install the skill once, globally:
@@ -123,23 +117,19 @@ dapi media filmstrip clip.mp4                            # grid of video frames
 dapi media waveform track.mp3                            # audio waveform, silence flagged
 dapi media transcribe interview.wav                      # timed, word-level transcript
 dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
-dapi node capture                                        # see the canvas itself
+dapi capture 42                                          # see the canvas itself
 ```
 
 ## CLI at a glance
 
 | Command | Purpose |
 | --- | --- |
-| `dapi open` | Launch the app, open a file, or turn a folder of footage into a project |
 | `dapi context` | Summary of the open project: scenes, playhead, fonts |
-| `dapi mount` | Compile and mount a JSX composition |
-| `dapi node …` | The scene graph: `ls`, `tree`, `grep`, `patch`, `insert`, `cp`, `rm`, `capture`, `render` |
-| `dapi asset …` | The media library: `add`, `ls`, `tree`, `mv`, `rm`, `export` |
+| `dapi capture` | Render a node in isolation to a labelled contact sheet, or one PNG per position |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
-| `dapi project …` / `dapi folder …` / `dapi selection …` | Projects, library folders, canvas selection |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
 | `dapi screenshot` / `dapi logs` | The app itself: capture the window, read recent console output |
-| `dapi fetch` | Download a video from yt/tt/ig, ready for `dapi asset add` |
+| `dapi fetch` | Download a video from yt/tt/ig |
 | `dapi whoami` | The authenticated account |
 | `dapi report` | Report a bug in the CLI or the app: diagnostics bundled, filed as a GitHub issue via `gh` |
 

@@ -40,7 +40,7 @@ The `<html>` box carries all [common props](./elements.md#common-props). Its pai
 
 ## Reactivity
 
-The children are part of the project's Solid graph: signals in attributes and text update the live DOM, and the drawn content follows on the next frame. A [`dapi mount`](../mount.md) stays live, so the graph keeps running and `useTicker` or timers can drive the markup:
+The children are part of the project's Solid graph: signals in attributes and text update the live DOM, and the drawn content follows on the next frame. A `dapi mount` stays live, so the graph keeps running and `useTicker` or timers can drive the markup:
 
 ```tsx
 const [count, setCount] = createSignal(0);
@@ -67,7 +67,7 @@ Like all paints, `<htmlPaint>` stacks with siblings in document order and clips 
 
 ## Persistence and export
 
-The compiled module is persisted with the document: on reload, export, and `dapi node capture` the engine re-executes it and rebuilds the DOM content in that context. Exports wait for the browser's rendering update before sampling each frame, so the drawn HTML appears in the output; ticker-driven signals follow the playhead and animate frame-accurately. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree).
+The compiled module is persisted with the document: on reload, export, and `dapi capture` the engine re-executes it and rebuilds the DOM content in that context. Exports wait for the browser's rendering update before sampling each frame, so the drawn HTML appears in the output; ticker-driven signals follow the playhead and animate frame-accurately. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree).
 
 ## Requirements and limitations
 

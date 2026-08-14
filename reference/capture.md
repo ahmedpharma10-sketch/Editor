@@ -1,6 +1,6 @@
-# `dapi node capture <id> [-t, --time <time...>]`
+# `dapi capture <id> [-t, --time <time...>]`
 
-Renders a node in isolation at one or more timeline positions and merges them into **contact sheets**: up to 12 positions per PNG, each cell labelled with the timecode of the frame actually rendered and drawn as large as the sheet allows, so a few positions arrive as one high-resolution picture instead of a directory to open one by one. `--separate` writes a PNG per position instead. The node is drawn offscreen, tightly framed to its own bounds; siblings and overlapping scene content are not included, so capture a scene id to check composition. To grab a video asset's own pixels instead of the composited node, use [`media grab`](../media/grab.md).
+Renders a node in isolation at one or more timeline positions and merges them into **contact sheets**: up to 12 positions per PNG, each cell labelled with the timecode of the frame actually rendered and drawn as large as the sheet allows, so a few positions arrive as one high-resolution picture instead of a directory to open one by one. `--separate` writes a PNG per position instead. The node is drawn offscreen, tightly framed to its own bounds; siblings and overlapping scene content are not included, so capture a scene id to check composition. To grab a video asset's own pixels instead of the composited node, use [`media grab`](./media/grab.md).
 
 ## Input
 

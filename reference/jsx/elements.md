@@ -49,6 +49,3 @@ All visual elements accept:
 
 `Animatable` props also take a keyframe list; see [keyframes.md](./keyframes.md).
 
-## One property table
-
-Common and per-element props share a single property table, exported as `PatchProps` from `@diffusionstudio/jsx`. [`dapi node patch`](../node/patch.md) accepts exactly these keys, with the same value requirements, as patch entries on existing nodes; JSX and CLI cannot drift.

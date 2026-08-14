@@ -34,4 +34,4 @@ The editor's transition inspector options:
 - `duration` takes any [time format](./timing.md#time-formats) and is centered on the cut: half plays before it, half after.
 - A **partial value merges** into the clip's existing transition: `transition={{ duration: 2 }}` keeps the current type; `transition={{}}` applies the defaults.
 - **`null` removes** the clip's transition.
-- Part of the shared property table: [`dapi node patch`](../node/patch.md) accepts `transition` with identical semantics, e.g. `--json '[{ "id": 42, "transition": { "type": "dissolve" } }]'`.
+- Part of the shared property table: `dapi node patch` accepts `transition` with identical semantics, e.g. `--json '[{ "id": 42, "transition": { "type": "dissolve" } }]'`.

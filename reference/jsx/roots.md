@@ -10,7 +10,7 @@ Identities must be unique within a render, and rebuilding keeps the scene's enti
 
 The `scene` property is valid **only** at the document root.
 
-[`dapi node insert`](../node/insert.md) skips this reconciliation entirely: its roots are inserted as children and every run inserts fresh entities.
+`dapi node insert` skips this reconciliation entirely: its roots are inserted as children and every run inserts fresh entities.
 
 ## Canvas placement
 
@@ -19,4 +19,4 @@ The canvas holds many roots, but a root's position on the canvas is an **editor 
 - **Rebuilt roots** (matched by `scene`) keep their existing canvas position.
 - **New roots** are placed automatically: in the nearest empty space around the current viewport center, gapped so they never overlap existing content (the same auto-placement the editor uses when generating onto the canvas). A mount that creates multiple roots places them side by side in render order.
 
-The camera is not moved; because placement anchors to the viewport center, new roots typically land in view. Use [`dapi selection focus`](../selection/focus.md) to frame them explicitly.
+The camera is not moved; because placement anchors to the viewport center, new roots typically land in view. Use `dapi selection focus` to frame them explicitly.

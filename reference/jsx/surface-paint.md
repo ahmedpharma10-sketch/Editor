@@ -25,7 +25,7 @@ An element backed by a **canvas you draw yourself**. The `ref` callback receives
 
 ## Reactivity
 
-The engine samples the canvas every frame, so anything you draw shows up on the next frame. A [`dapi mount`](../mount.md) stays live, so the reactive graph keeps running: create effects in the ref to redraw from signals, or drive frame-accurate motion from the ticker's composition time:
+The engine samples the canvas every frame, so anything you draw shows up on the next frame. A `dapi mount` stays live, so the reactive graph keeps running: create effects in the ref to redraw from signals, or drive frame-accurate motion from the ticker's composition time:
 
 ```tsx
 <surface width={400} height={400}
@@ -81,7 +81,7 @@ Like all paints it stacks with siblings in document order and clips to the paren
 
 ## Persistence and export
 
-The compiled module is persisted with the document, so the drawing is reproducible, not ephemeral: on reload, export, and `dapi node capture` the engine re-executes it and redraws into a fresh canvas driven by that context's playhead, so ticker surfaces animate in exports. The bitmap itself is not stored; your code reproduces it. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree; using them inside a draw effect is fine).
+The compiled module is persisted with the document, so the drawing is reproducible, not ephemeral: on reload, export, and `dapi capture` the engine re-executes it and redraws into a fresh canvas driven by that context's playhead, so ticker surfaces animate in exports. The bitmap itself is not stored; your code reproduces it. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree; using them inside a draw effect is fine).
 
 ## Requirements and limitations
 

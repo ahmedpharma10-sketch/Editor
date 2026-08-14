@@ -20,5 +20,3 @@
 ## Execution
 
 Alignment runs at the sync stage of the [pipeline](./README.md#pipeline): after generated assets land (either side may be generated), before captions read the scene. It is local, consumes no credits, and blocks the command, so exit `0` means final placement. A correlation too weak to trust fails the command (see [errors.md](./errors.md)) while the node keeps its default placement. Offsets are **cached** by the pair of source contents, so re-mounting an unchanged project re-measures nothing.
-
-Because `syncTo` is part of the shared property table, [`dapi node patch`](../node/patch.md) accepts it too: patching `syncTo` onto an existing node re-aligns it against the document node carrying that key.

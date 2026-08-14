@@ -15,7 +15,6 @@ import { inputSystem } from '../systems/input-system';
 import { createCameraController } from '../systems';
 import { hudSystem } from '../systems/hud';
 import { createKeyboardSystem } from '../systems/keyboard';
-import { realizeMounts } from '@/utils/mount';
 import { createSignal } from 'solid-js';
 
 import type Stats from 'stats.js';
@@ -43,7 +42,6 @@ export function createEngine(id: string) {
 		keyboard.init();
 
 		await restoreWorld(world);
-		await realizeMounts(world);
 
 		const c = world.components;
 		// Auto-select the first scene as the active timeline

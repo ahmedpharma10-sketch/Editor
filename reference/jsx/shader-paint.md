@@ -84,7 +84,7 @@ Like all paints it stacks with siblings in document order; `<shaderPaint>` takes
 
 ## Patching
 
-Shader paints are live entities: find the paint id under the element with [`dapi node tree`](../node/tree.md), then patch [`dapi node patch`](../node/patch.md):
+Shader paints are live entities: find the paint id under the element with `dapi node tree`, then patch `dapi node patch`:
 
 ```bash
 # tweak parameters (hot update, no recompile)
@@ -94,7 +94,7 @@ dapi node patch '[{ "id": 42, "uniforms": { "strength": 2 } }]'
 dapi node patch '[{ "id": 42, "wgsl": "..." }]'
 ```
 
-Attach one to an existing video with [`dapi node insert`](../node/insert.md) (`node insert <videoId> '<shaderPaint wgsl={...} />'`).
+Attach one to an existing video with `dapi node insert` (`node insert <videoId> '<shaderPaint wgsl={...} />'`).
 
 ## Errors and limitations
 

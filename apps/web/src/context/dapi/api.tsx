@@ -3,19 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createEffect, createContext, useContext, onCleanup, onMount, createResource } from "solid-js";
-import { useSearchParams } from "@solidjs/router";
 import { useEngine } from '@/context/engine';
 import { useProjectId } from '@/hooks/use-project-id';
 import { useAuth } from '@/context/auth';
-import { t, q, m, q0, m0 } from "@/lib/cli-rpc";
+import { t, q, q0 } from "@/lib/cli-rpc";
 import { handleContextGet } from "./context";
-import { handleAssetsAdd, handleAssetsList, handleAssetTree, handleAssetsDelete, handleAssetsMove, handleAssetsExport } from "./assets";
 import { handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaFilmstrip, handleMediaWaveform, handleMediaListen } from "./media";
-import { handleFoldersList, handleFolderCreate, handleFolderRename, handleFoldersMove, handleFoldersDelete } from "./folders";
-import { handleSelectionFocus, handleSelectionList, handleSelectionSet } from "./selection";
-import { handleNodeList, handleNodeTree, handleNodeGrep, handleNodeCapture, handleNodeDelete, handleNodePatch, handleNodeDuplicate, handleNodeRender } from "./node";
-import { handleMount, handleNodeInsert } from "./mount";
-import { handleProjectActive, handleProjectList, handleProjectCreate, handleProjectDelete, handleProjectOpen } from "./project";
+import { handleCapture } from "./capture";
 import { handleLogs } from "./logs";
 import { handleModels } from "./models";
 import { handleVoices } from "./voices";
@@ -44,7 +38,6 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   const projectId = useProjectId();
   const engine = useEngine();
   const auth = useAuth();
-  const [, setParams] = useSearchParams();
   const [isFullscreen, { mutate }] = createResource(handleGetFullscreenState, { initialValue: false });
 
   const requireAuth = <I, O>(fn: (data: I) => Promise<O>) => (data: I) => {
@@ -73,7 +66,7 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
     if (!window.desktop || !engine.initialized() || projectId() !== engine.world.projectId) return;
 
 
-    const router = createAppRouter({ getEngine, getUser, requireAuth, setParams });
+    const router = createAppRouter({ getEngine, getUser, requireAuth });
     onCleanup(cliBridge.register(createRouterCaller(router)));
   });
 
@@ -94,27 +87,18 @@ type AppRouterDeps = {
   getEngine: () => Engine;
   getUser: () => User;
   requireAuth: <I, O>(fn: (data: I) => Promise<O>) => (data: I) => Promise<O>;
-  setParams: ReturnType<typeof useSearchParams>[1];
 };
 
-function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRouterDeps) {
+function createAppRouter({ getEngine, getUser, requireAuth }: AppRouterDeps) {
   return t.router({
     ping: t.procedure.query(() => {}),
     whoami: t.procedure.query(() => getUser()),
     context: q0(handleContextGet(getEngine)),
-    mount: m(handleMount(getEngine)),
+    capture: q(handleCapture(getEngine)),
     models: q(handleModels()),
     logs: q(handleLogs()),
     screenshot: q0(handleWindowScreenshot()),
     voices: q0(handleVoices()),
-    asset: t.router({
-      add: m(handleAssetsAdd(getEngine)),
-      list: q(handleAssetsList(getEngine)),
-      tree: q(handleAssetTree(getEngine)),
-      delete: m(handleAssetsDelete(getEngine)),
-      move: m(handleAssetsMove(getEngine)),
-      export: m(handleAssetsExport(getEngine)),
-    }),
     media: t.router({
       probe: q(handleMediaProbe(getEngine)),
       frame: q(handleMediaFrame(getEngine)),
@@ -122,36 +106,6 @@ function createAppRouter({ getEngine, getUser, requireAuth, setParams }: AppRout
       filmstrip: q(handleMediaFilmstrip(getEngine)),
       waveform: q(handleMediaWaveform(getEngine)),
       listen: q(requireAuth(handleMediaListen(getEngine))),
-    }),
-    folder: t.router({
-      list: q(handleFoldersList(getEngine)),
-      create: m(handleFolderCreate(getEngine)),
-      rename: m(handleFolderRename(getEngine)),
-      move: m(handleFoldersMove(getEngine)),
-      delete: m(handleFoldersDelete(getEngine)),
-    }),
-    selection: t.router({
-      list: q0(handleSelectionList(getEngine)),
-      set: m(handleSelectionSet(getEngine)),
-      focus: m0(handleSelectionFocus(getEngine)),
-    }),
-    node: t.router({
-      list: q(handleNodeList(getEngine)),
-      tree: q(handleNodeTree(getEngine)),
-      grep: q(handleNodeGrep(getEngine)),
-      capture: q(handleNodeCapture(getEngine)),
-      insert: m(handleNodeInsert(getEngine)),
-      delete: m(handleNodeDelete(getEngine)),
-      patch: m(handleNodePatch(getEngine)),
-      duplicate: m(handleNodeDuplicate(getEngine)),
-      render: m(handleNodeRender(getEngine)),
-    }),
-    project: t.router({
-      active: q0(handleProjectActive(getEngine)),
-      list: q0(handleProjectList()),
-      create: m(handleProjectCreate(getEngine, setParams)),
-      delete: m(handleProjectDelete(getEngine, setParams)),
-      open: m(handleProjectOpen(getEngine, setParams)),
     }),
   });
 }

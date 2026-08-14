@@ -110,10 +110,10 @@ export type CaptionPreset =
   | "stark";
 
 /**
- * Every property assignable through the renderer — exactly the set
- * `WorldDocument.setProperty` accepts. This is the single property table:
- * element props pick from it, and `dapi node patch` takes any subset per
- * patch entry with identical value requirements, so JSX and CLI can't drift.
+ * Every property assignable through the renderer's property-write path. This
+ * is the single property table: element props pick from it, and a patch-style
+ * command takes any subset per patch entry with identical value requirements,
+ * so JSX and any patch API can't drift.
  */
 export type PatchProps = {
   /**
@@ -237,7 +237,7 @@ export type PatchProps = {
   seed?: number;
 };
 
-/** Every PatchProps key, at runtime — the `dapi node patch` allowlist. */
+/** Every PatchProps key, at runtime — the patch-command allowlist. */
 export const PATCH_PROP_KEYS = Object.keys({
   key: true,
   scene: true,

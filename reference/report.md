@@ -4,7 +4,7 @@ Reports a bug in `dapi` itself or in the app behind it: a command that errors, c
 
 The issue is submitted immediately, in the background, with no review step: the command returns once the issue exists. Filing goes through the [`gh`](https://cli.github.com) CLI, which must be installed and authenticated (`gh auth login`); without it the command exits `1` and files nothing.
 
-This is for defects in the tooling, not for problems inside a project: a composition that looks wrong, a node in the wrong place, or a generation that missed the prompt are editing problems, fixed with `node patch` / `mount`, not reported here.
+This is for defects in the tooling, not for problems inside a project: a composition that looks wrong, a node in the wrong place, or a generation that missed the prompt are editing problems, not reported here.
 
 Does not require the app to be running. If the app is down or unreachable, the report records that instead of failing, since that is often the bug being reported.
 
@@ -15,7 +15,7 @@ Does not require the app to be running. If the app is down or unreachable, the r
 ## Options
 
 - `-b, --body <text>`: what happened, in markdown: what you expected, what you got, and anything the diagnostics won't show.
-- `-c, --command <cmd...>`: the `dapi` command(s) that reproduce it, in order. Repeatable (`-c "dapi node ls 5" -c "dapi node capture 5"`); rendered as a shell block under `## Repro`.
+- `-c, --command <cmd...>`: the `dapi` command(s) that reproduce it, in order. Repeatable (`-c "dapi context" -c "dapi capture 5"`); rendered as a shell block under `## Repro`.
 - `--logs <n>`: trailing app log entries to attach (default: 50). `--logs 0` omits the section, and then the app is not contacted at all.
 
 ## Output
@@ -38,7 +38,7 @@ The title is the issue title; the body is assembled from the options and the dia
 ## Repro
 
 ```sh
-dapi node capture 42
+dapi capture 42
 ```
 
 ## Environment
