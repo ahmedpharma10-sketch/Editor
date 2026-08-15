@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MPL--2.0-161616?style=flat&labelColor=000000&color=161616" alt="License: MPL-2.0" /></a>
 </p>
 
-**Diffusion Studio** is an open-source video editor built for agents. It bundles video analysis tools like speech-to-text and multimodal understanding with an editable timeline into a single CLI: everything agents need to edit videos and generate motion graphics.
+**Diffusion Studio** is an open-source video editor built for agents. It bundles video analysis tools like speech recognition and multimodal understanding with an editable timeline into a single CLI: everything agents need to edit videos and generate motion graphics.
 
 Every output opens in a full video editing interface, so you can pick up and refine exactly where the agent left off.
 
