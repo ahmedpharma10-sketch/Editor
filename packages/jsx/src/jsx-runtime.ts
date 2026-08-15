@@ -33,6 +33,7 @@ import type {
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
+  StageProps,
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
@@ -65,6 +66,7 @@ export declare namespace JSX {
 
   export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
     img: ImgTag;
+    stage: StageProps;
     group: GroupProps;
     rect: RectProps | SolidJSX.SVGElementTags["rect"];
     video: VideoProps;

@@ -288,6 +288,13 @@ type CommonProps = TimingProps &
     | "opacity" | "cornerRadius" | "transition" | "animations"
   >;
 
+/** The infinite canvas every project renders into; only allowed as the root element. */
+export type StageProps = {
+  /** Canvas color, any CSS color. */
+  background?: string;
+  children?: SolidJSX.Element;
+};
+
 export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
   children?: SolidJSX.Element;
 };

@@ -57,6 +57,7 @@ export type {
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
+  StageProps,
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
