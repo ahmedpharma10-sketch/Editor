@@ -15,9 +15,9 @@ import {
 import { useSearchParams } from "@solidjs/router";
 import { getAllEntities } from "bitecs";
 import { For, Show, createMemo } from "solid-js";
-import { nanoid } from "nanoid";
 import { toast } from "somoto";
-import { deleteProject, duplicateProject, DEFAULT_PROJECT_ID } from "@/components/engine/db";
+import { deleteProject, duplicateProject, DEFAULT_PROJECT_ID, generateProjectName } from "@/components/engine/db";
+import { createProject, pickProjectsRoot, projectsRoot } from "@/projects";
 import { Not } from "bitecs";
 import { ChildOf, isScene, useQuery, loadAsset, changeAssetDirectory, removeAsset, getAssetFile } from "@/components/engine";
 import { useProjectId } from "@/hooks/use-project-id";
@@ -31,11 +31,19 @@ export function FileMenu() {
   const projectId = useProjectId();
   const { world } = useEngine();
 
-  const handleNewProject = () => {
-    setParams({
-      project: nanoid(),
-      dashboard: undefined
-    }, { replace: true });
+  const handleNewProject = async () => {
+    try {
+      if (!projectsRoot() && !(await pickProjectsRoot())) return;
+      const project = await createProject(folderName(generateProjectName()));
+      setParams({
+        project: project.name,
+        dashboard: undefined
+      }, { replace: true });
+    } catch (e) {
+      toast.error("Failed to create project", {
+        description: (e as Error).message,
+      });
+    }
   };
 
   const handleDuplicateProject = async () => {
@@ -374,4 +382,12 @@ export function FileExportSpecificSceneMenu() {
       </Show>
     </DropdownMenuGroup>
   );
+}
+
+/** Folder-safe project name: "Golden River 15 Aug" -> "golden-river-15-aug". */
+function folderName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "") || "project";
 }

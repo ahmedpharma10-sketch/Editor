@@ -2,15 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {
-  deleteProject,
-  duplicateProject,
-  listRecentProjects,
-  setProjectName,
-  setProjectThumbnail,
-  DEFAULT_PROJECT_ID,
-  type ProjectEntry,
-} from "@/components/engine/db";
+import { generateProjectName, DEFAULT_PROJECT_ID } from "@/components/engine/db";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,6 +11,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Button } from "@/components/ui/button";
 import { TextField, TextFieldInput } from "@/components/ui/text-field";
 import { toast } from "somoto";
 import { For, Show, batch, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
@@ -43,19 +36,48 @@ import { useProjectId } from "@/hooks/use-project-id";
 import { captureCanvasThumbnail } from "../engine/thumbnail";
 import { MAIN_CANVAS_ID } from "../canvas";
 import { Icon } from "../ui/icon";
-import { nanoid } from "nanoid";
 import { track } from "@/lib/analytics";
+import {
+  createProject,
+  isDesktop,
+  listProjects,
+  pickProjectsRoot,
+  projectsRoot,
+  type ProjectInfo,
+} from "@/projects";
 
 import type { ProjectSortOption } from "./types";
+
+// Projects live on disk under a user-picked root (see @/projects). Thumbnails,
+// rename, duplicate and delete have no on-disk backing yet: the UI stays, the
+// operations are no-ops until the desktop host grows them.
+const thumbnails = new Map<string, Blob>();
+
+async function setProjectThumbnail(name: string, blob: Blob): Promise<void> {
+  thumbnails.set(name, blob);
+}
+
+async function setProjectName(_name: string, _newName: string): Promise<void> {
+  // TODO: rename the project folder on disk.
+}
+
+async function duplicateProject(_name: string): Promise<ProjectInfo | null> {
+  // TODO: copy the project folder on disk.
+  return null;
+}
+
+async function deleteProject(_name: string): Promise<void> {
+  // TODO: move the project folder to the trash.
+}
 
 export function DashboardProjectsView() {
   const projectId = useProjectId();
   const [, setParams] = useSearchParams();
   const [search, setSearch] = createSignal("");
   const [sort, setSort] = createSignal<ProjectSortOption>("last-viewed");
-  const [projects, { refetch: refetchProjects }] = createResource(() => listRecentProjects(32));
-  const [contextMenuProjectId, setContextMenuProjectId] = createSignal<string | null>(null);
-  const [renamingProjectId, setRenamingProjectId] = createSignal<string | null>(null);
+  const [projects, { refetch: refetchProjects }] = createResource(projectsRoot, () => listProjects());
+  const [contextMenuProject, setContextMenuProject] = createSignal<string | null>(null);
+  const [renamingProject, setRenamingProject] = createSignal<string | null>(null);
   const [renameDraft, setRenameDraft] = createSignal("");
 
   const selectedSortOption = () =>
@@ -66,10 +88,11 @@ export function DashboardProjectsView() {
   onMount(async () => {
     if (projectId() == DEFAULT_PROJECT_ID) return;
 
-    const canvas = document.getElementById(MAIN_CANVAS_ID) as HTMLCanvasElement;
+    const canvas = document.getElementById(MAIN_CANVAS_ID) as HTMLCanvasElement | null;
+    if (!canvas) return;
     const blob = await captureCanvasThumbnail(canvas);
     if (blob) {
-      setProjectThumbnail(projectId(), blob);
+      await setProjectThumbnail(projectId(), blob);
       refetchProjects();
     };
   })
@@ -96,27 +119,27 @@ export function DashboardProjectsView() {
       return entries;
     }
 
-    entries.sort((a, b) => parseTimestamp(b.lastAccessedAt) - parseTimestamp(a.lastAccessedAt));
+    entries.sort((a, b) => parseTimestamp(b.modifiedAt) - parseTimestamp(a.modifiedAt));
     return entries;
   });
 
-  const openProject = (projectId: string) => {
-    if (renamingProjectId() === projectId) return;
+  const openProject = (project: ProjectInfo) => {
+    if (renamingProject() === project.name) return;
 
     track('project_opened');
-    setParams({ project: projectId, dashboard: undefined }, { replace: true });
+    setParams({ project: project.name, dashboard: undefined }, { replace: true });
   };
 
-  const startRenaming = (project: ProjectEntry) => {
+  const startRenaming = (project: ProjectInfo) => {
     batch(() => {
       setRenameDraft(project.name);
-      setRenamingProjectId(project.id);
+      setRenamingProject(project.name);
     });
   };
 
-  const handleDelete = async (project: ProjectEntry) => {
+  const handleDelete = async (project: ProjectInfo) => {
     try {
-      await deleteProject(project.id);
+      await deleteProject(project.name);
       track('project_deleted');
       refetchProjects();
     } catch {
@@ -124,9 +147,9 @@ export function DashboardProjectsView() {
     }
   };
 
-  const handleDuplicate = async (project: ProjectEntry) => {
+  const handleDuplicate = async (project: ProjectInfo) => {
     try {
-      await duplicateProject(project.id);
+      await duplicateProject(project.name);
       track('project_duplicated');
       refetchProjects();
     } catch {
@@ -144,19 +167,19 @@ export function DashboardProjectsView() {
 
   const handleBlurRenameInput = () => {
     batch(() => {
-      setRenamingProjectId(null);
+      setRenamingProject(null);
       setRenameDraft("");
     });
     refetchProjects();
   };
 
-  const handleKeyDownRenameInput = async (event: KeyboardEvent, projectId: string) => {
+  const handleKeyDownRenameInput = async (event: KeyboardEvent, projectName: string) => {
     const input = event.currentTarget as HTMLInputElement;
     const trimmedName = renameDraft()?.trim() ?? "";
 
     if (event.key === "Escape") {
       refetchProjects();
-      setRenamingProjectId(null);
+      setRenamingProject(null);
       setRenameDraft("");
 
       event.preventDefault();
@@ -168,24 +191,44 @@ export function DashboardProjectsView() {
       event.preventDefault();
       event.stopPropagation();
 
-      if (trimmedName.length > 0 && projectId === renamingProjectId()) {
-        await setProjectName(projectId, trimmedName);
+      if (trimmedName.length > 0 && projectName === renamingProject()) {
+        await setProjectName(projectName, trimmedName);
       }
 
       refetchProjects();
-      setRenamingProjectId(null);
+      setRenamingProject(null);
       setRenameDraft("");
 
       input.blur();
     };
   };
 
-  const handleCreateProject = () => {
-    track('project_created');
-    setParams({
-      project: nanoid(),
-      dashboard: undefined
-    }, { replace: true });
+  const handleChooseRoot = async () => {
+    if (!isDesktop()) {
+      toast.error("Projects on disk are only available in the desktop app");
+      return;
+    }
+    try {
+      await pickProjectsRoot();
+    } catch (e) {
+      toast.error("Failed to choose projects folder", { description: (e as Error).message });
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!projectsRoot()) {
+      await handleChooseRoot();
+      if (!projectsRoot()) return;
+    }
+
+    try {
+      const project = await createProject(folderName(generateProjectName()));
+      track('project_created');
+      refetchProjects();
+      openProject(project);
+    } catch (e) {
+      toast.error("Failed to create project", { description: (e as Error).message });
+    }
   };
 
   return (
@@ -198,27 +241,33 @@ export function DashboardProjectsView() {
         class="pb-4"
         title="Recent projects"
         controls={
-          <Select<(typeof SORT_OPTIONS)[number]>
-            options={SORT_OPTIONS}
-            value={selectedSortOption()}
-            onChange={(option) => option && setSort(option.id)}
-            optionValue="id"
-            optionTextValue="label"
-            itemComponent={(itemProps) => (
-              <SelectItem item={itemProps.item}>
-                {itemProps.item.rawValue.label}
-              </SelectItem>
-            )}
-          >
-            <SelectTrigger aria-label="Sort projects">
-              <SelectValue<(typeof SORT_OPTIONS)[number]>>
-                {(state) => state.selectedOption()?.label}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectPortal>
-              <SelectContent />
-            </SelectPortal>
-          </Select>
+          <>
+            <Button variant="ghost" onClick={handleChooseRoot} title={projectsRoot() ?? undefined}>
+              <Icon name="navigation.folder" class="mr-1 size-4" />
+              {projectsRoot() ? folderLabel(projectsRoot()!) : "Choose projects folder"}
+            </Button>
+            <Select<(typeof SORT_OPTIONS)[number]>
+              options={SORT_OPTIONS}
+              value={selectedSortOption()}
+              onChange={(option) => option && setSort(option.id)}
+              optionValue="id"
+              optionTextValue="label"
+              itemComponent={(itemProps) => (
+                <SelectItem item={itemProps.item}>
+                  {itemProps.item.rawValue.label}
+                </SelectItem>
+              )}
+            >
+              <SelectTrigger aria-label="Sort projects">
+                <SelectValue<(typeof SORT_OPTIONS)[number]>>
+                  {(state) => state.selectedOption()?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent />
+              </SelectPortal>
+            </Select>
+          </>
         }
       >
         <DashboardCardButton onClick={handleCreateProject}>
@@ -230,29 +279,29 @@ export function DashboardProjectsView() {
           </DashboardCardPreview>
           <DashboardCardMeta title="New project" />
         </DashboardCardButton>
-        <For each={sortedProjects().filter(project => project.id !== DEFAULT_PROJECT_ID).slice(0, MAX_VISIBLE_PROJECTS)}>
+        <For each={sortedProjects().slice(0, MAX_VISIBLE_PROJECTS)}>
           {(project) => (
             <ContextMenu
               modal={false}
               onOpenChange={(open) => {
-                setContextMenuProjectId((current) => {
-                  if (open) return project.id;
-                  return current === project.id ? null : current;
+                setContextMenuProject((current) => {
+                  if (open) return project.name;
+                  return current === project.name ? null : current;
                 });
               }}
             >
               <ContextMenuTrigger as="div" class="contents">
                 <DashboardCardButton
-                  active={contextMenuProjectId() === project.id}
-                  onClick={() => openProject(project.id)}
+                  active={contextMenuProject() === project.name}
+                  onClick={() => openProject(project)}
                 >
                   <DashboardCardPreview>
-                    <ProjectThumbnail thumbnail={project.thumbnail} />
+                    <ProjectThumbnail thumbnail={thumbnails.get(project.name)} />
                   </DashboardCardPreview>
                   <div class="flex flex-col gap-1 px-2">
                     <div class="relative h-4 w-full">
                       <Show
-                        when={renamingProjectId() === project.id}
+                        when={renamingProject() === project.name}
                         fallback={
                           <p class="min-w-0 truncate text-xs text-foreground">
                             {project.name}
@@ -267,7 +316,7 @@ export function DashboardProjectsView() {
                             onInput={handleRenameInput}
                             onFocus={handleFocusRenameInput}
                             onBlur={handleBlurRenameInput}
-                            onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project.id)}
+                            onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project.name)}
                             placeholder="Project name"
                             aria-label="Project name"
                             class="absolute left-1/2 top-1/2 h-5 w-56 -translate-x-1/2 -translate-y-1/2 border border-ring bg-input px-1 py-0 ring-1 ring-inset ring-ring"
@@ -276,14 +325,14 @@ export function DashboardProjectsView() {
                       </Show>
                     </div>
                     <p class="min-w-0 truncate text-xs text-muted-foreground">
-                      {formatEditedAt(project.lastAccessedAt)}
+                      {formatEditedAt(project.modifiedAt)}
                     </p>
                   </div>
                 </DashboardCardButton>
               </ContextMenuTrigger>
               <ContextMenuPortal>
                 <ContextMenuContent class="w-45 gap-0">
-                  <ContextMenuItem onSelect={() => openProject(project.id)}>
+                  <ContextMenuItem onSelect={() => openProject(project)}>
                     Open
                   </ContextMenuItem>
                   <ContextMenuSeparator class="my-2" />
@@ -302,6 +351,11 @@ export function DashboardProjectsView() {
             </ContextMenu>
           )}
         </For>
+        <Show when={projectsRoot() && !projects.loading && (projects()?.length ?? 0) === 0}>
+          <p class="w-full px-2 pt-2 text-xs text-muted-foreground">
+            No projects in this folder yet. A project is a folder with an index.tsx.
+          </p>
+        </Show>
       </DashboardViewSection>
     </DashboardSearchPanel>
   );
@@ -331,20 +385,32 @@ function ProjectThumbnail(props: { thumbnail?: Blob }) {
 }
 
 const SORT_OPTIONS: Array<{ id: ProjectSortOption; label: string }> = [
-  { id: "last-viewed", label: "Last viewed" },
+  { id: "last-viewed", label: "Last modified" },
   { id: "alphabetical", label: "Alphabetical" },
   { id: "date-created", label: "Date created" },
 ];
 
 const MAX_VISIBLE_PROJECTS = 11;
 
+/** Folder-safe project name: "Golden River 15 Aug" -> "golden-river-15-aug". */
+function folderName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "") || "project";
+}
+
+function folderLabel(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
 function parseTimestamp(value: string): number {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function formatEditedAt(lastAccessedAt: string): string {
-  const timestamp = parseTimestamp(lastAccessedAt);
+function formatEditedAt(modifiedAt: string): string {
+  const timestamp = parseTimestamp(modifiedAt);
   if (!timestamp) return "Edited just now";
 
   const elapsedMs = Date.now() - timestamp;

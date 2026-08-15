@@ -17,6 +17,7 @@
     "@diffusionstudio/cli": "*",
     "@diffusionstudio/jsx": "*",
     "@diffusionstudio/koota-solid": "*",
+    "@diffusionstudio/reconciler": "*",
     "@diffusionstudio/runtime": "*",
     "@kobalte/core": "^0.13.11",
     "@sentry/solid": "^10.51.0",

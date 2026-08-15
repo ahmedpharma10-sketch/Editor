@@ -13,6 +13,15 @@ import { trackInstall } from "./analytics";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
+import {
+  compileProject,
+  createProject,
+  listProjects,
+  pickRoot,
+  unwatchAll,
+  unwatchProject,
+  watchProject,
+} from "./projects";
 import type { DeepLinkChannel } from "./main-channels";
 import type { LogEntry } from "@diffusionstudio/cli/protocol";
 
@@ -246,6 +255,14 @@ if (app.requestSingleInstanceLock()) {
   });
   mainBridge.handle(MAIN_CHANNELS.HEADLESS_GET_MODE, () => isHeadless());
   mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_PICK_ROOT, () => pickRoot(mainWindow));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_LIST, ({ root }) => listProjects(root));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, name }) => createProject(root, name));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_COMPILE, ({ dir }) => compileProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_WATCH, ({ dir }, event) =>
+    watchProject(BrowserWindow.fromWebContents(event.sender), dir),
+  );
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_UNWATCH, ({ dir }) => unwatchProject(dir));
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>
     setFileInputFiles(selector, absolutePath),
   );
@@ -302,6 +319,7 @@ if (app.requestSingleInstanceLock()) {
   });
 
   app.on("before-quit", () => {
+    unwatchAll();
     stopCliServer();
   });
 

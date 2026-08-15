@@ -1,0 +1,32 @@
+{
+  "name": "@diffusionstudio/reconciler",
+  "version": "0.1.0",
+  "description": "Renders compiled project JSX (babel-preset-solid universal, via @diffusionstudio/jsx) into a @diffusionstudio/runtime world: evaluates the bundle and reconciles its element tree onto runtime entities.",
+  "license": "MPL-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "keywords": [
+    "reconciler",
+    "solid-js",
+    "jsx",
+    "koota"
+  ],
+  "dependencies": {
+    "@diffusionstudio/jsx": "*",
+    "@diffusionstudio/runtime": "*",
+    "koota": "^0.6.6"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.71",
+    "typescript": "~5.9.3"
+  }
+}

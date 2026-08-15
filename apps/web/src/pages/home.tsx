@@ -15,6 +15,8 @@ import { useSearchParams } from '@solidjs/router';
 import { ECSProvider } from '@/context/ecs';
 import { TimelineProvider } from '@/context/timeline';
 import { EngineProvider as KootaEngineProvider } from '@/engine';
+import { ProjectLoader } from '@/projects';
+import { DEFAULT_PROJECT_ID } from '@/components/engine/db';
 
 export function HomePage() {
   const projectId = useProjectId();
@@ -27,6 +29,9 @@ export function HomePage() {
     <Show when={projectId()} keyed>
       {(id) => (
         <KootaEngineProvider projectId={id}>
+          <Show when={id !== DEFAULT_PROJECT_ID}>
+            <ProjectLoader name={id} />
+          </Show>
           <EngineProvider projectId={id}>
             <EditorApiProvider>
               <TimelineProvider>

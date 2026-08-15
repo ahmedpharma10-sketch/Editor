@@ -164,7 +164,8 @@ export async function createProject(name?: string): Promise<ProjectEntry> {
 
 export async function getProjectName(projectId: string): Promise<string> {
   const project = projects.get(projectId);
-  if (!project) return generateProjectName();
+  // Projects on disk are named by their folder (see @/projects).
+  if (!project) return projectId === DEFAULT_PROJECT_ID ? generateProjectName() : projectId;
 
   return project.name;
 }

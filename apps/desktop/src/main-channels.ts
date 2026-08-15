@@ -38,13 +38,38 @@ export const MAIN_CHANNELS = {
   FILE_WRITE_ABORT: "file:write-abort",
   HEADLESS_GET_MODE: "headless:get-mode",
   LOGS_GET: "logs:get",
+  PROJECTS_PICK_ROOT: "projects:pick-root",
+  PROJECTS_LIST: "projects:list",
+  PROJECTS_CREATE: "projects:create",
+  PROJECTS_COMPILE: "projects:compile",
+  PROJECTS_WATCH: "projects:watch",
+  PROJECTS_UNWATCH: "projects:unwatch",
 
   // Main→Renderer events
   AUTH_CALLBACK: "auth:callback",
   CHECKOUT_CALLBACK: "checkout:callback",
   WINDOW_FULLSCREEN_CHANGE: "window:fullscreen-change",
   HEADLESS_MODE: "headless:mode",
+  PROJECTS_CHANGED: "projects:changed",
 } as const;
+
+/** A project folder under the projects root: a real npm package with a JSX entry. */
+export type ProjectInfo = {
+  /** Folder name, doubles as the project id. */
+  name: string;
+  /** Absolute path of the project folder. */
+  dir: string;
+  /** Entry file relative to `dir` (index.tsx, index.ts, index.jsx or index.js). */
+  entry: string;
+  /** mtime of the entry file, ISO string. */
+  modifiedAt: string;
+  /** birthtime of the folder, ISO string. */
+  createdAt: string;
+};
+
+export type CompileResult =
+  | { ok: true; code: string }
+  | { ok: false; error: string };
 
 export type MainChannel = (typeof MAIN_CHANNELS)[keyof typeof MAIN_CHANNELS];
 
@@ -82,6 +107,15 @@ export type MainRequestMap = {
   };
   [MAIN_CHANNELS.HEADLESS_GET_MODE]: { request: void; response: boolean };
   [MAIN_CHANNELS.LOGS_GET]: { request: void; response: LogEntry[] };
+  [MAIN_CHANNELS.PROJECTS_PICK_ROOT]: { request: void; response: string | null };
+  [MAIN_CHANNELS.PROJECTS_LIST]: { request: { root: string }; response: ProjectInfo[] };
+  [MAIN_CHANNELS.PROJECTS_CREATE]: {
+    request: { root: string; name: string };
+    response: ProjectInfo;
+  };
+  [MAIN_CHANNELS.PROJECTS_COMPILE]: { request: { dir: string }; response: CompileResult };
+  [MAIN_CHANNELS.PROJECTS_WATCH]: { request: { dir: string }; response: void };
+  [MAIN_CHANNELS.PROJECTS_UNWATCH]: { request: { dir: string }; response: void };
 };
 export type MainRequestChannel = keyof MainRequestMap;
 
@@ -90,6 +124,8 @@ export type MainEventMap = {
   [MAIN_CHANNELS.CHECKOUT_CALLBACK]: { url: string };
   [MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE]: { fullscreen: boolean };
   [MAIN_CHANNELS.HEADLESS_MODE]: { active: boolean };
+  // A file inside a watched project folder changed (path relative to `dir`).
+  [MAIN_CHANNELS.PROJECTS_CHANGED]: { dir: string; path: string };
 };
 export type MainEventChannel = keyof MainEventMap;
 
