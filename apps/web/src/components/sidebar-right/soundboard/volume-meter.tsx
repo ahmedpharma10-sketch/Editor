@@ -188,7 +188,7 @@ export function VolumeControl(props: VolumeControlProps) {
   return (
     <div
       ref={trackRef}
-      class="relative w-3 h-full mr-3 flex flex-col justify-between items-end"
+      class="soundboard-ticks relative w-3 h-full mr-3 flex flex-col justify-between items-end"
       classList={{ 'opacity-50 pointer-events-none': props.disabled }}
       onPointerDown={handlePointerDown}
     >
@@ -198,7 +198,7 @@ export function VolumeControl(props: VolumeControlProps) {
 
           return (
             <div
-              class="h-px pointer-events-none"
+              class="soundboard-tick h-px pointer-events-none"
               classList={{
                 'bg-muted-foreground': isMajor,
                 'bg-muted-foreground/70': !isMajor,
@@ -221,7 +221,7 @@ export function VolumeControl(props: VolumeControlProps) {
 
 export function MeterScale() {
   return (
-    <div class="relative flex flex-col justify-between h-full ml-1">
+    <div class="soundboard-scale relative flex flex-col justify-between h-full ml-1">
       <For each={SCALE_LABELS}>
         {(label) => {
           const needsPad = !label.startsWith('-');

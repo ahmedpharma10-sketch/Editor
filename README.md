@@ -1,18 +1,17 @@
 <p align="center">
-  <img src="assets/banner.gif" alt="Diffusion Studio" width="100%" />
+  <img src="assets/banner.png" alt="Diffusion Studio" width="700" />
 </p>
 
-[![](https://img.shields.io/discord/1115673443141156924?style=flat&logo=discord&logoColor=white&color=5865F2)](https://discord.com/invite/zPQJrNGuFB)
-[![](https://img.shields.io/badge/Follow%20for-Updates-black?logo=x&logoColor=white)](https://x.com/diffusionhq)
-[![](https://img.shields.io/badge/Combinator-F24-orange?logo=ycombinator&logoColor=white)](https://www.ycombinator.com/companies/diffusion-studio)
+<p align="center">
+  <a href="https://discord.com/invite/zPQJrNGuFB"><img src="https://img.shields.io/discord/1115673443141156924?style=flat&logo=discord&logoColor=F8F8F8&label=Discord&labelColor=000000&color=161616" alt="Discord" /></a>
+  <a href="https://x.com/diffusionhq"><img src="https://img.shields.io/badge/Follow%20for-Updates-161616?style=flat&logo=x&logoColor=F8F8F8&labelColor=000000" alt="Follow on X" /></a>
+  <a href="https://www.ycombinator.com/companies/diffusion-studio"><img src="https://img.shields.io/badge/Combinator-F24-161616?style=flat&logo=ycombinator&logoColor=F8F8F8&labelColor=000000" alt="Y Combinator F24" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MPL--2.0-161616?style=flat&labelColor=000000&color=161616" alt="License: MPL-2.0" /></a>
+</p>
 
-**Diffusion Studio** lets your agents make videos. The agent writes a composition in TSX. The `dapi` CLI mounts it into the editor. Every element stays editable. Think of it as **FFmpeg for agents**, with generative AI and multimodal understanding built in.
+**Diffusion Studio** is an open-source video editor built for agents. It bundles video analysis tools like speech recognition and multimodal understanding with an editable timeline into a single CLI: everything agents need to edit videos and generate motion graphics.
 
-```sh
-dapi open                       # use -b to run the editor headless
-dapi mount hero.tsx             # render a composition into it
-dapi node render -o hero.mp4    # encode the scene to disk
-```
+Every output opens in a full video editing interface, so you can pick up and refine exactly where the agent left off.
 
 ## Getting started
 
@@ -127,6 +126,14 @@ dapi node capture                                        # see the canvas itself
 ```
 
 ## CLI at a glance
+
+The core loop is three commands:
+
+```sh
+dapi open                       # use -b to run the editor headless
+dapi mount hero.tsx             # render a composition into it
+dapi node render -o hero.mp4    # encode the scene to disk
+```
 
 | Command | Purpose |
 | --- | --- |

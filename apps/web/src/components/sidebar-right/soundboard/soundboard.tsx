@@ -122,7 +122,7 @@ export function Soundboard() {
   const layerName = (eid: number) => c.Name[eid] ?? `Layer ${eid}`;
 
   return (
-    <div class="flex items-stretch h-full w-full justify-between px-4 pt-4 pb-1">
+    <div class="soundboard flex items-stretch h-full w-full justify-between px-4 pt-4 pb-1">
       <div class="flex flex-col items-center h-full gap-2">
         <div class="flex flex-1 min-h-0">
           <VolumeControl
