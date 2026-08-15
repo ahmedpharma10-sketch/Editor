@@ -16,6 +16,9 @@ import {
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { useSearchParams } from "@solidjs/router";
+import { Show } from "solid-js";
+import { useEditorApi } from "@/context/editor-api";
+import { downloadDesktopApp } from "@/lib/desktop-app";
 import { FileMenu } from "./file-menu";
 import { EditMenu } from "./edit-menu";
 import { ViewMenu } from "./view-menu";
@@ -25,6 +28,7 @@ import { HelpMenu } from "./help-menu";
 
 export function ProjectMenu() {
   const [, setParams] = useSearchParams();
+  const { isDesktop } = useEditorApi();
 
   const handleOpenDashboard = () => {
     (document.activeElement as HTMLElement)?.blur?.();
@@ -50,7 +54,7 @@ export function ProjectMenu() {
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuPortal>
-          <DropdownMenuContent class="w-[188px]">
+          <DropdownMenuContent class="w-[196px]">
             <DropdownMenuGroup>
               <DropdownMenuItem onSelect={handleOpenDashboard}>
                 Go to dashboard
@@ -120,6 +124,22 @@ export function ProjectMenu() {
 
               <DropdownMenuItem onSelect={handleOpenAccount}>Account</DropdownMenuItem>
             </DropdownMenuGroup>
+
+            <Show when={!isDesktop}>
+              <DropdownMenuSeparator />
+
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  class="gap-1 pl-0 pr-2"
+                  onSelect={() => downloadDesktopApp("main_menu")}
+                >
+                  <span class="grid h-7 w-6 shrink-0 place-items-center overflow-clip">
+                    <Icon name="download" class="size-6" />
+                  </span>
+                  Get desktop app (macOS)
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </Show>
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenu>

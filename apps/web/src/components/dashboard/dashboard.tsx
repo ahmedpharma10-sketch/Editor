@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogPortal } from "@/components/ui/dialog";
 import { DashboardAccountView } from "./account-view";
 import { DashboardAiCreditsView } from "./ai-credits-view";
 import { DashboardBillingView } from "./billing-view";
+import { DashboardGetDesktopApp } from "./get-desktop-app";
 import { DashboardHelpView } from "./help-view";
 import { DashboardProjectsView } from "./projects-view";
 import { DashboardSettingsView } from "./settings-view";
@@ -93,6 +94,7 @@ export function Dashboard() {
                   <DashboardHelpView />
                 </Match>
               </Switch>
+              <DashboardGetDesktopApp />
             </section>
           </div>
         </DialogContent>
