@@ -17,11 +17,18 @@
   <code>npx skills add diffusionstudio/skills -g</code>
 </p>
 
+<br />
+<br />
+<br />
+
 <p align="center">
   <a href="https://app.diffusion.studio">
     <img src="assets/desktop-screenshot.png" alt="The Diffusion Studio editor" width="800" />
   </a>
 </p>
+
+<br />
+<br />
 
 ## Why Diffusion Studio
 
@@ -91,6 +98,8 @@ npx skills add diffusionstudio/skills -g
 ```
 
 ## Made with Diffusion Studio
+
+Both were created by prompting. The compositions are published in [diffusionstudio/open-projects](https://github.com/diffusionstudio/open-projects):
 
 | [Launch video](https://github.com/diffusionstudio/open-projects/tree/main/launch-video) | [Raise announcement](https://github.com/diffusionstudio/open-projects/tree/main/raise-announcement) |
 | --- | --- |
