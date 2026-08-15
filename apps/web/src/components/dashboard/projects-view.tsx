@@ -329,11 +329,6 @@ export function DashboardProjectsView() {
             </ContextMenu>
           )}
         </For>
-        <Show when={projectsRoot() && !projects.loading && (projects()?.length ?? 0) === 0}>
-          <p class="w-full px-2 pt-2 text-xs text-muted-foreground">
-            No projects in this folder yet. A project is a folder with an index.tsx.
-          </p>
-        </Show>
       </DashboardViewSection>
     </DashboardSearchPanel>
   );

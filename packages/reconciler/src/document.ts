@@ -6,32 +6,32 @@
 // @diffusionstudio/jsx) writes project JSX straight into runtime entities, so
 // a rendered project IS the composition, with no intermediate tree. This is
 // the only file in the reconciler that knows how the runtime models nodes.
-// Supported tags for now: <stage> (the composition root, a Scene) and <rect>,
-// with x, y, width, height and fill (rect only).
+//
+// Supported tags for now:
+// - <stage>: the infinite canvas, i.e. the world's document root. It has no
+//   size or position; `background` sets the canvas color.
+// - <rect>: a rect entity with x, y, width, height and fill.
 
 import { Not } from 'koota';
 import {
 	appendChild,
+	Background,
 	ChildOf,
-	ClipsContent,
 	Color,
 	createEntity,
+	DEFAULT_BACKGROUND,
 	Deleted,
 	Geometry,
 	GeometryType,
 	getDocument,
 	getParentEntity,
 	ItemIndex,
-	Name,
 	Paint,
 	PaintType,
 	parseColor,
-	Playback,
 	Position,
 	resizeEntity,
-	Scene,
 	sortByItemIndex,
-	switchActiveScene,
 } from '@diffusionstudio/runtime';
 
 import type { Entity, World } from 'koota';
@@ -48,7 +48,7 @@ const isTag = (tag: string): tag is Tag => (TAGS as readonly string[]).includes(
  */
 export interface SceneNode {
 	readonly entity: Entity;
-	/** null for the mount root (the world's document root). */
+	/** null for the mount root. */
 	readonly tag: Tag | null;
 }
 
@@ -59,11 +59,12 @@ const toNumber = (value: unknown): number | undefined => {
 };
 
 export class RuntimeDocument implements ProjectDocument<SceneNode> {
-	/** The mount root: the world's document root entity. */
+	/** The mount root. Both it and the <stage> element stand for the document root entity. */
 	public readonly stage: SceneNode;
 
 	/** Elements this document created, by entity, so ordering only ever considers them (never paint sub-entities). */
 	private readonly nodes = new Map<Entity, SceneNode>();
+	private stageNode: SceneNode | undefined;
 
 	public constructor(private readonly world: World) {
 		this.stage = { entity: getDocument(world), tag: null };
@@ -72,26 +73,20 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	public createElement(tag: string): SceneNode {
 		if (!isTag(tag)) throw new Error(`<${tag}> is not supported yet (only <stage> and <rect>).`);
 
+		if (tag === 'stage') {
+			if (this.stageNode) throw new Error('A project renders exactly one <stage>.');
+			// The stage is the document root: infinite, no entity of its own.
+			this.stageNode = { entity: this.stage.entity, tag };
+			return this.stageNode;
+		}
+
 		const world = this.world;
 		const entity = createEntity(world);
 		entity.add(Geometry);
 		entity.set(Geometry, { value: GeometryType.RECT });
 		entity.add(Position);
 		entity.set(Position, { x: 0, y: 0 });
-
-		if (tag === 'stage') {
-			// A scene is a RECT carrying Scene/ClipsContent/Playback plus a solid
-			// fill; the same recipe the scene tool uses.
-			entity.add(Scene);
-			entity.add(ClipsContent);
-			entity.add(Playback);
-			entity.add(Name);
-			entity.set(Name, { value: 'Stage' });
-			resizeEntity(world, entity, { width: 1920, height: 1080 });
-			this.setFill(entity, '#000000');
-		} else {
-			resizeEntity(world, entity, { width: 100, height: 100 });
-		}
+		resizeEntity(world, entity, { width: 100, height: 100 });
 
 		const node: SceneNode = { entity, tag };
 		this.nodes.set(entity, node);
@@ -125,8 +120,11 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				return;
 			}
 			case 'fill': {
-				if (node.tag !== 'rect') return;
 				this.setFill(entity, value);
+				return;
+			}
+			case 'background': {
+				this.setBackground(value);
 				return;
 			}
 			default:
@@ -139,18 +137,25 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	public insertNode(parent: SceneNode, node: SceneNode, anchor?: SceneNode): void {
 		if (parent === this.stage) {
 			if (node.tag !== 'stage') throw new Error('The root element must be <stage>.');
-			// createEntity already parented the node to the document.
-			switchActiveScene(this.world, node.entity);
-		} else {
-			if (parent.tag !== 'stage') throw new Error('<rect> cannot have children.');
-			appendChild(this.world, node.entity, parent.entity);
+			// The stage is the root itself; nothing to attach.
+			return;
 		}
+		if (parent.tag !== 'stage') throw new Error('<rect> cannot have children.');
+		if (node.tag === 'stage') throw new Error('<stage> is only allowed as the root element.');
+
+		// createEntity already parented the node to the document (= the stage).
 		this.reorder(parent, node, anchor);
 	}
 
 	public removeNode(_parent: SceneNode, node: SceneNode): void {
+		if (node.tag === 'stage') {
+			for (const child of this.children(node)) this.removeNode(node, child);
+			this.stageNode = undefined;
+			this.setBackground(undefined);
+			return;
+		}
 		this.nodes.delete(node.entity);
-		// ChildOf auto-destroys orphans, so paints and children go with it.
+		// ChildOf auto-destroys orphans, so paints go with it.
 		node.entity.destroy();
 	}
 
@@ -159,21 +164,25 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	 * disposer only tears down the reactive graph, never the host nodes.
 	 */
 	public dispose(): void {
+		if (this.stageNode) this.removeNode(this.stage, this.stageNode);
 		for (const node of this.children(this.stage)) this.removeNode(this.stage, node);
 		this.nodes.clear();
 	}
 
 	public getParentNode(node: SceneNode): SceneNode | undefined {
+		if (node.tag === 'stage') return this.stage;
 		const parent = getParentEntity(node.entity);
 		if (parent === null) return undefined;
-		return parent === this.stage.entity ? this.stage : this.nodes.get(parent);
+		return parent === this.stage.entity ? (this.stageNode ?? this.stage) : this.nodes.get(parent);
 	}
 
 	public getFirstChild(node: SceneNode): SceneNode | undefined {
+		if (node === this.stage) return this.stageNode;
 		return this.children(node)[0];
 	}
 
 	public getNextSibling(node: SceneNode): SceneNode | undefined {
+		if (node.tag === 'stage') return undefined;
 		const parent = this.getParentNode(node);
 		if (!parent) return undefined;
 		const siblings = this.children(parent);
@@ -198,6 +207,11 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			sibling.entity.add(ItemIndex);
 			sibling.entity.set(ItemIndex, { value: index });
 		}
+	}
+
+	private setBackground(value: unknown): void {
+		const color = typeof value === 'string' ? parseColor(value) : null;
+		this.world.set(Background, { value: color ?? DEFAULT_BACKGROUND });
 	}
 
 	private setFill(entity: Entity, value: unknown): void {
