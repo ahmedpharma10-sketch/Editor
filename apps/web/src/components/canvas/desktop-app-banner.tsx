@@ -7,30 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useEditorApi } from "@/context/editor-api";
 import { createStoredSignal } from "@/lib/store";
+import { downloadDesktopApp } from "@/lib/desktop-app";
 import { track } from "@/lib/analytics";
 import { store } from "@/init";
 
 const BANNER_IMAGE = new URL("@/assets/images/desktop-app-banner.png", import.meta.url).href;
 
 /**
- * Electron Forge only makes darwin artifacts, so releases are macOS-only, and
- * the DMG name is version-independent (see `MakerDMG` in `forge.config.ts`) —
- * which is what lets GitHub's `/releases/latest/download/` alias resolve to the
- * newest build. The asset is served with `Content-Disposition: attachment`, so
- * hitting it downloads instead of navigating away from the editor.
- */
-const DOWNLOAD_URL =
-  "https://github.com/diffusionstudio/editor/releases/latest/download/Diffusion-Studio-arm64.dmg";
-
-function isMacOS() {
-  const uaData = (navigator as { userAgentData?: { platform?: string } }).userAgentData;
-  return /mac/i.test(uaData?.platform ?? navigator.platform);
-}
-
-/**
  * Dismissible promo for the desktop app, pinned to the bottom left of the
- * canvas. Only shown in the browser build on macOS — the desktop app is the
- * thing being advertised, and it only ships for macOS.
+ * canvas. Hidden in the desktop build, which is the thing being advertised.
  */
 export function DesktopAppBanner() {
   const { isDesktop } = useEditorApi();
@@ -39,23 +24,14 @@ export function DesktopAppBanner() {
   );
 
   const handleDismiss = () => {
-    track("desktop_app_banner_dismissed");
+    track("desktop_app_banner_dismissed", { source: "canvas_banner" });
     setDismissed(true);
   };
 
-  const handleDownload = () => {
-    track("desktop_app_banner_download");
-
-    const a = document.createElement("a");
-    a.href = DOWNLOAD_URL;
-    a.download = "";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
+  const handleDownload = () => downloadDesktopApp("canvas_banner");
 
   return (
-    <Show when={!dismissed() && !isDesktop && isMacOS()}>
+    <Show when={!dismissed() && !isDesktop}>
       <div class="absolute bottom-4 left-4 z-10 flex w-[220px] flex-col gap-1 rounded-md border border-border bg-background pb-3 shadow-[0px_0px_1px_2px_rgba(0,0,0,0.12),0px_4px_12px_8px_rgba(0,0,0,0.12)]">
         <div class="relative aspect-[220/122] w-full overflow-hidden rounded-t-md">
           <img src={BANNER_IMAGE} alt="" class="pointer-events-none size-full object-cover" />
