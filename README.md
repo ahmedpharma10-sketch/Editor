@@ -55,7 +55,8 @@ npx skills add diffusionstudio/skills -g
 
 ## Prompt examples
 
-**Motion graphics**
+<details open>
+<summary><b>Motion graphics</b></summary>
 
 ```text
 /editor Create a ~20-second promo for vercel-labs/native in Vercel's presentation style. Research its official website, GitHub, and brand guidelines; use authentic assets and verified product features, with crisp typography, polished motion, and a strong final CTA.
@@ -65,7 +66,10 @@ npx skills add diffusionstudio/skills -g
 /editor Recreate the 3blue1brown animation from https://youtu.be/HEfHFsfGXjs, closely matching its visual style, pacing, framing, colors, labels, and transitions. Use the exact collision mathematics from Gregory Galperin's original paper, do not approximate the physics.
 ```
 
-**Video editing**
+</details>
+
+<details>
+<summary><b>Video editing</b></summary>
 
 ```text
 /editor edit the footage in /path/to/folder
@@ -75,7 +79,10 @@ npx skills add diffusionstudio/skills -g
 /editor turn this footage into a polished YouTube video. Add readable captions and an attention-grabbing graphic in the opening to give viewers a strong visual hook.
 ```
 
-**Clipping**
+</details>
+
+<details>
+<summary><b>Clipping</b></summary>
 
 ```text
 /editor Can you pull the best 30-second moment from https://youtu.be/MtQ0qxyf-Ds and make a vertical version for social?
@@ -85,8 +92,10 @@ npx skills add diffusionstudio/skills -g
 /editor Make a 15-second version of this launch video. https://x.com/claudeai/status/2045156267690213649
 ```
 
+</details>
 
-**Video understanding and reasoning**
+<details>
+<summary><b>Video understanding and reasoning</b></summary>
 
 ```text
 /watch In three bullets, explain what starts the conflict. Include timestamps. https://youtu.be/aqz-KE-bpKQ
@@ -95,6 +104,8 @@ npx skills add diffusionstudio/skills -g
 ```text
 /watch Name three recurring locations and give one visual cue that distinguishes each. https://youtu.be/dQw4w9WgXcQ
 ```
+
+</details>
 
 ## Made with Diffusion Studio
 
