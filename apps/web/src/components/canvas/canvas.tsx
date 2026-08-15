@@ -6,6 +6,7 @@ import { useEngine } from "@/context/engine";
 import { loadAsset, getAssetFile } from "@/components/engine";
 import { Toolbar } from "./toolbar";
 import { DrawOverlay } from "./draw-overlay";
+import { DesktopAppBanner } from "./desktop-app-banner";
 import { toast } from "somoto"
 import { findSceneAt, screenToWorld, worldToLocal, secondsToFrames, GeometryType, PaintType, createEntity, addComponent, appendChild, setComponent, resizeEntity } from "../engine";
 import { SceneInitOverlay } from "./scene-init-overlay";
@@ -148,6 +149,7 @@ export function Canvas() {
     <div class="relative size-full bg-background">
       <div class="absolute inset-0">
         <Toolbar />
+        <DesktopAppBanner />
         <DrawOverlay />
         <SceneInitOverlay
           onDrop={handleDropEvent}
