@@ -9,7 +9,6 @@ import { observeWorld } from "./observers";
 import { createComponents } from "./components";
 import { createHistory } from "../utils/history";
 import { createLiveMounts } from "../utils/live-mounts";
-import { createStore } from "../db";
 import { initAssets } from "./assets";
 import { initFolders } from "./folders";
 import { buildTimelineLayers, type TimelineIndexValue } from "./timeline-index";
@@ -60,7 +59,6 @@ export function createEngineWorld(projectId: string, audioContext: AudioContext 
 		audio: audioContext,
 		assets: new Map<string, Asset>(),
 		folders: new Map<string, Folder>(),
-		store: createStore(projectId),
 		promises: null as (Promise<unknown> | null)[] | null,
 		timelineIndex,
 		rebuildTimelineIndex: () => { },

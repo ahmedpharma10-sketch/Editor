@@ -70,21 +70,25 @@ export function rebuildCaches(world: EngineWorld, eid: number, pid: number | nul
   }
 }
 
+/**
+ * Placeholder: projects are held purely in memory. Hook project (JSX package)
+ * persistence in here once it lands.
+ */
 export function persistEntity(world: EngineWorld, eid: number) {
   const c = world.components;
 
   if (world.mode !== 'realtime' || !entityExists(world, eid) || hasComponent(world, eid, c.Deleted)) return;
-
-  world.store.queue.scheduleWrite(world, eid);
 }
 
+/**
+ * Placeholder counterpart to `persistEntity`.
+ */
 export function unpersistEntity(world: EngineWorld, eid: number) {
   const c = world.components;
 
   if (world.mode !== 'realtime' || !entityExists(world, eid) || !hasComponent(world, eid, c.Deleted)) return;
 
   removeComponent(world, eid, c.Selected, false);
-  world.store.queue.scheduleDelete(world, eid);
 }
 
 export function findClosestParentGeometry(world: EngineWorld, eid: number) {

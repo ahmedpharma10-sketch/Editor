@@ -4,7 +4,6 @@
 
 import { createSignal } from "solid-js";
 import { assert } from "@/utils";
-import { getProjectDB } from "../db";
 import { allocateId, assetsVersion, invalidateAssets, raiseIdCounter, saveAsset, removeAsset } from "./assets";
 
 import type { Accessor, Setter } from "solid-js";
@@ -12,7 +11,6 @@ import type { EngineWorld } from "./world";
 import type { Asset, Folder } from "../db";
 
 type FolderState = {
-  db: ReturnType<typeof getProjectDB>;
   currentId: Accessor<string | null>;
   setCurrentId: Setter<string | null>;
 };
@@ -23,11 +21,10 @@ const folderStates = new WeakMap<object, FolderState>();
  * Initializes the folder subsystem for a world. Call once, right after the
  * world is created. `world.folders` must already be an (empty) Map.
  */
-export function initFolders(world: EngineWorld, projectId: string): void {
+export function initFolders(world: EngineWorld, _projectId: string): void {
   const [currentId, setCurrentId] = createSignal<string | null>(null);
 
   folderStates.set(world, {
-    db: getProjectDB(projectId),
     currentId,
     setCurrentId,
   });
@@ -211,9 +208,6 @@ export async function createFolder(
   world.folders.set(folder.id, folder);
   invalidateAssets(world);
 
-  const db = await folderState(world).db;
-  await db.put('folders', folder);
-
   return folder;
 }
 
@@ -227,9 +221,6 @@ export async function renameFolder(world: EngineWorld, id: string, name: string)
   const next = { ...folder, name };
   world.folders.set(id, next);
   invalidateAssets(world);
-
-  const db = await folderState(world).db;
-  await db.put('folders', next);
 }
 
 /**
@@ -271,9 +262,6 @@ export async function moveFolder(
   const next = { ...folder, parentId };
   world.folders.set(id, next);
   invalidateAssets(world);
-
-  const db = await folderState(world).db;
-  await db.put('folders', next);
   return true;
 }
 
@@ -312,10 +300,8 @@ export async function deleteFolder(world: EngineWorld, id: string) {
     await removeAsset(world, ...assetIds);
   }
 
-  const db = await state.db;
   for (const folderId of subtree) {
     world.folders.delete(folderId);
-    await db.delete('folders', folderId);
   }
 
   invalidateAssets(world);
@@ -323,12 +309,12 @@ export async function deleteFolder(world: EngineWorld, id: string) {
 }
 
 /**
- * Restores folders from IndexedDB into the in-memory store.
- * Call once during engine init.
+ * Restores folders into the in-memory store. Call once during engine init.
+ * Placeholder: projects are held purely in memory, so there is nothing to
+ * load yet — wire the project (JSX package) loader in here.
  */
 export async function restoreFolders(world: EngineWorld): Promise<void> {
-  const db = await folderState(world).db;
-  const records = await db.getAll('folders');
+  const records: Folder[] = [];
   if (records.length === 0) return;
 
   world.folders.clear();

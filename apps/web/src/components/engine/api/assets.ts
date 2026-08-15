@@ -10,7 +10,7 @@ import { BlobSource } from 'mediabunny';
 import { Input } from 'mediabunny';
 import { nanoid } from "nanoid";
 import Sqids from "sqids";
-import { saveDirectoryHandle, retrieveDirectoryHandle, getProjectDB } from "../db";
+import { saveDirectoryHandle, retrieveDirectoryHandle } from "../db";
 import { GeometryType, PaintType } from "../components";
 import { secondsToFrames } from "../utils/time";
 import { toast } from "somoto";
@@ -45,7 +45,6 @@ type AssetState = {
   projectId: string;
   counter: number;
   directoryHandle: Promise<FileSystemDirectoryHandle>;
-  db: ReturnType<typeof getProjectDB>;
   version: Accessor<number>;
   setVersion: Setter<number>;
   selected: Accessor<Map<string, Asset>>;
@@ -67,7 +66,6 @@ export function initAssets(world: EngineWorld, projectId: string): void {
     projectId,
     counter: 0,
     directoryHandle: retrieveDirectoryHandle(),
-    db: getProjectDB(projectId),
     version,
     setVersion,
     selected,
@@ -470,9 +468,6 @@ export async function saveAsset(world: EngineWorld, asset: Asset): Promise<Asset
     state.setSelected(next);
   }
 
-  const db = await state.db;
-  await db.put('assets', serializeAssetForPersist(asset));
-
   invalidateAssets(world);
 
   return asset;
@@ -485,21 +480,15 @@ export async function removeAsset(world: EngineWorld, ...ids: string[]): Promise
   const map = world.assets;
   for (const id of ids) map.delete(id);
   invalidateAssets(world);
-
-  const db = await assetState(world).db;
-  for (const id of ids) {
-    db.delete('assets', id);
-  }
 }
 
 /**
- * Restores assets from IndexedDB into the in-memory store.
- * Call once during engine init.
+ * Restores assets into the in-memory store. Call once during engine init.
+ * Placeholder: projects are held purely in memory, so there is nothing to
+ * load yet — wire the project (JSX package) loader in here.
  */
 export async function restoreAssets(world: EngineWorld): Promise<void> {
-  const state = assetState(world);
-  const db = await state.db;
-  const records = await db.getAll('assets');
+  const records: Asset[] = [];
   if (records.length === 0) return;
 
   const map = world.assets;
@@ -706,15 +695,6 @@ function concatBytes(a: Uint8Array<ArrayBuffer>, b: Uint8Array<ArrayBuffer>): Ui
   out.set(a);
   out.set(b, a.length);
   return out;
-}
-
-function serializeAssetForPersist(asset: Asset): Asset {
-  // IndexedDB structured-clones records. ElectronFileHandle is a custom class
-  // whose methods don't survive cloning — serialize to the persisted shape.
-  if (asset.handle instanceof ElectronFileHandle) {
-    return { ...asset, handle: asset.handle.toJSON() } as unknown as Asset;
-  }
-  return asset;
 }
 
 function rehydrateAsset(asset: Asset): Asset {

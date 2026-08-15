@@ -105,15 +105,16 @@ export async function loadWebFont(
 				reject(error);
 			});
 	});
-
-	const db = await world.store.db;
-	await db.put('fonts', font);
 }
 
+/**
+ * Re-loads previously used fonts. Placeholder: projects are held purely in
+ * memory, so there is nothing to restore yet.
+ */
 export async function restoreFonts(world: EngineWorld): Promise<void> {
-	const db = await world.store.db;
+	const fonts: types.FontSource[] = [];
 
-	for (const font of await db.getAll('fonts')) {
+	for (const font of fonts) {
 		if (font.family in WebFonts) {
 			await loadWebFont(
 				world,

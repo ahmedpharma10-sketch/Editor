@@ -8,7 +8,6 @@ import { rgbToColor } from "@/utils/color";
 import { deserializeEntity } from "./serialize";
 import { ChildOf } from "../components/relations";
 import { restoreFonts } from "../font/utils";
-import { WORLD_STATE_KEY } from "../db";
 import * as tl from '../timeline';
 import { createEntity, deleteEntity } from "./entities";
 import { assert } from "@/utils";
@@ -18,6 +17,13 @@ import { restoreAssets } from "./assets";
 import { restoreFolders } from "./folders";
 
 import type { EngineWorld } from "./world";
+import type { DBEntity, Camera2D } from "../types";
+
+/** Serialized world-level state (camera + background). */
+export type DBWorldState = {
+	camera: Camera2D;
+	background: number;
+};
 
 export function getParentEntity(world: EngineWorld, eid: number | null | undefined): number | null {
 	if (!eid) return null;
@@ -37,22 +43,36 @@ export function getSiblingEntities(world: EngineWorld, eid: number, component: u
 	return children;
 }
 
-/** Persist the current camera + background to IndexedDB. */
-export function persistWorldState(world: EngineWorld): void {
-	world.store.worldState.schedule(world);
+/**
+ * Placeholder: projects are held purely in memory. Hook project (JSX package)
+ * persistence of camera + background in here once it lands.
+ */
+export function persistWorldState(_world: EngineWorld): void { }
+
+/** Placeholder loader for entity records; projects are in memory only. */
+async function loadEntityRecords(_world: EngineWorld): Promise<DBEntity[]> {
+	return [];
 }
 
+/** Placeholder loader for the world record; projects are in memory only. */
+async function loadWorldRecord(_world: EngineWorld): Promise<DBWorldState | undefined> {
+	return undefined;
+}
+
+/**
+ * Restores a world from its persisted records. Projects are currently held
+ * purely in memory, so this boots an empty world; `records` / `worldRecord`
+ * are placeholders for the upcoming project (JSX package) loader.
+ */
 export async function restoreWorld(world: EngineWorld) {
 	assert(getAllEntities(world).length === 0, 'World is not empty');
 
-	const store = world.store;
-
-	const db = await store.db;
-
-	// Load entity records, world state, and previously loaded fonts in parallel.
 	const [records, worldRecord] = await Promise.all([
-		db.getAll('entities'),
-		db.get('world', WORLD_STATE_KEY),
+		loadEntityRecords(world),
+		loadWorldRecord(world),
+	]);
+
+	await Promise.all([
 		restoreAssets(world),
 		restoreFolders(world),
 		restoreFonts(world),
@@ -86,13 +106,13 @@ export async function restoreWorld(world: EngineWorld) {
 		world.background = rgbToColor(r, g, b);
 	}
 
-	// Bitecs hands out fresh sequential eids after resetWorld, but the DB key
-	// is the entity's eid — so to keep records stable across reloads we
+	// Bitecs hands out fresh sequential eids after resetWorld, but the record
+	// key is the entity's eid — so to keep records stable across reloads we
 	// restore each entity at the exact eid it was saved under. Fill the gap
 	// eids with placeholder entities up to the max stored eid, then remove
 	// them once the real ones are deserialized.
 	const liveEids = new Set(records.map(r => r.eid));
-	const maxEid = Math.max(...records.map(r => r.eid));
+	const maxEid = records.length ? Math.max(...records.map(r => r.eid)) : 0;
 
 	// Loading a project must never populate the undo stack: deserialize
 	// untracked, then clear so the first undo can't unwind the boot.
