@@ -472,7 +472,8 @@ export function PromptInput(props: PromptInputProps) {
   };
 
   // ── Accessors for UI menus (string ↔ config conversions) ────────────
-  const aspectRatioAccessor: Accessor<string> = () => videoConfig()?.aspectRatio ?? "16:9";
+  const aspectRatioAccessor: Accessor<string> = () =>
+    imageConfig()?.aspectRatio ?? videoConfig()?.aspectRatio ?? "16:9";
   const variantCountAccessor: Accessor<string> = () => String(imageConfig()?.count ?? 1);
   const durationAccessor: Accessor<string> = () => `${videoConfig()?.duration ?? 6}s`;
   const modelAccessor: Accessor<string> = () => config().model;
