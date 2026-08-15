@@ -3,9 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Renderer half of on-disk projects. Projects live as folders under a root
-// the user picks once (persisted); the desktop main process scans, scaffolds,
-// compiles, and watches them. Desktop only for now: without the bridge every
-// call rejects and the root is null.
+// the user picks once (persisted); each project's package.json is its record
+// (`displayName`, `main`). The desktop main process scans, scaffolds, renames,
+// copies, trashes, compiles, and watches them. Desktop only for now: without
+// the bridge every call rejects and the root is null.
 
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { mainBridge } from '@/lib/ipc';
@@ -37,11 +38,44 @@ export async function listProjects(): Promise<ProjectInfo[]> {
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_LIST, { root });
 }
 
-/** Creates a new project folder under the root and returns it. */
-export async function createProject(name: string): Promise<ProjectInfo> {
+/** Creates a new project folder `name` (with `displayName` in its package.json) under the root. */
+export async function createProject(name: string, displayName = name): Promise<ProjectInfo> {
 	const root = projectsRoot();
 	if (!root) throw new Error('No projects folder selected.');
-	return mainBridge.call(MAIN_CHANNELS.PROJECTS_CREATE, { root, name });
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_CREATE, { root, name, displayName });
+}
+
+/** The project called `name` under the root, or null when there is none. */
+export async function getProject(name: string): Promise<ProjectInfo | null> {
+	const dir = projectDir(name);
+	if (!dir || !isDesktop()) return null;
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_GET, { dir });
+}
+
+/** The human name of project `name` (its folder name when nothing else is known). */
+export async function getProjectName(name: string): Promise<string> {
+	return (await getProject(name).catch(() => null))?.displayName ?? name;
+}
+
+/** Sets the human name of project `name` (package.json `displayName`). */
+export async function renameProject(name: string, displayName: string): Promise<ProjectInfo> {
+	const dir = projectDir(name);
+	if (!dir) throw new Error(`Unknown project "${name}".`);
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_RENAME, { dir, displayName });
+}
+
+/** Copies project `name` next to itself and returns the copy. */
+export async function duplicateProject(name: string): Promise<ProjectInfo> {
+	const dir = projectDir(name);
+	if (!dir) throw new Error(`Unknown project "${name}".`);
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_DUPLICATE, { dir });
+}
+
+/** Moves project `name` to the trash. */
+export async function deleteProject(name: string): Promise<void> {
+	const dir = projectDir(name);
+	if (!dir) throw new Error(`Unknown project "${name}".`);
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_DELETE, { dir });
 }
 
 /** Absolute folder of the project called `name` under the current root, or null. */

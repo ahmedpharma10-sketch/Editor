@@ -7,7 +7,7 @@ import { toast } from "somoto";
 import { assert, downloadObject } from "@/utils";
 import { useEngine } from "@/context/engine";
 import { useProjectId } from "@/hooks/use-project-id";
-import { getProjectName } from "@/components/engine/db/global-db";
+import { getProjectName } from "@/projects";
 import { track } from "@/lib/analytics";
 import { ExportProgress, type ExportConfig } from "@/components/sidebar-right/inspector/export-progress";
 import { renderScene, renderOverlay, cancelRender } from "@/context/render";
@@ -42,7 +42,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
     const format = config.format ?? "mp4";
     const mimeType = MIME_TYPES[format];
 
-    const name = (await getProjectName(projectId() ?? "project"))
+    const name = (await getProjectName(projectId()))
       .replace(/\s+/g, "-")
       .toLowerCase();
 
@@ -131,7 +131,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
       return;
     }
 
-    const projectName = (await getProjectName(projectId() ?? "project"))
+    const projectName = (await getProjectName(projectId()))
       .replace(/\s+/g, "-")
       .toLowerCase();
     await downloadObject(blob, `${projectName}-frame.png`);

@@ -16,8 +16,8 @@ import { useNavigate } from "@solidjs/router";
 import { getAllEntities } from "bitecs";
 import { For, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
-import { deleteProject, duplicateProject, generateProjectName } from "@/components/engine/db";
-import { createProject, pickProjectsRoot, projectsRoot } from "@/projects";
+import { generateProjectName } from "@/components/engine/db";
+import { createProject, deleteProject, duplicateProject, pickProjectsRoot, projectsRoot } from "@/projects";
 import { Not } from "bitecs";
 import { ChildOf, isScene, useQuery, loadAsset, changeAssetDirectory, removeAsset, getAssetFile } from "@/components/engine";
 import { projectRoute, useProjectId } from "@/hooks/use-project-id";
@@ -34,7 +34,8 @@ export function FileMenu() {
   const handleNewProject = async () => {
     try {
       if (!projectsRoot() && !(await pickProjectsRoot())) return;
-      const project = await createProject(folderName(generateProjectName()));
+      const displayName = generateProjectName();
+      const project = await createProject(folderName(displayName), displayName);
       navigate(projectRoute(project.name));
     } catch (e) {
       toast.error("Failed to create project", {
@@ -44,27 +45,20 @@ export function FileMenu() {
   };
 
   const handleDuplicateProject = async () => {
-    const currentId = projectId();
-    if (!currentId) return;
-
     try {
-      const entry = await duplicateProject(currentId);
-      if (!entry) return;
-      navigate(projectRoute(entry.id));
-    } catch {
-      toast.error("Failed to duplicate project");
+      const copy = await duplicateProject(projectId());
+      navigate(projectRoute(copy.name));
+    } catch (e) {
+      toast.error("Failed to duplicate project", { description: (e as Error).message });
     }
   };
 
   const handleDeleteProject = async () => {
-    const currentId = projectId();
-    if (!currentId) return;
-
     try {
-      await deleteProject(currentId);
+      await deleteProject(projectId());
       navigate("/?dashboard=projects");
-    } catch {
-      toast.error("Failed to delete project");
+    } catch (e) {
+      toast.error("Failed to delete project", { description: (e as Error).message });
     }
   };
 
@@ -96,10 +90,7 @@ export function FileMenu() {
         <DropdownMenuItem onSelect={handleNewProject}>
           New project
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={!projectId()}
-          onSelect={handleDuplicateProject}
-        >
+        <DropdownMenuItem onSelect={handleDuplicateProject}>
           Duplicate project
         </DropdownMenuItem>
       </DropdownMenuGroup>
@@ -145,10 +136,7 @@ export function FileMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem
-          disabled={!projectId()}
-          onSelect={handleDeleteProject}
-        >
+        <DropdownMenuItem onSelect={handleDeleteProject}>
           Delete project
         </DropdownMenuItem>
       </DropdownMenuGroup>

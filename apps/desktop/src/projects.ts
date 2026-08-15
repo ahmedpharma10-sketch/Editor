@@ -5,17 +5,19 @@
 // Projects on disk. A project is a plain folder that is a real npm package
 // with a JSX entry file whose default export renders a <stage>. The user picks
 // a root folder; every direct child folder holding an entry file is a project.
+// The package.json is the project record (`displayName`, `main`); there is no
+// registry elsewhere.
 //
 // Compilation bundles the entry with esbuild (which resolves node_modules for
 // us) and runs project sources through babel-preset-solid's universal JSX
 // transform, so the renderer can evaluate the resulting CommonJS bundle
 // against its own solid-js instance and the koota-backed JSX host.
 
-import { app, dialog, type BrowserWindow } from "electron";
+import { app, dialog, shell, type BrowserWindow } from "electron";
 import { watch, type FSWatcher } from "node:fs";
-import { mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 
 import type { TransformOptions } from "@babel/core";
 import type { BuildOptions, Plugin } from "esbuild";
@@ -67,27 +69,52 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function findEntry(dir: string): Promise<string | undefined> {
+type PackageJson = { name?: string; displayName?: string; main?: string } & Record<string, unknown>;
+
+async function readPackage(dir: string): Promise<PackageJson | null> {
+  try {
+    return JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as PackageJson;
+  } catch {
+    return null;
+  }
+}
+
+async function writePackage(dir: string, pkg: PackageJson): Promise<void> {
+  await writeFile(join(dir, "package.json"), JSON.stringify(pkg, null, 2) + "\n", "utf8");
+}
+
+/** package.json `main` when it names a JSX/TS/JS file that exists, else the default lookup. */
+async function findEntry(dir: string, pkg?: PackageJson | null): Promise<string | undefined> {
+  const main = (pkg ?? (await readPackage(dir)))?.main;
+  if (typeof main === "string" && /\.[jt]sx?$/.test(main) && (await exists(join(dir, main)))) {
+    return main.split(sep).join("/");
+  }
   for (const name of ENTRY_FILES) {
     if (await exists(join(dir, name))) return name;
   }
   return undefined;
 }
 
-const noEntryError = (): string => `No ${ENTRY_FILES.join(" / ")} found in this folder.`;
+const noEntryError = (): string =>
+  `No entry found in this folder (package.json "main" or ${ENTRY_FILES.join(" / ")}).`;
 
-async function describe(dir: string, name: string): Promise<ProjectInfo | null> {
-  const entry = await findEntry(dir);
+async function describe(dir: string): Promise<ProjectInfo | null> {
+  const pkg = await readPackage(dir);
+  const entry = await findEntry(dir, pkg);
   if (!entry) return null;
+  const name = basename(dir);
   const [folder, file] = await Promise.all([stat(dir), stat(join(dir, entry))]);
   return {
     name,
+    displayName: pkg?.displayName?.trim() || name,
     dir,
     entry,
     modifiedAt: file.mtime.toISOString(),
     createdAt: folder.birthtime.toISOString(),
   };
 }
+
+export const getProject = (dir: string): Promise<ProjectInfo | null> => describe(dir);
 
 export async function pickRoot(window: BrowserWindow | null): Promise<string | null> {
   const options: Electron.OpenDialogOptions = {
@@ -107,7 +134,7 @@ export async function listProjects(root: string): Promise<ProjectInfo[]> {
   const projects = await Promise.all(
     entries
       .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
-      .map((entry) => describe(join(root, entry.name), entry.name)),
+      .map((entry) => describe(join(root, entry.name))),
   );
   return projects.filter((project): project is ProjectInfo => project !== null);
 }
@@ -125,15 +152,16 @@ function packageName(name: string): string {
   return cleaned || "diffusion-project";
 }
 
-const packageJson = (name: string): string => `{
-  "name": "${packageName(name)}",
-  "private": true,
-  "type": "module",
-  "devDependencies": {
-    "solid-js": "^1.9.10"
-  }
-}
-`;
+const packageJson = (name: string, displayName: string): PackageJson => ({
+  name: packageName(name),
+  displayName,
+  private: true,
+  type: "module",
+  main: "index.tsx",
+  devDependencies: {
+    "solid-js": "^1.9.10",
+  },
+});
 
 const TSCONFIG = `{
   "compilerOptions": {
@@ -190,6 +218,19 @@ async function writeIfMissing(dir: string, name: string, content: string): Promi
   await writeFile(path, content, "utf8");
 }
 
+/** Adds the record fields to a package.json that predates them; leaves everything else alone. */
+async function ensurePackage(dir: string, name: string, displayName: string, entry: string): Promise<void> {
+  const pkg = await readPackage(dir);
+  if (!pkg) {
+    await writePackage(dir, { ...packageJson(name, displayName), main: entry });
+    return;
+  }
+  const next = { ...pkg };
+  if (typeof next.displayName !== "string") next.displayName = displayName;
+  if (typeof next.main !== "string") next.main = entry;
+  if (next.displayName !== pkg.displayName || next.main !== pkg.main) await writePackage(dir, next);
+}
+
 async function writeIfChanged(dir: string, name: string, content: string): Promise<void> {
   const path = join(dir, name);
   const current = await readFile(path, "utf8").catch(() => undefined);
@@ -202,26 +243,62 @@ async function writeIfChanged(dir: string, name: string, content: string): Promi
  * written once, the generated types are kept in sync. Opening an up-to-date
  * project writes nothing.
  */
-export async function scaffold(dir: string, name: string): Promise<void> {
-  const entry = await findEntry(dir);
+export async function scaffold(dir: string, displayName = basename(dir)): Promise<void> {
+  const name = basename(dir);
+  let entry = await findEntry(dir);
   // JavaScript projects are left alone.
   if (entry && !/\.tsx?$/.test(entry)) return;
 
-  if (!entry) await writeIfMissing(dir, "index.tsx", STARTER);
-  await writeIfMissing(dir, "package.json", packageJson(name));
+  if (!entry) {
+    await writeIfMissing(dir, "index.tsx", STARTER);
+    entry = "index.tsx";
+  }
+  await ensurePackage(dir, name, displayName, entry);
   await writeIfMissing(dir, "tsconfig.json", TSCONFIG);
   await writeIfChanged(dir, "jsx.d.ts", TYPES);
 }
 
 /** Creates a fresh project folder under `root`. Fails if the folder exists. */
-export async function createProject(root: string, name: string): Promise<ProjectInfo> {
+export async function createProject(root: string, name: string, displayName: string): Promise<ProjectInfo> {
   const dir = join(root, name);
   if (await exists(dir)) throw new Error(`"${name}" already exists in the projects folder.`);
   await mkdir(dir, { recursive: true });
-  await scaffold(dir, name);
-  const project = await describe(dir, name);
+  await scaffold(dir, displayName);
+  const project = await describe(dir);
   if (!project) throw new Error("Failed to scaffold the project.");
   return project;
+}
+
+/** Sets the human name (package.json `displayName`). */
+export async function renameProject(dir: string, displayName: string): Promise<ProjectInfo> {
+  const pkg = (await readPackage(dir)) ?? packageJson(basename(dir), displayName);
+  await writePackage(dir, { ...pkg, displayName: displayName.trim() || basename(dir) });
+  const project = await describe(dir);
+  if (!project) throw new Error("Not a project folder.");
+  return project;
+}
+
+/** Copies the folder next to itself as `<name>-copy` (numbered when taken). */
+export async function duplicateProject(dir: string): Promise<ProjectInfo> {
+  const source = await describe(dir);
+  if (!source) throw new Error("Not a project folder.");
+
+  const root = dirname(dir);
+  let name = `${source.name}-copy`;
+  for (let i = 2; await exists(join(root, name)); i++) name = `${source.name}-copy-${i}`;
+  const target = join(root, name);
+
+  await cp(dir, target, { recursive: true, errorOnExist: true, force: false });
+  await renameProject(target, `${source.displayName} (Copy)`);
+  const project = await describe(target);
+  if (!project) throw new Error("Failed to duplicate the project.");
+  return project;
+}
+
+/** Moves the folder to the trash. */
+export async function deleteProject(dir: string): Promise<void> {
+  unwatchProject(dir);
+  await shell.trashItem(dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +347,7 @@ export async function compileProject(dir: string): Promise<CompileResult> {
   if (!entry) return { ok: false, error: noEntryError() };
 
   // Generated types may have drifted since the project was created.
-  await scaffold(dir, dir.split(sep).pop() ?? "project");
+  await scaffold(dir);
 
   // esbuild resolves symlinks, so the loader has to match on real paths.
   const root = await realpath(dir);

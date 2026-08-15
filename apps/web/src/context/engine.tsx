@@ -5,8 +5,6 @@
 import { createEngine, invalidateAssets } from '@/components/engine';
 import { clearAudioPeaksCache, clearAudioTrackCache, clearKeyframeIndexCache, clearVideoTrackCache } from '@/components/engine/decoders';
 import { clearImageThumbnailCache } from '@/components/engine/timeline/render/image';
-import { markProjectOpened, setProjectThumbnail } from '@/components/engine/db';
-import { captureCanvasThumbnail } from '@/components/engine/thumbnail';
 import { assert } from '@/utils';
 import { createContext, onCleanup, onMount, useContext, createSignal, Show } from 'solid-js';
 import { verifyHandlePermissions } from "@/utils/browser";
@@ -109,9 +107,6 @@ export function EngineProvider(props: EngineProviderProps) {
   };
 
   onMount(async () => {
-    // Track project in global DB
-    markProjectOpened(props.projectId);
-
     const canvas = document.getElementById('engine-canvas') as HTMLCanvasElement;
     resizeObserver.observe(canvas.parentElement!);
 
@@ -156,14 +151,6 @@ export function EngineProvider(props: EngineProviderProps) {
 
   onCleanup(() => {
     if (readyProjectId === props.projectId) readyProjectId = null;
-
-    // Capture thumbnail before disposing the engine
-    const canvas = engine.world.canvas;
-    captureCanvasThumbnail(canvas).then((blob) => {
-      if (blob) {
-        setProjectThumbnail(props.projectId, blob);
-      }
-    });
 
     resizeObserver.disconnect();
     engine.dispose();

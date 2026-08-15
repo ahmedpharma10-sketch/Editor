@@ -16,7 +16,7 @@ import { TimelineProvider } from '@/context/timeline';
 import { EngineProvider as KootaEngineProvider } from '@/engine';
 import { ProjectLoader } from '@/projects';
 
-/** `/projects/:name` — the editor, with the project folder `name` loaded. */
+/** `/projects/*name` — the editor, with the project folder `name` loaded. */
 export function ProjectPage() {
   const projectId = useProjectId();
 

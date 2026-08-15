@@ -16,8 +16,12 @@ import { MAIN_CHANNELS } from "./main-channels";
 import {
   compileProject,
   createProject,
+  deleteProject,
+  duplicateProject,
+  getProject,
   listProjects,
   pickRoot,
+  renameProject,
   unwatchAll,
   unwatchProject,
   watchProject,
@@ -257,7 +261,13 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_PICK_ROOT, () => pickRoot(mainWindow));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_LIST, ({ root }) => listProjects(root));
-  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, name }) => createProject(root, name));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_GET, ({ dir }) => getProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, name, displayName }) =>
+    createProject(root, name, displayName),
+  );
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_RENAME, ({ dir, displayName }) => renameProject(dir, displayName));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_DUPLICATE, ({ dir }) => duplicateProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_DELETE, ({ dir }) => deleteProject(dir));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_COMPILE, ({ dir }) => compileProject(dir));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_WATCH, ({ dir }, event) =>
     watchProject(BrowserWindow.fromWebContents(event.sender), dir),

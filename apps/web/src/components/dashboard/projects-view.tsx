@@ -37,33 +37,23 @@ import { Icon } from "../ui/icon";
 import { track } from "@/lib/analytics";
 import {
   createProject,
+  deleteProject,
+  duplicateProject,
   isDesktop,
   listProjects,
   pickProjectsRoot,
   projectsRoot,
+  renameProject,
   type ProjectInfo,
 } from "@/projects";
 
 import type { ProjectSortOption } from "./types";
 
-// Projects live on disk under a user-picked root (see @/projects). Thumbnails,
-// rename, duplicate and delete have no on-disk backing yet: the UI stays, the
-// operations are no-ops until the desktop host grows them.
+// Projects live on disk under a user-picked root (see @/projects); their
+// package.json is the record. Thumbnails have no on-disk backing yet: the UI
+// stays, the lookup is a no-op until the desktop host grows it.
 async function getProjectThumbnail(_name: string): Promise<Blob | undefined> {
   return undefined;
-}
-
-async function setProjectName(_name: string, _newName: string): Promise<void> {
-  // TODO: rename the project folder on disk.
-}
-
-async function duplicateProject(_name: string): Promise<ProjectInfo | null> {
-  // TODO: copy the project folder on disk.
-  return null;
-}
-
-async function deleteProject(_name: string): Promise<void> {
-  // TODO: move the project folder to the trash.
 }
 
 export function DashboardProjectsView() {
@@ -85,7 +75,7 @@ export function DashboardProjectsView() {
     const entries = projects() ?? [];
     if (!query) return entries;
 
-    return entries.filter((project) => project.name.toLowerCase().includes(query));
+    return entries.filter((project) => project.displayName.toLowerCase().includes(query));
   });
 
   const sortedProjects = createMemo(() => {
@@ -93,7 +83,7 @@ export function DashboardProjectsView() {
     const entries = [...filteredProjects()];
 
     if (sortMode === "alphabetical") {
-      entries.sort((a, b) => a.name.localeCompare(b.name));
+      entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
       return entries;
     }
 
@@ -115,7 +105,7 @@ export function DashboardProjectsView() {
 
   const startRenaming = (project: ProjectInfo) => {
     batch(() => {
-      setRenameDraft(project.name);
+      setRenameDraft(project.displayName);
       setRenamingProject(project.name);
     });
   };
@@ -125,8 +115,8 @@ export function DashboardProjectsView() {
       await deleteProject(project.name);
       track('project_deleted');
       refetchProjects();
-    } catch {
-      toast.error("Failed to delete project");
+    } catch (e) {
+      toast.error("Failed to delete project", { description: (e as Error).message });
     }
   };
 
@@ -135,8 +125,8 @@ export function DashboardProjectsView() {
       await duplicateProject(project.name);
       track('project_duplicated');
       refetchProjects();
-    } catch {
-      toast.error("Failed to duplicate project");
+    } catch (e) {
+      toast.error("Failed to duplicate project", { description: (e as Error).message });
     }
   };
 
@@ -175,7 +165,11 @@ export function DashboardProjectsView() {
       event.stopPropagation();
 
       if (trimmedName.length > 0 && projectName === renamingProject()) {
-        await setProjectName(projectName, trimmedName);
+        try {
+          await renameProject(projectName, trimmedName);
+        } catch (e) {
+          toast.error("Failed to rename project", { description: (e as Error).message });
+        }
       }
 
       refetchProjects();
@@ -205,7 +199,8 @@ export function DashboardProjectsView() {
     }
 
     try {
-      const project = await createProject(folderName(generateProjectName()));
+      const displayName = generateProjectName();
+      const project = await createProject(folderName(displayName), displayName);
       track('project_created');
       refetchProjects();
       openProject(project);
@@ -287,7 +282,7 @@ export function DashboardProjectsView() {
                         when={renamingProject() === project.name}
                         fallback={
                           <p class="min-w-0 truncate text-xs text-foreground">
-                            {project.name}
+                            {project.displayName}
                           </p>
                         }
                       >

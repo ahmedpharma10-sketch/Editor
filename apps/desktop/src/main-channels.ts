@@ -40,7 +40,11 @@ export const MAIN_CHANNELS = {
   LOGS_GET: "logs:get",
   PROJECTS_PICK_ROOT: "projects:pick-root",
   PROJECTS_LIST: "projects:list",
+  PROJECTS_GET: "projects:get",
   PROJECTS_CREATE: "projects:create",
+  PROJECTS_RENAME: "projects:rename",
+  PROJECTS_DUPLICATE: "projects:duplicate",
+  PROJECTS_DELETE: "projects:delete",
   PROJECTS_COMPILE: "projects:compile",
   PROJECTS_WATCH: "projects:watch",
   PROJECTS_UNWATCH: "projects:unwatch",
@@ -53,13 +57,19 @@ export const MAIN_CHANNELS = {
   PROJECTS_CHANGED: "projects:changed",
 } as const;
 
-/** A project folder under the projects root: a real npm package with a JSX entry. */
+/**
+ * A project folder under the projects root: a real npm package with a JSX
+ * entry. Its package.json is the project record: `displayName` is the human
+ * name, `main` the entry file.
+ */
 export type ProjectInfo = {
   /** Folder name, doubles as the project id. */
   name: string;
+  /** Human name from package.json `displayName` (falls back to the folder name). */
+  displayName: string;
   /** Absolute path of the project folder. */
   dir: string;
-  /** Entry file relative to `dir` (index.tsx, index.ts, index.jsx or index.js). */
+  /** Entry file relative to `dir`: package.json `main`, else index.tsx/ts/jsx/js. */
   entry: string;
   /** mtime of the entry file, ISO string. */
   modifiedAt: string;
@@ -109,10 +119,17 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.LOGS_GET]: { request: void; response: LogEntry[] };
   [MAIN_CHANNELS.PROJECTS_PICK_ROOT]: { request: void; response: string | null };
   [MAIN_CHANNELS.PROJECTS_LIST]: { request: { root: string }; response: ProjectInfo[] };
+  [MAIN_CHANNELS.PROJECTS_GET]: { request: { dir: string }; response: ProjectInfo | null };
   [MAIN_CHANNELS.PROJECTS_CREATE]: {
-    request: { root: string; name: string };
+    request: { root: string; name: string; displayName: string };
     response: ProjectInfo;
   };
+  [MAIN_CHANNELS.PROJECTS_RENAME]: {
+    request: { dir: string; displayName: string };
+    response: ProjectInfo;
+  };
+  [MAIN_CHANNELS.PROJECTS_DUPLICATE]: { request: { dir: string }; response: ProjectInfo };
+  [MAIN_CHANNELS.PROJECTS_DELETE]: { request: { dir: string }; response: void };
   [MAIN_CHANNELS.PROJECTS_COMPILE]: { request: { dir: string }; response: CompileResult };
   [MAIN_CHANNELS.PROJECTS_WATCH]: { request: { dir: string }; response: void };
   [MAIN_CHANNELS.PROJECTS_UNWATCH]: { request: { dir: string }; response: void };

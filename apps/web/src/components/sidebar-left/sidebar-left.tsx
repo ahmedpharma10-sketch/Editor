@@ -10,7 +10,7 @@ import { Button } from "../ui/button";
 import { Icon } from "../ui/icon";
 import { ProjectMenu } from "./project-menu";
 import { useProjectId } from "@/hooks/use-project-id";
-import { getProjectName, setProjectName } from "../engine/db";
+import { getProjectName, renameProject } from "@/projects";
 import { createResource } from "solid-js";
 import { cx } from "@/lib/cva";
 
@@ -52,7 +52,7 @@ type ProjectHeaderProps = {
 export function ProjectHeader(props: ProjectHeaderProps) {
   const projectId = useProjectId();
   const [projectNameDraft, setProjectNameDraft] = createSignal<string | null>(null);
-  const [projectName, { refetch: refetchProjectName }] = createResource(() => getProjectName(projectId() ?? "project"));
+  const [projectName, { refetch: refetchProjectName }] = createResource(() => getProjectName(projectId()));
 
   const handleProjectNameInput = (event: InputEvent & { currentTarget: HTMLInputElement }) => {
     setProjectNameDraft(event.currentTarget.value);
@@ -74,7 +74,7 @@ export function ProjectHeader(props: ProjectHeaderProps) {
       const currentName = projectName() ?? "";
 
       if (trimmedName.length > 0 && trimmedName !== currentName) {
-        if (projectId()) await setProjectName(projectId()!, trimmedName);
+        await renameProject(projectId(), trimmedName);
       }
 
       refetchProjectName();

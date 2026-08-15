@@ -30,14 +30,6 @@ export interface Directory {
   lastAccessedAt: string;
 }
 
-export interface ProjectEntry {
-  id: string;
-  name: string;
-  createdAt: string;
-  lastAccessedAt: string;
-  thumbnail?: Blob;
-}
-
 export interface GlobalDBSchema extends idb.DBSchema {
   directories: {
     value: Directory;
@@ -63,13 +55,6 @@ const dbPromise = openDB<GlobalDBSchema>(DB_NAME, DB_VERSION, {
     }
   },
 });
-
-/** Session-only project registry. */
-const projects = new Map<string, ProjectEntry>();
-
-function byLastAccessedDesc<T extends { lastAccessedAt: string }>(a: T, b: T): number {
-  return b.lastAccessedAt.localeCompare(a.lastAccessedAt);
-}
 
 /**
  * Saves the root directory handle to the database.
@@ -129,106 +114,4 @@ export async function retrieveDirectoryHandle() {
   }
 
   return await navigator.storage.getDirectory();
-}
-
-const PROJECT_ID_PATTERN = /^[A-Za-z0-9_-]{21}$/;
-
-export async function markProjectOpened(projectId: string): Promise<void> {
-  if (!PROJECT_ID_PATTERN.test(projectId)) return;
-
-  const now = new Date().toISOString();
-  const existing = projects.get(projectId);
-
-  projects.set(projectId, {
-    ...existing,
-    id: projectId,
-    name: existing?.name ?? generateProjectName(),
-    createdAt: existing?.createdAt ?? now,
-    lastAccessedAt: now,
-  });
-}
-
-export async function createProject(name?: string): Promise<ProjectEntry> {
-  const now = new Date().toISOString();
-  const entry: ProjectEntry = {
-    id: nanoid(),
-    name: name?.trim() || generateProjectName(),
-    createdAt: now,
-    lastAccessedAt: now,
-  };
-  projects.set(entry.id, entry);
-  return entry;
-}
-
-export async function getProjectName(projectId: string): Promise<string> {
-  const project = projects.get(projectId);
-  // Projects on disk are named by their folder (see @/projects).
-  if (!project) return projectId;
-
-  return project.name;
-}
-
-export async function getProject(projectId: string): Promise<ProjectEntry | null> {
-  if (!PROJECT_ID_PATTERN.test(projectId)) return null;
-  return projects.get(projectId) ?? null;
-}
-
-export async function setProjectName(projectId: string, name: string): Promise<void> {
-  if (!PROJECT_ID_PATTERN.test(projectId)) return;
-
-  const existing = projects.get(projectId);
-  const now = new Date().toISOString();
-
-  projects.set(projectId, {
-    ...existing,
-    id: projectId,
-    name,
-    createdAt: existing?.createdAt ?? now,
-    lastAccessedAt: now,
-  });
-}
-
-export async function listRecentProjects(limit = 10): Promise<ProjectEntry[]> {
-  return Array.from(projects.values()).sort(byLastAccessedDesc).slice(0, limit);
-}
-
-export async function setProjectThumbnail(projectId: string, thumbnail: Blob): Promise<void> {
-  if (!PROJECT_ID_PATTERN.test(projectId)) return;
-
-  const existing = projects.get(projectId);
-  if (!existing) return;
-
-  projects.set(projectId, { ...existing, thumbnail });
-}
-
-export async function getProjectThumbnail(projectId: string): Promise<Blob | null> {
-  return projects.get(projectId)?.thumbnail ?? null;
-}
-
-export async function duplicateProject(projectId: string): Promise<ProjectEntry | null> {
-  if (!PROJECT_ID_PATTERN.test(projectId)) return null;
-
-  const source = projects.get(projectId);
-  if (!source) return null;
-
-  const newProjectId = nanoid();
-  const now = new Date().toISOString();
-
-  // TODO: copy the project's package/JSX contents once projects live on disk.
-  const entry: ProjectEntry = {
-    id: newProjectId,
-    name: `${source.name} (Copy)`,
-    createdAt: now,
-    lastAccessedAt: now,
-    thumbnail: source.thumbnail,
-  };
-
-  projects.set(newProjectId, entry);
-  return entry;
-}
-
-export async function deleteProject(projectId: string): Promise<void> {
-  if (!PROJECT_ID_PATTERN.test(projectId)) return;
-
-  projects.delete(projectId);
 }
