@@ -9,23 +9,19 @@ import { mount } from '@diffusionstudio/reconciler';
 
 import { compileProject, projectDir, watchProject } from './host';
 
+import type { Accessor } from 'solid-js';
 import type { Mount } from '@diffusionstudio/reconciler';
 
-export interface ProjectLoaderProps {
-	/** Project folder name under the projects root. */
-	name: string;
-}
-
 /**
- * Compiles the project folder, renders its JSX into the runtime world, and
- * re-renders on every change on disk. Renders nothing itself; mount it under
- * the koota EngineProvider.
+ * Loads the project folder `name` into the runtime world: compiles it, renders
+ * its JSX, and re-renders on every change on disk. Call under the koota
+ * EngineProvider; the mount follows `name` and is torn down with the owner.
  */
-export function ProjectLoader(props: ProjectLoaderProps): null {
+export function useProject(name: Accessor<string>): void {
 	const world = useWorld();
 
 	createEffect(() => {
-		const dir = projectDir(props.name);
+		const dir = projectDir(name());
 		if (!dir) return;
 
 		let mounted: Mount | undefined;
@@ -66,6 +62,4 @@ export function ProjectLoader(props: ProjectLoaderProps): null {
 			unmount();
 		});
 	});
-
-	return null;
 }

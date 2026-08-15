@@ -14,7 +14,6 @@ import { useProjectId } from '@/hooks/use-project-id';
 import { ECSProvider } from '@/context/ecs';
 import { TimelineProvider } from '@/context/timeline';
 import { EngineProvider as KootaEngineProvider } from '@/engine';
-import { ProjectLoader } from '@/projects';
 
 /** `/projects/*name` — the editor, with the project folder `name` loaded. */
 export function ProjectPage() {
@@ -27,7 +26,6 @@ export function ProjectPage() {
     <Show when={projectId()} keyed fallback={<Navigate href="/" />}>
       {(id) => (
         <KootaEngineProvider projectId={id}>
-          <ProjectLoader name={id} />
           <EngineProvider projectId={id}>
             <EditorApiProvider>
               <TimelineProvider>

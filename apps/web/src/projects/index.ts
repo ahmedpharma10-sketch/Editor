@@ -3,4 +3,4 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 export * from './host';
-export * from './loader';
+export * from './use-project';

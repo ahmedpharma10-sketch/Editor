@@ -10,10 +10,15 @@ import { FloatingProjectHeader, SidebarLeft } from "@/components/sidebar-left";
 import { useLayout, MIN_TIMELINE_HEIGHT } from "@/context/layout";
 import { useEditorApi } from "@/context/dapi";
 import { RULER_HEIGHT } from "@/components/engine/timeline/config";
+import { useProjectId } from "@/hooks/use-project-id";
+import { useProject } from "@/projects";
 
 const MIN_CANVAS_HEIGHT = 200;
 
 export function EditorPage() {
+  // The project folder from the route, rendered into the koota world.
+  useProject(useProjectId());
+
   const { uiVisible, timelineMinimized, timelineHeight, setTimelineHeight } = useLayout();
   const { isDesktop, isFullscreen } = useEditorApi();
   const [resizing, setResizing] = createSignal(false);

@@ -156,10 +156,10 @@ export function Canvas() {
         <Toolbar />
         <DesktopAppBanner />
         <DrawOverlay />
-        <SceneInitOverlay
+        {/* <SceneInitOverlay
           onDrop={handleDropEvent}
           onDragOver={handleDragOver}
-        />
+        /> */}
         <EngineCanvas />
 
         {/** Deprecated bitecs canvas */}
