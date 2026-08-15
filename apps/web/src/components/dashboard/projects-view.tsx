@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { generateProjectName, DEFAULT_PROJECT_ID } from "@/components/engine/db";
+import { generateProjectName } from "@/components/engine/db";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -14,8 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { TextField, TextFieldInput } from "@/components/ui/text-field";
 import { toast } from "somoto";
-import { For, Show, batch, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
-import { useSearchParams } from "@solidjs/router";
+import { For, Show, batch, createMemo, createResource, createSignal, onCleanup } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 
 import {
   Select,
@@ -32,9 +32,7 @@ import {
   DashboardViewSection,
 } from "./shared";
 import { DashboardSearchPanel } from "./search-bar";
-import { useProjectId } from "@/hooks/use-project-id";
-import { captureCanvasThumbnail } from "../engine/thumbnail";
-import { MAIN_CANVAS_ID } from "../canvas";
+import { projectRoute } from "@/hooks/use-project-id";
 import { Icon } from "../ui/icon";
 import { track } from "@/lib/analytics";
 import {
@@ -51,10 +49,8 @@ import type { ProjectSortOption } from "./types";
 // Projects live on disk under a user-picked root (see @/projects). Thumbnails,
 // rename, duplicate and delete have no on-disk backing yet: the UI stays, the
 // operations are no-ops until the desktop host grows them.
-const thumbnails = new Map<string, Blob>();
-
-async function setProjectThumbnail(name: string, blob: Blob): Promise<void> {
-  thumbnails.set(name, blob);
+async function getProjectThumbnail(_name: string): Promise<Blob | undefined> {
+  return undefined;
 }
 
 async function setProjectName(_name: string, _newName: string): Promise<void> {
@@ -71,8 +67,7 @@ async function deleteProject(_name: string): Promise<void> {
 }
 
 export function DashboardProjectsView() {
-  const projectId = useProjectId();
-  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = createSignal("");
   const [sort, setSort] = createSignal<ProjectSortOption>("last-viewed");
   const [projects, { refetch: refetchProjects }] = createResource(projectsRoot, () => listProjects());
@@ -84,18 +79,6 @@ export function DashboardProjectsView() {
     SORT_OPTIONS.find((option) => option.id === sort()) ?? SORT_OPTIONS[0];
 
   const normalizedSearch = createMemo(() => search().trim().toLowerCase());
-
-  onMount(async () => {
-    if (projectId() == DEFAULT_PROJECT_ID) return;
-
-    const canvas = document.getElementById(MAIN_CANVAS_ID) as HTMLCanvasElement | null;
-    if (!canvas) return;
-    const blob = await captureCanvasThumbnail(canvas);
-    if (blob) {
-      await setProjectThumbnail(projectId(), blob);
-      refetchProjects();
-    };
-  })
 
   const filteredProjects = createMemo(() => {
     const query = normalizedSearch();
@@ -127,7 +110,7 @@ export function DashboardProjectsView() {
     if (renamingProject() === project.name) return;
 
     track('project_opened');
-    setParams({ project: project.name, dashboard: undefined }, { replace: true });
+    navigate(projectRoute(project.name));
   };
 
   const startRenaming = (project: ProjectInfo) => {
@@ -296,7 +279,7 @@ export function DashboardProjectsView() {
                   onClick={() => openProject(project)}
                 >
                   <DashboardCardPreview>
-                    <ProjectThumbnail thumbnail={thumbnails.get(project.name)} />
+                    <ProjectThumbnail name={project.name} />
                   </DashboardCardPreview>
                   <div class="flex flex-col gap-1 px-2">
                     <div class="relative h-4 w-full">
@@ -361,10 +344,12 @@ export function DashboardProjectsView() {
   );
 }
 
-function ProjectThumbnail(props: { thumbnail?: Blob }) {
+function ProjectThumbnail(props: { name: string }) {
+  const [thumbnail] = createResource(() => props.name, getProjectThumbnail);
   const url = createMemo(() => {
-    if (!props.thumbnail) return null;
-    return URL.createObjectURL(props.thumbnail);
+    const blob = thumbnail();
+    if (!blob) return null;
+    return URL.createObjectURL(blob);
   });
 
   onCleanup(() => {

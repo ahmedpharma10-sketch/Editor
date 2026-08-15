@@ -12,22 +12,22 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { useSearchParams } from "@solidjs/router";
+import { useNavigate } from "@solidjs/router";
 import { getAllEntities } from "bitecs";
 import { For, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
-import { deleteProject, duplicateProject, DEFAULT_PROJECT_ID, generateProjectName } from "@/components/engine/db";
+import { deleteProject, duplicateProject, generateProjectName } from "@/components/engine/db";
 import { createProject, pickProjectsRoot, projectsRoot } from "@/projects";
 import { Not } from "bitecs";
 import { ChildOf, isScene, useQuery, loadAsset, changeAssetDirectory, removeAsset, getAssetFile } from "@/components/engine";
-import { useProjectId } from "@/hooks/use-project-id";
+import { projectRoute, useProjectId } from "@/hooks/use-project-id";
 import { useEngine } from "@/context/engine";
 import { useExport } from "@/context/export";
 import { getDefaultExportTemplate } from "@/components/sidebar-right/inspector/export-templates";
 import { showFileDialog, mimeTypeToExtension } from "@/utils";
 
 export function FileMenu() {
-  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const projectId = useProjectId();
   const { world } = useEngine();
 
@@ -35,10 +35,7 @@ export function FileMenu() {
     try {
       if (!projectsRoot() && !(await pickProjectsRoot())) return;
       const project = await createProject(folderName(generateProjectName()));
-      setParams({
-        project: project.name,
-        dashboard: undefined
-      }, { replace: true });
+      navigate(projectRoute(project.name));
     } catch (e) {
       toast.error("Failed to create project", {
         description: (e as Error).message,
@@ -48,15 +45,12 @@ export function FileMenu() {
 
   const handleDuplicateProject = async () => {
     const currentId = projectId();
-    if (currentId === DEFAULT_PROJECT_ID) return;
+    if (!currentId) return;
 
     try {
       const entry = await duplicateProject(currentId);
       if (!entry) return;
-      setParams({
-        project: entry.id,
-        dashboard: undefined
-      }, { replace: true });
+      navigate(projectRoute(entry.id));
     } catch {
       toast.error("Failed to duplicate project");
     }
@@ -64,14 +58,11 @@ export function FileMenu() {
 
   const handleDeleteProject = async () => {
     const currentId = projectId();
-    if (currentId === DEFAULT_PROJECT_ID) return;
+    if (!currentId) return;
 
     try {
       await deleteProject(currentId);
-      setParams({
-        project: undefined,
-        dashboard: "projects",
-      }, { replace: true });
+      navigate("/?dashboard=projects");
     } catch {
       toast.error("Failed to delete project");
     }
@@ -106,7 +97,7 @@ export function FileMenu() {
           New project
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={projectId() === DEFAULT_PROJECT_ID}
+          disabled={!projectId()}
           onSelect={handleDuplicateProject}
         >
           Duplicate project
@@ -155,7 +146,7 @@ export function FileMenu() {
 
       <DropdownMenuGroup>
         <DropdownMenuItem
-          disabled={projectId() === DEFAULT_PROJECT_ID}
+          disabled={!projectId()}
           onSelect={handleDeleteProject}
         >
           Delete project

@@ -3,20 +3,25 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { z } from 'zod';
-import { useSearchParams } from "@solidjs/router";
+import { useParams } from "@solidjs/router";
 import { createMemo } from 'solid-js';
-import { DEFAULT_PROJECT_ID } from '@/components/engine/db';
 
 // A project id is the name of a project folder under the projects root
 // (see @/projects), so anything goes except path segments.
 const PROJECT_ID = z.string().min(1).regex(/^(?!\.{1,2}$)[^/\\]+$/);
 
+/** Route for the editor with project `name` loaded (see `/projects/*name` in app.tsx). */
+export const projectRoute = (name: string): string => `/projects/${encodeURIComponent(name)}`;
+
+/**
+ * The project folder name from the `/projects/*name` route, or null when the
+ * route carries no valid name. Only meaningful under that route.
+ */
 export function useProjectId() {
-  const [params] = useSearchParams();
+  const params = useParams<{ name?: string }>();
   const projectId = createMemo(() => {
-    const { success, data } = PROJECT_ID.safeParse(params.project);
-    if (!success) return DEFAULT_PROJECT_ID;   // when no project is set use a default project id
-    return data;
+    const { success, data } = PROJECT_ID.safeParse(params.name);
+    return success ? data : null;
   });
   return projectId;
 }

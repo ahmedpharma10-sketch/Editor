@@ -3,35 +3,31 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { Show } from 'solid-js';
+import { Navigate } from '@solidjs/router';
 import { EditorPage } from './editor';
 import { LayoutProvider } from "@/context/layout";
-import { Dashboard } from '@/components/dashboard';
 import { PromptInputProvider } from "@/context/prompt-input";
 import { EngineProvider } from '@/context/engine';
 import { EditorApiProvider } from '@/context/dapi';
 import { ExportProvider } from '@/context/export';
 import { useProjectId } from '@/hooks/use-project-id';
-import { useSearchParams } from '@solidjs/router';
 import { ECSProvider } from '@/context/ecs';
 import { TimelineProvider } from '@/context/timeline';
 import { EngineProvider as KootaEngineProvider } from '@/engine';
 import { ProjectLoader } from '@/projects';
-import { DEFAULT_PROJECT_ID } from '@/components/engine/db';
 
-export function HomePage() {
+/** `/projects/:name` — the editor, with the project folder `name` loaded. */
+export function ProjectPage() {
   const projectId = useProjectId();
-  const [params] = useSearchParams();
 
   return (
     /**
      * using show with keyed to ensure the engine provider is remounted when the project id changes
      */
-    <Show when={projectId()} keyed>
+    <Show when={projectId()} keyed fallback={<Navigate href="/" />}>
       {(id) => (
         <KootaEngineProvider projectId={id}>
-          <Show when={id !== DEFAULT_PROJECT_ID}>
-            <ProjectLoader name={id} />
-          </Show>
+          <ProjectLoader name={id} />
           <EngineProvider projectId={id}>
             <EditorApiProvider>
               <TimelineProvider>
@@ -42,9 +38,6 @@ export function HomePage() {
                         <EditorPage />
                       </LayoutProvider>
                     </PromptInputProvider>
-                    <Show when={!params.project || !!params.dashboard}>
-                      <Dashboard />
-                    </Show>
                   </ExportProvider>
                 </ECSProvider>
               </TimelineProvider>

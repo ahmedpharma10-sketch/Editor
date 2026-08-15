@@ -47,7 +47,9 @@ export function DashboardSidebarHeader() {
   const auth = useAuth();
 
   return (
-    <div class="flex flex-col items-start gap-3 p-4">
+    // Extra top padding on the macOS desktop build clears the traffic lights
+    // (hiddenInset title bar), except in fullscreen where they are gone.
+    <div class="flex flex-col items-start gap-3 p-4 [[data-platform=darwin]:not([data-fullscreen=true])_&]:pt-12">
       <Icon name="diffusion-logo-large" class="size-6 text-muted-foreground" />
       <div class="flex h-10 w-full flex-col items-start gap-1 text-muted-foreground">
         <p class="w-full text-base leading-5  font-450 text-muted-foreground">

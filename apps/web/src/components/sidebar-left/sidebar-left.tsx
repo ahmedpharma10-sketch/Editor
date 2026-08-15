@@ -52,7 +52,7 @@ type ProjectHeaderProps = {
 export function ProjectHeader(props: ProjectHeaderProps) {
   const projectId = useProjectId();
   const [projectNameDraft, setProjectNameDraft] = createSignal<string | null>(null);
-  const [projectName, { refetch: refetchProjectName }] = createResource(() => getProjectName(projectId()));
+  const [projectName, { refetch: refetchProjectName }] = createResource(() => getProjectName(projectId() ?? "project"));
 
   const handleProjectNameInput = (event: InputEvent & { currentTarget: HTMLInputElement }) => {
     setProjectNameDraft(event.currentTarget.value);
@@ -74,7 +74,7 @@ export function ProjectHeader(props: ProjectHeaderProps) {
       const currentName = projectName() ?? "";
 
       if (trimmedName.length > 0 && trimmedName !== currentName) {
-        await setProjectName(projectId(), trimmedName);
+        if (projectId()) await setProjectName(projectId()!, trimmedName);
       }
 
       refetchProjectName();

@@ -42,7 +42,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
     const format = config.format ?? "mp4";
     const mimeType = MIME_TYPES[format];
 
-    const name = (await getProjectName(projectId()))
+    const name = (await getProjectName(projectId() ?? "project"))
       .replace(/\s+/g, "-")
       .toLowerCase();
 
@@ -131,7 +131,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
       return;
     }
 
-    const projectName = (await getProjectName(projectId()))
+    const projectName = (await getProjectName(projectId() ?? "project"))
       .replace(/\s+/g, "-")
       .toLowerCase();
     await downloadObject(blob, `${projectName}-frame.png`);

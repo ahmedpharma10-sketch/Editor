@@ -14,10 +14,11 @@ import { UpgradeDialog } from '@/components/upgrade-dialog';
 import { PurchaseSuccess } from '@/components/purchase-success';
 import { ScreenTooSmall } from '@/components/screen-too-small';
 import { UnsupportedBrowser } from '@/components/unsupported-browser';
-import { HomePage } from './pages/home';
-import { LoginPage } from './pages/login';
-import { AuthCallbackPage } from './pages/auth-callback';
-import { NotFoundPage } from './pages/not-found';
+import { ProjectPage } from '@/pages/project';
+import { LoginPage } from '@/pages/login';
+import { AuthCallbackPage } from '@/pages/auth-callback';
+import { NotFoundPage } from '@/pages/not-found';
+import { DashboardPage } from '@/pages/dashboard';
 
 function AuthGate(props: { children: JSX.Element }) {
   const auth = useAuth();
@@ -66,7 +67,8 @@ function App() {
       )}
     >
       <Route path="/auth/callback" component={AuthCallbackPage} />
-      <Route path="/" component={() => <AuthGate><HomePage /></AuthGate>} />
+      <Route path="/" component={() => <AuthGate><DashboardPage /></AuthGate>} />
+      <Route path="/projects/*name" component={() => <AuthGate><ProjectPage /></AuthGate>} />
       <Route path="*404" component={NotFoundPage} />
     </RouterComponent>
   );

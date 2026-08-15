@@ -6,8 +6,6 @@ import { openDB } from 'idb';
 import type * as idb from 'idb';
 import { nanoid } from 'nanoid';
 
-export const DEFAULT_PROJECT_ID = 'V1StGXR8_Z5jdHi6B-myT';
-
 const adjectives = ["Golden", "Silent", "Fast", "Bright", "Dark", "Wild", "Calm"];
 const nouns = ["River", "Mountain", "Dream", "Storm", "Sunset", "Forest", "Ocean"];
 
@@ -136,7 +134,7 @@ export async function retrieveDirectoryHandle() {
 const PROJECT_ID_PATTERN = /^[A-Za-z0-9_-]{21}$/;
 
 export async function markProjectOpened(projectId: string): Promise<void> {
-  if (!PROJECT_ID_PATTERN.test(projectId) || projectId === DEFAULT_PROJECT_ID) return;
+  if (!PROJECT_ID_PATTERN.test(projectId)) return;
 
   const now = new Date().toISOString();
   const existing = projects.get(projectId);
@@ -165,7 +163,7 @@ export async function createProject(name?: string): Promise<ProjectEntry> {
 export async function getProjectName(projectId: string): Promise<string> {
   const project = projects.get(projectId);
   // Projects on disk are named by their folder (see @/projects).
-  if (!project) return projectId === DEFAULT_PROJECT_ID ? generateProjectName() : projectId;
+  if (!project) return projectId;
 
   return project.name;
 }
@@ -195,7 +193,7 @@ export async function listRecentProjects(limit = 10): Promise<ProjectEntry[]> {
 }
 
 export async function setProjectThumbnail(projectId: string, thumbnail: Blob): Promise<void> {
-  if (!PROJECT_ID_PATTERN.test(projectId) || projectId === DEFAULT_PROJECT_ID) return;
+  if (!PROJECT_ID_PATTERN.test(projectId)) return;
 
   const existing = projects.get(projectId);
   if (!existing) return;

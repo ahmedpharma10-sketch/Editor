@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { useSearchParams } from "@solidjs/router";
+import { useNavigate } from "@solidjs/router";
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -22,7 +22,7 @@ function progressWidth(used: number, total: number): string {
 
 export function AiCreditsMenu() {
   const auth = useAuth();
-  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const isPro = () => auth.isPro();
   const total = () => auth.creditLimit();
@@ -41,7 +41,7 @@ export function AiCreditsMenu() {
 
   const openAiCredits = () => {
     (document.activeElement as HTMLElement)?.blur?.();
-    setParams({ dashboard: "billing" }, { replace: true });
+    navigate("/?dashboard=billing");
   };
 
   return (

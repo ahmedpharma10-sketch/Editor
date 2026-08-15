@@ -15,9 +15,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { useSearchParams } from "@solidjs/router";
+import { useNavigate } from "@solidjs/router";
 import { Show } from "solid-js";
-import { useEditorApi } from "@/context/editor-api";
+import { useEditorApi } from "@/context/dapi";
 import { downloadDesktopApp } from "@/lib/desktop-app";
 import { FileMenu } from "./file-menu";
 import { EditMenu } from "./edit-menu";
@@ -27,17 +27,17 @@ import { AiCreditsMenu } from "./ai-credits-menu";
 import { HelpMenu } from "./help-menu";
 
 export function ProjectMenu() {
-  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const { isDesktop } = useEditorApi();
 
   const handleOpenDashboard = () => {
     (document.activeElement as HTMLElement)?.blur?.();
-    setParams({ dashboard: "projects" }, { replace: true });
+    navigate("/?dashboard=projects");
   };
 
   const handleOpenAccount = () => {
     (document.activeElement as HTMLElement)?.blur?.();
-    setParams({ dashboard: "account" }, { replace: true });
+    navigate("/?dashboard=account");
   };
 
   return (
