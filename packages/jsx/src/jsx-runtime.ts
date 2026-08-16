@@ -33,6 +33,7 @@ import type {
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
+  SourceProps,
   StageProps,
   SurfacePaintProps,
   SurfaceProps,
@@ -66,23 +67,23 @@ export declare namespace JSX {
 
   export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
     img: ImgTag;
-    stage: StageProps;
-    group: GroupProps;
-    rect: RectProps | SolidJSX.SVGElementTags["rect"];
-    video: VideoProps;
-    image: ImageProps | SolidJSX.SVGElementTags["image"];
-    audio: AudioProps;
-    text: TextProps | SolidJSX.SVGElementTags["text"];
-    sequence: SequenceProps;
-    captions: CaptionsProps;
-    solidPaint: SolidPaintProps;
-    linearGradientPaint: GradientPaintProps;
-    radialGradientPaint: GradientPaintProps;
-    colorStop: ColorStopProps;
-    htmlPaint: HtmlPaintProps;
-    html: HtmlProps;
-    shaderPaint: ShaderPaintProps;
-    surfacePaint: SurfacePaintProps;
-    surface: SurfaceProps;
+    stage: StageProps & SourceProps;
+    group: GroupProps & SourceProps;
+    rect: (RectProps & SourceProps) | SolidJSX.SVGElementTags["rect"];
+    video: VideoProps & SourceProps;
+    image: (ImageProps & SourceProps) | SolidJSX.SVGElementTags["image"];
+    audio: AudioProps & SourceProps;
+    text: (TextProps & SourceProps) | SolidJSX.SVGElementTags["text"];
+    sequence: SequenceProps & SourceProps;
+    captions: CaptionsProps & SourceProps;
+    solidPaint: SolidPaintProps & SourceProps;
+    linearGradientPaint: GradientPaintProps & SourceProps;
+    radialGradientPaint: GradientPaintProps & SourceProps;
+    colorStop: ColorStopProps & SourceProps;
+    htmlPaint: HtmlPaintProps & SourceProps;
+    html: HtmlProps & SourceProps;
+    shaderPaint: ShaderPaintProps & SourceProps;
+    surfacePaint: SurfacePaintProps & SourceProps;
+    surface: SurfaceProps & SourceProps;
   }
 }

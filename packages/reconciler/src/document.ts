@@ -2,21 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The JSX host over the runtime world: Solid's universal renderer (via
-// @diffusionstudio/jsx) writes project JSX straight into runtime entities, so
-// a rendered project IS the composition, with no intermediate tree. This is
-// the only file in the reconciler that knows how the runtime models nodes.
-//
-// It is also the single write router into a world: the editor UI reaches its
-// document with `getRuntimeDocument(world)` and edits through the same
-// `setProperty` a rendering project goes through, so front and backend share
-// one vocabulary and one translation to traits.
-//
-// Supported tags for now:
-// - <stage>: the infinite canvas, i.e. the world's document root. It has no
-//   size or position; `background` sets the canvas color.
-// - <rect>: a rect entity with x, y, width, height and fill (the entity's
-//   own Color trait, so a filled rect needs no paint sub-entities).
 
 import {
 	Background,
@@ -33,17 +18,14 @@ import {
 	getEntityChildren,
 	DocumentRoot,
 	Root,
+	Source,
 } from '@diffusionstudio/runtime';
+import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 
+import type { PropValue } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 import type { ProjectDocument } from './host';
 
-/**
- * A host node: a handle around an element's entity. Koota entities are plain
- * numbers, which Solid's universal renderer would take for text (`insert()`
- * turns numbers into text nodes), so nodes wrap them. One handle per entity,
- * so node identity is stable across getParentNode/getFirstChild/getNextSibling.
- */
 export interface SceneNode {
 	readonly entity: Entity;
 }
@@ -57,14 +39,61 @@ function toNumber(value: unknown) {
 	return Number.isFinite(number) ? number : undefined;
 }
 
+/**
+ * A property the editor changed, in the vocabulary of the JSX rather than of
+ * the traits it was written to: `source` is the element it belongs to (its
+ * SOURCE_ATTR stamp) and `value` is what a project would have written there.
+ * Whoever mounts the document decides what to do with these — writing them
+ * back to disk is the point, but nothing here knows about a disk.
+ */
+export interface EntityEdit {
+	source: string;
+	name: string;
+	value: PropValue;
+}
+
 export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	/** The mount root. Both it and the <stage> element stand for the document root entity. */
 	public readonly stage: SceneNode;
 	private readonly world: World;
+	private sink?: (edit: EntityEdit) => void;
 
 	public constructor(world: World) {
 		this.world = world;
 		this.stage = { entity: world.get(Root)! };
+	}
+
+	/**
+	 * Listens for edits the editor makes through `editProperty`. One sink at a
+	 * time — a second call replaces the first. Returns an unsubscribe.
+	 */
+	public onEdit(sink: (edit: EntityEdit) => void): () => void {
+		this.sink = sink;
+		return () => {
+			if (this.sink === sink) {
+				this.sink = undefined;
+			}
+		};
+	}
+
+	/**
+	 * The editor's door into the composition, as opposed to `setProperty`,
+	 * which is the rendering project's. Both change the same traits the same
+	 * way; the difference is where the value came from, and so whether the
+	 * source already says it. A project's own render must never be reported as
+	 * an edit, or every reactive update would write the file it came from.
+	 *
+	 * The value is the one a project would have written — "#161616", not the
+	 * number the runtime packs a color into — because it is on its way to being
+	 * spelled out in a JSX attribute.
+	 */
+	public editProperty(entity: Entity, name: string, value: PropValue): void {
+		this.setProperty({ entity }, name, value);
+		const source = entity.get(Source)?.value;
+
+		if (source) {
+			this.sink?.({ source, name, value });
+		}
 	}
 
 	public createElement(tag: string): SceneNode {
@@ -97,6 +126,16 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	public setProperty({ entity }: SceneNode, name: string, value: unknown): void {
 		switch (name) {
+			case SOURCE_ATTR: {
+				if (typeof value !== 'string' || !value) {
+					entity.remove(Source);
+					return;
+				}
+
+				entity.add(Source);
+				entity.set(Source, { value });
+				return;
+			}
 			case 'x':
 			case 'y': {
 				entity.add(Position);
@@ -153,6 +192,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				this.removeNode(node, child);
 			}
 			node.entity.set(Background, { value: DEFAULT_BACKGROUND });
+			node.entity.remove(Source);
 			return;
 		}
 		// ChildOf auto-destroys orphans, so paints go with it.

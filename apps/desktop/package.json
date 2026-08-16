@@ -36,8 +36,10 @@
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.27.1",
     "@diffusionstudio/cli": "*",
+    "@diffusionstudio/jsx": "*",
     "babel-preset-solid": "^1.9.12",
     "esbuild": "^0.28.1",
+    "sqids": "^0.3.0",
     "update-electron-app": "^3.0.0"
   }
 }

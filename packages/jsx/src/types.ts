@@ -246,6 +246,15 @@ type CommonProps = TimingProps &
     | "opacity" | "cornerRadius" | "transition" | "animations"
   >;
 
+/**
+ * What every composition element accepts on top of its own props. Read by the
+ * compile step and never seen by a host, so it is not part of `PatchProps`:
+ * nothing patches an id, because an id is not a property of the composition.
+ */
+export type SourceProps = {
+  id?: string;
+};
+
 /** The infinite canvas every project renders into; only allowed as the root element. */
 export type StageProps = {
   /** Canvas color, any CSS color. */

@@ -13,9 +13,9 @@ import { mainBridge } from '@/lib/ipc';
 import { store } from '@/init';
 import { createStoredSignal } from '@/lib/store/signal';
 
-import type { CompileResult, ProjectInfo } from '@desktop/main-channels';
+import type { CompileResult, ProjectInfo, SourceEdit, WriteResult } from '@desktop/main-channels';
 
-export type { CompileResult, ProjectInfo };
+export type { CompileResult, ProjectInfo, SourceEdit, WriteResult };
 
 const rootItem = store.define<string | null>('projects.root', null);
 const [projectsRoot, setProjectsRoot] = createStoredSignal(rootItem);
@@ -90,6 +90,15 @@ export function projectDir(name: string): string | null {
 
 export function compileProject(dir: string): Promise<CompileResult> {
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_COMPILE, { dir });
+}
+
+/**
+ * Writes changed props back into the project's JSX. No compile follows: the
+ * canvas is already showing these values, and main keeps the write from
+ * reaching the watcher (see `markSelfWrite` in the desktop's projects.ts).
+ */
+export function writeProject(dir: string, edits: SourceEdit[]): Promise<WriteResult> {
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_WRITE, { dir, edits });
 }
 
 /**

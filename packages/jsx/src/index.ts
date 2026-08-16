@@ -21,6 +21,15 @@ export type {
   GenerateVoiceOptions,
 } from "./generate";
 export { parseTime, TIME_FPS } from "./time";
+export {
+  COMPOSITION_TAGS,
+  ID_ATTR,
+  SOURCE_ATTR,
+  formatSource,
+  isCompositionTag,
+  parseSource,
+} from "./source";
+export type { CompositionTag, PropValue } from "./source";
 export { useTicker, useFile } from "./hooks";
 export type { Ticker } from "./hooks";
 export type {
@@ -44,6 +53,7 @@ export type {
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
+  SourceProps,
   StageProps,
   SurfacePaintProps,
   SurfaceProps,

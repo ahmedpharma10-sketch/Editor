@@ -56,6 +56,13 @@ export const Name = trait({ value: '' });
 // Stable identity for entities.
 export const Key = trait({ value: '' });
 
+// Where this entity's JSX element is, as `<file>:<key or position>` (see
+// SOURCE_ATTR in @diffusionstudio/jsx). Set by the host while a project
+// renders; it is what lets a change made in the editor be written back to the
+// source that produced the entity. Deliberately not serialized: a copy of an
+// entity is not the element it was copied from.
+export const Source = trait({ value: '' });
+
 export const AssetId = trait({ value: '' });
 
 // Sibling order under a ChildOf parent.

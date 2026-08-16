@@ -24,7 +24,9 @@ import type { BuildOptions, Plugin } from "esbuild";
 
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
-import type { CompileResult, ProjectInfo } from "./main-channels";
+import { applyEdits, sourcePlugin, stampProject } from "./source";
+import type { CompileResult, ProjectInfo, SourceEdit, WriteResult } from "./main-channels";
+import type { SourceContext } from "./source";
 
 /** Entry points looked up in a project folder, in order of preference. */
 export const ENTRY_FILES = ["index.tsx", "index.ts", "index.jsx", "index.js"];
@@ -286,10 +288,13 @@ function preset(name: string): unknown {
   return loaded.default ?? loaded;
 }
 
-const babelOptions = (filename: string): TransformOptions => ({
+const babelOptions = (file: string, filename: string): TransformOptions => ({
   filename,
   babelrc: false,
   configFile: false,
+  // Runs before the presets, which is what it needs: Solid's transform
+  // replaces the JSX trees this stamps.
+  plugins: [[sourcePlugin, { file }]],
   presets: [
     [preset("babel-preset-solid"), { generate: "universal", moduleName: RUNTIME_MODULE }],
     [preset("@babel/preset-typescript"), { onlyRemoveTypeImports: true }],
@@ -308,12 +313,21 @@ function solidLoader(root: string): Plugin {
           return undefined;
         }
         const source = await readFile(args.path, "utf8");
-        const result = await transformAsync(source, babelOptions(args.path));
+        // The project-relative name is half of every element's id, so it is
+        // spelled the one way both directions of ./source spell it.
+        const result = await transformAsync(source, babelOptions(name.split(sep).join("/"), args.path));
         return { contents: result?.code ?? "", loader: "js" };
       });
     },
   };
 }
+
+/** The `./source` context for a project folder, wired to the watcher's self-write log. */
+const sourceContext = (dir: string): SourceContext => ({
+  babel: load<Babel>("@babel/core"),
+  dir,
+  onWrite: (file) => markSelfWrite(dir, file),
+});
 
 export async function compileProject(dir: string): Promise<CompileResult> {
   const entry = await findEntry(dir);
@@ -321,6 +335,10 @@ export async function compileProject(dir: string): Promise<CompileResult> {
 
   // Fills in package.json/tsconfig for folders that predate the record.
   await scaffold(dir);
+
+  // Names every element before it is numbered, so the ids this compile hands
+  // the canvas are durable ones. A fully keyed project is not written to.
+  await stampProject(sourceContext(dir));
 
   // esbuild resolves symlinks, so the loader has to match on real paths.
   const root = await realpath(dir);
@@ -339,9 +357,55 @@ export async function compileProject(dir: string): Promise<CompileResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Write
+
+/**
+ * Writes values the editor arrived at back into the JSX that produced them.
+ * Deliberately not a compile: the canvas already shows these values, so this
+ * is the file catching up with the scene rather than the other way round, and
+ * the watcher is told to keep quiet about it (see `markSelfWrite`).
+ */
+export async function writeProject(dir: string, edits: SourceEdit[]): Promise<WriteResult> {
+  try {
+    return await applyEdits(sourceContext(dir), edits);
+  } catch (error) {
+    return { skipped: edits.map((edit) => edit.source), error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Watch
 
 const watchers = new Map<string, FSWatcher>();
+
+/** How long a file we wrote ourselves stays exempt from the watcher. */
+const SELF_WRITE_GRACE = 1000;
+
+/**
+ * Writes made on behalf of the editor, by file and time. The watcher stays on
+ * — anything else may be editing these files, and should still reach the
+ * canvas — but our own writes must not come back as a change, or every key
+ * stamp and every dragged rect would cost a recompile and a remount of the
+ * scene the user is looking at.
+ */
+const selfWrites = new Map<string, number>();
+
+const writeKey = (dir: string, path: string): string => `${dir}\n${path}`;
+
+export function markSelfWrite(dir: string, path: string): void {
+  selfWrites.set(writeKey(dir, path), Date.now());
+}
+
+function isSelfWrite(dir: string, path: string): boolean {
+  const key = writeKey(dir, path);
+  const at = selfWrites.get(key);
+  if (at === undefined) return false;
+  if (Date.now() - at > SELF_WRITE_GRACE) {
+    selfWrites.delete(key);
+    return false;
+  }
+  return true;
+}
 
 export function watchProject(window: BrowserWindow | null, dir: string): void {
   if (watchers.has(dir)) return;
@@ -350,6 +414,7 @@ export function watchProject(window: BrowserWindow | null, dir: string): void {
     // Project-relative and `/`-separated; installs churn node_modules constantly.
     const path = filename.split(sep).join("/");
     if (path.startsWith("node_modules/") || path === "node_modules") return;
+    if (isSelfWrite(dir, path)) return;
     mainBridge.emit(window, MAIN_CHANNELS.PROJECTS_CHANGED, { dir, path });
   });
   watcher.on("error", () => unwatchProject(dir));

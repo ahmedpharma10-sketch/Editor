@@ -5,12 +5,14 @@
 import { createEffect, onCleanup } from 'solid-js';
 import { toast } from 'somoto';
 import { useWorld } from '@diffusionstudio/koota-solid';
-import { mount } from '@diffusionstudio/reconciler';
+import { getRuntimeDocument, mount } from '@diffusionstudio/reconciler';
 
+import { createEditWriter } from './edits';
 import { compileProject, projectDir, watchProject } from './host';
 
 import type { Accessor } from 'solid-js';
 import type { Mount } from '@diffusionstudio/reconciler';
+import type { EditWriter } from './edits';
 
 /**
  * Loads the project folder `name` into the runtime world: compiles it, renders
@@ -25,10 +27,18 @@ export function useProject(name: Accessor<string>): void {
 		if (!dir) return;
 
 		let mounted: Mount | undefined;
+		let writer: EditWriter | undefined;
+		let unlisten: (() => void) | undefined;
 		let disposed = false;
 		let generation = 0;
 
 		const unmount = (): void => {
+			// Before the entities go: what the editor changed is still owed to the
+			// file, whatever happens to the scene that showed it.
+			unlisten?.();
+			unlisten = undefined;
+			writer?.dispose();
+			writer = undefined;
 			mounted?.dispose();
 			mounted = undefined;
 		};
@@ -48,6 +58,10 @@ export function useProject(name: Accessor<string>): void {
 			unmount();
 			try {
 				mounted = mount(result.code, world);
+				// The rendered scene knows which element every entity came from, so
+				// from here on an edit in the editor can find its way back.
+				writer = createEditWriter(dir, world);
+				unlisten = getRuntimeDocument(world).onEdit((edit) => writer?.push(edit));
 			} catch (error) {
 				toast.error('Project failed to render', { description: (error as Error).message });
 			}

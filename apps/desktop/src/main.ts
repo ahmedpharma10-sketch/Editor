@@ -25,6 +25,7 @@ import {
   unwatchAll,
   unwatchProject,
   watchProject,
+  writeProject,
 } from "./projects";
 import type { DeepLinkChannel } from "./main-channels";
 import type { LogEntry } from "@diffusionstudio/cli/protocol";
@@ -269,6 +270,7 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_DUPLICATE, ({ dir }) => duplicateProject(dir));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_DELETE, ({ dir }) => deleteProject(dir));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_COMPILE, ({ dir }) => compileProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_WRITE, ({ dir, edits }) => writeProject(dir, edits));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_WATCH, ({ dir }, event) =>
     watchProject(BrowserWindow.fromWebContents(event.sender), dir),
   );

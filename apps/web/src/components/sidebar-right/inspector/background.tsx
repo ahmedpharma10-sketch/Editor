@@ -16,7 +16,7 @@ import { ColorOpacityRow } from "@/components/ui/color-opacity-row";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createSignal } from "solid-js";
-import { Background, DEFAULT_BACKGROUND, Root } from "@diffusionstudio/runtime";
+import { Background, DEFAULT_BACKGROUND, Root, colorToHex } from "@diffusionstudio/runtime";
 import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
 import { useDocument } from "@/engine/hooks/use-document";
 
@@ -32,8 +32,9 @@ export function BackgroundSettings() {
   let anchorRef: HTMLDivElement | undefined;
 
   const assignColor = (value: number) => {
-    const doc = document();
-    doc.setProperty(doc.stage, "background", value);
+    const root = world.get(Root)!;
+    const color = colorToHex(value);
+    document().editProperty(root, "background", color);
   };
 
   return (

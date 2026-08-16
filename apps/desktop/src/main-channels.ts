@@ -10,6 +10,7 @@
 // CLI traffic uses a separate wire pair (CLI_WIRE in @diffusionstudio/cli/protocol);
 // main forwards it opaquely without inspecting channel names.
 import type { LogEntry, ScreenshotResult } from "@diffusionstudio/cli/protocol";
+import type { SourceEdit, WriteResult } from "./source";
 
 export const MAIN_WIRE = {
   REQUEST: "main:request",
@@ -46,6 +47,7 @@ export const MAIN_CHANNELS = {
   PROJECTS_DUPLICATE: "projects:duplicate",
   PROJECTS_DELETE: "projects:delete",
   PROJECTS_COMPILE: "projects:compile",
+  PROJECTS_WRITE: "projects:write",
   PROJECTS_WATCH: "projects:watch",
   PROJECTS_UNWATCH: "projects:unwatch",
 
@@ -80,6 +82,8 @@ export type ProjectInfo = {
 export type CompileResult =
   | { ok: true; code: string }
   | { ok: false; error: string };
+
+export type { SourceEdit, WriteResult };
 
 export type MainChannel = (typeof MAIN_CHANNELS)[keyof typeof MAIN_CHANNELS];
 
@@ -131,6 +135,10 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.PROJECTS_DUPLICATE]: { request: { dir: string }; response: ProjectInfo };
   [MAIN_CHANNELS.PROJECTS_DELETE]: { request: { dir: string }; response: void };
   [MAIN_CHANNELS.PROJECTS_COMPILE]: { request: { dir: string }; response: CompileResult };
+  [MAIN_CHANNELS.PROJECTS_WRITE]: {
+    request: { dir: string; edits: SourceEdit[] };
+    response: WriteResult;
+  };
   [MAIN_CHANNELS.PROJECTS_WATCH]: { request: { dir: string }; response: void };
   [MAIN_CHANNELS.PROJECTS_UNWATCH]: { request: { dir: string }; response: void };
 };
