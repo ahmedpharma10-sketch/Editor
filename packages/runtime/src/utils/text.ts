@@ -14,6 +14,7 @@ import {
 	Chars, TextStyle, TextRange, TextCache, Cache, Computed, Camera,
 	RenderSurface,
 } from '../traits';
+import { getDocument } from '../queries/hierarchy';
 import { clamp } from '../math/common';
 import { colorToHex } from './color';
 import { createLinearGradient, createRadialGradient } from '../systems/gradients';
@@ -298,7 +299,7 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 		// ctx.shadowBlur/OffsetX/OffsetY are in device-pixel space and are not
 		// affected by the current transform, so scale them up to match the
 		// content transform (camera * resolution).
-		const camera = world.get(Camera);
+		const camera = getDocument(world).get(Camera);
 		const resolution = world.get(RenderSurface)?.resolution ?? 1;
 		const shadowScale = (camera?.a ?? 1) * resolution;
 

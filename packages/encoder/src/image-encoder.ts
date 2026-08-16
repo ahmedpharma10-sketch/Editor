@@ -65,9 +65,10 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	world.set(Fonts, { list: [...(sourceWorld.get(Fonts)?.list ?? [])] });
 	world.set(RenderSurface, { canvas: offscreenCanvas, ctx: offscreenCtx, resolution: 1 });
 	world.set(AudioEngine, { context: offlineAudioCtx });
-	world.set(Camera, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
 	world.set(FrameRate, { value: sourceFrameRate });
 	world.set(FramePromises, { list: [] });
+
+	getDocument(world).set(Camera, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
 
 	const eidMap = cloneFromRecords(world, records);
 	const root = eidMap.get(config.entity);
@@ -177,7 +178,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	resize(config.resolution);
 	// Shift the measured box onto the canvas so the node is centered in view;
 	// the camera translation is scaled by the surface resolution at render time.
-	world.set(Camera, { e: -bounds.minX, f: -bounds.minY });
+	getDocument(world).set(Camera, { e: -bounds.minX, f: -bounds.minY });
 
 	let canceled = false;
 	const cancel = () => (canceled = true);

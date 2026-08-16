@@ -119,7 +119,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			}
 			case 'background': {
 				const color = typeof value === 'string' ? parseColor(value) : null;
-				this.world.set(Background, { value: color ?? DEFAULT_BACKGROUND });
+				this.stage.entity.set(Background, { value: color ?? DEFAULT_BACKGROUND });
 				return;
 			}
 			default:
@@ -147,7 +147,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			for (const child of this.children(node)) {
 				this.removeNode(node, child);
 			}
-			this.world.set(Background, { value: DEFAULT_BACKGROUND });
+			node.entity.set(Background, { value: DEFAULT_BACKGROUND });
 			return;
 		}
 		// ChildOf auto-destroys orphans, so paints go with it.

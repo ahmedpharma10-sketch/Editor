@@ -36,8 +36,6 @@ export function createRuntimeWorld(projectId: string) {
 		Project({ id: projectId }),
 		Mode,
 		ActiveScene,
-		Camera,
-		Background,
 		Time,
 		FrameRate,
 		RenderSurface,
@@ -51,8 +49,8 @@ export function createRuntimeWorld(projectId: string) {
 		HitRegions,
 	);
 
-	// The document root all rendered entities hang off (see DocumentRoot).
-	world.spawn(DocumentRoot);
+	// The document root all rendered entities hang off (see DocumentRoot);
+	world.spawn(DocumentRoot, Camera, Background);
 
 	// Cache upkeep, Computed mirrors, and time-range reactions.
 	observeWorld(world);

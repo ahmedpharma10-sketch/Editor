@@ -97,9 +97,10 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 	world.set(Fonts, { list: [...(sourceWorld.get(Fonts)?.list ?? [])] });
 	world.set(RenderSurface, { canvas: offscreenCanvas, ctx: offscreenCtx, resolution: scale });
 	world.set(AudioEngine, { context: offlineAudioCtx });
-	world.set(Camera, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
 	world.set(FrameRate, { value: frameRate });
 	world.set(FramePromises, { list: [] });
+
+	getDocument(world).set(Camera, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
 
 	const eidMap = cloneFromRecords(world, subtreeRecords);
 	const scene = eidMap.get(sourceScene);

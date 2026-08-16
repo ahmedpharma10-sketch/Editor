@@ -92,7 +92,7 @@ export function computeWorldTransform(world: World, entity: Entity, parentEntity
 			e: worldStore.e[pid], f: worldStore.f[pid],
 		};
 	} else {
-		const camera = world.get(Camera)!;
+		const camera = getDocument(world).get(Camera)!;
 		const res = world.get(RenderSurface)?.resolution ?? 1;
 		parent = {
 			a: camera.a * res, b: camera.b * res,

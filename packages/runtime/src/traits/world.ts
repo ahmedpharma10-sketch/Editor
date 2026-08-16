@@ -20,20 +20,15 @@ export const Project = trait({ id: '' });
 // Tag on the single document root entity every runtime world owns. All
 // rendered entities are its descendants (ChildOf), so "top-level" means
 // "direct child of the document", never "has no parent". Destroying it
-// cascades through the whole document tree.
+// cascades through the whole document tree. Document-level state (Camera,
+// Background) lives on this entity, not on the world; read it via
+// getDocument(world).
 export const DocumentRoot = trait();
 
-export type RuntimeMode = 'realtime' | 'offline-video' | 'offline-audio';
-
-export const Mode = trait({ value: 'realtime' as RuntimeMode });
-
-// Scene the playhead, timeline, and capture operate on (was selection.scene).
-export const ActiveScene = trait({ entity: null as Entity | null });
-
 /**
- * 2D affine camera transform in CSS pixel space (before DPR scaling). The
- * render system multiplies this by RenderSurface.resolution to derive the
- * canvas transform.
+ * 2D affine camera transform in CSS pixel space (before DPR scaling), on the
+ * document root. The render system multiplies this by RenderSurface.resolution
+ * to derive the canvas transform.
  */
 export const Camera = trait({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
 
@@ -41,7 +36,15 @@ export type Camera2D = { a: number; b: number; c: number; d: number; e: number; 
 
 export const DEFAULT_BACKGROUND = 0x161616;
 
+// Stage background color, on the document root.
 export const Background = trait({ value: DEFAULT_BACKGROUND });
+
+export type RuntimeMode = 'realtime' | 'offline-video' | 'offline-audio';
+
+export const Mode = trait({ value: 'realtime' as RuntimeMode });
+
+// Scene the playhead, timeline, and capture operate on (was selection.scene).
+export const ActiveScene = trait({ entity: null as Entity | null });
 
 // Frame clock (was timestamp).
 export const Time = trait({ now: 0, delta: 0 });
