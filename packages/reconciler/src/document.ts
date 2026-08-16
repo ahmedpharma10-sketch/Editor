@@ -19,10 +19,12 @@ import {
 	DocumentRoot,
 	Root,
 	Source,
+	setCameraMatrix,
 } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { PropValue } from '@diffusionstudio/jsx';
+import type { CameraMatrix } from '@diffusionstudio/runtime';
 import type { Entity, World } from 'koota';
 import type { ProjectDocument } from './host';
 
@@ -77,18 +79,17 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	}
 
 	/**
-	 * The editor's door into the composition, as opposed to `setProperty`,
-	 * which is the rendering project's. Both change the same traits the same
-	 * way; the difference is where the value came from, and so whether the
-	 * source already says it. A project's own render must never be reported as
-	 * an edit, or every reactive update would write the file it came from.
-	 *
-	 * The value is the one a project would have written — "#161616", not the
-	 * number the runtime packs a color into — because it is on its way to being
-	 * spelled out in a JSX attribute.
+	 * Writes an edit to the document and saves the changes to the source
 	 */
 	public editProperty(entity: Entity, name: string, value: PropValue): void {
 		this.setProperty({ entity }, name, value);
+		this.reportEdit(entity, name, value);
+	}
+
+	/**
+	 * Reports an edit whose change the editor already made itself
+	 */
+	public reportEdit(entity: Entity, name: string, value: PropValue): void {
 		const source = entity.get(Source)?.value;
 
 		if (source) {
@@ -164,6 +165,15 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			case 'background': {
 				const color = parseColor(value);
 				this.stage.entity.set(Background, { value: color ?? DEFAULT_BACKGROUND });
+				return;
+			}
+			case 'camera': {
+				if (!Array.isArray(value) || value.length !== 6) return;
+
+				const numbers = value.map(toNumber);
+				if (!numbers.includes(undefined)) {
+					setCameraMatrix(this.world, (numbers as CameraMatrix));
+				}
 				return;
 			}
 			default:

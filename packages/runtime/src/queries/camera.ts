@@ -34,6 +34,19 @@ export function getCameraScale(world: World): number {
 }
 
 /**
+ * The camera as the six values of its affine matrix, in the order CSS
+ * `matrix()` and canvas `setTransform` take them. The form a project writes
+ * (`<stage camera={…}>`): the whole transform, so a view survives the trip to
+ * the file and back with nothing dropped.
+ */
+export type CameraMatrix = [a: number, b: number, c: number, d: number, e: number, f: number];
+
+export function getCameraMatrix(world: World): CameraMatrix {
+	const { a, b, c, d, e, f } = getCamera(world);
+	return [a, b, c, d, e, f];
+}
+
+/**
  * Camera inverse, for mapping canvas CSS pixels back into the document, or
  * null when the camera has been scaled to nothing.
  */

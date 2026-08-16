@@ -12,19 +12,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useWorld } from "@diffusionstudio/koota-solid";
-import { focusContent, setCameraZoom, zoomCameraBy } from "@diffusionstudio/runtime";
+import { focusContent, getCameraMatrix, Root, setCameraZoom, zoomCameraBy } from "@diffusionstudio/runtime";
 import { useCameraScale } from "@/engine";
+import { useDocument } from "@/engine/hooks/use-document";
 
 export function InspectorHeader() {
   const world = useWorld();
+  const doc = useDocument();
 
   // Every operation here is anchored on the stage itself — its center, or its
   // content — so the menu needs no canvas geometry of its own.
   const scale = useCameraScale();
   const zoomLabel = () => `${Math.round(scale() * 100)}%`;
-  const zoomBy = (factor: number) => zoomCameraBy(world, factor);
-  const zoomTo = (percent: number) => setCameraZoom(world, percent / 100);
-  const zoomToFit = () => focusContent(world);
+
+  const zoomBy = (factor: number) => {
+    zoomCameraBy(world, factor);
+    doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+  };
+  const zoomTo = (percent: number) => {
+    setCameraZoom(world, percent / 100);
+    doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+  };
+  const zoomToFit = () => {
+    focusContent(world);
+    doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+  };
 
   return (
     <div class="h-12 shrink-0 flex items-center px-4">

@@ -2,16 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Input bindings for the stage camera. The camera's semantics live in the
-// runtime (pan/zoom/focus actions); this file only translates DOM events into
-// calls on them, which is why it stays app-side.
-
-import { createEffect, createMemo, onCleanup } from 'solid-js';
+import { createMemo, onCleanup, onMount } from 'solid-js';
 import { useTrait, useWorld } from '@diffusionstudio/koota-solid';
-import { panCamera, setCamera, zoomCameraAt, getCamera, RenderSurface } from '@diffusionstudio/runtime';
+import { panCamera, setCamera, zoomCameraAt, getCamera, RenderSurface, getCameraMatrix, Root } from '@diffusionstudio/runtime';
+import { useDocument } from './hooks/use-document';
 
 import type { JSX } from 'solid-js';
-import type { World } from 'koota';
 
 /** deltaY is in lines (deltaMode 1) or pages (deltaMode 2) on some devices. */
 const DELTA_MODE_SCALE = [1, 16, 600];
@@ -29,13 +25,17 @@ function isEditable(target: EventTarget | null): boolean {
 	return target instanceof HTMLElement && target.isContentEditable;
 }
 
-/**
- * Bind camera gestures to `canvas` and return a disposer. Pointer and wheel
- * events are canvas-scoped so the rest of the editor keeps its own scrolling;
- * the space-key modifier is tracked on the document (and window blur) because
- * a held key is global state the canvas never sees.
- */
-function bindCameraInput(world: World, canvas: HTMLCanvasElement): () => void {
+export function CameraController(): JSX.Element {
+	const world = useWorld();
+	const surface = useTrait(world, RenderSurface);
+	const doc = useDocument();
+
+	const canvas = createMemo(() => {
+		const target = surface()?.canvas;
+		if (target instanceof HTMLCanvasElement) return target;
+		return null;
+	});
+
 	let spaceHeld = false;
 	let panning = false;
 	let panPointerId: number | null = null;
@@ -45,21 +45,28 @@ function bindCameraInput(world: World, canvas: HTMLCanvasElement): () => void {
 	let startF = 0;
 
 	const updateCursor = (): void => {
-		canvas.style.cursor = panning ? 'grabbing' : (spaceHeld ? 'grab' : '');
+		const target = canvas();
+
+		if (target) {
+			target.style.cursor = panning ? 'grabbing' : (spaceHeld ? 'grab' : '');
+		}
 	};
 
 	/** Pointer position in canvas CSS pixels. */
 	const localPoint = (event: { clientX: number; clientY: number }): [x: number, y: number] => {
-		const rect = canvas.getBoundingClientRect();
+		const rect = canvas()?.getBoundingClientRect();
+		if (!rect) return [0, 0];
 		return [event.clientX - rect.left, event.clientY - rect.top];
 	};
 
 	const endPan = (): void => {
 		if (!panning) return;
 		panning = false;
-		if (panPointerId !== null && canvas.hasPointerCapture(panPointerId)) {
-			canvas.releasePointerCapture(panPointerId);
+
+		if (panPointerId !== null && canvas()?.hasPointerCapture(panPointerId)) {
+			canvas()?.releasePointerCapture(panPointerId);
 		}
+
 		panPointerId = null;
 		updateCursor();
 	};
@@ -78,6 +85,8 @@ function bindCameraInput(world: World, canvas: HTMLCanvasElement): () => void {
 		} else {
 			panCamera(world, event.deltaX * scale, event.deltaY * scale);
 		}
+
+		doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
@@ -89,7 +98,7 @@ function bindCameraInput(world: World, canvas: HTMLCanvasElement): () => void {
 
 		panning = true;
 		panPointerId = event.pointerId;
-		canvas.setPointerCapture(event.pointerId);
+		canvas()?.setPointerCapture(event.pointerId);
 
 		[startX, startY] = localPoint(event);
 		const camera = getCamera(world);
@@ -105,6 +114,7 @@ function bindCameraInput(world: World, canvas: HTMLCanvasElement): () => void {
 		// a long drag can't accumulate rounding error.
 		const [x, y] = localPoint(event);
 		setCamera(world, { e: startE + (x - startX), f: startF + (y - startY) });
+		doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
 	};
 
 	const handlePointerUp = (event: PointerEvent): void => {
@@ -134,51 +144,28 @@ function bindCameraInput(world: World, canvas: HTMLCanvasElement): () => void {
 		updateCursor();
 	};
 
-	canvas.addEventListener('wheel', handleWheel, { passive: false });
-	canvas.addEventListener('pointerdown', handlePointerDown);
-	canvas.addEventListener('pointermove', handlePointerMove);
-	canvas.addEventListener('pointerup', handlePointerUp);
-	canvas.addEventListener('pointercancel', handlePointerUp);
-	document.addEventListener('keydown', handleKeyDown);
-	document.addEventListener('keyup', handleKeyUp);
-	window.addEventListener('blur', handleBlur);
+	onMount(() => {
+		canvas()?.addEventListener('wheel', handleWheel, { passive: false });
+		canvas()?.addEventListener('pointerdown', handlePointerDown);
+		canvas()?.addEventListener('pointermove', handlePointerMove);
+		canvas()?.addEventListener('pointerup', handlePointerUp);
+		canvas()?.addEventListener('pointercancel', handlePointerUp);
+		document.addEventListener('keydown', handleKeyDown);
+		document.addEventListener('keyup', handleKeyUp);
+		window.addEventListener('blur', handleBlur);
+	})
 
-	return () => {
-		canvas.removeEventListener('wheel', handleWheel);
-		canvas.removeEventListener('pointerdown', handlePointerDown);
-		canvas.removeEventListener('pointermove', handlePointerMove);
-		canvas.removeEventListener('pointerup', handlePointerUp);
-		canvas.removeEventListener('pointercancel', handlePointerUp);
+	onCleanup(() => {
+		canvas()?.removeEventListener('wheel', handleWheel);
+		canvas()?.removeEventListener('pointerdown', handlePointerDown);
+		canvas()?.removeEventListener('pointermove', handlePointerMove);
+		canvas()?.removeEventListener('pointerup', handlePointerUp);
+		canvas()?.removeEventListener('pointercancel', handlePointerUp);
 		document.removeEventListener('keydown', handleKeyDown);
 		document.removeEventListener('keyup', handleKeyUp);
 		window.removeEventListener('blur', handleBlur);
 		endPan();
-	};
-}
-
-/**
- * Gives the stage its camera gestures: wheel to scroll-pan, ctrl/⌘-wheel (and
- * trackpad pinch, which browsers report the same way) to zoom at the cursor,
- * and drag to pan while space is held or with the middle button. Renders
- * nothing — drop it anywhere under an EngineProvider, in any order relative to
- * EngineCanvas: it follows the canvas through the world's RenderSurface, so it
- * binds as soon as one is mounted and rebinds if it is replaced.
- */
-export function CameraController(): JSX.Element {
-	const world = useWorld();
-	const surface = useTrait(world, RenderSurface);
-
-	// Memoized on identity: RenderSurface also changes on every resize, and
-	// listeners must not be torn down and rebuilt for that.
-	const canvas = createMemo(() => {
-		const target = surface()?.canvas;
-		return target instanceof HTMLCanvasElement ? target : null;
-	});
-
-	createEffect(() => {
-		const target = canvas();
-		if (target) onCleanup(bindCameraInput(world, target));
-	});
+	})
 
 	return null;
 }

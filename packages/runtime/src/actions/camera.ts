@@ -16,6 +16,7 @@ import { getCamera, getCameraInverse, getCameraScale, getContentBounds, getEntit
 
 import type { Entity, World } from 'koota';
 import type { Camera2D } from '../traits';
+import type { CameraMatrix } from '../queries/camera';
 import type { Rect } from '../math';
 
 /** Default breathing room, in CSS pixels, left around a focused rect. */
@@ -29,6 +30,15 @@ export function setCamera(world: World, camera: Partial<Camera2D>): void {
 /** Reset to identity: no zoom, no offset. The capture pipeline renders here. */
 export function resetCamera(world: World): void {
 	setCamera(world, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+}
+
+/**
+ * Restores a matrix `getCameraMatrix` reported, verbatim. Unclamped, unlike
+ * the zoom operations: a matrix says exactly what it says, and the gestures
+ * that produce one have already been held to the limits.
+ */
+export function setCameraMatrix(world: World, [a, b, c, d, e, f]: CameraMatrix): void {
+	setCamera(world, { a, b, c, d, e, f });
 }
 
 /**

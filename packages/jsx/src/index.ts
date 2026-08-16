@@ -37,6 +37,7 @@ export type {
   AnimationSpec,
   AnimationType,
   AudioProps,
+  CameraMatrix,
   CaptionPreset,
   CaptionsProps,
   ColorStopProps,

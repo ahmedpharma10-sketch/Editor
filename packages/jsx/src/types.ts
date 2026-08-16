@@ -255,10 +255,24 @@ export type SourceProps = {
   id?: string;
 };
 
+/**
+ * A 2D affine transform as its six values, in the order CSS `matrix()` and
+ * canvas `setTransform` take them: `[a, b, c, d, e, f]`, where `a`/`d` scale,
+ * `b`/`c` skew, and `e`/`f` translate. See `StageProps["camera"]`.
+ */
+export type CameraMatrix = [a: number, b: number, c: number, d: number, e: number, f: number];
+
 /** The infinite canvas every project renders into; only allowed as the root element. */
 export type StageProps = {
   /** Canvas color, any CSS color. */
   background?: string;
+  /**
+   * The editor's viewport when the project is opened: `[1, 0, 0, 1, 0, 0]` is
+   * the origin at 100%. Not part of the composition — nothing rendered or
+   * exported depends on it — so a project that never says where to look opens
+   * at the origin.
+   */
+  camera?: CameraMatrix;
   children?: SolidJSX.Element;
 };
 

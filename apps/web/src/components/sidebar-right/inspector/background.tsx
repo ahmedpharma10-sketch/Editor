@@ -22,7 +22,7 @@ import { useDocument } from "@/engine/hooks/use-document";
 
 export function BackgroundSettings() {
   const world = useWorld();
-  const document = useDocument();
+  const doc = useDocument();
 
   const [isPickerOpen, setIsPickerOpen] = createSignal(false);
   const background = useTrait(world.get(Root)!, Background);
@@ -34,7 +34,7 @@ export function BackgroundSettings() {
   const assignColor = (value: number) => {
     const root = world.get(Root)!;
     const color = colorToHex(value);
-    document().editProperty(root, "background", color);
+    doc().editProperty(root, "background", color);
   };
 
   return (
