@@ -9,7 +9,8 @@ import { useEngineContext } from './context';
 
 /**
  * Mounts the engine onto a canvas sized to fill its container, and starts
- * the tick loop. Must render under an EngineProvider.
+ * the tick loop. Must render under an EngineProvider. Camera gestures are a
+ * separate concern: render a CameraController alongside it.
  */
 export function EngineCanvas(): JSX.Element {
 	const engine = useEngineContext();

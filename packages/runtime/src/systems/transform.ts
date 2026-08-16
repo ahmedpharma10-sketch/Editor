@@ -8,10 +8,11 @@ import { store } from '../world/store';
 import {
 	ChildOf, Geometry, Group, Hidden, Sequential, AdjustmentLayer,
 	Culled, Flip, Anchor, Computed, Cache, LocalTransform, WorldTransform,
-	WorldBounds, Camera, RenderSurface,
+	WorldBounds, RenderSurface,
 	Root,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
+import { getViewMatrix } from '../queries/camera';
 
 import {
 	multiply2D,
@@ -93,13 +94,7 @@ export function computeWorldTransform(world: World, entity: Entity, parentEntity
 			e: worldStore.e[pid], f: worldStore.f[pid],
 		};
 	} else {
-		const camera = world.get(Root)!.get(Camera)!;
-		const res = world.get(RenderSurface)?.resolution ?? 1;
-		parent = {
-			a: camera.a * res, b: camera.b * res,
-			c: camera.c * res, d: camera.d * res,
-			e: camera.e * res, f: camera.f * res,
-		};
+		parent = getViewMatrix(world);
 	}
 
 	const local: Mat2D = {

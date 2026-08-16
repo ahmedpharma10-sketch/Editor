@@ -6,6 +6,10 @@ export const CONONICAL_TIME_BASE = 1e6;
 
 export const DEFAULT_DURATION_FRAMES = 16 * 30;
 
+// Stage camera zoom limits (1 = 100%).
+export const MIN_CAMERA_ZOOM = 0.01;
+export const MAX_CAMERA_ZOOM = 10;
+
 export enum BlendMode {
   SOURCE_OVER,
   MULTIPLY,

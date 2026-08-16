@@ -45,6 +45,9 @@ export function aabbsIntersect(a: AABB, b: AABB): boolean {
 
 export type Point = { x: number; y: number };
 
+/** An axis-aligned rectangle by origin and size (AABB by min/max corners). */
+export type Rect = { x: number; y: number; width: number; height: number };
+
 /** Four corners of a transformed rect: [TL, TR, BR, BL]. */
 export type Quad = [Point, Point, Point, Point];
 

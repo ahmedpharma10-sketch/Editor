@@ -27,6 +27,7 @@ import {
 	Root,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
+import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
@@ -854,16 +855,8 @@ export function renderSystem(world: World): void {
 	}
 
 	// Apply camera transform: DPR * Camera
-	const camera = world.get(Root)!.get(Camera)!
-	const resolution = surface.resolution;
-	ctx.setTransform(
-		camera.a * resolution,
-		camera.b * resolution,
-		camera.c * resolution,
-		camera.d * resolution,
-		camera.e * resolution,
-		camera.f * resolution,
-	);
+	const view = getViewMatrix(world);
+	ctx.setTransform(view.a, view.b, view.c, view.d, view.e, view.f);
 
 	// Render top-level nodes.
 	const document = world.get(Root)!;

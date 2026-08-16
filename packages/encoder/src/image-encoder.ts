@@ -5,12 +5,13 @@
 import { Or } from 'koota';
 import {
 	createRuntimeWorld, createEntity, appendChild, serializeEntity,
-	cloneFromRecords, getEntityTree, getDocument, framesToSeconds,
+	cloneFromRecords, getEntityTree, framesToSeconds,
 	formatTimecode, assert, store, disposeDecoders,
 	playbackSystem, motionSystem, transformSystem, renderSystem,
 	ChildOf, Geometry, Group, Hidden, IsMask, Muted, Culled,
 	ClipsContent, Playback, Computed, WorldBounds,
-	Project, Mode, Camera, RenderSurface, AudioEngine, Assets, Fonts,
+	Project, Mode, RenderSurface, AudioEngine, Assets, Fonts, Root,
+	resetCamera, setCamera,
 	FramePromises, Time, FrameRate,
 } from '@diffusionstudio/runtime';
 
@@ -68,7 +69,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	world.set(FrameRate, { value: sourceFrameRate });
 	world.set(FramePromises, { list: [] });
 
-	getDocument(world).set(Camera, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+	resetCamera(world);
 
 	const eidMap = cloneFromRecords(world, records);
 	const root = eidMap.get(config.entity);
@@ -178,7 +179,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	resize(config.resolution);
 	// Shift the measured box onto the canvas so the node is centered in view;
 	// the camera translation is scaled by the surface resolution at render time.
-	getDocument(world).set(Camera, { e: -bounds.minX, f: -bounds.minY });
+	setCamera(world, { e: -bounds.minX, f: -bounds.minY });
 
 	let canceled = false;
 	const cancel = () => (canceled = true);
@@ -217,7 +218,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 			// document.body), then release decoders and the world slot itself
 			// (koota caps live worlds at 16).
 			mounts?.disposeAll();
-			disposeDecoders(world, getDocument(world));
+			disposeDecoders(world, world.get(Root)!);
 			world.destroy();
 		}
 	};

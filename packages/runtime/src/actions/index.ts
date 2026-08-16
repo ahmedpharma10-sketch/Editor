@@ -10,6 +10,7 @@
 // events on the traits these actions touch.
 
 export * from './entities';
+export * from './camera';
 export * from './hierarchy';
 export * from './cache';
 export * from './timing';

@@ -11,14 +11,15 @@ import {
 import { Or } from 'koota';
 import {
 	createRuntimeWorld, switchActiveScene, serializeEntity, cloneFromRecords,
-	getEntityTree, getDocument, propagateTimeRangeDown, framesToSeconds,
+	getEntityTree, propagateTimeRangeDown, framesToSeconds,
 	assert, store, disposeDecoders,
 	playbackSystem, motionSystem, transformSystem, renderSystem,
 	AudioBus, AudioBusHandle,
 	ChildOf, Geometry, Group, Paint, Workarea, Playback,
 	AudioPlayback, Computed, Delay, Trim, Transition, Keyframe, Animation,
 	Position, Offset, Rotation, Scale, Skew,
-	Project, Mode, Time, FrameRate, Camera, RenderSurface, AudioEngine,
+	Project, Mode, Time, FrameRate, RenderSurface, AudioEngine, Root,
+	resetCamera,
 	Assets, Fonts, FramePromises,
 } from '@diffusionstudio/runtime';
 
@@ -100,7 +101,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 	world.set(FrameRate, { value: frameRate });
 	world.set(FramePromises, { list: [] });
 
-	getDocument(world).set(Camera, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+	resetCamera(world);
 
 	const eidMap = cloneFromRecords(world, subtreeRecords);
 	const scene = eidMap.get(sourceScene);
@@ -345,7 +346,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 			// Release decoder file handles/caches, then the world slot itself
 			// (koota caps live worlds at 16, so throwaway offline worlds must
 			// be destroyed — bitecs could just drop them).
-			disposeDecoders(world, getDocument(world));
+			disposeDecoders(world, world.get(Root)!);
 			world.destroy();
 		}
 	};
@@ -505,7 +506,7 @@ export async function resolverSystem(world: World) {
  * walk; koota has no hierarchy-ordered queries).
  */
 export function recomputeAllTimeRanges(world: World): void {
-	const document = getDocument(world);
+	const document = world.get(Root)!;
 	for (const node of world.query(Or(Geometry, Group), ChildOf(document))) {
 		propagateTimeRangeDown(world, node);
 	}
