@@ -5,3 +5,7 @@
 export { RuntimeDocument, type SceneNode } from './document';
 export { evaluate } from './evaluate';
 export { mount, type Mount } from './mount';
+export { PATCH_PROP_KEYS } from './patch';
+export { renderProject } from './renderer';
+export { JSX_RUNTIME } from './runtime';
+export type { ProjectDocument, ProjectTick } from './host';

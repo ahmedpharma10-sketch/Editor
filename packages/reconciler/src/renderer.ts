@@ -5,9 +5,9 @@
 import { createContext, createMemo, createResource, useContext } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 
-import type { Accessor, JSX, ResourceReturn } from "solid-js";
-import type { AssetInput } from "./generate";
-import type { ProjectDocument } from "./document";
+import type { JSX, ResourceReturn } from "solid-js";
+import type { AssetInput, Ticker } from "@diffusionstudio/jsx";
+import type { ProjectDocument } from "./host";
 
 // Compiled project modules call the static runtime exports below
 // (babel-preset-solid in `universal` mode with a fixed moduleName), so the
@@ -86,20 +86,11 @@ export function use(fn: (target: unknown, arg?: unknown) => void, node: unknown,
   return renderer.use(fn, node, arg);
 }
 
-export type Ticker = {
-  time: Accessor<number>;
-  frame: Accessor<number>;
-  delta: Accessor<number>;
-  playing: Accessor<boolean>;
-};
-
 /**
- * Subscribes to the project's timeline: the playhead of the scene the mount's
- * root lives in (or is), pushed by the host once per playback tick. Each
- * accessor only propagates when its value changes, so a paused scene re-runs
- * nothing and `frame()` consumers update at most once per frame. Values move
- * while the reactive graph is alive: a mount stays live, and export, capture,
- * and reload each re-execute the module and drive the ticker themselves.
+ * The live `useTicker` — substituted for the throwing declaration in
+ * @diffusionstudio/jsx (see "./runtime"), so a mounted project's import
+ * resolves to this one. Each accessor only propagates when its value changes,
+ * so a paused scene re-runs nothing.
  */
 export function useTicker(): Ticker {
   const document = doc();
@@ -117,25 +108,10 @@ export function useTicker(): Ticker {
 }
 
 /**
- * Resolves a source (path, asset id, URL, or a `generate.*` ref) to its `File`,
- * for reading raw bytes inside effects. Returns Solid's `createResource` tuple
- * unchanged: the resource accessor reads `undefined` until it resolves, then
- * the `File` (with `.loading` / `.error`), plus `mutate` / `refetch`.
- * Resolution is async (fetch a URL, read a path or library asset, await a
- * `generate.*` ref) and, like `src`, needs the host — a sandboxed module can't
- * fetch a path or asset id itself.
- *
- * ```tsx
- * const [canvas, setCanvas] = createSignal<HTMLCanvasElement>();
- * const [file] = useFile("/assets/logo.png");
- * createEffect(async () => {
- *   const el = canvas();
- *   const f = file();
- *   if (!el || !f) return;
- *   el.getContext("2d")!.drawImage(await createImageBitmap(f), 0, 0);
- * });
- * // <surface ref={setCanvas} width={640} height={360} />
- * ```
+ * The live `useFile` — substituted for the throwing declaration in
+ * @diffusionstudio/jsx (see "./runtime"). Resolution is async (fetch a URL,
+ * read a path or library asset, await a `generate.*` ref) and needs the host,
+ * so it is a `createResource` over the document's `loadFile`.
  */
 export function useFile(src: AssetInput): ResourceReturn<File> {
   const document = doc();

@@ -10,7 +10,7 @@
  * opaque to the renderer.
  */
 
-import type { AssetInput } from "./generate";
+import type { AssetInput } from "@diffusionstudio/jsx";
 
 /**
  * One reading of the host's timeline clock, local to the mounted project:

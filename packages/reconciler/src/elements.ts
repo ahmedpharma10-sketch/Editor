@@ -34,7 +34,7 @@ import type {
   SurfaceProps,
   TextProps,
   VideoProps,
-} from "./types";
+} from "@diffusionstudio/jsx";
 
 /**
  * A component wrapping one host element: creates the node, routes `ref`

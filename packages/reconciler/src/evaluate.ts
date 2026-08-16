@@ -4,15 +4,17 @@
 
 import * as solid from 'solid-js';
 import * as solidStore from 'solid-js/store';
-import * as jsx from '@diffusionstudio/jsx';
+
+import { JSX_RUNTIME } from './runtime';
 
 // What the desktop compile step marks external is what is handed out here,
 // so a project shares the app's solid-js instance (one reactive graph) and
-// its JSX runtime.
+// its JSX runtime — the authoring package's exports bound to this host, not
+// the host-less copy in the project's node_modules.
 const MODULES: Record<string, unknown> = {
 	'solid-js': solid,
 	'solid-js/store': solidStore,
-	'@diffusionstudio/jsx': jsx,
+	'@diffusionstudio/jsx': JSX_RUNTIME,
 };
 
 /** Evaluates a compiled CommonJS bundle and returns its default export. */

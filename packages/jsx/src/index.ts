@@ -2,7 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Public authoring API (used by project modules).
+/**
+ * The authoring surface: the types project sources are written against, the
+ * pure helpers they may call, and the hooks the editor implements. The
+ * renderer that turns this vocabulary into a composition is not here — the
+ * editor supplies it when a project is mounted (see
+ * @diffusionstudio/reconciler), so nothing in this package touches a host.
+ */
+
 export { generate, AssetRef, isAssetRef, getAssetSpec } from "./generate";
 export type {
   AspectRatio,
@@ -13,29 +20,9 @@ export type {
   GenerateVideoOptions,
   GenerateVoiceOptions,
 } from "./generate";
-export { PATCH_PROP_KEYS } from "./types";
 export { parseTime, TIME_FPS } from "./time";
-export {
-  Audio,
-  Captions,
-  ColorStop,
-  Group,
-  Html,
-  HtmlPaint,
-  Image,
-  LinearGradientPaint,
-  RadialGradientPaint,
-  Rect,
-  Sequence,
-  ShaderPaint,
-  SolidPaint,
-  Surface,
-  SurfacePaint,
-  Text,
-  Video,
-} from "./elements";
-export { useTicker, useFile } from "./renderer";
-export type { Ticker } from "./renderer";
+export { useTicker, useFile } from "./hooks";
+export type { Ticker } from "./hooks";
 export type {
   Animatable,
   AnimationSpec,
@@ -66,23 +53,3 @@ export type {
   TransitionType,
   VideoProps,
 } from "./types";
-
-// Renderer runtime — compiled project modules import these (babel-preset-solid
-// universal mode, moduleName "@diffusionstudio/jsx").
-export {
-  render,
-  effect,
-  memo,
-  createComponent,
-  createElement,
-  createTextNode,
-  insertNode,
-  insert,
-  spread,
-  setProp,
-  mergeProps,
-  use,
-  renderProject,
-} from "./renderer";
-
-export type { ProjectDocument, ProjectTick } from "./document";

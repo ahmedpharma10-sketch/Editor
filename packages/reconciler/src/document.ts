@@ -31,7 +31,7 @@ import {
 } from '@diffusionstudio/runtime';
 
 import type { Entity, World } from 'koota';
-import type { ProjectDocument } from '@diffusionstudio/jsx';
+import type { ProjectDocument } from './host';
 
 /**
  * A host node: a handle around an element's entity. Koota entities are plain
