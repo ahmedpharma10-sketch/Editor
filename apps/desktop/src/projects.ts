@@ -24,9 +24,10 @@ import type { BuildOptions, Plugin } from "esbuild";
 
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
-import { applyEdits, sourcePlugin, stampProject } from "./source";
+import { applyEdits, stampProject } from "./edit";
+import { sourcePlugin } from "./source";
 import type { CompileResult, ProjectInfo, SourceEdit, WriteResult } from "./main-channels";
-import type { SourceContext } from "./source";
+import type { SourceContext } from "./edit";
 
 /** Entry points looked up in a project folder, in order of preference. */
 export const ENTRY_FILES = ["index.tsx", "index.ts", "index.jsx", "index.js"];
@@ -321,9 +322,8 @@ function solidLoader(root: string): Plugin {
   };
 }
 
-/** The `./source` context for a project folder, wired to the watcher's self-write log. */
+/** The `./edit` context for a project folder, wired to the watcher's self-write log. */
 const sourceContext = (dir: string): SourceContext => ({
-  babel: load<Babel>("@babel/core"),
   dir,
   onWrite: (file) => markSelfWrite(dir, file),
 });

@@ -10,7 +10,7 @@
 // CLI traffic uses a separate wire pair (CLI_WIRE in @diffusionstudio/cli/protocol);
 // main forwards it opaquely without inspecting channel names.
 import type { LogEntry, ScreenshotResult } from "@diffusionstudio/cli/protocol";
-import type { SourceEdit, WriteResult } from "./source";
+import type { SourceEdit, WriteResult } from "./edit";
 
 export const MAIN_WIRE = {
   REQUEST: "main:request",

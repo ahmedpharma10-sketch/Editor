@@ -40,6 +40,7 @@
     "babel-preset-solid": "^1.9.12",
     "esbuild": "^0.28.1",
     "sqids": "^0.3.0",
+    "ts-morph": "^28.0.0",
     "update-electron-app": "^3.0.0"
   }
 }
