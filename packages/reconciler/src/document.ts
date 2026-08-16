@@ -7,7 +7,9 @@ import {
 	ActiveScene,
 	appendChild,
 	Background,
+	ChildOf,
 	ClipsContent,
+	createEntity,
 	DEFAULT_BACKGROUND,
 	Color,
 	Geometry,
@@ -28,7 +30,6 @@ import {
 	Source,
 	setCameraMatrix,
 	switchActiveScene,
-	Size,
 } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 
@@ -111,23 +112,26 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			case 'stage':
 				return this.stage;
 			case 'scene': {
-				const entity = this.world.spawn(
-					Geometry({ value: GeometryType.RECT }),
-					Position({ x: 0, y: 0 }),
-					Size({ width: 1920, height: 1080 }),
-					Scene,
-					ClipsContent,
-					Playback,
-				);
+				const entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.RECT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Scene);
+				entity.add(ClipsContent);
+				entity.add(Playback);
+				resizeEntity(this.world, entity, { width: 1920, height: 1080 });
 				return { entity };
 			}
-			case 'rect':
-				const entity = this.world.spawn(
-					Geometry({ value: GeometryType.RECT }),
-					Position({ x: 0, y: 0 }),
-					Size({ width: 100, height: 100 }),
-				);
+			case 'rect': {
+				const entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.RECT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				resizeEntity(this.world, entity, { width: 100, height: 100 });
 				return { entity };
+			}
 			default:
 				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene> and <rect>).`);
 		}
@@ -227,11 +231,12 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			// appendChild only takes top-level entities, so a move between two
 			// parents goes back through the document on the way.
 			const current = getParentNode(node.entity);
-			if (current !== null) removeChild(this.world, node.entity, current);
-			// <stage> is the document root, which is where entities spawn.
-			if (!parent.entity.has(DocumentRoot)) {
-				appendChild(this.world, node.entity, parent.entity);
+
+			if (current !== null) {
+				removeChild(this.world, node.entity, current);
 			}
+
+			appendChild(this.world, node.entity, parent.entity);
 		}
 
 		const siblings = this.childEntities(parent).filter((sibling) => sibling !== node.entity);

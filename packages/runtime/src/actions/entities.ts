@@ -6,7 +6,7 @@
 // app records undo entries by observing koota add/remove/change events.
 
 import { DEFAULT_DURATION_FRAMES } from '../constants';
-import { ChildOf, Computed, Cache, Root } from '../traits';
+import { Computed, Cache } from '../traits';
 
 import type { Entity, World } from 'koota';
 
@@ -27,7 +27,6 @@ export function createEntity(world: World): Entity {
 			duration: DEFAULT_DURATION_FRAMES,
 		}),
 		Cache,
-		ChildOf(world.get(Root)!),
 	);
 }
 
