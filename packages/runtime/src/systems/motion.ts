@@ -7,7 +7,7 @@ import { cubicBezier, steps, spring } from 'animejs';
 
 import { store } from '../world/store';
 import {
-	Geometry, Group, AdjustmentLayer, Deleted, Hidden, Culled,
+	Geometry, Group, AdjustmentLayer, Hidden, Culled,
 	Computed, Cache, Animation, KeyframeTrack, Keyframe, Trim, Chars,
 	UniformScale, Position, Offset, Rotation, Scale, Skew, Size, Appearance,
 	Color, Blur, Volume, Effect, StrokeStyle, CornerRadius, MixedCornerRadius,
@@ -188,8 +188,7 @@ export function motionSystem(world: World): void {
 	const worldProps = getPropertyPaths(world);
 
 	for (const entity of world.query(
-		Or(Geometry, Group, AdjustmentLayer),
-		Not(Deleted), Not(Hidden), Not(Culled),
+		Or(Geometry, Group, AdjustmentLayer), Not(Hidden), Not(Culled),
 	)) {
 		const eid = entity.id();
 

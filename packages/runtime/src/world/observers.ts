@@ -18,18 +18,18 @@
 
 import { store } from './store';
 import {
-	ChildOf, Deleted, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
+	ChildOf, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
 	Delay, PlaybackRate, Trim, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Appearance, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
 	ColorStop, StrokeStyle, Size, Computed,
+	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
+	AudioDecoderHandle, CaptionDecoderHandle,
+	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
 } from '../traits';
 import { getParentEntity } from '../queries/hierarchy';
 import { rebuildCaches } from '../actions/cache';
-import {
-	disposeDecoders, disposeHtmlHosts, disposeSurfaceHosts, disposeShaderHosts,
-	disconnectAudioBus,
-} from '../media/dispose';
+import { disposeDecoders, disconnectAudioBus } from '../media/dispose';
 import {
 	reactToChildAttached, reactToChildDetached, reactToAssetChange,
 	reactToPaintChange, recomputeEntityTimeRange, propagateTimeRangeDown,
@@ -59,32 +59,33 @@ export function observeWorld(world: World): () => void {
 
 	// On re-target (and destroy) the remove event fires while the child is
 	// still present in the old parent's queries, so it is excluded by hand.
+	// Destroy cascades parent-first through ChildOf (autoDestroy 'orphan'),
+	// so a descendant's parent may already be gone: nothing to rebuild then.
 	subs.push(world.onRemove(ChildOf('*'), (child, parent) => {
-		rebuildCaches(world, child, parent, child);
 		disconnectAudioBus(world, child);
+		if (!world.has(parent)) return;
+		rebuildCaches(world, child, parent, child);
+		reactToChildDetached(world, child);
 	}));
 
-	subs.push(world.onAdd(Deleted, (entity) => {
-		// The Not(Deleted) cache queries already skip the tombstone.
-		rebuildCaches(world, entity, getParentEntity(entity));
-		reactToChildDetached(world, entity);
-		// A tombstoned subtree keeps its records for undo, but its live media
-		// handles must not linger.
-		disposeDecoders(world, entity);
-		disposeHtmlHosts(world, entity);
-		disposeSurfaceHosts(world, entity);
-		disposeShaderHosts(world, entity);
-		disconnectAudioBus(world, entity);
-	}));
+	// Live media handles are released with their trait. Destroy removes every
+	// trait of every entity in the subtree, so this covers deletion; the
+	// subscriber runs before the store slot is cleared, so the value is still
+	// readable.
+	subs.push(world.onRemove(ImageDecoderHandle, (e) => e.get(ImageDecoderHandle)?.dispose()));
+	subs.push(world.onRemove(VideoDecoderHandle, (e) => e.get(VideoDecoderHandle)?.dispose()));
+	subs.push(world.onRemove(SequenceDecoderHandle, (e) => e.get(SequenceDecoderHandle)?.dispose()));
+	subs.push(world.onRemove(AudioDecoderHandle, (e) => e.get(AudioDecoderHandle)?.reset()));
+	subs.push(world.onRemove(CaptionDecoderHandle, (e) => e.get(CaptionDecoderHandle)?.dispose()));
+	subs.push(world.onRemove(HtmlHostHandle, (e) => e.get(HtmlHostHandle)?.dispose()));
+	subs.push(world.onRemove(SurfaceHostHandle, (e) => e.get(SurfaceHostHandle)?.dispose()));
+	subs.push(world.onRemove(ShaderHostHandle, (e) => e.get(ShaderHostHandle)?.dispose()));
+	subs.push(world.onRemove(AudioBusHandle, (e) => e.get(AudioBusHandle)?.disconnect()));
 
 	// Off-screen entities release their decoders (frame caches are the bulk
 	// of media memory); the next resolve recreates them.
 	subs.push(world.onAdd(Culled, (entity) => {
 		disposeDecoders(world, entity);
-	}));
-
-	subs.push(world.onRemove(Deleted, (entity) => {
-		rebuildCaches(world, entity, getParentEntity(entity));
 	}));
 
 	// Keyframes re-sort by frame, siblings re-sort by index.

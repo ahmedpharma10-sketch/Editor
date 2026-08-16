@@ -5,11 +5,11 @@
 // Sequential overlap resolution (was api/overlap.ts). Lives in actions, not
 // queries: it trims, deletes, and splits clips via the overwrite model.
 
-import { Not, Or } from 'koota';
+import { Or } from 'koota';
 
 import { store } from '../world/store';
 import {
-	ChildOf, Deleted, Geometry, Group, Sequential, Trim, Computed,
+	ChildOf, Geometry, Group, Sequential, Trim, Computed,
 } from '../traits';
 import { isGroup } from '../queries/predicates';
 import { getEntityTree, getParentNode } from '../queries/hierarchy';
@@ -52,7 +52,7 @@ export function resolveSequentialOverlaps(world: World, dragged: Entity[]): void
 
 		// Snapshot the sibling list before mutating: resolution deletes, trims,
 		// and clones, all of which change the live query result.
-		const siblings = [...world.query(Or(Geometry, Group), ChildOf(parent), Not(Deleted))]
+		const siblings = [...world.query(Or(Geometry, Group), ChildOf(parent))]
 			.filter(sibling => !ignore.has(sibling));
 
 		for (const sibling of siblings) {
@@ -81,7 +81,7 @@ export function resolveNewSequenceOverlaps(world: World, sequence: Entity): void
 
 	const computed = store(world, Computed);
 
-	const children = [...world.query(Or(Geometry, Group), ChildOf(sequence), Not(Deleted))]
+	const children = [...world.query(Or(Geometry, Group), ChildOf(sequence))]
 		.sort((a, b) => (computed.start[a.id()] ?? 0) - (computed.start[b.id()] ?? 0));
 
 	// No dragged clips to protect; group recursion has no leaves to skip.
@@ -90,14 +90,14 @@ export function resolveNewSequenceOverlaps(world: World, sequence: Entity): void
 	for (let i = 0; i < children.length; i++) {
 		const entity = children[i]!;
 		// An earlier authoritative clip may have removed or trimmed this one.
-		if (entity.has(Deleted)) continue;
+		if (!world.has(entity)) continue;
 		const occStart = computed.start[entity.id()];
 		const occEnd = computed.end[entity.id()];
 		if (occStart === undefined || occEnd === undefined || occEnd <= occStart) continue;
 
 		for (let j = i + 1; j < children.length; j++) {
 			const sibling = children[j]!;
-			if (sibling.has(Deleted)) continue;
+			if (!world.has(sibling)) continue;
 			resolveEntityOverlap(world, sibling, occStart, occEnd, ignore);
 		}
 	}
@@ -133,14 +133,14 @@ function resolveEntityOverlap(
 			return;
 		}
 
-		const children = [...world.query(Or(Geometry, Group), ChildOf(entity), Not(Deleted))]
+		const children = [...world.query(Or(Geometry, Group), ChildOf(entity))]
 			.filter(child => !ignore.has(child));
 		for (const child of children) {
 			resolveEntityOverlap(world, child, occStart, occEnd, ignore);
 		}
 
 		// If every child was removed, the group is now empty: drop it too.
-		const remaining = world.query(Or(Geometry, Group), ChildOf(entity), Not(Deleted));
+		const remaining = world.query(Or(Geometry, Group), ChildOf(entity));
 		if (remaining.length === 0) deleteEntity(world, entity);
 		return;
 	}

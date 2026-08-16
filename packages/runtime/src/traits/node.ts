@@ -51,9 +51,6 @@ export const ClipsContent = trait();
 // Tag for entities whose content is still being generated.
 export const Generating = trait();
 
-// Runtime-only tombstone: entity is soft-deleted and kept around for undo.
-export const Deleted = trait();
-
 export const Name = trait({ value: '' });
 
 // Stable identity for entities.

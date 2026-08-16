@@ -2,10 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Not } from 'koota';
-
 import {
-	ChildOf, Deleted, Keyframe, KeyframeTrack, IsMask, Geometry, Group,
+	ChildOf, Keyframe, KeyframeTrack, IsMask, Geometry, Group,
 	AdjustmentLayer, Expanded,
 } from '../traits';
 import { isSequence } from './predicates';
@@ -36,7 +34,7 @@ export function buildTimelineLayers(world: World, parent: Entity): TimelineNode[
 	const masks: Entity[] = [];
 	const subitems: Entity[] = [];
 
-	for (const child of world.query(ChildOf(parent), Not(Deleted))) {
+	for (const child of world.query(ChildOf(parent))) {
 		if (child.has(Keyframe)) continue;
 		if (sequence && !hasKeyframes(world, child)) continue;
 
@@ -117,7 +115,7 @@ function buildNode(world: World, entity: Entity, kind: TimelineNodeKind): Timeli
 function isExpandable(world: World, parent: Entity): boolean {
 	const sequence = isSequence(parent);
 
-	for (const child of world.query(ChildOf(parent), Not(Deleted))) {
+	for (const child of world.query(ChildOf(parent))) {
 		if (child.has(Keyframe)) continue;
 		if (sequence && !hasKeyframes(world, child)) continue;
 		if (
@@ -140,7 +138,7 @@ function isExpandable(world: World, parent: Entity): boolean {
  * deleted with their last keyframe, so track presence implies keyframes.
  */
 function hasKeyframes(world: World, entity: Entity): boolean {
-	for (const child of world.query(ChildOf(entity), Not(Deleted))) {
+	for (const child of world.query(ChildOf(entity))) {
 		if (child.has(KeyframeTrack)) return true;
 		if (hasKeyframes(world, child)) return true;
 	}

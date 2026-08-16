@@ -12,7 +12,7 @@ import { Not, Or } from 'koota';
 import { store } from '../world/store';
 import { PaintType } from '../constants';
 import {
-	ChildOf, Deleted, Hidden, Culled, Dragging,
+	ChildOf, Hidden, Culled, Dragging,
 	Geometry, Group, AdjustmentLayer, Paint, Audio, Caption, Muted, Soloed,
 	Sequential, Transition, Playback, Workarea, Trim, PlaybackRate,
 	AudioPlayback, Computed,
@@ -266,7 +266,7 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 
 	let paintAudioSource: Entity | undefined;
 	if (!hidden) {
-		for (const fill of world.query(ChildOf(entity), Paint, Not(Deleted), Not(Hidden))) {
+		for (const fill of world.query(ChildOf(entity), Paint, Not(Hidden))) {
 			const paint = paintStore.value[fill.id()];
 
 			if (paint === PaintType.VIDEO) {
@@ -303,7 +303,7 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 		forwardAudioDecoder(world, scene, entity, paintAudioSource);
 	}
 
-	for (const child of world.query(ChildOf(entity), Or(Geometry, Group, AdjustmentLayer), Not(Deleted), Not(Hidden))) {
+	for (const child of world.query(ChildOf(entity), Or(Geometry, Group, AdjustmentLayer), Not(Hidden))) {
 		forwardDecoders(world, scene, child);
 	}
 }
@@ -327,7 +327,7 @@ function updateVisibility(world: World, scene: Entity, entity: Entity): void {
 		computed.visibility[eid] = globalFrame >= start && globalFrame < end ? 1 : 0;
 	}
 
-	for (const child of world.query(Or(Geometry, Group, AdjustmentLayer), ChildOf(entity), Not(Deleted))) {
+	for (const child of world.query(Or(Geometry, Group, AdjustmentLayer), ChildOf(entity))) {
 		updateVisibility(world, scene, child);
 	}
 }
@@ -337,7 +337,7 @@ function resetDecoders(world: World, entity: Entity): void {
 		entity.get(AudioDecoderHandle)?.reset();
 	}
 
-	for (const child of world.query(ChildOf(entity), AudioDecoderHandle, Not(Deleted))) {
+	for (const child of world.query(ChildOf(entity), AudioDecoderHandle)) {
 		resetDecoders(world, child);
 	}
 }
@@ -407,18 +407,18 @@ export function playbackSystem(world: World): void {
 	const computed = store(world, Computed);
 
 	// handle root playback
-	for (const entity of world.query(Playback, Not(Deleted))) {
+	for (const entity of world.query(Playback)) {
 		advancePlayhead(world, entity);
 	}
 
 	const document = getDocument(world);
-	for (const entity of world.query(Or(Geometry, Group, AdjustmentLayer), ChildOf(document), Not(Deleted))) {
+	for (const entity of world.query(Or(Geometry, Group, AdjustmentLayer), ChildOf(document))) {
 		updateVisibility(world, entity, entity);
 		forwardDecoders(world, entity, entity);
 	}
 
 	// handle transition visibility
-	for (const clip of world.query(Or(Geometry, Group, AdjustmentLayer), Transition, Not(Deleted))) {
+	for (const clip of world.query(Or(Geometry, Group, AdjustmentLayer), Transition)) {
 		const parent = getParentNode(clip);
 
 		if (parent == null || !parent.has(Sequential)) {
@@ -428,7 +428,7 @@ export function playbackSystem(world: World): void {
 			continue;
 		}
 
-		const children = world.query(ChildOf(parent), Or(Geometry, Group, AdjustmentLayer), Not(Deleted));
+		const children = world.query(ChildOf(parent), Or(Geometry, Group, AdjustmentLayer));
 		const partner = children.find(sibling => computed.start[sibling.id()] === computed.end[clip.id()]);
 		if (!partner) continue;
 		const window = getTransitionWindow(world, clip, partner);
@@ -441,7 +441,7 @@ export function playbackSystem(world: World): void {
 
 	// Sync audio buses
 	let soloed: Set<Entity> | null = null;
-	for (const entity of world.query(AudioBusHandle, Not(Deleted))) {
+	for (const entity of world.query(AudioBusHandle)) {
 		entity.get(AudioBusHandle)?.sync();
 		if (!entity.has(Soloed)) continue;
 
@@ -455,7 +455,7 @@ export function playbackSystem(world: World): void {
 	}
 
 	if (soloed) {
-		for (const entity of world.query(AudioBusHandle, Not(Deleted))) {
+		for (const entity of world.query(AudioBusHandle)) {
 			if (!soloed.has(entity)) {
 				entity.get(AudioBusHandle)?.mute();
 			}

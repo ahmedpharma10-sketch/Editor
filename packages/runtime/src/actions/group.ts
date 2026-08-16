@@ -4,11 +4,11 @@
 
 // Group and ungroup actions (was api/group.ts).
 
-import { Not, Or } from 'koota';
+import { Or } from 'koota';
 
 import { store } from '../world/store';
 import {
-	ChildOf, Deleted, Geometry, Group, Sequential, Selected, Position, Name,
+	ChildOf, Geometry, Group, Sequential, Selected, Position, Name,
 	ItemIndex, LocalTransform, Computed,
 } from '../traits';
 import { getNextName, getParentNode } from '../queries/hierarchy';
@@ -116,7 +116,7 @@ export function ungroupSelection(world: World): void {
 		const groupX = group.get(Position)?.x ?? 0;
 		const groupY = group.get(Position)?.y ?? 0;
 		// Spread is important here: the query result changes while re-parenting.
-		const children = [...world.query(ChildOf(group), Not(Deleted))];
+		const children = [...world.query(ChildOf(group))];
 		for (const child of children) {
 			removeChild(world, child, group);
 			child.add(Position);

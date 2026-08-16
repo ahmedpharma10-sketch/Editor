@@ -4,10 +4,8 @@
 
 // Keyframe actions (was api/keyframe.ts).
 
-import { Not } from 'koota';
-
 import {
-	ChildOf, Deleted, Geometry, Group, AdjustmentLayer, KeyframeTrack, Keyframe,
+	ChildOf, Geometry, Group, AdjustmentLayer, KeyframeTrack, Keyframe,
 } from '../traits';
 import { getNodeLocalFrame, getParentNode } from '../queries/hierarchy';
 import { getPropertyPaths } from '../systems/motion';
@@ -21,7 +19,7 @@ import type { PropertyPath } from '../systems/motion';
  * Find the KeyframeTrack entity (if any) for a (target, property) pair.
  */
 export function findKeyframeTrackEntity(world: World, target: Entity, property: string): Entity | null {
-	for (const track of world.query(KeyframeTrack, ChildOf(target), Not(Deleted))) {
+	for (const track of world.query(KeyframeTrack, ChildOf(target))) {
 		if (track.get(KeyframeTrack)!.property === property) return track;
 	}
 	return null;
@@ -33,7 +31,7 @@ export function findKeyframeTrackEntity(world: World, target: Entity, property: 
 export function getKeyframeTrack(world: World, target: Entity, property: string): Entity[] {
 	const track = findKeyframeTrackEntity(world, target, property);
 	if (track === null) return [];
-	return [...world.query(Keyframe, ChildOf(track), Not(Deleted))];
+	return [...world.query(Keyframe, ChildOf(track))];
 }
 
 /**
@@ -79,7 +77,7 @@ export function syncKeyframeTrack(world: World, entity: Entity, property: Proper
 	if (track === null) return;
 
 	const localFrame = getNodeLocalFrame(node);
-	const existing = [...world.query(Keyframe, ChildOf(track), Not(Deleted))]
+	const existing = [...world.query(Keyframe, ChildOf(track))]
 		.find(kf => kf.get(Keyframe)!.time === localFrame);
 
 	const currentValue = worldProps[property].authored[entity.id()] ?? 0;
@@ -114,7 +112,7 @@ export function toggleKeyframeTrack(world: World, entity: Entity, property: Prop
 
 	let trackKeyframes: Entity[] = [];
 	if (track !== null) {
-		trackKeyframes = [...world.query(Keyframe, ChildOf(track), Not(Deleted))];
+		trackKeyframes = [...world.query(Keyframe, ChildOf(track))];
 	}
 
 	const existing = trackKeyframes.find(kf => kf.get(Keyframe)!.time === localFrame);
@@ -156,7 +154,7 @@ export function setKeyframeTrack(
 	const existing = findKeyframeTrackEntity(world, target, property);
 
 	if (existing !== null) {
-		for (const kf of world.query(Keyframe, ChildOf(existing), Not(Deleted))) {
+		for (const kf of world.query(Keyframe, ChildOf(existing))) {
 			deleteEntity(world, kf);
 		}
 		if (keyframes.length === 0) {
@@ -184,7 +182,7 @@ export function removeKeyframeTrack(world: World, entity: Entity, property: Prop
 	const track = findKeyframeTrackEntity(world, entity, property);
 	if (track === null) return;
 
-	const keyframes = [...world.query(Keyframe, ChildOf(track), Not(Deleted))];
+	const keyframes = [...world.query(Keyframe, ChildOf(track))];
 
 	keyframes.forEach(kf => deleteEntity(world, kf));
 	deleteEntity(world, track);

@@ -8,10 +8,10 @@
 // Cache/size/constraint/time-range fixups ride on the ChildOf events (see
 // world/observers.ts), so these functions only validate and re-target.
 
-import { Not, Or } from 'koota';
+import { Or } from 'koota';
 
 import {
-	ChildOf, Deleted, Geometry, Group, AdjustmentLayer, ItemIndex, Selected,
+	ChildOf, Geometry, Group, AdjustmentLayer, ItemIndex, Selected,
 } from '../traits';
 import { getDocument, getEntityTree, getParentNode } from '../queries/hierarchy';
 import { assert } from '../utils/assert';
@@ -47,7 +47,7 @@ export function reorderEntity(world: World, entity: Entity, target: ReorderTarge
 	const parent = getParentNode(entity);
 	if (parent === null) return;
 	const siblings = [...world.query(
-		ChildOf(parent), Not(Deleted), Or(Geometry, Group, AdjustmentLayer),
+		ChildOf(parent), Or(Geometry, Group, AdjustmentLayer),
 	)].sort(sortByItemIndex);
 	const index = siblings.indexOf(entity);
 	if (index === -1) return;
@@ -83,7 +83,7 @@ export function reorderSelection(world: World, target: ReorderTarget): void {
 
 	for (const [parent, selected] of byParent) {
 		const siblings = [...world.query(
-			ChildOf(parent), Not(Deleted), Or(Geometry, Group, AdjustmentLayer),
+			ChildOf(parent), Or(Geometry, Group, AdjustmentLayer),
 		)].sort(sortByItemIndex);
 		const selectedOrdered = siblings.filter(entity => selected.has(entity));
 		const rest = siblings.filter(entity => !selected.has(entity));

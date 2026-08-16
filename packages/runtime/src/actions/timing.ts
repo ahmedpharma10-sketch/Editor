@@ -186,7 +186,7 @@ export function reactToChildAttached(world: World, child: Entity) {
 }
 
 /**
- * Deleted onAdd hook (covers the user-facing "remove" path). Mirror of
+ * ChildOf onRemove hook (covers the user-facing "remove" path). Mirror of
  * reactToChildAttached: if the dying entity is a geometry the parent group's
  * bounds may shrink; if it's a paint the parent geometry may lose its asset
  * source and needs a Trim pinned at its current duration.

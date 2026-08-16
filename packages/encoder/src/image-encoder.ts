@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Not, Or } from 'koota';
+import { Or } from 'koota';
 import {
 	createRuntimeWorld, createEntity, appendChild, serializeEntity,
 	cloneFromRecords, getEntityTree, getDocument, framesToSeconds,
 	formatTimecode, assert, store, disposeDecoders,
 	playbackSystem, motionSystem, transformSystem, renderSystem,
-	ChildOf, Deleted, Geometry, Group, Hidden, IsMask, Muted, Culled,
+	ChildOf, Geometry, Group, Hidden, IsMask, Muted, Culled,
 	ClipsContent, Playback, Computed, WorldBounds,
 	Project, Mode, Camera, RenderSurface, AudioEngine, Assets, Fonts,
 	FramePromises, Time, FrameRate,
@@ -100,7 +100,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	const startFrame = computed.start[root.id()] ?? 0;
 
 	// Entities in the clone that own a timeline clock
-	const clocks = [...world.query(Playback, Not(Deleted))];
+	const clocks = [...world.query(Playback)];
 
 	const seek = (frame: number) => {
 		const stageFrame = startFrame + frame;
@@ -140,7 +140,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 		bounds.maxY = Math.max(bounds.maxY, worldBounds.maxY[entity.id()]!);
 
 		if (entity.has(ClipsContent)) return;
-		for (const child of world.query(Or(Geometry, Group), ChildOf(entity), Not(Deleted))) {
+		for (const child of world.query(Or(Geometry, Group), ChildOf(entity))) {
 			measure(child, bounds);
 		}
 	};

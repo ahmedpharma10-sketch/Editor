@@ -6,7 +6,7 @@ import { Not, Or } from 'koota';
 
 import { store } from '../world/store';
 import {
-	ChildOf, Geometry, Group, Deleted, Hidden, Sequential, AdjustmentLayer,
+	ChildOf, Geometry, Group, Hidden, Sequential, AdjustmentLayer,
 	Culled, Flip, Anchor, Computed, Cache, LocalTransform, WorldTransform,
 	WorldBounds, Camera, RenderSurface,
 } from '../traits';
@@ -213,7 +213,7 @@ export function computeGroupBounds(world: World, entity: Entity): void {
 		let maxY = -Infinity;
 		let any = false;
 
-		for (const child of world.query(Or(Geometry, Group), ChildOf(entity), Not(Deleted), Not(Hidden))) {
+		for (const child of world.query(Or(Geometry, Group), ChildOf(entity), Not(Hidden))) {
 			const cid = child.id();
 			const mat: Mat2D = {
 				a: localStore.a[cid] ?? 1, b: localStore.b[cid] ?? 0,
@@ -293,7 +293,7 @@ function adjustLayers(world: World, adjust: Entity): void {
 		computeWorldBounds(world, entity);
 		cullEntity(world, entity, parentEntity);
 
-		for (const child of world.query(Or(Geometry, Group), ChildOf(entity), Not(Deleted))) {
+		for (const child of world.query(Or(Geometry, Group), ChildOf(entity))) {
 			reworld(child, entity);
 		}
 	};
@@ -312,16 +312,16 @@ export function transformSystem(world: World): void {
 		computeWorldBounds(world, entity);
 		cullEntity(world, entity, parentEntity);
 
-		for (const child of world.query(Or(Geometry, Group), ChildOf(entity), Not(Deleted))) {
+		for (const child of world.query(Or(Geometry, Group), ChildOf(entity))) {
 			walk(child, entity);
 		}
 	};
 
-	for (const entity of world.query(Or(Geometry, Group), ChildOf(getDocument(world)), Not(Deleted))) {
+	for (const entity of world.query(Or(Geometry, Group), ChildOf(getDocument(world)))) {
 		walk(entity, null);
 	}
 
-	for (const adjust of world.query(AdjustmentLayer, Not(Deleted))) {
+	for (const adjust of world.query(AdjustmentLayer)) {
 		adjustLayers(world, adjust);
 	}
 }

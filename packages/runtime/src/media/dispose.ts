@@ -3,14 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Subtree walkers releasing live runtime handles (was part of api/utils.ts).
-// They deliberately include Deleted descendants: a tombstoned subtree keeps
-// its records for undo, but its decoders and buses must not linger.
+// Deletion needs none of these: destroy removes every handle trait and the
+// onRemove hooks in world/observers dispose the values. These cover the
+// still-alive cases (culling, re-parenting an audio subtree).
 
 import {
 	ChildOf,
 	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
-	AudioDecoderHandle, CaptionDecoderHandle,
-	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
+	AudioDecoderHandle, CaptionDecoderHandle, AudioBusHandle,
 } from '../traits';
 
 import type { Entity, World } from 'koota';
@@ -39,39 +39,6 @@ export function disposeDecoders(world: World, entity: Entity): void {
 
 	for (const child of world.query(ChildOf(entity))) {
 		disposeDecoders(world, child);
-	}
-}
-
-export function disposeHtmlHosts(world: World, entity: Entity): void {
-	if (entity.has(HtmlHostHandle)) {
-		entity.get(HtmlHostHandle)?.dispose();
-		entity.set(HtmlHostHandle, null);
-	}
-
-	for (const child of world.query(ChildOf(entity))) {
-		disposeHtmlHosts(world, child);
-	}
-}
-
-export function disposeSurfaceHosts(world: World, entity: Entity): void {
-	if (entity.has(SurfaceHostHandle)) {
-		entity.get(SurfaceHostHandle)?.dispose();
-		entity.set(SurfaceHostHandle, null);
-	}
-
-	for (const child of world.query(ChildOf(entity))) {
-		disposeSurfaceHosts(world, child);
-	}
-}
-
-export function disposeShaderHosts(world: World, entity: Entity): void {
-	if (entity.has(ShaderHostHandle)) {
-		entity.get(ShaderHostHandle)?.dispose();
-		entity.set(ShaderHostHandle, null);
-	}
-
-	for (const child of world.query(ChildOf(entity))) {
-		disposeShaderHosts(world, child);
 	}
 }
 

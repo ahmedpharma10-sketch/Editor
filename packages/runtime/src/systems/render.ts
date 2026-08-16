@@ -17,7 +17,7 @@ import {
 	StrokeCap, StrokeJoin, TransitionType,
 } from '../constants';
 import {
-	ChildOf, Deleted, Hidden, Culled, Generating, Interactive, IsMask,
+	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
 	Appearance, Effect, StrokeStyle, AssetId, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
@@ -866,7 +866,7 @@ export function renderSystem(world: World): void {
 
 	// Render top-level nodes.
 	const document = getDocument(world);
-	for (const entity of world.query(Or(Geometry, Group), ChildOf(document), Not(Deleted), Not(Culled))) {
+	for (const entity of world.query(Or(Geometry, Group), ChildOf(document), Not(Culled))) {
 		renderNode(world, entity);
 	}
 }

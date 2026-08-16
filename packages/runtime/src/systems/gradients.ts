@@ -6,10 +6,8 @@
 // systems/render.ts; split out because text rendering needs it before the
 // render system moves in).
 
-import { Not } from 'koota';
-
 import { store } from '../world/store';
-import { ChildOf, Deleted, ColorStop, Position, Computed } from '../traits';
+import { ChildOf, ColorStop, Position, Computed } from '../traits';
 import { colorToHex } from '../utils/color';
 
 import type { Entity, World } from 'koota';
@@ -18,7 +16,7 @@ type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 function addStopsTo(world: World, fill: Entity, gradient: CanvasGradient): void {
 	const computed = store(world, Computed);
-	const stops = [...world.query(ColorStop, ChildOf(fill), Not(Deleted))]
+	const stops = [...world.query(ColorStop, ChildOf(fill))]
 		.map(stop => {
 			const raw = computed.stopOffset[stop.id()]!;
 			return {

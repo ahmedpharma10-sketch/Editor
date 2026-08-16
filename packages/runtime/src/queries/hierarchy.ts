@@ -2,9 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Not } from 'koota';
-
-import { ChildOf, Deleted, Computed, Name, Playback, PlaybackRate, DocumentRoot } from '../traits';
+import { ChildOf, Computed, Name, Playback, PlaybackRate, DocumentRoot } from '../traits';
 import { isDocument, isScene } from './predicates';
 import { sortByItemIndex } from '../utils';
 
@@ -23,7 +21,7 @@ export function getParentEntity(entity: Entity | null | undefined): Entity | nul
 }
 
 export function getEntityChildren(world: World, parent: Entity): Entity[] {
-	return [...world.query(ChildOf(parent), Not(Deleted))].sort(sortByItemIndex);
+	return [...world.query(ChildOf(parent))].sort(sortByItemIndex);
 }
 
 /**
@@ -53,7 +51,7 @@ export function getSiblingEntities(world: World, entity: Entity, ...traits: Quer
 	const parent = getParentEntity(entity);
 	if (parent === null) return [];
 
-	return [...world.query(ChildOf(parent), Not(Deleted), ...traits)];
+	return [...world.query(ChildOf(parent), ...traits)];
 }
 
 export function getEntityTree(world: World, root: Entity): Entity[] {
@@ -62,7 +60,7 @@ export function getEntityTree(world: World, root: Entity): Entity[] {
 	const walk = (entity: Entity): Entity[] => {
 		tree.push(entity);
 
-		for (const child of world.query(ChildOf(entity), Not(Deleted))) {
+		for (const child of world.query(ChildOf(entity))) {
 			walk(child);
 		}
 
@@ -103,8 +101,6 @@ export function getNextName(world: World, prefix: string): string {
 	let max = 0;
 	const pattern = new RegExp(`^${prefix} (\\d+)$`);
 
-	// Deleted tombstones keep their Name and still count, so an undo can't
-	// resurrect a duplicate name.
 	for (const entity of world.query(Name)) {
 		const match = entity.get(Name)!.value.match(pattern);
 		if (match) {

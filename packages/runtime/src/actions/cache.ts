@@ -10,7 +10,7 @@ import { Not, Or } from 'koota';
 
 import { store } from '../world/store';
 import {
-	ChildOf, Deleted, Cache,
+	ChildOf, Cache,
 	Geometry, Group, AdjustmentLayer, IsMask, Paint, Stroke, Shadow, Effect,
 	TextRange, KeyframeTrack, Keyframe, Animation,
 } from '../traits';
@@ -39,12 +39,12 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 
 	if (entity.has(Geometry) || entity.has(Group) || entity.has(AdjustmentLayer)) {
 		cache.children[pid] = collect(
-			Or(Geometry, Group, AdjustmentLayer), ChildOf(parent), Not(IsMask), Not(Deleted),
+			Or(Geometry, Group, AdjustmentLayer), ChildOf(parent), Not(IsMask),
 		).sort(sortByItemIndex);
 	}
 
 	if (entity.has(IsMask)) {
-		cache.masks[pid] = collect(Geometry, IsMask, ChildOf(parent), Not(Deleted))
+		cache.masks[pid] = collect(Geometry, IsMask, ChildOf(parent))
 			.sort(sortByItemIndex);
 	}
 
@@ -55,38 +55,38 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 	}
 
 	if (entity.has(Keyframe)) {
-		cache.keyframes[pid] = collect(Keyframe, ChildOf(parent), Not(Deleted))
+		cache.keyframes[pid] = collect(Keyframe, ChildOf(parent))
 			.sort(sortByFrame);
 	}
 
 	if (entity.has(Animation)) {
-		cache.animations[pid] = collect(Animation, ChildOf(parent), Not(Deleted))
+		cache.animations[pid] = collect(Animation, ChildOf(parent))
 			.sort(sortByItemIndex);
 		resetAnimatedValues(world, parent);
 	}
 
 	if (entity.has(Paint)) {
-		cache.fills[pid] = collect(Paint, ChildOf(parent), Not(Deleted))
+		cache.fills[pid] = collect(Paint, ChildOf(parent))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(Stroke)) {
-		cache.strokes[pid] = collect(Stroke, ChildOf(parent), Not(Deleted))
+		cache.strokes[pid] = collect(Stroke, ChildOf(parent))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(Effect)) {
-		cache.effects[pid] = collect(Effect, ChildOf(parent), Not(Shadow), Not(Deleted))
+		cache.effects[pid] = collect(Effect, ChildOf(parent), Not(Shadow))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(Shadow)) {
-		cache.shadows[pid] = collect(Shadow, ChildOf(parent), Not(Effect), Not(Deleted))
+		cache.shadows[pid] = collect(Shadow, ChildOf(parent), Not(Effect))
 			.sort(sortByItemIndex);
 	}
 
 	if (entity.has(TextRange)) {
-		cache.textRanges[pid] = collect(TextRange, ChildOf(parent), Not(Deleted))
+		cache.textRanges[pid] = collect(TextRange, ChildOf(parent))
 			.sort(sortByItemIndex);
 	}
 }
@@ -117,7 +117,7 @@ export function aggregateKeyframeTracks(world: World, node: Entity | null, exclu
 	const tracks: Entity[] = [];
 
 	const walk = (entity: Entity) => {
-		for (const child of world.query(ChildOf(entity), Not(Deleted))) {
+		for (const child of world.query(ChildOf(entity))) {
 			if (child === exclude) continue;
 			if (child.has(KeyframeTrack)) {
 				keyframeTrack.target[child.id()] = getParentNode(child);

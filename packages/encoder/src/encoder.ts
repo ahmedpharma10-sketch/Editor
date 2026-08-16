@@ -8,14 +8,14 @@ import {
 	AudioSample,
 	AudioSampleSource,
 } from 'mediabunny';
-import { Not, Or } from 'koota';
+import { Or } from 'koota';
 import {
 	createRuntimeWorld, switchActiveScene, serializeEntity, cloneFromRecords,
 	getEntityTree, getDocument, propagateTimeRangeDown, framesToSeconds,
 	assert, store, disposeDecoders,
 	playbackSystem, motionSystem, transformSystem, renderSystem,
 	AudioBus, AudioBusHandle,
-	ChildOf, Deleted, Geometry, Group, Paint, Workarea, Playback,
+	ChildOf, Geometry, Group, Paint, Workarea, Playback,
 	AudioPlayback, Computed, Delay, Trim, Transition, Keyframe, Animation,
 	Position, Offset, Rotation, Scale, Skew,
 	Project, Mode, Time, FrameRate, Camera, RenderSurface, AudioEngine,
@@ -151,7 +151,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 		bitrate: audioBitrate,
 	});
 
-	const sceneFills = [...world.query(Paint, ChildOf(scene), Not(Deleted))];
+	const sceneFills = [...world.query(Paint, ChildOf(scene))];
 
 	const videoSource = new CanvasSource(offscreenCanvas, {
 		codec: videoCodec,
@@ -506,7 +506,7 @@ export async function resolverSystem(world: World) {
  */
 export function recomputeAllTimeRanges(world: World): void {
 	const document = getDocument(world);
-	for (const node of world.query(Or(Geometry, Group), ChildOf(document), Not(Deleted))) {
+	for (const node of world.query(Or(Geometry, Group), ChildOf(document))) {
 		propagateTimeRangeDown(world, node);
 	}
 }
