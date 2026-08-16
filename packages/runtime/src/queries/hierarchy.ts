@@ -6,6 +6,7 @@ import { Not } from 'koota';
 
 import { ChildOf, Deleted, Computed, Name, Playback, PlaybackRate, DocumentRoot } from '../traits';
 import { isDocument, isScene } from './predicates';
+import { sortByItemIndex } from '../utils';
 
 import type { Entity, World, QueryParameter } from 'koota';
 
@@ -19,6 +20,10 @@ export function getDocument(world: World): Entity {
 export function getParentEntity(entity: Entity | null | undefined): Entity | null {
 	if (!entity) return null;
 	return entity.targetFor(ChildOf) ?? null;
+}
+
+export function getEntityChildren(world: World, parent: Entity): Entity[] {
+	return [...world.query(ChildOf(parent), Not(Deleted))].sort(sortByItemIndex);
 }
 
 /**

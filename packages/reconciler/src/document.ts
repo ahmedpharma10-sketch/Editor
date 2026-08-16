@@ -13,14 +13,11 @@
 // - <rect>: a rect entity with x, y, width, height and fill (the entity's
 //   own Color trait, so a filled rect needs no paint sub-entities).
 
-import { Not } from 'koota';
 import {
 	Background,
-	ChildOf,
 	createEntity,
 	DEFAULT_BACKGROUND,
 	Color,
-	Deleted,
 	Geometry,
 	GeometryType,
 	getDocument,
@@ -29,80 +26,71 @@ import {
 	parseColor,
 	Position,
 	resizeEntity,
-	sortByItemIndex,
+	getEntityChildren,
+	DocumentRoot,
 } from '@diffusionstudio/runtime';
 
 import type { Entity, World } from 'koota';
 import type { ProjectDocument } from '@diffusionstudio/jsx';
 
-const TAGS = ['stage', 'rect'] as const;
-type Tag = (typeof TAGS)[number];
-
-const isTag = (tag: string): tag is Tag => (TAGS as readonly string[]).includes(tag);
-
 /**
- * A host node: an element's entity plus its tag. Entities are plain numbers,
- * which Solid's renderer would take for text, so nodes wrap them.
+ * A host node: a handle around an element's entity. Koota entities are plain
+ * numbers, which Solid's universal renderer would take for text (`insert()`
+ * turns numbers into text nodes), so nodes wrap them. One handle per entity,
+ * so node identity is stable across getParentNode/getFirstChild/getNextSibling.
  */
 export interface SceneNode {
 	readonly entity: Entity;
-	/** null for the mount root. */
-	readonly tag: Tag | null;
 }
 
-const toNumber = (value: unknown): number | undefined => {
-	if (value === undefined || value === null) return undefined;
+function toNumber(value: unknown) {
+	if (value === undefined || value === null) {
+		return undefined;
+	}
+
 	const number = Number(value);
 	return Number.isFinite(number) ? number : undefined;
-};
+}
 
 export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	/** The mount root. Both it and the <stage> element stand for the document root entity. */
 	public readonly stage: SceneNode;
+	private readonly world: World;
 
-	/** Elements this document created, by entity, so ordering only ever considers them (never paint sub-entities). */
-	private readonly nodes = new Map<Entity, SceneNode>();
-	private stageNode: SceneNode | undefined;
-
-	public constructor(private readonly world: World) {
-		this.stage = { entity: getDocument(world), tag: null };
+	public constructor(world: World) {
+		this.world = world;
+		this.stage = { entity: getDocument(world) };
 	}
 
 	public createElement(tag: string): SceneNode {
-		if (!isTag(tag)) throw new Error(`<${tag}> is not supported yet (only <stage> and <rect>).`);
-
 		if (tag === 'stage') {
-			if (this.stageNode) throw new Error('A project renders exactly one <stage>.');
-			// The stage is the document root: infinite, no entity of its own.
-			this.stageNode = { entity: this.stage.entity, tag };
-			return this.stageNode;
+			return this.stage;
+		} else if (tag === 'rect') {
+			const world = this.world;
+			const entity = createEntity(world);
+			entity.add(Geometry);
+			entity.set(Geometry, { value: GeometryType.RECT });
+			entity.add(Position);
+			entity.set(Position, { x: 0, y: 0 });
+			resizeEntity(world, entity, { width: 100, height: 100 });
+
+			return { entity };
+		} else {
+			throw new Error(`<${tag}> is not supported yet (only <stage> and <rect>).`);
 		}
-
-		const world = this.world;
-		const entity = createEntity(world);
-		entity.add(Geometry);
-		entity.set(Geometry, { value: GeometryType.RECT });
-		entity.add(Position);
-		entity.set(Position, { x: 0, y: 0 });
-		resizeEntity(world, entity, { width: 100, height: 100 });
-
-		const node: SceneNode = { entity, tag };
-		this.nodes.set(entity, node);
-		return node;
 	}
 
 	public createTextNode(): SceneNode {
 		throw new Error('Text children are not supported.');
 	}
 
-	public replaceText(): void {}
+	public replaceText(): void { }
 
 	public isTextNode(): boolean {
 		return false;
 	}
 
-	public setProperty(node: SceneNode, name: string, value: unknown): void {
-		const { entity } = node;
+	public setProperty({ entity }: SceneNode, name: string, value: unknown): void {
 		switch (name) {
 			case 'x':
 			case 'y': {
@@ -118,11 +106,20 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				return;
 			}
 			case 'fill': {
-				this.setFill(entity, value);
+				const color = typeof value === 'string' ? parseColor(value) : null;
+
+				if (color === null) {
+					entity.remove(Color);
+					return;
+				}
+
+				entity.add(Color);
+				entity.set(Color, { value: color });
 				return;
 			}
 			case 'background': {
-				this.setBackground(value);
+				const color = typeof value === 'string' ? parseColor(value) : null;
+				this.world.set(Background, { value: color ?? DEFAULT_BACKGROUND });
 				return;
 			}
 			default:
@@ -133,70 +130,8 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	}
 
 	public insertNode(parent: SceneNode, node: SceneNode, anchor?: SceneNode): void {
-		if (parent === this.stage) {
-			if (node.tag !== 'stage') throw new Error('The root element must be <stage>.');
-			// The stage is the root itself; nothing to attach.
-			return;
-		}
-		if (parent.tag !== 'stage') throw new Error('<rect> cannot have children.');
-		if (node.tag === 'stage') throw new Error('<stage> is only allowed as the root element.');
-
+		if (parent === node) return;
 		// createEntity already parented the node to the document (= the stage).
-		this.reorder(parent, node, anchor);
-	}
-
-	public removeNode(_parent: SceneNode, node: SceneNode): void {
-		if (node.tag === 'stage') {
-			for (const child of this.children(node)) this.removeNode(node, child);
-			this.stageNode = undefined;
-			this.setBackground(undefined);
-			return;
-		}
-		this.nodes.delete(node.entity);
-		// ChildOf auto-destroys orphans, so paints go with it.
-		node.entity.destroy();
-	}
-
-	/**
-	 * Destroys everything this document rendered. Solid's universal render
-	 * disposer only tears down the reactive graph, never the host nodes.
-	 */
-	public dispose(): void {
-		if (this.stageNode) this.removeNode(this.stage, this.stageNode);
-		for (const node of this.children(this.stage)) this.removeNode(this.stage, node);
-		this.nodes.clear();
-	}
-
-	public getParentNode(node: SceneNode): SceneNode | undefined {
-		if (node.tag === 'stage') return this.stage;
-		const parent = getParentEntity(node.entity);
-		if (parent === null) return undefined;
-		return parent === this.stage.entity ? (this.stageNode ?? this.stage) : this.nodes.get(parent);
-	}
-
-	public getFirstChild(node: SceneNode): SceneNode | undefined {
-		if (node === this.stage) return this.stageNode;
-		return this.children(node)[0];
-	}
-
-	public getNextSibling(node: SceneNode): SceneNode | undefined {
-		if (node.tag === 'stage') return undefined;
-		const parent = this.getParentNode(node);
-		if (!parent) return undefined;
-		const siblings = this.children(parent);
-		return siblings[siblings.indexOf(node) + 1];
-	}
-
-	/** Element children of `parent` in draw order. */
-	private children(parent: SceneNode): SceneNode[] {
-		return [...this.world.query(ChildOf(parent.entity), Not(Deleted))]
-			.sort(sortByItemIndex)
-			.map((entity) => this.nodes.get(entity))
-			.filter((node): node is SceneNode => node !== undefined);
-	}
-
-	/** Places `node` before `anchor` (or last) by rewriting sibling ItemIndex. */
-	private reorder(parent: SceneNode, node: SceneNode, anchor?: SceneNode): void {
 		const siblings = this.children(parent).filter((sibling) => sibling !== node);
 		const at = anchor ? siblings.indexOf(anchor) : -1;
 		if (at === -1) siblings.push(node);
@@ -207,21 +142,40 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 	}
 
-	private setBackground(value: unknown): void {
-		const color = typeof value === 'string' ? parseColor(value) : null;
-		this.world.set(Background, { value: color ?? DEFAULT_BACKGROUND });
-	}
-
-	/** `fill` is the entity's own Color trait (intrinsic solid fill), no paint sub-entity involved. */
-	private setFill(entity: Entity, value: unknown): void {
-		const color = typeof value === 'string' ? parseColor(value) : null;
-
-		if (color === null) {
-			entity.remove(Color);
+	public removeNode(_parent: SceneNode, node: SceneNode): void {
+		if (node.entity.has(DocumentRoot)) {
+			for (const child of this.children(node)) {
+				this.removeNode(node, child);
+			}
+			this.world.set(Background, { value: DEFAULT_BACKGROUND });
 			return;
 		}
+		// ChildOf auto-destroys orphans, so paints go with it.
+		node.entity.destroy();
+	}
 
-		entity.add(Color);
-		entity.set(Color, { value: color });
+	public getParentNode(node: SceneNode): SceneNode | undefined {
+		const parent = getParentEntity(node.entity);
+		return parent === null ? undefined : { entity: parent };
+	}
+
+	public getFirstChild(node: SceneNode): SceneNode | undefined {
+		return this.children(node)[0];
+	}
+
+	public getNextSibling(node: SceneNode): SceneNode | undefined {
+		const parent = this.getParentNode(node);
+		if (parent === undefined) return undefined;
+		const siblings = this.children(parent);
+		return siblings[siblings.indexOf(node) + 1];
+	}
+
+	public dispose(): void {
+		this.removeNode(this.stage, this.stage);
+	}
+
+	/** Children of `parent` in draw order, as handles. */
+	private children(parent: SceneNode): SceneNode[] {
+		return getEntityChildren(this.world, parent.entity).map((entity) => ({ entity }));
 	}
 }
