@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { RuntimeDocument } from './document';
+import { createRuntimeDocument } from './document';
 import { evaluate } from './evaluate';
 import { renderProject } from './renderer';
 
@@ -20,7 +20,7 @@ export interface Mount {
  */
 export function mount(code: string, world: World): Mount {
 	const component = evaluate(code);
-	const document = new RuntimeDocument(world);
+	const document = createRuntimeDocument(world);
 
 	let dispose: () => void;
 	try {

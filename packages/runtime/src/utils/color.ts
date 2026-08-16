@@ -61,7 +61,15 @@ const NAMED_COLORS: Record<string, string> = {
  * Arbitrary strings fall back to Figma-style hex normalization: strip non-hex
  * characters, then repeat/pad to six digits (empty input returns null).
  */
-export function parseColor(input: string): number | null {
+export function parseColor(input: unknown): number | null {
+	if (typeof input === 'number') {
+		return Number.isFinite(input) ? input & 0xFFFFFF : null;
+	}
+
+	if (typeof input !== 'string') {
+		return null;
+	}
+
 	const trimmed = input.trim();
 	if (trimmed.length === 0) return null;
 

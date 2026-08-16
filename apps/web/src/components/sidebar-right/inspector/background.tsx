@@ -18,9 +18,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { createSignal } from "solid-js";
 import { Background, DEFAULT_BACKGROUND, Root } from "@diffusionstudio/runtime";
 import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { useDocument } from "@/engine/hooks/use-document";
 
 export function BackgroundSettings() {
   const world = useWorld();
+  const document = useDocument();
 
   const [isPickerOpen, setIsPickerOpen] = createSignal(false);
   const background = useTrait(world.get(Root)!, Background);
@@ -29,7 +31,10 @@ export function BackgroundSettings() {
 
   let anchorRef: HTMLDivElement | undefined;
 
-  const assignColor = (value: number) => world.get(Root)!.set(Background, { value });
+  const assignColor = (value: number) => {
+    const doc = document();
+    doc.setProperty(doc.stage, "background", value);
+  };
 
   return (
     <PanelSection title="Background" ref={anchorRef}>

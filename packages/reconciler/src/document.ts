@@ -7,6 +7,11 @@
 // a rendered project IS the composition, with no intermediate tree. This is
 // the only file in the reconciler that knows how the runtime models nodes.
 //
+// It is also the single write router into a world: the editor UI reaches its
+// document with `getRuntimeDocument(world)` and edits through the same
+// `setProperty` a rendering project goes through, so front and backend share
+// one vocabulary and one translation to traits.
+//
 // Supported tags for now:
 // - <stage>: the infinite canvas, i.e. the world's document root. It has no
 //   size or position; `background` sets the canvas color.
@@ -106,7 +111,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				return;
 			}
 			case 'fill': {
-				const color = typeof value === 'string' ? parseColor(value) : null;
+				const color = parseColor(value);
 
 				if (color === null) {
 					entity.remove(Color);
@@ -118,7 +123,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				return;
 			}
 			case 'background': {
-				const color = typeof value === 'string' ? parseColor(value) : null;
+				const color = parseColor(value);
 				this.stage.entity.set(Background, { value: color ?? DEFAULT_BACKGROUND });
 				return;
 			}
@@ -178,4 +183,22 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	private children(parent: SceneNode): SceneNode[] {
 		return getEntityChildren(this.world, parent.entity).map((entity) => ({ entity }));
 	}
+}
+
+const documents = new WeakMap<World, RuntimeDocument>();
+
+export function getRuntimeDocument(world: World): RuntimeDocument {
+	const document = documents.get(world);
+
+	if (document === undefined) {
+		throw new Error("The requested world has no runtime document");
+	}
+
+	return document;
+}
+
+export function createRuntimeDocument(world: World): RuntimeDocument {
+	const document = new RuntimeDocument(world);
+	documents.set(world, document);
+	return document;
 }
