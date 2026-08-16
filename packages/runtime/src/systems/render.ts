@@ -24,8 +24,9 @@ import {
 	HtmlHostHandle, SurfaceHostHandle,
 	Mode, Time, FrameRate, Camera, Background, RenderSurface, Assets,
 	HitRegions,
+	Root,
 } from '../traits';
-import { getDocument, getParentNode } from '../queries/hierarchy';
+import { getParentNode } from '../queries/hierarchy';
 import { colorToHex } from '../utils/color';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
@@ -427,7 +428,7 @@ function renderShadows(world: World, entity: Entity): void {
 	// ctx.shadowBlur/OffsetX/OffsetY are in device-pixel space and are not
 	// affected by the current transform, so scale them up to match the
 	// content transform (camera * resolution).
-	const camera = getDocument(world).get(Camera);
+	const camera = world.get(Root)!.get(Camera);
 	const resolution = world.get(RenderSurface)?.resolution ?? 1;
 	const shadowScale = (camera?.a ?? 1) * resolution;
 
@@ -845,7 +846,7 @@ export function renderSystem(world: World): void {
 	// renders just the scene onto a transparent canvas (the scene paints its
 	// own fill if it has one).
 	if (world.get(Mode)?.value === 'realtime') {
-		ctx.fillStyle = colorToHex(getDocument(world).get(Background)?.value ?? 0);
+		ctx.fillStyle = colorToHex(world.get(Root)!.get(Background)?.value ?? 0);
 		ctx.fillRect(0, 0, cw, ch);
 		world.get(HitRegions)?.list.push({
 			target: { kind: 'hud', id: 'canvas', quad: getCanvasQuad(cw, ch) },
@@ -853,7 +854,7 @@ export function renderSystem(world: World): void {
 	}
 
 	// Apply camera transform: DPR * Camera
-	const camera = getDocument(world).get(Camera)!
+	const camera = world.get(Root)!.get(Camera)!
 	const resolution = surface.resolution;
 	ctx.setTransform(
 		camera.a * resolution,
@@ -865,7 +866,7 @@ export function renderSystem(world: World): void {
 	);
 
 	// Render top-level nodes.
-	const document = getDocument(world);
+	const document = world.get(Root)!;
 	for (const entity of world.query(Or(Geometry, Group), ChildOf(document), Not(Culled))) {
 		renderNode(world, entity);
 	}

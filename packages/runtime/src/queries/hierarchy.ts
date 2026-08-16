@@ -2,18 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { ChildOf, Computed, Name, Playback, PlaybackRate, DocumentRoot } from '../traits';
+import { ChildOf, Computed, Name, Playback, PlaybackRate } from '../traits';
 import { isDocument, isScene } from './predicates';
 import { sortByItemIndex } from '../utils';
 
 import type { Entity, World, QueryParameter } from 'koota';
-
-/** The world's document root (see DocumentRoot). */
-export function getDocument(world: World): Entity {
-	const document = world.queryFirst(DocumentRoot);
-	if (document === undefined) throw new Error('World has no document root');
-	return document;
-}
 
 export function getParentEntity(entity: Entity | null | undefined): Entity | null {
 	if (!entity) return null;

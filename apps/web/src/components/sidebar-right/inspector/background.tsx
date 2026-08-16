@@ -16,21 +16,20 @@ import { ColorOpacityRow } from "@/components/ui/color-opacity-row";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createSignal } from "solid-js";
-import { Background, DEFAULT_BACKGROUND, getDocument } from "@diffusionstudio/runtime";
+import { Background, DEFAULT_BACKGROUND, Root } from "@diffusionstudio/runtime";
 import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
 
 export function BackgroundSettings() {
   const world = useWorld();
 
   const [isPickerOpen, setIsPickerOpen] = createSignal(false);
-  const document = getDocument(world);
-  const background = useTrait(document, Background);
+  const background = useTrait(world.get(Root)!, Background);
   const color = () => background()?.value ?? DEFAULT_BACKGROUND;
 
 
   let anchorRef: HTMLDivElement | undefined;
 
-  const assignColor = (value: number) => document.set(Background, { value });
+  const assignColor = (value: number) => world.get(Root)!.set(Background, { value });
 
   return (
     <PanelSection title="Background" ref={anchorRef}>

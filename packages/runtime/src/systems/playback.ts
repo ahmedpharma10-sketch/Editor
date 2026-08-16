@@ -18,8 +18,9 @@ import {
 	AudioPlayback, Computed,
 	AudioDecoderHandle, AudioBusHandle, HtmlHostHandle,
 	Mode, FrameRate, Time, AudioEngine, FramePromises, Mounts,
+	Root,
 } from '../traits';
-import { getDocument, getParentNode } from '../queries/hierarchy';
+import { getParentNode } from '../queries/hierarchy';
 import { clamp } from '../math/common';
 import { getTransitionWindow } from '../utils/transition';
 import {
@@ -411,8 +412,7 @@ export function playbackSystem(world: World): void {
 		advancePlayhead(world, entity);
 	}
 
-	const document = getDocument(world);
-	for (const entity of world.query(Or(Geometry, Group, AdjustmentLayer), ChildOf(document))) {
+	for (const entity of world.query(Or(Geometry, Group, AdjustmentLayer), ChildOf(world.get(Root)!))) {
 		updateVisibility(world, entity, entity);
 		forwardDecoders(world, entity, entity);
 	}

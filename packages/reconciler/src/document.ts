@@ -20,7 +20,6 @@ import {
 	Color,
 	Geometry,
 	GeometryType,
-	getDocument,
 	getParentEntity,
 	ItemIndex,
 	parseColor,
@@ -28,6 +27,7 @@ import {
 	resizeEntity,
 	getEntityChildren,
 	DocumentRoot,
+	Root,
 } from '@diffusionstudio/runtime';
 
 import type { Entity, World } from 'koota';
@@ -59,7 +59,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	public constructor(world: World) {
 		this.world = world;
-		this.stage = { entity: getDocument(world) };
+		this.stage = { entity: world.get(Root)! };
 	}
 
 	public createElement(tag: string): SceneNode {

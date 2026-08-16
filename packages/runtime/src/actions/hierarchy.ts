@@ -10,10 +10,8 @@
 
 import { Or } from 'koota';
 
-import {
-	ChildOf, Geometry, Group, AdjustmentLayer, ItemIndex, Selected,
-} from '../traits';
-import { getDocument, getEntityTree, getParentNode } from '../queries/hierarchy';
+import { ChildOf, Geometry, Group, AdjustmentLayer, ItemIndex, Selected, Root } from '../traits';
+import { getEntityTree, getParentNode } from '../queries/hierarchy';
 import { assert } from '../utils/assert';
 import { sortByItemIndex } from '../utils/sort';
 
@@ -33,7 +31,7 @@ export function removeChild(world: World, entity: Entity, parent: Entity): void 
 	assert(getParentNode(entity) === parent, 'Entity is not a child of the specified parent');
 
 	// Back to top-level: re-target to the document (never drop ChildOf).
-	entity.add(ChildOf(getDocument(world)));
+	entity.add(ChildOf(world.get(Root)!));
 }
 
 /**

@@ -25,6 +25,9 @@ export const Project = trait({ id: '' });
 // getDocument(world).
 export const DocumentRoot = trait();
 
+// World-level pointer to the root entity
+export const Root = trait(() => null as Entity | null);
+
 /**
  * 2D affine camera transform in CSS pixel space (before DPR scaling), on the
  * document root. The render system multiplies this by RenderSurface.resolution

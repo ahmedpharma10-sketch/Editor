@@ -7,6 +7,7 @@ import { createWorld } from 'koota';
 import { observeWorld } from './observers';
 import {
 	DocumentRoot,
+	Root,
 	Project,
 	Mode,
 	ActiveScene,
@@ -47,10 +48,11 @@ export function createRuntimeWorld(projectId: string) {
 		Mounts,
 		FramePromises,
 		HitRegions,
+		Root,
 	);
 
 	// The document root all rendered entities hang off (see DocumentRoot);
-	world.spawn(DocumentRoot, Camera, Background);
+	world.set(Root, world.spawn(DocumentRoot, Camera, Background));
 
 	// Cache upkeep, Computed mirrors, and time-range reactions.
 	observeWorld(world);

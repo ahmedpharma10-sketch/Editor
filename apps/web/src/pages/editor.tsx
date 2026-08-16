@@ -86,7 +86,7 @@ export function EditorPage() {
         <div class="col-span-full bg-border-strong relative">
           <Show when={!timelineMinimized()}>
             <div
-              class="absolute left-0 right-0 -top-px h-[3px] z-10 cursor-ns-resize group"
+              class="absolute left-0 right-0 -top-px h-0.75 z-10 cursor-ns-resize group"
               onPointerDown={handleResizeStart}
             >
               <div

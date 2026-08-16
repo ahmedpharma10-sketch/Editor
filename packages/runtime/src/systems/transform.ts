@@ -9,8 +9,9 @@ import {
 	ChildOf, Geometry, Group, Hidden, Sequential, AdjustmentLayer,
 	Culled, Flip, Anchor, Computed, Cache, LocalTransform, WorldTransform,
 	WorldBounds, Camera, RenderSurface,
+	Root,
 } from '../traits';
-import { getDocument, getParentNode } from '../queries/hierarchy';
+import { getParentNode } from '../queries/hierarchy';
 
 import {
 	multiply2D,
@@ -92,7 +93,7 @@ export function computeWorldTransform(world: World, entity: Entity, parentEntity
 			e: worldStore.e[pid], f: worldStore.f[pid],
 		};
 	} else {
-		const camera = getDocument(world).get(Camera)!;
+		const camera = world.get(Root)!.get(Camera)!;
 		const res = world.get(RenderSurface)?.resolution ?? 1;
 		parent = {
 			a: camera.a * res, b: camera.b * res,
@@ -317,7 +318,7 @@ export function transformSystem(world: World): void {
 		}
 	};
 
-	for (const entity of world.query(Or(Geometry, Group), ChildOf(getDocument(world)))) {
+	for (const entity of world.query(Or(Geometry, Group), ChildOf(world.get(Root)!))) {
 		walk(entity, null);
 	}
 
