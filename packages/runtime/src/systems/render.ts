@@ -18,7 +18,7 @@ import {
 } from '../constants';
 import {
 	ChildOf, Deleted, Hidden, Culled, Generating, Interactive, IsMask,
-	ClipsContent, Geometry, Group, Paint, Caption, ScaleMode, Shader,
+	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
 	Appearance, Effect, StrokeStyle, AssetId, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
@@ -186,6 +186,18 @@ function buildEffects(world: World, entity: Entity): string | null {
 	if (parts.length === 0) return null;
 
 	return parts.join(' ');
+}
+
+/**
+ * The geometry's intrinsic solid fill (its own Color trait), if any. Drawn
+ * into the current path before the Paint sub-entities so it always sits at
+ * the bottom of the fill stack. Reads Computed.color, so it animates.
+ */
+export function renderIntrinsicFill(world: World, entity: Entity): void {
+	if (!entity.has(Color)) return;
+	const ctx = getCtx(world);
+	ctx.fillStyle = colorToHex(store(world, Computed).color[entity.id()] ?? 0);
+	ctx.fill();
 }
 
 export function renderFills(world: World, entity: Entity): void {
@@ -605,6 +617,7 @@ function renderWaveform(world: World, entity: Entity, fill: Entity): void {
 function renderShapeNode(world: World, entity: Entity): void {
 	drawRectPath(world, entity);
 	renderShadows(world, entity);
+	renderIntrinsicFill(world, entity);
 	renderFills(world, entity);
 	renderGenerating(world, entity);
 	renderStrokes(world, entity);

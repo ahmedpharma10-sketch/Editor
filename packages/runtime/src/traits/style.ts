@@ -11,6 +11,7 @@ export const Appearance = trait({
 	blendMode: BlendMode.SOURCE_OVER as BlendMode,
 });
 
+// Solid color.
 export const Color = trait({ value: 0 });
 
 export const CornerRadius = trait({ value: 0 });

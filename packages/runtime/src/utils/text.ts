@@ -389,14 +389,24 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 		ctx.textAlign = 'start';
 		ctx.textBaseline = 'top';
 
+		// The geometry's own Color is an intrinsic solid fill beneath every paint.
+		const hasIntrinsicFill = entity.has(Color);
+		const intrinsicFill = hasIntrinsicFill ? colorToHex(computed.color[eid] ?? 0) : '';
+
 		for (const word of words) {
 			const fills = getFills(world, entity, word.ranges);
-			if (!fills.length) continue;
+			if (!fills.length && !hasIntrinsicFill) continue;
 
 			applyFont(ctx, world, entity, word.ranges);
 
 			const w = computed.width[eid]!;
 			const h = computed.height[eid]!;
+
+			if (hasIntrinsicFill) {
+				ctx.globalAlpha = savedAlpha;
+				ctx.fillStyle = intrinsicFill;
+				ctx.fillText(word.chars, word.x, word.y);
+			}
 
 			for (const fill of fills) {
 				if (fill.has(Hidden)) continue;

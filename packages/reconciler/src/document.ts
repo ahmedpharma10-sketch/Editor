@@ -10,24 +10,22 @@
 // Supported tags for now:
 // - <stage>: the infinite canvas, i.e. the world's document root. It has no
 //   size or position; `background` sets the canvas color.
-// - <rect>: a rect entity with x, y, width, height and fill.
+// - <rect>: a rect entity with x, y, width, height and fill (the entity's
+//   own Color trait, so a filled rect needs no paint sub-entities).
 
 import { Not } from 'koota';
 import {
-	appendChild,
 	Background,
 	ChildOf,
-	Color,
 	createEntity,
 	DEFAULT_BACKGROUND,
+	Color,
 	Deleted,
 	Geometry,
 	GeometryType,
 	getDocument,
 	getParentEntity,
 	ItemIndex,
-	Paint,
-	PaintType,
 	parseColor,
 	Position,
 	resizeEntity,
@@ -214,25 +212,16 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		this.world.set(Background, { value: color ?? DEFAULT_BACKGROUND });
 	}
 
+	/** `fill` is the entity's own Color trait (intrinsic solid fill), no paint sub-entity involved. */
 	private setFill(entity: Entity, value: unknown): void {
 		const color = typeof value === 'string' ? parseColor(value) : null;
-		const paint = this.world.queryFirst(ChildOf(entity), Paint);
 
 		if (color === null) {
-			paint?.destroy();
+			entity.remove(Color);
 			return;
 		}
 
-		if (paint) {
-			paint.set(Color, { value: color });
-			return;
-		}
-
-		const fill = createEntity(this.world);
-		fill.add(Paint);
-		fill.set(Paint, { value: PaintType.SOLID });
-		fill.add(Color);
-		fill.set(Color, { value: color });
-		appendChild(this.world, fill, entity);
+		entity.add(Color);
+		entity.set(Color, { value: color });
 	}
 }

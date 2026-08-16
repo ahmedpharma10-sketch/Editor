@@ -176,7 +176,7 @@ export type PatchProps = {
    * replaces the node's existing animations; `[]` removes them all.
    */
   animations?: AnimationSpec[];
-  /** Any CSS color, applied to the node's solid fill (created if absent); alpha is ignored — use `opacity`. */
+  /** Any CSS color, the node's intrinsic solid fill (drawn beneath any paint children); alpha is ignored — use `opacity`. */
   fill?: string;
   /**
    * Path, URL, asset id, or a `generate.*` declaration. On `<Captions>` a
