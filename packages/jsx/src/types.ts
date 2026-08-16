@@ -116,20 +116,6 @@ export type CaptionPreset =
  * so JSX and any patch API can't drift.
  */
 export type PatchProps = {
-  /**
-   * A within-render label so another node can reference this one: `syncTo`
-   * names the `key` of the clip it aligns against. Not a mount mechanism, and
-   * invalid on a scene root, which is identified by `scene`.
-   */
-  key?: string;
-  /**
-   * Promotes this element to a scene (mount root), and is the root's stable
-   * identity across mounts: re-mounting replaces the scene carrying the same
-   * `scene` value, or creates it if absent. Only valid on `<rect>`; a scene
-   * root cannot also carry placement or timing props (`x`/`y`/`start`/`end`/
-   * `transition`/`animations`) or a separate `key`.
-   */
-  scene?: string;
   /** Human-readable node name. */
   name?: string;
   /** Position relative to the parent, px. Defaults to 0. Animatable. */
@@ -160,7 +146,7 @@ export type PatchProps = {
   /** Source out point: where playback ends within the source. Defaults to the natural end. Alternative to `end`. */
   sourceOut?: Time;
   /**
-   * Key of another element carrying an audio track. Derives the timeline
+   * `id` of another element carrying an audio track. Derives the timeline
    * placement (`start`) by cross-correlating the two audio signals so the
    * recordings coincide on the timeline. Mutually exclusive with `start`.
    */
@@ -242,7 +228,7 @@ type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
 type CommonProps = TimingProps &
   Pick<
     PatchProps,
-    | "key" | "scene" | "name" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
+    | "name" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
     | "opacity" | "cornerRadius" | "transition" | "animations"
   >;
 
@@ -262,7 +248,10 @@ export type SourceProps = {
  */
 export type CameraMatrix = [a: number, b: number, c: number, d: number, e: number, f: number];
 
-/** The infinite canvas every project renders into; only allowed as the root element. */
+/**
+ * The infinite canvas every project renders into; only allowed as the root
+ * element, and holding `<scene>` children.
+ */
 export type StageProps = {
   /** Canvas color, any CSS color. */
   background?: string;
@@ -275,6 +264,22 @@ export type StageProps = {
   camera?: CameraMatrix;
   children?: SolidJSX.Element;
 };
+
+/**
+ * A scene: the clipped, playable frame a composition is made in, and the only
+ * element allowed directly under `<stage>`. It clips its children to
+ * `width`×`height` and owns the timeline they are placed on, so it takes no
+ * timing of its own — nothing outside a scene has a clock to place it against.
+ *
+ * `x`/`y` are where the frame sits on the infinite canvas. That is an editor
+ * concern rather than part of the composition, but it lives here for the same
+ * reason `<stage>`'s `camera` does: the source is the document, so a scene
+ * dragged on the canvas has nowhere else to be written back to.
+ */
+export type SceneProps = Required<Pick<PatchProps, "width" | "height">> &
+  Pick<PatchProps, "name" | "x" | "y" | "fill"> & {
+    children?: SolidJSX.Element;
+  };
 
 export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
   children?: SolidJSX.Element;

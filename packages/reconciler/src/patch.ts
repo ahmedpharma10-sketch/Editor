@@ -11,8 +11,6 @@ import type { PatchProps } from '@diffusionstudio/jsx';
  * `PatchProps` grows.
  */
 export const PATCH_PROP_KEYS = Object.keys({
-	key: true,
-	scene: true,
 	name: true,
 	x: true,
 	y: true,

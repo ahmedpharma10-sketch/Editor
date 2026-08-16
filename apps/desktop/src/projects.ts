@@ -189,7 +189,6 @@ const TSCONFIG = `{
 const STARTER = `export default function Project() {
   return (
     <stage background="#161616">
-      <rect x={120} y={120} width={480} height={320} fill="#6366f1" />
     </stage>
   )
 }

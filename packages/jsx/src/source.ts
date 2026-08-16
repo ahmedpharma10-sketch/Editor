@@ -16,16 +16,13 @@
 /**
  * Attribute an element may carry to name itself. An id outlives edits that
  * renumber the file, so it — not the element's position — is what an entity
- * holds once its element has one.
+ * holds once its element has one. It is also how elements point at each other
+ * within a render: `syncTo` names the id of the clip it aligns against.
  *
  * Yours to write: an id is any string, and `id="hero"` is worth more to read
  * than anything generated. The editor only stamps elements that have none, and
  * renaming one by hand is safe. Stripped at compile time, so it never reaches
  * a host as a prop; what survives is `SOURCE_ATTR`, which carries it.
- *
- * Not to be confused with the `key` prop, which is a within-render label that
- * `syncTo` references — a way for elements to point at each other, not a name
- * that survives an edit.
  */
 export const ID_ATTR = "id";
 
@@ -54,6 +51,7 @@ export type PropValue = number | string | boolean | null | PropValue[] | { [key:
  */
 export const COMPOSITION_TAGS = [
   "stage",
+  "scene",
   "group",
   "rect",
   "video",

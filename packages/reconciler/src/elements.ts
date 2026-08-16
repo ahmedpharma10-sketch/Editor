@@ -27,6 +27,7 @@ import type {
   HtmlProps,
   ImageProps,
   RectProps,
+  SceneProps,
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
@@ -52,6 +53,7 @@ function hostElement<P extends object>(tag: string): (props: P) => SolidJSX.Elem
   };
 }
 
+export const Scene = hostElement<SceneProps>("Scene");
 export const Group = hostElement<GroupProps>("Group");
 export const Rect = hostElement<RectProps>("Rect");
 export const Video = hostElement<VideoProps>("Video");

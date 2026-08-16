@@ -4,22 +4,31 @@
 
 
 import {
+	ActiveScene,
+	appendChild,
 	Background,
-	createEntity,
+	ClipsContent,
 	DEFAULT_BACKGROUND,
 	Color,
 	Geometry,
 	GeometryType,
 	getParentEntity,
+	getParentNode,
 	ItemIndex,
+	Name,
 	parseColor,
+	Playback,
 	Position,
+	removeChild,
 	resizeEntity,
 	getEntityChildren,
 	DocumentRoot,
 	Root,
+	Scene,
 	Source,
 	setCameraMatrix,
+	switchActiveScene,
+	Size,
 } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 
@@ -98,20 +107,29 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	}
 
 	public createElement(tag: string): SceneNode {
-		if (tag === 'stage') {
-			return this.stage;
-		} else if (tag === 'rect') {
-			const world = this.world;
-			const entity = createEntity(world);
-			entity.add(Geometry);
-			entity.set(Geometry, { value: GeometryType.RECT });
-			entity.add(Position);
-			entity.set(Position, { x: 0, y: 0 });
-			resizeEntity(world, entity, { width: 100, height: 100 });
-
-			return { entity };
-		} else {
-			throw new Error(`<${tag}> is not supported yet (only <stage> and <rect>).`);
+		switch (tag) {
+			case 'stage':
+				return this.stage;
+			case 'scene': {
+				const entity = this.world.spawn(
+					Geometry({ value: GeometryType.RECT }),
+					Position({ x: 0, y: 0 }),
+					Size({ width: 1920, height: 1080 }),
+					Scene,
+					ClipsContent,
+					Playback,
+				);
+				return { entity };
+			}
+			case 'rect':
+				const entity = this.world.spawn(
+					Geometry({ value: GeometryType.RECT }),
+					Position({ x: 0, y: 0 }),
+					Size({ width: 100, height: 100 }),
+				);
+				return { entity };
+			default:
+				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene> and <rect>).`);
 		}
 	}
 
@@ -135,6 +153,16 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 				entity.add(Source);
 				entity.set(Source, { value });
+				return;
+			}
+			case 'name': {
+				if (typeof value !== 'string' || !value) {
+					entity.remove(Name);
+					return;
+				}
+
+				entity.add(Name);
+				entity.set(Name, { value });
 				return;
 			}
 			case 'x':
@@ -183,16 +211,36 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 	}
 
+	/**
+	 * Node handles are minted per lookup, so every comparison here is between
+	 * entities: two handles for the same node are never the same object.
+	 */
 	public insertNode(parent: SceneNode, node: SceneNode, anchor?: SceneNode): void {
-		if (parent === node) return;
-		// createEntity already parented the node to the document (= the stage).
-		const siblings = this.children(parent).filter((sibling) => sibling !== node);
-		const at = anchor ? siblings.indexOf(anchor) : -1;
-		if (at === -1) siblings.push(node);
-		else siblings.splice(at, 0, node);
+		if (parent.entity === node.entity) return;
+
+		// Scenes own a timeline, so one inside another has no coherent reading.
+		if (node.entity.has(Scene) && !parent.entity.has(DocumentRoot)) {
+			throw new Error('<scene> is only allowed as a direct child of <stage>.');
+		}
+
+		if (getParentEntity(node.entity) !== parent.entity) {
+			// appendChild only takes top-level entities, so a move between two
+			// parents goes back through the document on the way.
+			const current = getParentNode(node.entity);
+			if (current !== null) removeChild(this.world, node.entity, current);
+			// <stage> is the document root, which is where entities spawn.
+			if (!parent.entity.has(DocumentRoot)) {
+				appendChild(this.world, node.entity, parent.entity);
+			}
+		}
+
+		const siblings = this.childEntities(parent).filter((sibling) => sibling !== node.entity);
+		const at = anchor ? siblings.indexOf(anchor.entity) : -1;
+		if (at === -1) siblings.push(node.entity);
+		else siblings.splice(at, 0, node.entity);
 		for (const [index, sibling] of siblings.entries()) {
-			sibling.entity.add(ItemIndex);
-			sibling.entity.set(ItemIndex, { value: index });
+			sibling.add(ItemIndex);
+			sibling.set(ItemIndex, { value: index });
 		}
 	}
 
@@ -204,6 +252,10 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			node.entity.set(Background, { value: DEFAULT_BACKGROUND });
 			node.entity.remove(Source);
 			return;
+		}
+		// The playhead cannot be left aimed at an entity that is going away.
+		if (this.world.get(ActiveScene)?.entity === node.entity) {
+			switchActiveScene(this.world, null);
 		}
 		// ChildOf auto-destroys orphans, so paints go with it.
 		node.entity.destroy();
@@ -221,8 +273,11 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	public getNextSibling(node: SceneNode): SceneNode | undefined {
 		const parent = this.getParentNode(node);
 		if (parent === undefined) return undefined;
-		const siblings = this.children(parent);
-		return siblings[siblings.indexOf(node) + 1];
+		const siblings = this.childEntities(parent);
+		const at = siblings.indexOf(node.entity);
+		if (at === -1) return undefined;
+		const next = siblings[at + 1];
+		return next === undefined ? undefined : { entity: next };
 	}
 
 	public dispose(): void {
@@ -231,7 +286,12 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	/** Children of `parent` in draw order, as handles. */
 	private children(parent: SceneNode): SceneNode[] {
-		return getEntityChildren(this.world, parent.entity).map((entity) => ({ entity }));
+		return this.childEntities(parent).map((entity) => ({ entity }));
+	}
+
+	/** Children of `parent` in draw order. */
+	private childEntities(parent: SceneNode): Entity[] {
+		return getEntityChildren(this.world, parent.entity);
 	}
 }
 

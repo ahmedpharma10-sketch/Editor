@@ -51,6 +51,7 @@ export type {
   Keyframe,
   PatchProps,
   RectProps,
+  SceneProps,
   SequenceProps,
   ShaderPaintProps,
   SolidPaintProps,
