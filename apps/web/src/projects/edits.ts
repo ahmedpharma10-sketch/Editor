@@ -2,20 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The path from an edit made in the editor to the JSX that produced it.
-//
-// Nothing here changes the composition — the document did that before the edit
-// was reported, which is what makes writing cheap: no compile, no remount, and
-// a dragged rect can report a hundred positions on the way to the one that
-// ends up in the file. They collapse into a single write per element and prop,
-// so what reaches disk is where things ended up rather than how they got there.
 
-import { Source } from '@diffusionstudio/runtime';
+import { getDocumentEditor } from '@/engine/editor';
 import { toast } from 'somoto';
 
 import { writeProject } from './host';
 
-import type { EntityEdit } from '@diffusionstudio/reconciler';
+import type { EntityEdit, InsertEdit } from '@/engine/editor';
 import type { SourceEdit, WriteResult } from './host';
 import type { World } from 'koota';
 
@@ -26,45 +19,94 @@ import type { World } from 'koota';
  */
 const DEBOUNCE = 120;
 
-export interface EditWriter {
+class EditWriter {
+	private readonly dir: string;
+	private readonly world: World;
+
+	// Inserts first, in the order they were made (a child's parent may be one
+	// of them), then per element, per prop: the last value for a prop is the
+	// only one worth writing, and an element written twice is written once.
+	private inserts = new Map<string, InsertEdit>();
+	private pending = new Map<string, InsertEdit['props']>();
+	// Pending sources a write is out for: edits to them wait for the answer.
+	private inflight = new Set<string>();
+	private timer: ReturnType<typeof setTimeout> | undefined;
+	private disposed = false;
+
+	public constructor(dir: string, world: World) {
+		this.dir = dir;
+		this.world = world;
+	}
+
 	/** Records an edit; the write follows once edits stop arriving. */
-	push(edit: EntityEdit): void;
+	public push(edit: EntityEdit): void {
+		if (this.disposed) return;
+
+		if (edit.kind === 'insert') {
+			this.inserts.set(edit.source, edit);
+		} else {
+			// A prop of an element still waiting to be inserted is part of how
+			// it is inserted.
+			const insert = this.inserts.get(edit.source);
+			if (insert) insert.props = { ...insert.props, [edit.name]: edit.value };
+			else this.pending.set(edit.source, { ...this.pending.get(edit.source), [edit.name]: edit.value });
+		}
+
+		this.schedule();
+	}
+
 	/** Writes what is pending and stops. */
-	dispose(): void;
-}
+	public dispose(): void {
+		clearTimeout(this.timer);
+		// The last edits still belong in the file, even though the entities
+		// they came from are on their way out.
+		this.flush();
+		this.disposed = true;
+	}
 
-/**
- * Collects edits against the project in `dir` and writes them back.
- *
- * `world` is only read after a write returns, to answer the one thing a write
- * can tell the canvas: an element that had no `id` in the source has one now,
- * and the entity it produced has to be re-stamped with it. Without that, the
- * next edit to the same element would still address it by a position the
- * write itself may have invalidated.
- */
-export function createEditWriter(dir: string, world: World): EditWriter {
-	// Per element, then per prop: the last value for a prop is the only one
-	// worth writing, and an element written twice is written once.
-	const pending = new Map<string, Record<string, unknown>>();
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	let disposed = false;
+	private schedule(): void {
+		clearTimeout(this.timer);
+		this.timer = setTimeout(() => this.flush(), DEBOUNCE);
+	}
 
-	const flush = (): void => {
-		timer = undefined;
-		if (!pending.size) return;
+	private flush(): void {
+		this.timer = undefined;
+		if (!this.inserts.size && !this.pending.size) return;
 
-		const edits: SourceEdit[] = [...pending].map(([source, props]) => ({
-			source,
-			props: props as SourceEdit['props'],
-		}));
-		pending.clear();
+		// Anything addressed through an element whose insert is still out
+		// waits for its name: edits to it, and inserts under or beside it.
+		const waits = (source: string | undefined): boolean => source !== undefined && this.inflight.has(source);
+		const heldInserts = new Map([...this.inserts].filter(([, insert]) => waits(insert.parent) || waits(insert.before)));
+		const held = new Map([...this.pending].filter(([source]) => waits(source)));
+		const edits: SourceEdit[] = [
+			...[...this.inserts.values()]
+				.filter((insert) => !heldInserts.has(insert.source))
+				.map(({ kind, source, parent, tag, props, before }): SourceEdit => ({
+					kind,
+					source,
+					parent,
+					tag,
+					props,
+					...(before === undefined ? {} : { before }),
+				})),
+			...[...this.pending]
+				.filter(([source]) => !held.has(source))
+				.map(([source, props]): SourceEdit => ({ kind: 'set', source, props })),
+		];
+		if (!edits.length) return;
 
-		writeProject(dir, edits).then(report).catch((error: unknown) => {
-			toast.error('Could not write to the project', { description: message(error) });
-		});
-	};
+		this.inflight = new Set([...this.inflight, ...this.inserts.keys()].filter((source) => !heldInserts.has(source)));
+		this.inserts = heldInserts;
+		this.pending = held;
 
-	const report = (result: WriteResult): void => {
+		writeProject(this.dir, edits)
+			.then((result) => this.report(result))
+			.catch((error: unknown) => {
+				toast.error('Could not write to the project', { description: message(error) });
+			});
+	}
+
+	private report(result: WriteResult): void {
 		if (result.error) {
 			toast.error('Could not write to the project', { description: result.error });
 		} else if (result.skipped.length) {
@@ -76,36 +118,57 @@ export function createEditWriter(dir: string, world: World): EditWriter {
 			});
 		}
 
-		if (result.ids && !disposed) restamp(world, result.ids);
-	};
+		if (this.disposed) return;
+		const ids = result.ids ?? {};
+		const editor = getDocumentEditor(this.world);
+		editor.restamp(ids);
 
-	return {
-		push(edit) {
-			if (disposed) return;
-			pending.set(edit.source, { ...pending.get(edit.source), [edit.name]: edit.value });
-			clearTimeout(timer);
-			timer = setTimeout(flush, DEBOUNCE);
-		},
-		dispose() {
-			clearTimeout(timer);
-			// The last edits still belong in the file, even though the entities
-			// they came from are on their way out.
-			flush();
-			disposed = true;
-		},
-	};
-}
+		// What piled up under a pending name while its write was out now
+		// belongs to the real one, or to nothing if the file would not have it.
+		const rename = (source: string): string | undefined => (this.inflight.has(source) ? ids[source] : source);
+		for (const source of [...this.pending.keys()]) {
+			const next = rename(source);
+			if (next === source) continue;
+			const props = this.pending.get(source)!;
+			this.pending.delete(source);
+			if (next) this.pending.set(next, { ...this.pending.get(next), ...props });
+		}
+		for (const [source, insert] of [...this.inserts]) {
+			const parent = rename(insert.parent);
+			if (parent === undefined) {
+				// Its parent never made it into the file, so neither can it.
+				this.inserts.delete(source);
+				editor.discardPending(source);
+				continue;
+			}
+			// An anchor that did not make it just means "last".
+			const before = insert.before === undefined ? undefined : rename(insert.before);
+			const { before: _, ...rest } = insert;
+			this.inserts.set(source, { ...rest, parent, ...(before === undefined ? {} : { before }) });
+		}
+		for (const source of this.inflight) {
+			if (!ids[source]) editor.discardPending(source);
+		}
+		this.inflight = new Set();
 
-/**
- * Re-stamps entities whose element earned a name, as `old id -> new id`.
- * Queried rather than remembered: the entities that survived the write are the
- * ones the world still holds.
- */
-function restamp(world: World, ids: Record<string, string>): void {
-	for (const entity of world.query(Source)) {
-		const next = ids[entity.get(Source)!.value];
-		if (next) entity.set(Source, { value: next });
+		// What was held back has its names now.
+		if (this.inserts.size || this.pending.size) this.schedule();
 	}
 }
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/**
+ * Collects edits against the project in `dir` and writes them back.
+ *
+ * `world` is only read after a write returns, to answer the one thing a write
+ * can tell the canvas: an element that had no `id` in the source has one now,
+ * and the entity it produced has to be re-stamped with it. Without that, the
+ * next edit to the same element would still address it by a position the
+ * write itself may have invalidated.
+ */
+export function createEditWriter(dir: string, world: World): EditWriter {
+	return new EditWriter(dir, world);
+}
+
+export type { EditWriter };

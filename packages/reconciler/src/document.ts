@@ -38,7 +38,6 @@ import {
 } from '@diffusionstudio/runtime';
 import { parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
-import type { PropValue } from '@diffusionstudio/jsx';
 import type { CameraMatrix } from '@diffusionstudio/runtime';
 import type { Entity, World } from 'koota';
 import type { ProjectDocument } from './host';
@@ -71,68 +70,29 @@ function toSeconds(value: unknown): number | undefined {
 	return parseTime(value);
 }
 
-/**
- * A property the editor changed, in the vocabulary of the JSX rather than of
- * the traits it was written to: `source` is the element it belongs to (its
- * SOURCE_ATTR stamp) and `value` is what a project would have written there.
- * Whoever mounts the document decides what to do with these — writing them
- * back to disk is the point, but nothing here knows about a disk.
- */
-export interface EntityEdit {
-	source: string;
-	name: string;
-	value: PropValue;
-}
-
 export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	/** The mount root. Both it and the <stage> element stand for the Stage entity. */
 	public readonly stage: SceneNode;
 	private readonly world: World;
-	private sink?: (edit: EntityEdit) => void;
 
 	public constructor(world: World) {
 		this.world = world;
 		this.stage = { entity: world.get(Root)! };
 	}
 
-	/**
-	 * Listens for edits the editor makes through `editProperty`. One sink at a
-	 * time — a second call replaces the first. Returns an unsubscribe.
-	 */
-	public onEdit(sink: (edit: EntityEdit) => void): () => void {
-		this.sink = sink;
-		return () => {
-			if (this.sink === sink) {
-				this.sink = undefined;
-			}
-		};
-	}
-
-	/**
-	 * Writes an edit to the document and saves the changes to the source
-	 */
-	public editProperty(entity: Entity, name: string, value: PropValue): void {
-		this.setProperty({ entity }, name, value);
-		this.reportEdit(entity, name, value);
-	}
-
-	/**
-	 * Reports an edit whose change the editor already made itself
-	 */
-	public reportEdit(entity: Entity, name: string, value: PropValue): void {
-		const source = entity.get(Source)?.value;
-
-		if (source) {
-			this.sink?.({ source, name, value });
-		}
-	}
-
 	public createElement(tag: string): SceneNode {
-		switch (tag) {
+		// Composition elements arrive in either spelling: the camelCase
+		// intrinsics a project authors, or the PascalCase components the compile
+		// step (and an app inserting elements) uses.
+		const name = tag.charAt(0).toLowerCase() + tag.slice(1);
+		let entity: Entity;
+
+		switch (name) {
 			case 'stage':
-				return this.stage;
+				entity = this.stage.entity;
+				break;
 			case 'scene': {
-				const entity = createEntity(this.world);
+				entity = createEntity(this.world);
 				entity.add(Geometry);
 				entity.set(Geometry, { value: GeometryType.RECT });
 				entity.add(Position);
@@ -141,20 +101,22 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				entity.add(ClipsContent);
 				entity.add(Playback);
 				resizeEntity(this.world, entity, { width: 1920, height: 1080 });
-				return { entity };
+				break;
 			}
 			case 'rect': {
-				const entity = createEntity(this.world);
+				entity = createEntity(this.world);
 				entity.add(Geometry);
 				entity.set(Geometry, { value: GeometryType.RECT });
 				entity.add(Position);
 				entity.set(Position, { x: 0, y: 0 });
 				resizeEntity(this.world, entity, { width: 100, height: 100 });
-				return { entity };
+				break;
 			}
 			default:
 				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene> and <rect>).`);
 		}
+
+		return { entity };
 	}
 
 	public createTextNode(): SceneNode {

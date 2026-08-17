@@ -14,11 +14,11 @@ import { Button } from "@/components/ui/button";
 import { useWorld } from "@diffusionstudio/koota-solid";
 import { focusContent, getCameraMatrix, Root, setCameraZoom, zoomCameraBy } from "@diffusionstudio/runtime";
 import { useCameraScale } from "@/engine";
-import { useDocument } from "@/engine/hooks/use-document";
+import { useEditor } from "@/engine/hooks/use-editor";
 
 export function InspectorHeader() {
   const world = useWorld();
-  const doc = useDocument();
+  const editor = useEditor();
 
   // Every operation here is anchored on the stage itself — its center, or its
   // content — so the menu needs no canvas geometry of its own.
@@ -27,15 +27,15 @@ export function InspectorHeader() {
 
   const zoomBy = (factor: number) => {
     zoomCameraBy(world, factor);
-    doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+    editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
   };
   const zoomTo = (percent: number) => {
     setCameraZoom(world, percent / 100);
-    doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+    editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
   };
   const zoomToFit = () => {
     focusContent(world);
-    doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+    editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
   };
 
   return (

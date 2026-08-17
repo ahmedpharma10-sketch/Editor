@@ -124,25 +124,31 @@ export function useFile(src: AssetInput): ResourceReturn<File> {
 }
 
 /**
+ * Runs `fn` with `document` as the one the static runtime exports write into.
+ * Anything creating elements outside a project render — a host inserting
+ * elements of its own — goes through here.
+ */
+export function withDocument<N, T>(document: ProjectDocument<N>, fn: () => T): T {
+  const previous = currentDocument;
+  currentDocument = document as ProjectDocument;
+  try {
+    return fn();
+  } finally {
+    currentDocument = previous;
+  }
+}
+
+/**
  * Host entry point: renders a project component directly into `document`.
  * Mounting is synchronous — the document is fully written when this returns.
  */
 export function renderProject<N>(project: () => unknown, document: ProjectDocument<N>): () => void {
-  const previous = currentDocument;
-  currentDocument = document as ProjectDocument;
-
-  try {
-    return render(
-      () =>
-        createComponent(DocumentContext.Provider, {
-          value: document as ProjectDocument,
-          get children() {
-            return createComponent(project, {}) as JSX.Element;
-          },
-        }),
-      document.stage,
-    );
-  } finally {
-    currentDocument = previous;
-  }
+  return withDocument(document, () =>
+    render(() => createComponent(DocumentContext.Provider, {
+      value: document as ProjectDocument,
+      get children() {
+        return createComponent(project, {}) as JSX.Element;
+      },
+    }), document.stage),
+  );
 }

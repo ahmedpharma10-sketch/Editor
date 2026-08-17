@@ -20,12 +20,12 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import Sqids from "sqids";
-import { Project, SyntaxKind } from "ts-morph";
+import { IndentationText, Project, SyntaxKind } from "ts-morph";
 
 import { ID_ATTR, formatSource, isCompositionTag, parseSource } from "@diffusionstudio/jsx";
 
 import type { PropValue } from "@diffusionstudio/jsx";
-import type { JsxAttribute, JsxOpeningElement, JsxSelfClosingElement, Node, SourceFile } from "ts-morph";
+import type { JsxAttribute, JsxElement, JsxOpeningElement, JsxSelfClosingElement, Node, SourceFile } from "ts-morph";
 
 export type { PropValue };
 
@@ -37,10 +37,29 @@ export interface SourceContext {
 }
 
 /** Overwrites props of the element named by `source` (a `SOURCE_ATTR` value). */
-export interface SourceEdit {
+export interface SourceSet {
+  kind: "set";
   source: string;
   props: Record<string, PropValue>;
 }
+
+/**
+ * Adds `<tag {...props} />` under the element named by `parent`, in front of
+ * the child named by `before` or last. `source` is the pending name the canvas
+ * knows the new element by; the write answers with the real one in `ids`.
+ * A parent may itself be pending when it was inserted earlier in the same
+ * write.
+ */
+export interface SourceInsert {
+  kind: "insert";
+  source: string;
+  parent: string;
+  tag: string;
+  props: Record<string, PropValue>;
+  before?: string;
+}
+
+export type SourceEdit = SourceSet | SourceInsert;
 
 export interface WriteResult {
   /** Sources that could not be written, as `id` or `id (prop)`. */
@@ -178,6 +197,66 @@ function setProp(tag: JsxTag, name: string, value: PropValue): void {
   else tag.addAttribute({ name, initializer: initializerText(value) });
 }
 
+// ---------------------------------------------------------------------------
+// Layout
+
+/**
+ * ts-morph measures indentation in units of its `indentationText` setting and
+ * does not learn a file's from the file, so before it is asked about one the
+ * setting is matched to what the file's first indented line uses (two spaces
+ * when there is none to learn from).
+ */
+function matchIndentation(sourceFile: SourceFile): void {
+  const lead = /^([ \t]+)\S/m.exec(sourceFile.getFullText())?.[1] ?? "";
+  const indentationText = lead.startsWith("\t")
+    ? IndentationText.Tab
+    : lead.length >= 8
+      ? IndentationText.EightSpaces
+      : lead.length >= 4
+        ? IndentationText.FourSpaces
+        : IndentationText.TwoSpaces;
+  sourceFile.getProject().manipulationSettings.set({ indentationText });
+}
+
+/** The whole element a tag opens — the tag itself when it is self-closing. */
+const elementOf = (tag: JsxTag): JsxElement | JsxSelfClosingElement =>
+  tag.isKind(SyntaxKind.JsxOpeningElement) ? tag.getParentIfKindOrThrow(SyntaxKind.JsxElement) : tag;
+
+/**
+ * Puts `child` (element text) under `parent`, in front of `before` (a direct
+ * child of it) or last. ts-morph has no operation for either without
+ * re-printing the parent's body, so these are text edits at positions it
+ * supplies; the child takes the indentation of its new neighbours and
+ * everything else in the file keeps its bytes.
+ */
+function insertChild(sourceFile: SourceFile, parent: JsxTag, child: string, before?: JsxTag): void {
+  matchIndentation(sourceFile);
+  const element = elementOf(parent);
+  const indent = element.getIndentationText();
+  const childIndent = element.getChildIndentationText();
+
+  // A self-closing parent is opened up around the child.
+  if (element.isKind(SyntaxKind.JsxSelfClosingElement)) {
+    const opening = element.getText().replace(/\s*\/>$/, ">");
+    sourceFile.replaceText(
+      [element.getStart(), element.getEnd()],
+      `${opening}\n${childIndent}${child}\n${indent}</${tagName(parent)}>`,
+    );
+    return;
+  }
+
+  if (before) {
+    const anchor = elementOf(before);
+    if (anchor.isFirstNodeOnLine()) sourceFile.insertText(anchor.getStartLinePos(), `${anchor.getIndentationText()}${child}\n`);
+    else sourceFile.insertText(anchor.getStart(), `${child} `);
+    return;
+  }
+
+  const closing = element.getClosingElement();
+  if (closing.isFirstNodeOnLine()) sourceFile.insertText(closing.getStartLinePos(), `${childIndent}${child}\n`);
+  else sourceFile.insertText(closing.getStart(), `\n${childIndent}${child}\n${indent}`);
+}
+
 /** Whether an expression is a value rather than a way of computing one. */
 function isLiteral(node: Node): boolean {
   if (
@@ -256,16 +335,22 @@ interface OpenFile {
   text: string;
 }
 
-/** An edit resolved to the element it names within its file. */
-interface FileEdit {
-  locator: number | string;
-  edit: SourceEdit;
-}
-
 /** What one file's edits came to. */
 interface FileWrite {
   skipped: string[];
   ids: Record<string, string>;
+}
+
+/**
+ * The element a source names, resolved through the names this write has
+ * already handed out: an insert answers with a real source, and anything
+ * addressed by the pending one from then on means the new element.
+ */
+function locate(
+  source: string,
+  ids: Record<string, string>,
+): { file: string; locator: number | string } | undefined {
+  return parseSource(ids[source] ?? source);
 }
 
 /**
@@ -400,18 +485,20 @@ class SourceWriter {
     const ids: Record<string, string> = {};
 
     // Grouped by file: one parse and one write per file, however many elements
-    // of it an edit touched.
-    const byFile = new Map<string, FileEdit[]>();
+    // of it an edit touched. An insert lives in its parent's file, and a
+    // pending source in the file of the insert that made it; edits arrive in
+    // the order they were made, so a parent is filed before its children.
+    const fileOf = new Map<string, string>();
+    const byFile = new Map<string, SourceEdit[]>();
     for (const edit of edits) {
-      const location = parseSource(edit.source);
-      if (!location) {
+      const address = edit.kind === "insert" ? edit.parent : edit.source;
+      const file = parseSource(address)?.file ?? fileOf.get(address);
+      if (!file) {
         skipped.push(edit.source);
         continue;
       }
-      byFile.set(location.file, [
-        ...(byFile.get(location.file) ?? []),
-        { locator: location.locator, edit },
-      ]);
+      if (edit.kind === "insert") fileOf.set(edit.source, file);
+      byFile.set(file, [...(byFile.get(file) ?? []), edit]);
     }
 
     for (const file of byFile.keys()) await this.load(file);
@@ -425,7 +512,7 @@ class SourceWriter {
       // ts-morph will not vouch for is dropped rather than half written.
       if (!written) {
         this.discard(file);
-        skipped.push(...entries.map((entry) => entry.edit.source));
+        skipped.push(...entries.map((entry) => entry.source));
         continue;
       }
 
@@ -442,13 +529,24 @@ class SourceWriter {
    * the sources it would not write, or undefined if the file is to be left
    * alone entirely.
    */
-  private editFile(file: string, sourceFile: SourceFile, entries: FileEdit[]): FileWrite | undefined {
+  private editFile(file: string, sourceFile: SourceFile, entries: SourceEdit[]): FileWrite | undefined {
     const nextId = idAllocator(idsIn(sourceFile));
     const skipped: string[] = [];
     const ids: Record<string, string> = {};
 
     try {
-      for (const { locator, edit } of entries) {
+      for (const edit of entries) {
+        if (edit.kind === "insert") {
+          if (!this.insertElement(file, sourceFile, edit, ids, nextId)) skipped.push(edit.source);
+          continue;
+        }
+
+        const locator = locate(edit.source, ids)?.locator;
+        if (locator === undefined) {
+          skipped.push(edit.source);
+          continue;
+        }
+
         let wrote = false;
 
         for (const [name, value] of Object.entries(edit.props)) {
@@ -485,6 +583,45 @@ class SourceWriter {
     // The tree an edit leaves behind answers for itself before it is printed.
     this.dropUnparsed([file]);
     return this.files.has(file) ? { skipped, ids } : undefined;
+  }
+
+  /**
+   * Adds one element to the tree, named on the spot: the canvas is already
+   * showing it and will address it by that name with its next edit, so it
+   * cannot wait for a write to earn one. False when the parent (or the anchor)
+   * is not an element this file can be asked to hold a child under.
+   */
+  private insertElement(
+    file: string,
+    sourceFile: SourceFile,
+    edit: SourceInsert,
+    ids: Record<string, string>,
+    nextId: () => string,
+  ): boolean {
+    if (!isCompositionTag(edit.tag)) return false;
+
+    const parentLocator = locate(edit.parent, ids)?.locator;
+    const parent = parentLocator === undefined ? undefined : findTag(sourceFile, parentLocator);
+    if (!parent) return false;
+
+    let before: JsxTag | undefined;
+    if (edit.before !== undefined) {
+      const anchorLocator = locate(edit.before, ids)?.locator;
+      before = anchorLocator === undefined ? undefined : findTag(sourceFile, anchorLocator);
+      // "In front of" only means something for a child of the same parent.
+      if (!before || elementOf(before).getParent() !== elementOf(parent)) return false;
+    }
+
+    // Placed bare and named, then given its props the way any element is:
+    // one attribute at a time, re-found by name after each (editing one
+    // attribute forgets its siblings).
+    const id = nextId();
+    insertChild(sourceFile, parent, `<${edit.tag} ${ID_ATTR}="${id}" />`, before);
+    for (const [name, value] of Object.entries(edit.props)) {
+      setProp(findTag(sourceFile, id)!, name, value);
+    }
+    ids[edit.source] = formatSource(file, id);
+    return true;
   }
 }
 

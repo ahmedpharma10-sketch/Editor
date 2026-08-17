@@ -5,7 +5,7 @@
 import { createMemo, onCleanup, onMount } from 'solid-js';
 import { useTrait, useWorld } from '@diffusionstudio/koota-solid';
 import { panCamera, setCamera, zoomCameraAt, getCamera, RenderSurface, getCameraMatrix, Root } from '@diffusionstudio/runtime';
-import { useDocument } from './hooks/use-document';
+import { useEditor } from './hooks/use-editor';
 
 import type { JSX } from 'solid-js';
 
@@ -28,7 +28,7 @@ function isEditable(target: EventTarget | null): boolean {
 export function CameraController(): JSX.Element {
 	const world = useWorld();
 	const surface = useTrait(world, RenderSurface);
-	const doc = useDocument();
+	const editor = useEditor();
 
 	const canvas = createMemo(() => {
 		const target = surface()?.canvas;
@@ -86,7 +86,7 @@ export function CameraController(): JSX.Element {
 			panCamera(world, event.deltaX * scale, event.deltaY * scale);
 		}
 
-		doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+		editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
@@ -114,7 +114,7 @@ export function CameraController(): JSX.Element {
 		// a long drag can't accumulate rounding error.
 		const [x, y] = localPoint(event);
 		setCamera(world, { e: startE + (x - startX), f: startF + (y - startY) });
-		doc()?.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+		editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
 	};
 
 	const handlePointerUp = (event: PointerEvent): void => {

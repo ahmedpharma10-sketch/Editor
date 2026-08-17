@@ -18,11 +18,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { createSignal } from "solid-js";
 import { Background, DEFAULT_BACKGROUND, Root, colorToHex } from "@diffusionstudio/runtime";
 import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
-import { useDocument } from "@/engine/hooks/use-document";
+import { useEditor } from "@/engine/hooks/use-editor";
 
 export function BackgroundSettings() {
   const world = useWorld();
-  const doc = useDocument();
+  const editor = useEditor();
 
   const [isPickerOpen, setIsPickerOpen] = createSignal(false);
   const background = useTrait(world.get(Root)!, Background);
@@ -34,7 +34,7 @@ export function BackgroundSettings() {
   const assignColor = (value: number) => {
     const root = world.get(Root)!;
     const color = colorToHex(value);
-    doc().editProperty(root, "background", color);
+    editor.editProperty(root, "background", color);
   };
 
   return (

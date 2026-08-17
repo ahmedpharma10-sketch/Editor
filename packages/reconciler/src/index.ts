@@ -3,9 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 export * from './document';
+export * from './elements';
 export { evaluate } from './evaluate';
 export { mount, type Mount } from './mount';
 export { PATCH_PROP_KEYS } from './patch';
-export { renderProject } from './renderer';
+export { insert, renderProject, withDocument } from './renderer';
 export { JSX_RUNTIME } from './runtime';
 export type { ProjectDocument, ProjectTick } from './host';

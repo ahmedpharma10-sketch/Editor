@@ -10,18 +10,81 @@ import { FloatingProjectHeader, SidebarLeft } from "@/components/sidebar-left";
 import { useLayout, MIN_TIMELINE_HEIGHT } from "@/context/layout";
 import { useEditorApi } from "@/context/dapi";
 import { RULER_HEIGHT } from "@/components/engine/timeline/config";
+import { createEffect, onCleanup } from 'solid-js';
+import { toast } from 'somoto';
+import { useWorld } from '@diffusionstudio/koota-solid';
+import { mount } from '@diffusionstudio/reconciler';
+import { getDocumentEditor } from '@/engine/editor';
+import { createEditWriter } from '@/projects/edits';
+import { compileProject, watchProject, projectDir } from '@/projects/host';
 import { useProjectId } from "@/hooks/use-project-id";
-import { useProject } from "@/projects";
+
+import type { Mount } from '@diffusionstudio/reconciler';
+import type { EditWriter } from '@/projects/edits';
 
 const MIN_CANVAS_HEIGHT = 200;
 
 export function EditorPage() {
-  // The project folder from the route, rendered into the koota world.
-  useProject(useProjectId());
-
   const { uiVisible, timelineMinimized, timelineHeight, setTimelineHeight } = useLayout();
   const { isDesktop, isFullscreen } = useEditorApi();
   const [resizing, setResizing] = createSignal(false);
+  const name = useProjectId();
+  const world = useWorld();
+
+  createEffect(() => {
+    const dir = projectDir(name());
+    if (!dir) return;
+
+    let mounted: Mount | undefined;
+    let writer: EditWriter | undefined;
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    let generation = 0;
+
+    const unmount = (): void => {
+      // Before the entities go: what the editor changed is still owed to the
+      // file, whatever happens to the scene that showed it.
+      unlisten?.();
+      unlisten = undefined;
+      writer?.dispose();
+      writer = undefined;
+      mounted?.dispose();
+      mounted = undefined;
+    };
+
+    const load = async (): Promise<void> => {
+      const current = ++generation;
+      const result = await compileProject(dir);
+      if (disposed || current !== generation) return;
+
+      // A broken edit keeps the last good render on the canvas.
+      if (!result.ok) {
+        toast.error('Project failed to compile', { description: result.error });
+        return;
+      }
+
+      // The old render goes first: there is only one stage per world.
+      unmount();
+      try {
+        mounted = mount(result.code, world);
+        // The rendered scene knows which element every entity came from, so
+        // from here on an edit in the editor can find its way back.
+        writer = createEditWriter(dir, world);
+        unlisten = getDocumentEditor(world).onEdit((edit) => writer?.push(edit));
+      } catch (error) {
+        toast.error('Project failed to render', { description: (error as Error).message });
+      }
+    };
+
+    void load();
+    const unwatch = watchProject(dir, () => void load());
+
+    onCleanup(() => {
+      disposed = true;
+      unwatch();
+      unmount();
+    });
+  });
 
   const timelineStyles = createMemo(() => {
     if (!uiVisible()) return;

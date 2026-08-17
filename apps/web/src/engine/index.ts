@@ -7,3 +7,4 @@ export * from './context';
 export * from './canvas';
 export * from './camera-controller';
 export * from './hooks';
+export * from './editor';
