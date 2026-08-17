@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { getEntityChildren, getParentEntity, Source } from '@diffusionstudio/runtime';
+import { Chars, getEntityChildren, getParentEntity, isText, Source } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -40,6 +40,8 @@ export interface PropEdit {
  * disk answers with the real one and re-stamps (see `isPendingSource`).
  * `parent` is the source of the element it was inserted under and `before`,
  * when present, the sibling it was placed in front of; without it, appended.
+ * `text` is the literal content of a text element (its `children`), which is
+ * not a prop and so travels separately.
  */
 export interface InsertEdit {
 	kind: 'insert';
@@ -48,6 +50,7 @@ export interface InsertEdit {
 	tag: string;
 	props: Record<string, PropValue>;
 	before?: string;
+	text?: string;
 }
 
 export type EntityEdit = PropEdit | InsertEdit;
@@ -170,6 +173,10 @@ export class DocumentEditor {
 				.find((sibling) => !created.has(sibling))
 				?.get(Source)?.value;
 
+			// A text element's content arrived as text nodes, which the document
+			// has already folded into Chars; that is what the file gets.
+			const text = isText(entity) ? entity.get(Chars)?.value : undefined;
+
 			this.sink?.({
 				kind: 'insert',
 				source: entity.get(Source)!.value,
@@ -177,6 +184,7 @@ export class DocumentEditor {
 				tag,
 				props,
 				...(before ? { before } : {}),
+				...(text === undefined ? {} : { text }),
 			});
 		}
 

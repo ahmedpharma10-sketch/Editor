@@ -48,7 +48,8 @@ export interface SourceSet {
  * the child named by `before` or last. `source` is the pending name the canvas
  * knows the new element by; the write answers with the real one in `ids`.
  * A parent may itself be pending when it was inserted earlier in the same
- * write.
+ * write. `text`, when present, is the element's literal text content
+ * (`<text>Hello</text>`); without it the element is written self-closing.
  */
 export interface SourceInsert {
   kind: "insert";
@@ -57,6 +58,7 @@ export interface SourceInsert {
   tag: string;
   props: Record<string, PropValue>;
   before?: string;
+  text?: string;
 }
 
 export type SourceEdit = SourceSet | SourceInsert;
@@ -195,6 +197,15 @@ function setProp(tag: JsxTag, name: string, value: PropValue): void {
 
   if (attribute) attribute.setInitializer(initializerText(value));
   else tag.addAttribute({ name, initializer: initializerText(value) });
+}
+
+/**
+ * Text content as JSX spells it: bare when JSX would read it back verbatim,
+ * otherwise as a string expression (JSX collapses whitespace around line
+ * breaks and reads `{`, `}`, `<`, `>`, `&` as syntax).
+ */
+function jsxText(text: string): string {
+  return /^[^\s{}<>&][^\n{}<>&]*[^\s{}<>&]$|^[^\s{}<>&]$/.test(text) ? text : `{${JSON.stringify(text)}}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -616,7 +627,9 @@ class SourceWriter {
     // one attribute at a time, re-found by name after each (editing one
     // attribute forgets its siblings).
     const id = nextId();
-    insertChild(sourceFile, parent, `<${edit.tag} ${ID_ATTR}="${id}" />`, before);
+    const opening = `<${edit.tag} ${ID_ATTR}="${id}"`;
+    const child = edit.text === undefined ? `${opening} />` : `${opening}>${jsxText(edit.text)}</${edit.tag}>`;
+    insertChild(sourceFile, parent, child, before);
     for (const [name, value] of Object.entries(edit.props)) {
       setProp(findTag(sourceFile, id)!, name, value);
     }

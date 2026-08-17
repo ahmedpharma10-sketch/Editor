@@ -10,7 +10,7 @@ import { DrawOverlay } from "./draw-overlay";
 import { DesktopAppBanner } from "./desktop-app-banner";
 import { toast } from "somoto"
 import { findSceneAt, screenToWorld, worldToLocal, secondsToFrames, GeometryType, PaintType, createEntity, addComponent, appendChild, setComponent, resizeEntity } from "../engine";
-// import { SceneInitOverlay } from "./scene-init-overlay";
+import { SceneInitOverlay } from "./scene-init-overlay";
 
 import { CLASSIC_PRESET_HEIGHT, CLASSIC_PRESET_WIDTH } from "../engine/decoders/caption/classic";
 
@@ -156,10 +156,7 @@ export function Canvas() {
         <Toolbar />
         <DesktopAppBanner />
         <DrawOverlay />
-        {/* <SceneInitOverlay
-          onDrop={handleDropEvent}
-          onDragOver={handleDragOver}
-        /> */}
+        <SceneInitOverlay />
         <EngineCanvas />
         <CameraController />
 

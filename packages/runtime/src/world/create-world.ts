@@ -25,6 +25,7 @@ import {
 	FramePromises,
 	HitRegions,
 } from '../traits/world';
+import { Tool } from '../traits/interaction';
 
 /**
  * World with the headless runtime singletons attached. The host injects its
@@ -48,6 +49,7 @@ export function createRuntimeWorld(projectId: string) {
 		Mounts,
 		FramePromises,
 		HitRegions,
+		Tool,
 		Root,
 	);
 

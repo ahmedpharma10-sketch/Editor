@@ -81,13 +81,14 @@ class EditWriter {
 		const edits: SourceEdit[] = [
 			...[...this.inserts.values()]
 				.filter((insert) => !heldInserts.has(insert.source))
-				.map(({ kind, source, parent, tag, props, before }): SourceEdit => ({
+				.map(({ kind, source, parent, tag, props, before, text }): SourceEdit => ({
 					kind,
 					source,
 					parent,
 					tag,
 					props,
 					...(before === undefined ? {} : { before }),
+					...(text === undefined ? {} : { text }),
 				})),
 			...[...this.pending]
 				.filter(([source]) => !held.has(source))

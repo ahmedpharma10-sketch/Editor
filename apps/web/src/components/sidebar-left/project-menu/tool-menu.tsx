@@ -9,12 +9,13 @@ import {
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { usePromptInput } from "@/context/prompt-input";
-import { useEngine } from "@/context/engine";
-import { ToolType } from "@/components/engine/components";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Tool, ToolType } from "@diffusionstudio/runtime";
 
 export function ToolMenu() {
   const { setPromptInputOpen } = usePromptInput();
-  const { world } = useEngine();
+  const world = useWorld();
+  const setTool = (value: ToolType) => world.set(Tool, { value });
 
   return (
     <>
@@ -27,15 +28,15 @@ export function ToolMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={() => (world.selection.tool = ToolType.SCENE)}>
+        <DropdownMenuItem onSelect={() => setTool(ToolType.SCENE)}>
           Scene
           <DropdownMenuShortcut>F</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => (world.selection.tool = ToolType.TEXT)}>
+        <DropdownMenuItem onSelect={() => setTool(ToolType.TEXT)}>
           Text
           <DropdownMenuShortcut>T</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => (world.selection.tool = ToolType.RECT)}>
+        <DropdownMenuItem onSelect={() => setTool(ToolType.RECT)}>
           Rectangle
           <DropdownMenuShortcut>R</DropdownMenuShortcut>
         </DropdownMenuItem>

@@ -2,16 +2,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { useEngine } from "@/context/engine";
 import { Show } from "solid-js";
-import { screenToWorld, worldToLocal, findSceneAt, ToolType, getNextName, GeometryType, PaintType, type Point, createEntity, switchActiveScene, addComponent, appendChild, setComponent, resizeEntity, clearComponent } from "@/components/engine";
-import { useECS } from "@/context/ecs";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Rect, Scene, Text } from "@diffusionstudio/reconciler";
+import {
+  Computed,
+  findSceneAt,
+  getNextName,
+  Root,
+  screenToWorld,
+  Selected,
+  Source,
+  store,
+  switchActiveScene,
+  Tool,
+  ToolType,
+  worldToLocal,
+} from "@diffusionstudio/runtime";
+import { useEditor, useTool } from "@/engine";
 
+import type { Entity } from "koota";
+import type { Point } from "@diffusionstudio/runtime";
 
 type ToolConfig = {
-  geometry: GeometryType;
   isScene?: boolean;
-  fillColor: number;
+  fillColor: string;
   previewColor: string;
   namePrefix: string;
   label: string;
@@ -21,8 +36,7 @@ type ToolConfig = {
 
 const TOOL_CONFIG: Partial<Record<ToolType, ToolConfig>> = {
   [ToolType.RECT]: {
-    geometry: GeometryType.RECT,
-    fillColor: 0xE0E0E0,
+    fillColor: '#E0E0E0',
     previewColor: '#E0E0E0',
     namePrefix: 'Rect',
     label: 'Create shape',
@@ -30,9 +44,8 @@ const TOOL_CONFIG: Partial<Record<ToolType, ToolConfig>> = {
     defaultHeight: 300,
   },
   [ToolType.SCENE]: {
-    geometry: GeometryType.RECT,
     isScene: true,
-    fillColor: 0x000000,
+    fillColor: '#000000',
     previewColor: '#000000',
     namePrefix: 'Scene',
     label: 'Create scene',
@@ -40,8 +53,7 @@ const TOOL_CONFIG: Partial<Record<ToolType, ToolConfig>> = {
     defaultHeight: 1080,
   },
   [ToolType.TEXT]: {
-    geometry: GeometryType.TEXT,
-    fillColor: 0xFFFFFF,
+    fillColor: '#FFFFFF',
     previewColor: 'transparent',
     namePrefix: 'Text',
     label: 'Create text',
@@ -54,10 +66,9 @@ const TOOL_CONFIG: Partial<Record<ToolType, ToolConfig>> = {
 const CLICK_THRESHOLD = 10;
 
 export function DrawOverlay() {
-  const { world } = useEngine();
-  const { selectedTool } = useECS();
-
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
+  const selectedTool = useTool();
 
   let overlayRef!: HTMLDivElement;
   let previewRef!: HTMLDivElement;
@@ -66,7 +77,7 @@ export function DrawOverlay() {
   let isDrawing = false;
   let startPoint: Point | null = null;
   let currentPoint: Point | null = null;
-  let targetSceneEid: number | null = null;
+  let targetScene: Entity | null = null;
 
   const config = () => TOOL_CONFIG[selectedTool()];
   const isActiveTool = () => !!config();
@@ -120,7 +131,7 @@ export function DrawOverlay() {
 
     const point = getLocalPoint(e);
     const worldPt = screenToWorld(world, point.x, point.y);
-    targetSceneEid = findSceneAt(world, worldPt.x, worldPt.y);
+    targetScene = findSceneAt(world, worldPt.x, worldPt.y);
 
     overlayRef.setPointerCapture(e.pointerId);
     isDrawing = true;
@@ -138,7 +149,7 @@ export function DrawOverlay() {
     isDrawing = false;
     startPoint = null;
     currentPoint = null;
-    targetSceneEid = null;
+    targetScene = null;
     updatePreview();
   };
 
@@ -160,8 +171,8 @@ export function DrawOverlay() {
 
     // Approximate text size from the parent scene's height.
     let fontSize = 16;
-    if (tool === ToolType.TEXT && targetSceneEid !== null) {
-      const sceneHeight = c.Computed.height[targetSceneEid];
+    if (tool === ToolType.TEXT && targetScene !== null) {
+      const sceneHeight = store(world, Computed).height[targetScene.id()] ?? 0;
       fontSize = Math.max(8, Math.round(sceneHeight / 22.5));
     }
 
@@ -183,52 +194,47 @@ export function DrawOverlay() {
     let posY = isClick ? worldTopLeft.y - height / 2 : worldTopLeft.y;
 
     // Scenes always live at the root; rect/text may parent into a hovered scene.
-    const parentScene = tool === ToolType.SCENE ? null : targetSceneEid;
+    const parentScene = tool === ToolType.SCENE ? null : targetScene;
     if (parentScene !== null) {
       const local = worldToLocal(world, parentScene, posX, posY);
       posX = local.x;
       posY = local.y;
     }
 
-    const eid = world.history.transaction(cfg.isScene ? 'Add scene' : 'Draw shape', () => {
-      const newEid = createEntity(world);
-      setComponent(world, newEid, c.Geometry, cfg.geometry);
-      if (cfg.isScene) {
-        addComponent(world, newEid, c.Scene);
-        addComponent(world, newEid, c.ClipsContent);
-        setComponent(world, newEid, c.Playback, {});
-      }
-      setComponent(world, newEid, c.Name, getNextName(world, cfg.namePrefix));
-      setComponent(world, newEid, c.Position, { x: Math.round(posX), y: Math.round(posY) });
-
-      if (tool === ToolType.TEXT) {
-        setComponent(world, newEid, c.Chars, 'Text');
-        setComponent(world, newEid, c.TextStyle, { fontSize: fontSize });
-      }
-
-      if (tool !== ToolType.TEXT || !isClick) {
-        resizeEntity(world, newEid, { width, height });
-      }
-
-      const fillEid = createEntity(world);
-      setComponent(world, fillEid, c.Paint, PaintType.SOLID);
-      setComponent(world, fillEid, c.Color, cfg.fillColor);
-      appendChild(world, fillEid, newEid);
-
-      if (parentScene !== null) {
-        appendChild(world, newEid, parentScene);
-      }
-      return newEid;
-    });
-
-    if (tool === ToolType.SCENE) {
-      switchActiveScene(world, eid);
+    const parent = parentScene ?? world.get(Root)!;
+    // Nothing to draw into until a project is mounted: the element would have
+    // no file to be written to.
+    if (!parent.get(Source)?.value) {
+      reset();
+      return;
     }
 
-    clearComponent(world, c.Selected, false);
-    addComponent(world, eid, c.Selected, false);
+    const name = getNextName(world, cfg.namePrefix);
+    const x = Math.round(posX);
+    const y = Math.round(posY);
+    // A clicked-in text sizes itself to its glyphs, so it takes no size.
+    const size = tool !== ToolType.TEXT || !isClick ? { width, height } : {};
 
-    world.selection.tool = tool === ToolType.TEXT ? ToolType.TEXT_EDIT : ToolType.MOVE;
+    const [entity] = editor.insertElement(parent, () => {
+      if (cfg.isScene) {
+        return <Scene name={name} x={x} y={y} width={width} height={height} fill={cfg.fillColor} />;
+      }
+      if (tool === ToolType.TEXT) {
+        return <Text name={name} x={x} y={y} {...size} fontSize={fontSize} color={cfg.fillColor}>Text</Text>;
+      }
+      return <Rect name={name} x={x} y={y} {...size} fill={cfg.fillColor} />;
+    });
+
+    if (entity) {
+      if (tool === ToolType.SCENE) {
+        switchActiveScene(world, entity);
+      }
+
+      for (const selected of world.query(Selected)) selected.remove(Selected);
+      entity.add(Selected);
+    }
+
+    world.set(Tool, { value: tool === ToolType.TEXT ? ToolType.TEXT_EDIT : ToolType.MOVE });
     reset();
   };
 

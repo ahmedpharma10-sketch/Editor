@@ -4,8 +4,10 @@
 
 import { trait } from 'koota';
 
-// Editor interaction state. Defined here so all trait definitions share one
-// home, but only ever added by the editor app; never serialized.
+import { ToolType } from '../constants';
+
+
+export const Tool = trait({ value: ToolType.MOVE });
 
 export const Selected = trait();
 
