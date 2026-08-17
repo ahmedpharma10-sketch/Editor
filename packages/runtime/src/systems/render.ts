@@ -859,8 +859,8 @@ export function renderSystem(world: World): void {
 	ctx.setTransform(view.a, view.b, view.c, view.d, view.e, view.f);
 
 	// Render top-level nodes.
-	const document = world.get(Root)!;
-	for (const entity of world.query(Or(Geometry, Group), ChildOf(document), Not(Culled))) {
+	const stage = world.get(Root)!;
+	for (const entity of world.query(Or(Geometry, Group), ChildOf(stage), Not(Culled))) {
 		renderNode(world, entity);
 	}
 }

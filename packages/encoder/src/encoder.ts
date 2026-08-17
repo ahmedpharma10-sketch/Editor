@@ -506,8 +506,8 @@ export async function resolverSystem(world: World) {
  * walk; koota has no hierarchy-ordered queries).
  */
 export function recomputeAllTimeRanges(world: World): void {
-	const document = world.get(Root)!;
-	for (const node of world.query(Or(Geometry, Group), ChildOf(document))) {
+	const stage = world.get(Root)!;
+	for (const node of world.query(Or(Geometry, Group), ChildOf(stage))) {
 		propagateTimeRangeDown(world, node);
 	}
 }

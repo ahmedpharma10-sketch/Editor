@@ -14,7 +14,7 @@ import {
 	Geometry, Group, AdjustmentLayer, IsMask, Paint, Stroke, Shadow, Effect,
 	TextRange, KeyframeTrack, Keyframe, Animation,
 } from '../traits';
-import { isDocument } from '../queries/predicates';
+import { isStage } from '../queries/predicates';
 import { getParentNode } from '../queries/hierarchy';
 import { sortByFrame, sortByItemIndex } from '../utils/sort';
 import { resetAnimatedValues } from '../systems/motion';
@@ -29,7 +29,7 @@ import type { Entity, World } from 'koota';
  * parent's queries.
  */
 export function rebuildCaches(world: World, entity: Entity, parent: Entity | null, exclude: Entity | null = null) {
-	if (parent === null || isDocument(parent)) return;
+	if (parent === null || isStage(parent)) return;
 	if (!parent.has(Cache)) parent.add(Cache);
 
 	const cache = store(world, Cache);

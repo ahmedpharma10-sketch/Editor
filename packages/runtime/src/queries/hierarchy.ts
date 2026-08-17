@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { ChildOf, Computed, Name, Playback } from '../traits';
-import { isDocument, isScene } from './predicates';
+import { isStage, isScene } from './predicates';
 // Direct module, not the utils barrel: utils/time reaches back into this file.
 import { sortByItemIndex } from '../utils/sort';
 
@@ -19,13 +19,13 @@ export function getEntityChildren(world: World, parent: Entity): Entity[] {
 }
 
 /**
- * Parent node, or null when the parent is the document root (or missing).
+ * Parent node, or null when the parent is the stage (or missing).
  * Use this wherever "top-level" matters; getParentEntity returns the raw
- * parent including the document.
+ * parent including the stage.
  */
 export function getParentNode(entity: Entity | null | undefined): Entity | null {
 	const parent = getParentEntity(entity);
-	if (parent === null || isDocument(parent)) return null;
+	if (parent === null || isStage(parent)) return null;
 	return parent;
 }
 

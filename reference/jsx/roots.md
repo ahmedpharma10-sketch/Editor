@@ -8,7 +8,7 @@ A mount renders one or more root elements (a fragment of roots is allowed) and *
 
 Identities must be unique within a render, and rebuilding keeps the scene's entity id and canvas position. Scenes with no matching render are never touched. The **first** rendered root becomes the active scene. Assigning a `name` alongside is recommended (e.g. `<rect scene="intro" name="Intro">`): `scene` identifies the node across mounts, the name labels it in the editor.
 
-The `scene` property is valid **only** at the document root.
+The `scene` property is valid **only** at the stage root.
 
 `dapi node insert` skips this reconciliation entirely: its roots are inserted as children and every run inserts fresh entities.
 

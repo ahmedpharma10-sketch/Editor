@@ -15,7 +15,7 @@ import {
 	Start, End, SourceIn, SourceOut, PlaybackRate,
 	Playback, Sequential, Transition, ClipHeight, Expanded,
 	Volume, Muted,
-	KeyframeTrack, Keyframe, Animation, DocumentRoot,
+	KeyframeTrack, Keyframe, Animation, Stage,
 } from '../traits';
 import { createEntity } from '../actions/entities';
 
@@ -231,7 +231,7 @@ export function serializeEntity(entity: Entity): EntityRecord {
 		record.Expanded = {};
 	}
 	const parent = entity.targetFor(ChildOf);
-	if (parent !== undefined && !parent.has(DocumentRoot)) {
+	if (parent !== undefined && !parent.has(Stage)) {
 		record.ChildOf = parent;
 	}
 	if (entity.has(IsMask)) {

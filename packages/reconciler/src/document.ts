@@ -26,7 +26,7 @@ import {
 	resizeEntity,
 	secondsToFrames,
 	getEntityChildren,
-	DocumentRoot,
+	Stage,
 	Root,
 	Scene,
 	Source,
@@ -85,7 +85,7 @@ export interface EntityEdit {
 }
 
 export class RuntimeDocument implements ProjectDocument<SceneNode> {
-	/** The mount root. Both it and the <stage> element stand for the document root entity. */
+	/** The mount root. Both it and the <stage> element stand for the Stage entity. */
 	public readonly stage: SceneNode;
 	private readonly world: World;
 	private sink?: (edit: EntityEdit) => void;
@@ -260,13 +260,13 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		if (parent.entity === node.entity) return;
 
 		// Scenes own a timeline, so one inside another has no coherent reading.
-		if (node.entity.has(Scene) && !parent.entity.has(DocumentRoot)) {
+		if (node.entity.has(Scene) && !parent.entity.has(Stage)) {
 			throw new Error('<scene> is only allowed as a direct child of <stage>.');
 		}
 
 		if (getParentEntity(node.entity) !== parent.entity) {
 			// appendChild only takes top-level entities, so a move between two
-			// parents goes back through the document on the way.
+			// parents goes back through the stage on the way.
 			const current = getParentNode(node.entity);
 
 			if (current !== null) {
@@ -287,7 +287,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	}
 
 	public removeNode(_parent: SceneNode, node: SceneNode): void {
-		if (node.entity.has(DocumentRoot)) {
+		if (node.entity.has(Stage)) {
 			for (const child of this.children(node)) {
 				this.removeNode(node, child);
 			}

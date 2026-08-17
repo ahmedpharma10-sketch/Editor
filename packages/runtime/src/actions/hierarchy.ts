@@ -4,7 +4,7 @@
 
 // Parenting and ordering actions (was api/hierarchy.ts). ChildOf is exclusive,
 // so re-parenting is a single add; "no parent" does not exist under the
-// document root model: detached entities go back to being document children.
+// stage model: detached entities go back to being children of the stage.
 // Cache/size/constraint/time-range fixups ride on the ChildOf events (see
 // world/observers.ts), so these functions only validate and re-target.
 
@@ -30,7 +30,7 @@ export function appendChild(world: World, entity: Entity, parent: Entity): void 
 export function removeChild(world: World, entity: Entity, parent: Entity): void {
 	assert(getParentNode(entity) === parent, 'Entity is not a child of the specified parent');
 
-	// Back to top-level: re-target to the document (never drop ChildOf).
+	// Back to top-level: re-target to the stage (never drop ChildOf).
 	entity.add(ChildOf(world.get(Root)!));
 }
 

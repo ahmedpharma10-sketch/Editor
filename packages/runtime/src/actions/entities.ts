@@ -13,7 +13,7 @@ import type { Entity, World } from 'koota';
 /**
  * Spawn an empty document entity. Computed/Cache are pre-attached (systems
  * index into their stores unconditionally), and the entity starts as a child
- * of the document root, i.e. top-level, until appendChild re-parents it.
+ * of the stage, i.e. top-level, until appendChild re-parents it.
  */
 export function createEntity(world: World): Entity {
 	return world.spawn(

@@ -17,20 +17,15 @@ import type { Quad } from '../math/aabb';
 
 export const Project = trait({ id: '' });
 
-// Tag on the single document root entity every runtime world owns. All
-// rendered entities are its descendants (ChildOf), so "top-level" means
-// "direct child of the document", never "has no parent". Destroying it
-// cascades through the whole document tree. Document-level state (Camera,
-// Background) lives on this entity, not on the world; read it via
-// getDocument(world).
-export const DocumentRoot = trait();
+// Tag on the single stage entity every runtime world owns.
+export const Stage = trait();
 
-// World-level pointer to the root entity
+// World-level pointer to the stage entity
 export const Root = trait(() => null as Entity | null);
 
 /**
  * 2D affine camera transform in CSS pixel space (before DPR scaling), on the
- * document root. The render system multiplies this by RenderSurface.resolution
+ * stage. The render system multiplies this by RenderSurface.resolution
  * to derive the canvas transform.
  */
 export const Camera = trait({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
@@ -39,7 +34,7 @@ export type Camera2D = { a: number; b: number; c: number; d: number; e: number; 
 
 export const DEFAULT_BACKGROUND = 0x161616;
 
-// Stage background color, on the document root.
+// Stage background color, on the stage entity.
 export const Background = trait({ value: DEFAULT_BACKGROUND });
 
 export type RuntimeMode = 'realtime' | 'offline-video' | 'offline-audio';

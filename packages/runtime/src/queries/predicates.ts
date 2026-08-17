@@ -4,14 +4,14 @@
 
 import {
 	Scene, Group, Sequential, Audio, AdjustmentLayer, Caption, Geometry, IsMask,
-	Paint, Cache, DocumentRoot,
+	Paint, Cache, Stage,
 } from '../traits';
 import { GeometryType, PaintType } from '../constants';
 
 import type { Entity } from 'koota';
 
-export function isDocument(entity: Entity): boolean {
-	return entity.has(DocumentRoot);
+export function isStage(entity: Entity): boolean {
+	return entity.has(Stage);
 }
 
 export function isScene(entity: Entity): boolean {

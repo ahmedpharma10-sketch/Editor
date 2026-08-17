@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Camera read path. The Camera trait on the document root is the viewport
+// Camera read path. The Camera trait on the stage is the viewport
 // transform: it maps document space to canvas CSS pixels, and the render and
 // transform systems scale it by RenderSurface.resolution to reach device
 // pixels (getViewMatrix). Writes live in actions/camera.ts.
