@@ -118,6 +118,15 @@ export type CaptionPreset =
 export type PatchProps = {
   /** Human-readable node name. */
   name?: string;
+  /**
+   * Whether the editor has this element selected. Editor state rather than
+   * part of the composition (nothing rendered or exported depends on it), but
+   * the source is the document, so it lives here for the same reason
+   * `<stage>`'s `camera` does: a click on the canvas has nowhere else to be
+   * written to, and the selection survives a recompile. Absent means not
+   * selected; the editor writes the bare attribute and removes it again.
+   */
+  selected?: boolean;
   /** Position relative to the parent, px. Defaults to 0. Animatable. */
   x?: Animatable<number>;
   y?: Animatable<number>;
@@ -228,7 +237,7 @@ type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
 type CommonProps = TimingProps &
   Pick<
     PatchProps,
-    | "name" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
+    | "name" | "selected" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
     | "opacity" | "cornerRadius" | "transition" | "animations"
   >;
 
@@ -271,13 +280,14 @@ export type StageProps = {
  * `width`×`height` and owns the timeline they are placed on, so it takes no
  * timing of its own — nothing outside a scene has a clock to place it against.
  *
- * `x`/`y` are where the frame sits on the infinite canvas. That is an editor
- * concern rather than part of the composition, but it lives here for the same
- * reason `<stage>`'s `camera` does: the source is the document, so a scene
- * dragged on the canvas has nowhere else to be written back to.
+ * `x`/`y` are where the frame sits on the infinite canvas, and `selected`
+ * whether the editor has it selected. Those are editor concerns rather than
+ * part of the composition, but they live here for the same reason `<stage>`'s
+ * `camera` does: the source is the document, so a scene dragged or clicked on
+ * the canvas has nowhere else to be written back to.
  */
 export type SceneProps = Required<Pick<PatchProps, "width" | "height">> &
-  Pick<PatchProps, "name" | "x" | "y" | "fill"> & {
+  Pick<PatchProps, "name" | "selected" | "x" | "y" | "fill"> & {
     children?: SolidJSX.Element;
   };
 

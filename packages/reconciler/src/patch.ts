@@ -12,6 +12,7 @@ import type { PatchProps } from '@diffusionstudio/jsx';
  */
 export const PATCH_PROP_KEYS = Object.keys({
 	name: true,
+	selected: true,
 	x: true,
 	y: true,
 	offsetX: true,

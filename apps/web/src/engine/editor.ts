@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { Chars, getEntityChildren, getParentEntity, isText, Source } from '@diffusionstudio/runtime';
+import { Chars, getEntityChildren, getParentEntity, isText, Selected, Source, Stage } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -127,6 +127,46 @@ export class DocumentEditor {
 		if (source) {
 			this.sink?.({ kind: 'prop', source, name, value });
 		}
+	}
+
+	/**
+	 * Selects `entities`, replacing the current selection unless `extend` is
+	 * set. Selection is a document property (`selected` on the element, see
+	 * `PatchProps`), so it goes the way every editor change goes: the trait for
+	 * the canvas, an edit for the file. Deselection reports `false`, which the
+	 * writer spells as the attribute's absence. Entities without a source
+	 * (nothing mounted yet) only get the trait; the stage is not selectable.
+	 */
+	public select(entities: Entity | Entity[], options: { extend?: boolean } = {}): void {
+		const next = new Set(Array.isArray(entities) ? entities : [entities]);
+
+		if (!options.extend) {
+			for (const entity of [...this.world.query(Selected)]) {
+				if (!next.has(entity)) this.setSelected(entity, false);
+			}
+		}
+
+		for (const entity of next) {
+			this.setSelected(entity, true);
+		}
+	}
+
+	/** Takes `entities` out of the selection, leaving the rest as it is. */
+	public deselect(entities: Entity | Entity[]): void {
+		for (const entity of Array.isArray(entities) ? entities : [entities]) {
+			this.setSelected(entity, false);
+		}
+	}
+
+	public clearSelection(): void {
+		this.select([]);
+	}
+
+	private setSelected(entity: Entity, selected: boolean): void {
+		if (!entity.isAlive() || entity.has(Stage) || entity.has(Selected) === selected) return;
+		if (selected) entity.add(Selected);
+		else entity.remove(Selected);
+		this.reportEdit(entity, 'selected', selected);
 	}
 
 	/**

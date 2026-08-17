@@ -33,6 +33,7 @@ import {
 	Stage,
 	Root,
 	Scene,
+	Selected,
 	Source,
 	SourceIn,
 	SourceOut,
@@ -212,6 +213,14 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 				entity.add(Name);
 				entity.set(Name, { value });
+				return;
+			}
+			case 'selected': {
+				if (value === true && entity !== this.stage.entity) {
+					entity.add(Selected);
+				} else {
+					entity.remove(Selected);
+				}
 				return;
 			}
 			case 'x':

@@ -11,7 +11,6 @@ import {
   getNextName,
   Root,
   screenToWorld,
-  Selected,
   Source,
   store,
   switchActiveScene,
@@ -230,8 +229,7 @@ export function DrawOverlay() {
         switchActiveScene(world, entity);
       }
 
-      for (const selected of world.query(Selected)) selected.remove(Selected);
-      entity.add(Selected);
+      editor.select(entity);
     }
 
     world.set(Tool, { value: tool === ToolType.TEXT ? ToolType.TEXT_EDIT : ToolType.MOVE });

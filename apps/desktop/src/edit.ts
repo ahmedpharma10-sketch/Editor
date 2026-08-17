@@ -185,13 +185,22 @@ const initializerText = (value: PropValue): string =>
     ? `"${value}"`
     : `{${literalText(value)}}`;
 
-/** Writes a prop onto a tag as one would write it: `muted`, not `muted={true}`. */
+/**
+ * Writes a prop onto a tag as one would write it: `muted`, not `muted={true}`,
+ * and no attribute at all rather than `muted={false}`, since absence is what a
+ * boolean prop's false reads as.
+ */
 function setProp(tag: JsxTag, name: string, value: PropValue): void {
   const attribute = attributeOf(tag, name);
 
   if (value === true) {
     if (attribute) attribute.removeInitializer();
     else tag.addAttribute({ name });
+    return;
+  }
+
+  if (value === false) {
+    attribute?.remove();
     return;
   }
 
