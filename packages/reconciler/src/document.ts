@@ -7,11 +7,12 @@ import {
 	ActiveScene,
 	appendChild,
 	Background,
-	ChildOf,
 	ClipsContent,
 	createEntity,
 	DEFAULT_BACKGROUND,
 	Color,
+	End,
+	FrameRate,
 	Geometry,
 	GeometryType,
 	getParentEntity,
@@ -23,15 +24,19 @@ import {
 	Position,
 	removeChild,
 	resizeEntity,
+	secondsToFrames,
 	getEntityChildren,
 	DocumentRoot,
 	Root,
 	Scene,
 	Source,
+	SourceIn,
+	SourceOut,
 	setCameraMatrix,
+	Start,
 	switchActiveScene,
 } from '@diffusionstudio/runtime';
-import { SOURCE_ATTR } from '@diffusionstudio/jsx';
+import { parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { PropValue } from '@diffusionstudio/jsx';
 import type { CameraMatrix } from '@diffusionstudio/runtime';
@@ -42,6 +47,13 @@ export interface SceneNode {
 	readonly entity: Entity;
 }
 
+const TIME_TRAITS = {
+	start: Start,
+	end: End,
+	sourceIn: SourceIn,
+	sourceOut: SourceOut,
+} as const;
+
 function toNumber(value: unknown) {
 	if (value === undefined || value === null) {
 		return undefined;
@@ -49,6 +61,14 @@ function toNumber(value: unknown) {
 
 	const number = Number(value);
 	return Number.isFinite(number) ? number : undefined;
+}
+
+function toSeconds(value: unknown): number | undefined {
+	if (typeof value !== 'number' && typeof value !== 'string') {
+		return undefined;
+	}
+
+	return parseTime(value);
 }
 
 /**
@@ -180,6 +200,23 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				const size = toNumber(value);
 				if (size === undefined) return;
 				resizeEntity(this.world, entity, { [name]: size });
+				return;
+			}
+			case 'start':
+			case 'end':
+			case 'sourceIn':
+			case 'sourceOut': {
+				const trait = TIME_TRAITS[name];
+				const seconds = toSeconds(value);
+
+				if (seconds === undefined) {
+					entity.remove(trait);
+					return;
+				}
+
+				const fps = this.world.get(FrameRate)?.value ?? 30;
+				entity.add(trait);
+				entity.set(trait, { value: secondsToFrames(seconds, fps) });
 				return;
 			}
 			case 'fill': {
