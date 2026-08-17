@@ -11,6 +11,8 @@ export const Tool = trait({ value: ToolType.MOVE });
 
 export const Selected = trait();
 
+export const Active = trait();
+
 export const Interactive = trait();
 
 export const Hovering = trait();

@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Frame and scene actions (was api/frame.ts, plus switchActiveScene from
-// api/base.ts). The app reacts to ActiveScene changes (clearing timeline
-// buffers, rebuilding its index) through its own world-trait observer.
+// api/base.ts). The app reacts to Active changes (clearing timeline buffers,
+// rebuilding its index) through its own trait observer.
 
 import { Or } from 'koota';
 
@@ -12,7 +12,7 @@ import { store } from '../world/store';
 import { GeometryType, PaintType } from '../constants';
 import {
 	Geometry, Group, Scene, ClipsContent, Playback, Paint, Color, Selected,
-	Position, Name, LocalTransform, Computed, ActiveScene,
+	Position, Name, LocalTransform, Computed, Active,
 } from '../traits';
 import { isScene } from '../queries/predicates';
 import { getNextName, getParentNode } from '../queries/hierarchy';
@@ -25,15 +25,25 @@ import { resizeEntity } from './resize';
 
 import type { Entity, World } from 'koota';
 
-/** Retarget the playhead/timeline scene (not undoable state). */
-export function switchActiveScene(world: World, entity: Entity | null): void {
-	if (entity !== null) {
-		assert(isScene(entity), 'Entity is not a scene');
+/** The entity carrying Active, or null. */
+export function getActiveEntity(world: World): Entity | null {
+	return world.queryFirst(Active) ?? null;
+}
+
+/**
+ * Retarget the playhead/timeline entity (not undoable state). Uniqueness and
+ * root-only are enforced by the Active observers; only the scene restriction
+ * lives here, since it is the part that is going away.
+ */
+export function setActive(world: World, entity: Entity | null): void {
+	if (entity === null) {
+		getActiveEntity(world)?.remove(Active);
+		return;
 	}
 
-	if (world.get(ActiveScene)?.entity === entity) return;
-
-	world.set(ActiveScene, { entity });
+	assert(isScene(entity), 'Entity is not a scene');
+	assert(getParentNode(entity) === null, 'Only root entities can be active');
+	entity.add(Active);
 }
 
 /**
@@ -116,7 +126,7 @@ export function frameSelection(world: World): Entity | null {
 
 	// Make the freshly created frame the active scene (mirrors the scene tool),
 	// so the timeline retargets to it.
-	switchActiveScene(world, scene);
+	setActive(world, scene);
 
 	return scene;
 }

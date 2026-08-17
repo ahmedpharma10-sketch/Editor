@@ -70,7 +70,8 @@ export function EditorPage() {
         // The rendered scene knows which element every entity came from, so
         // from here on an edit in the editor can find its way back.
         writer = createEditWriter(dir, world);
-        unlisten = getDocumentEditor(world).onEdit((edit) => writer?.push(edit));
+        const editor = getDocumentEditor(world);
+        unlisten = editor.onEdit((edit) => writer?.push(edit));
       } catch (error) {
         toast.error('Project failed to render', { description: (error as Error).message });
       }

@@ -13,7 +13,6 @@ import {
   screenToWorld,
   Source,
   store,
-  switchActiveScene,
   Tool,
   ToolType,
   worldToLocal,
@@ -226,7 +225,7 @@ export function DrawOverlay() {
 
     if (entity) {
       if (tool === ToolType.SCENE) {
-        switchActiveScene(world, entity);
+        editor.activate(entity);
       }
 
       editor.select(entity);

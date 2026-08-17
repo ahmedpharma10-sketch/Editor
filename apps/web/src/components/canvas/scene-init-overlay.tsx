@@ -5,7 +5,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { useQuery, useTrait, useWorld } from "@diffusionstudio/koota-solid";
 import { Scene as SceneElement } from "@diffusionstudio/reconciler";
-import { ChildOf, getCameraMatrix, getNextName, Root, setCamera, Source, switchActiveScene } from "@diffusionstudio/runtime";
+import { ChildOf, getCameraMatrix, getNextName, Root, setCamera, Source } from "@diffusionstudio/runtime";
 import { Icon } from "@/components/ui/icon";
 import {
   DropdownMenu,
@@ -112,7 +112,7 @@ export function SceneInitOverlay() {
     ));
     if (!scene) return;
 
-    switchActiveScene(world, scene);
+    editor.activate(scene);
     editor.select(scene);
   };
 

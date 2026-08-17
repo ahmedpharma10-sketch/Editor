@@ -22,7 +22,7 @@ import {
 	Start, End, SourceIn, SourceOut, PlaybackRate, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Appearance, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
-	ColorStop, StrokeStyle, Size, Computed,
+	ColorStop, StrokeStyle, Size, Computed, Active, Stage,
 	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
 	AudioDecoderHandle, CaptionDecoderHandle,
 	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
@@ -103,6 +103,21 @@ export function observeWorld(world: World): () => void {
 	subs.push(world.onAdd(Sequential, (entity) => {
 		entity.add(Group);
 		entity.remove(Position, Offset, Rotation, Scale, Skew, Anchor, Flip);
+	}));
+
+	// One active entity per world, and only a root.
+	subs.push(world.onAdd(Active, (entity) => {
+		for (const other of [...world.query(Active)]) {
+			if (other !== entity) {
+				other.remove(Active);
+			}
+		}
+	}));
+
+	subs.push(world.onAdd(ChildOf('*'), (child, parent) => {
+		if (child.has(Active) && !parent.has(Stage)) {
+			child.remove(Active);
+		}
 	}));
 
 	// ── Time ranges ───────────────────────────────────────────

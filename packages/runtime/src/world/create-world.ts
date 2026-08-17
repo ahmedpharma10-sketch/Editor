@@ -10,7 +10,6 @@ import {
 	Root,
 	Project,
 	Mode,
-	ActiveScene,
 	Camera,
 	Background,
 	Time,
@@ -37,7 +36,6 @@ export function createRuntimeWorld(projectId: string) {
 	const world = createWorld(
 		Project({ id: projectId }),
 		Mode,
-		ActiveScene,
 		Time,
 		FrameRate,
 		RenderSurface,

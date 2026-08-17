@@ -10,7 +10,7 @@ import {
 } from 'mediabunny';
 import { Or } from 'koota';
 import {
-	createRuntimeWorld, switchActiveScene, serializeEntity, cloneFromRecords,
+	createRuntimeWorld, setActive, serializeEntity, cloneFromRecords,
 	getEntityTree, propagateTimeRangeDown, framesToSeconds,
 	assert, store, disposeDecoders,
 	playbackSystem, motionSystem, transformSystem, renderSystem,
@@ -112,7 +112,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 	recomputeAllTimeRanges(world);
 	normalizeSceneTransform(world, scene.id());
 
-	switchActiveScene(world, scene);
+	setActive(world, scene);
 
 	const computed = store(world, Computed);
 	const playback = store(world, Playback);

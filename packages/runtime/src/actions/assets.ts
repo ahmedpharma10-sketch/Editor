@@ -11,13 +11,14 @@ import Sqids from 'sqids';
 import { GeometryType, PaintType } from '../constants';
 import {
 	Geometry, Paint, Audio, Caption, Hidden, Name, AssetId, Start, SourceIn,
-	SourceOut, KeepAspectRatio, Computed, Assets, AssetIds, ActiveScene,
+	SourceOut, KeepAspectRatio, Computed, Assets, AssetIds,
 } from '../traits';
 import { store } from '../world/store';
 import { secondsToFrames } from '../utils/time';
 import { createEntity } from './entities';
 import { appendChild } from './hierarchy';
 import { resizeEntity } from './resize';
+import { getActiveEntity } from './frame';
 
 import type { Entity, World } from 'koota';
 import type { Asset, Transcript } from '../assets/types';
@@ -121,7 +122,7 @@ export async function insertAssetInTimeline(
 	asset: Asset,
 	mode: 'playhead' | 'start',
 ): Promise<Entity | null> {
-	const scene = world.get(ActiveScene)?.entity ?? null;
+	const scene = getActiveEntity(world);
 	if (scene === null) return null;
 
 	const start = mode === 'playhead' ? store(world, Computed).localTime[scene.id()] ?? 0 : 0;

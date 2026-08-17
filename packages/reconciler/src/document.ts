@@ -4,7 +4,7 @@
 
 
 import {
-	ActiveScene,
+	Active,
 	appendChild,
 	Background,
 	Chars,
@@ -39,7 +39,6 @@ import {
 	SourceOut,
 	setCameraMatrix,
 	Start,
-	switchActiveScene,
 	TextAlign,
 	TextBaseline,
 	TextStyle,
@@ -223,6 +222,15 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				}
 				return;
 			}
+			case 'active': {
+				// Uniqueness and root-only are the runtime's observers' business.
+				if (value === true && entity !== this.stage.entity) {
+					entity.add(Active);
+				} else {
+					entity.remove(Active);
+				}
+				return;
+			}
 			case 'x':
 			case 'y': {
 				entity.add(Position);
@@ -383,10 +391,6 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			node.entity.set(Background, { value: DEFAULT_BACKGROUND });
 			node.entity.remove(Source);
 			return;
-		}
-		// The playhead cannot be left aimed at an entity that is going away.
-		if (this.world.get(ActiveScene)?.entity === node.entity) {
-			switchActiveScene(this.world, null);
 		}
 		// Destroy cascades through the subtree; the text nodes held for it go too.
 		for (const entity of getEntityTree(this.world, node.entity)) {

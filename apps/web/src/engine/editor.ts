@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { Chars, getEntityChildren, getParentEntity, isText, Selected, Source, Stage } from '@diffusionstudio/runtime';
+import { Chars, getActiveEntity, getEntityChildren, getParentEntity, isText, Selected, setActive, Source, Stage } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -160,6 +160,19 @@ export class DocumentEditor {
 
 	public clearSelection(): void {
 		this.select([]);
+	}
+
+	/**
+	 * Points the timeline at `entity` (or at nothing). Same route as
+	 * `select`: `setActive` enforces the runtime's rules and writes the trait,
+	 * and the file learns `active` moved, `false` for the one it left.
+	 */
+	public activate(entity: Entity | null): void {
+		const current = getActiveEntity(this.world);
+		if (current === entity) return;
+		setActive(this.world, entity);
+		if (current?.isAlive()) this.reportEdit(current, 'active', false);
+		if (entity) this.reportEdit(entity, 'active', true);
 	}
 
 	private setSelected(entity: Entity, selected: boolean): void {

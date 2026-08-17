@@ -41,9 +41,6 @@ export type RuntimeMode = 'realtime' | 'offline-video' | 'offline-audio';
 
 export const Mode = trait({ value: 'realtime' as RuntimeMode });
 
-// Scene the playhead, timeline, and capture operate on (was selection.scene).
-export const ActiveScene = trait({ entity: null as Entity | null });
-
 // Frame clock (was timestamp).
 export const Time = trait({ now: 0, delta: 0 });
 

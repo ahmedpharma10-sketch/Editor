@@ -127,6 +127,14 @@ export type PatchProps = {
    * selected; the editor writes the bare attribute and removes it again.
    */
   selected?: boolean;
+  /**
+   * Whether this element is the one the playhead, timeline, and capture
+   * operate on. Editor state carried by the source like `selected`, with two
+   * rules the runtime holds: at most one element is active, and only a root
+   * (a direct child of `<stage>`) can be; a nested `active` is dropped. When
+   * a file names more than one, the last one rendered wins.
+   */
+  active?: boolean;
   /** Position relative to the parent, px. Defaults to 0. Animatable. */
   x?: Animatable<number>;
   y?: Animatable<number>;
@@ -280,14 +288,15 @@ export type StageProps = {
  * `width`×`height` and owns the timeline they are placed on, so it takes no
  * timing of its own — nothing outside a scene has a clock to place it against.
  *
- * `x`/`y` are where the frame sits on the infinite canvas, and `selected`
- * whether the editor has it selected. Those are editor concerns rather than
+ * `x`/`y` are where the frame sits on the infinite canvas, `selected` whether
+ * the editor has it selected, and `active` whether the timeline is pointed at
+ * it (scenes only, for now). Those are editor concerns rather than
  * part of the composition, but they live here for the same reason `<stage>`'s
  * `camera` does: the source is the document, so a scene dragged or clicked on
  * the canvas has nowhere else to be written back to.
  */
 export type SceneProps = Required<Pick<PatchProps, "width" | "height">> &
-  Pick<PatchProps, "name" | "selected" | "x" | "y" | "fill"> & {
+  Pick<PatchProps, "name" | "selected" | "active" | "x" | "y" | "fill"> & {
     children?: SolidJSX.Element;
   };
 
