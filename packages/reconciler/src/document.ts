@@ -7,16 +7,20 @@ import {
 	ActiveScene,
 	appendChild,
 	Background,
+	Chars,
 	ClipsContent,
 	createEntity,
 	DEFAULT_BACKGROUND,
 	Color,
 	End,
+	FontStyle,
 	FrameRate,
 	Geometry,
 	GeometryType,
+	getEntityTree,
 	getParentEntity,
 	getParentNode,
+	isText,
 	ItemIndex,
 	Name,
 	parseColor,
@@ -35,6 +39,9 @@ import {
 	setCameraMatrix,
 	Start,
 	switchActiveScene,
+	TextAlign,
+	TextBaseline,
+	TextStyle,
 } from '@diffusionstudio/runtime';
 import { parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
@@ -46,12 +53,46 @@ export interface SceneNode {
 	readonly entity: Entity;
 }
 
+export interface TextNode {
+	text: string;
+	parent: SceneNode | null;
+}
+
+export type HostNode = SceneNode | TextNode;
+
+export function isSceneNode(node: HostNode): node is SceneNode {
+	return 'entity' in node;
+}
+
 const TIME_TRAITS = {
 	start: Start,
 	end: End,
 	sourceIn: SourceIn,
 	sourceOut: SourceOut,
 } as const;
+
+const FONT_STYLES: Record<string, FontStyle> = {
+	normal: FontStyle.NORMAL,
+	italic: FontStyle.ITALIC,
+	oblique: FontStyle.OBLIQUE,
+};
+
+const TEXT_ALIGNS: Record<string, TextAlign> = {
+	left: TextAlign.LEFT,
+	center: TextAlign.CENTER,
+	right: TextAlign.RIGHT,
+};
+
+const TEXT_BASELINES: Record<string, TextBaseline> = {
+	top: TextBaseline.TOP,
+	middle: TextBaseline.MIDDLE,
+	bottom: TextBaseline.BOTTOM,
+};
+
+const FONT_WEIGHTS: Record<string, string> = {
+	normal: '400',
+	bold: '700',
+};
 
 function toNumber(value: unknown) {
 	if (value === undefined || value === null) {
@@ -70,10 +111,10 @@ function toSeconds(value: unknown): number | undefined {
 	return parseTime(value);
 }
 
-export class RuntimeDocument implements ProjectDocument<SceneNode> {
-	/** The mount root. Both it and the <stage> element stand for the Stage entity. */
+export class RuntimeDocument implements ProjectDocument<HostNode> {
 	public readonly stage: SceneNode;
 	private readonly world: World;
+	private readonly texts = new Map<Entity, TextNode[]>();
 
 	public constructor(world: World) {
 		this.world = world;
@@ -112,24 +153,46 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				resizeEntity(this.world, entity, { width: 100, height: 100 });
 				break;
 			}
+			case 'text': {
+				// No Size: a text without one sizes itself to its glyphs.
+				entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.TEXT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Chars);
+				entity.add(TextStyle);
+				break;
+			}
 			default:
-				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene> and <rect>).`);
+				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene>, <rect> and <text>).`);
 		}
 
 		return { entity };
 	}
 
-	public createTextNode(): SceneNode {
-		throw new Error('Text children are not supported.');
+	public createTextNode(text: string): TextNode {
+		return { text, parent: null };
 	}
 
-	public replaceText(): void { }
+	public replaceText(node: HostNode, text: string): void {
+		if (isSceneNode(node)) return;
+		node.text = text;
 
-	public isTextNode(): boolean {
-		return false;
+		if (node.parent) {
+			node.parent.entity.add(Chars);
+			node.parent.entity.set(Chars, { value: this.buildText(node) });
+		}
 	}
 
-	public setProperty({ entity }: SceneNode, name: string, value: unknown): void {
+	public isTextNode(node: HostNode): boolean {
+		return !isSceneNode(node);
+	}
+
+	public setProperty(node: HostNode, name: string, value: unknown): void {
+		if (!isSceneNode(node)) return;
+		const { entity } = node;
+
 		switch (name) {
 			case SOURCE_ATTR: {
 				if (typeof value !== 'string' || !value) {
@@ -181,7 +244,8 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				entity.set(trait, { value: secondsToFrames(seconds, fps) });
 				return;
 			}
-			case 'fill': {
+			case 'fill':
+			case 'color': {
 				const color = parseColor(value);
 
 				if (color === null) {
@@ -191,6 +255,41 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 				entity.add(Color);
 				entity.set(Color, { value: color });
+				return;
+			}
+			case 'fontSize': {
+				const size = toNumber(value);
+				entity.add(TextStyle);
+				entity.set(TextStyle, { fontSize: size !== undefined && size > 0 ? Math.round(size) : undefined });
+				return;
+			}
+			case 'fontFamily': {
+				const family = typeof value === 'string' ? value.trim() : '';
+				entity.add(TextStyle);
+				entity.set(TextStyle, { fontFamily: family || undefined });
+				return;
+			}
+			case 'fontWeight': {
+				// Authored as a CSS keyword or a number; the trait keeps the numeric string.
+				const weight = value === undefined || value === null ? '' : String(value).trim();
+				const numeric = FONT_WEIGHTS[weight] ?? weight;
+				entity.add(TextStyle);
+				entity.set(TextStyle, { fontWeight: numeric && Number.isFinite(Number(numeric)) ? numeric : undefined });
+				return;
+			}
+			case 'fontStyle': {
+				entity.add(TextStyle);
+				entity.set(TextStyle, { fontStyle: typeof value === 'string' ? FONT_STYLES[value] : undefined });
+				return;
+			}
+			case 'textAlign': {
+				entity.add(TextStyle);
+				entity.set(TextStyle, { textAlign: typeof value === 'string' ? TEXT_ALIGNS[value] : undefined });
+				return;
+			}
+			case 'textBaseline': {
+				entity.add(TextStyle);
+				entity.set(TextStyle, { textBaseline: typeof value === 'string' ? TEXT_BASELINES[value] : undefined });
 				return;
 			}
 			case 'background': {
@@ -215,11 +314,25 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	}
 
 	/**
-	 * Node handles are minted per lookup, so every comparison here is between
-	 * entities: two handles for the same node are never the same object.
+	 * Entity handles are minted per lookup, so every comparison here is between
+	 * entities: two handles for the same node are never the same object. Text
+	 * nodes are the exception, held by identity (see `TextNode`).
 	 */
-	public insertNode(parent: SceneNode, node: SceneNode, anchor?: SceneNode): void {
+	public insertNode(parent: HostNode, node: HostNode, anchor?: HostNode): void {
+		if (!isSceneNode(parent)) {
+			throw new Error('Text cannot contain children.');
+		}
+
+		if (!isSceneNode(node)) {
+			this.insertText(parent, node, anchor);
+			return;
+		}
+
 		if (parent.entity === node.entity) return;
+
+		if (isText(parent.entity)) {
+			throw new Error('<text> only takes text children.');
+		}
 
 		// Scenes own a timeline, so one inside another has no coherent reading.
 		if (node.entity.has(Scene) && !parent.entity.has(Stage)) {
@@ -238,8 +351,8 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			appendChild(this.world, node.entity, parent.entity);
 		}
 
-		const siblings = this.childEntities(parent).filter((sibling) => sibling !== node.entity);
-		const at = anchor ? siblings.indexOf(anchor.entity) : -1;
+		const siblings = getEntityChildren(this.world, parent.entity).filter((sibling) => sibling !== node.entity);
+		const at = anchor && isSceneNode(anchor) ? siblings.indexOf(anchor.entity) : -1;
 		if (at === -1) siblings.push(node.entity);
 		else siblings.splice(at, 0, node.entity);
 		for (const [index, sibling] of siblings.entries()) {
@@ -248,7 +361,12 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 	}
 
-	public removeNode(_parent: SceneNode, node: SceneNode): void {
+	public removeNode(_parent: HostNode, node: HostNode): void {
+		if (!isSceneNode(node)) {
+			this.removeText(node);
+			return;
+		}
+
 		if (node.entity.has(Stage)) {
 			for (const child of this.children(node)) {
 				this.removeNode(node, child);
@@ -261,23 +379,41 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		if (this.world.get(ActiveScene)?.entity === node.entity) {
 			switchActiveScene(this.world, null);
 		}
+		// Destroy cascades through the subtree; the text nodes held for it go too.
+		for (const entity of getEntityTree(this.world, node.entity)) {
+			const texts = this.texts.get(entity);
+			if (texts === undefined) continue;
+			for (const text of texts) {
+				text.parent = null;
+			}
+			this.texts.delete(entity);
+		}
 		// ChildOf auto-destroys orphans, so paints go with it.
 		node.entity.destroy();
 	}
 
-	public getParentNode(node: SceneNode): SceneNode | undefined {
+	public getParentNode(node: HostNode): SceneNode | undefined {
+		if (!isSceneNode(node)) return node.parent ?? undefined;
 		const parent = getParentEntity(node.entity);
 		return parent === null ? undefined : { entity: parent };
 	}
 
-	public getFirstChild(node: SceneNode): SceneNode | undefined {
-		return this.children(node)[0];
+	public getFirstChild(node: HostNode): HostNode | undefined {
+		if (!isSceneNode(node)) return undefined;
+		return this.texts.get(node.entity)?.[0] ?? this.children(node)[0];
 	}
 
-	public getNextSibling(node: SceneNode): SceneNode | undefined {
+	public getNextSibling(node: HostNode): HostNode | undefined {
+		if (!isSceneNode(node)) {
+			// A text entity has only text nodes to iterate.
+			const texts = node.parent ? this.texts.get(node.parent.entity) : undefined;
+			const at = texts?.indexOf(node) ?? -1;
+			return at === -1 ? undefined : texts![at + 1];
+		}
+
 		const parent = this.getParentNode(node);
 		if (parent === undefined) return undefined;
-		const siblings = this.childEntities(parent);
+		const siblings = getEntityChildren(this.world, parent.entity);
 		const at = siblings.indexOf(node.entity);
 		if (at === -1) return undefined;
 		const next = siblings[at + 1];
@@ -290,12 +426,54 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	/** Children of `parent` in draw order, as handles. */
 	private children(parent: SceneNode): SceneNode[] {
-		return this.childEntities(parent).map((entity) => ({ entity }));
+		return getEntityChildren(this.world, parent.entity).map((entity) => ({ entity }));
 	}
 
-	/** Children of `parent` in draw order. */
-	private childEntities(parent: SceneNode): Entity[] {
-		return getEntityChildren(this.world, parent.entity);
+	private insertText(parent: SceneNode, node: TextNode, anchor?: HostNode): void {
+		if (!isText(parent.entity)) {
+			throw new Error('Only <text> takes text children.');
+		}
+
+		if (node.parent && node.parent.entity !== parent.entity) {
+			this.removeText(node);
+		}
+
+		let texts = this.texts.get(parent.entity);
+		if (texts === undefined) {
+			texts = [];
+			this.texts.set(parent.entity, texts);
+		}
+
+		const current = texts.indexOf(node);
+		if (current !== -1) texts.splice(current, 1);
+		const at = anchor && !isSceneNode(anchor) ? texts.indexOf(anchor) : -1;
+		if (at === -1) texts.push(node);
+		else texts.splice(at, 0, node);
+
+		node.parent = parent;
+		node.parent.entity.add(Chars);
+		node.parent.entity.set(Chars, { value: this.buildText(node) });
+	}
+
+	private removeText(node: TextNode): void {
+		const parent = node.parent;
+		if (parent === null) return;
+
+		const texts = this.texts.get(parent.entity);
+		const at = texts?.indexOf(node) ?? -1;
+		if (at !== -1) texts!.splice(at, 1);
+		node.parent = null;
+
+		if (parent.entity.isAlive()) {
+			parent.entity.add(Chars);
+			parent.entity.set(Chars, { value: this.buildText(node) });
+		}
+	}
+
+	private buildText(node: TextNode): string {
+		if (isSceneNode(node) || node.parent === null) return '';
+
+		return (this.texts.get(node.parent.entity) ?? []).map((node) => node.text).join('');
 	}
 }
 

@@ -14,11 +14,11 @@ import { getEntityChildren, getParentEntity, Source } from '@diffusionstudio/run
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
-import { getRuntimeDocument, insert, withDocument } from '@diffusionstudio/reconciler';
+import { getRuntimeDocument, insert, isSceneNode, withDocument } from '@diffusionstudio/reconciler';
 
 import type { PropValue } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
-import type { ProjectDocument, RuntimeDocument, SceneNode } from '@diffusionstudio/reconciler';
+import type { HostNode, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
 
 /**
  * A property the editor changed, in the vocabulary of the JSX rather than of
@@ -217,7 +217,7 @@ export class DocumentEditor {
 	 * every element created stamped pending and its tag and literal props
 	 * noted in `created`. The document itself never learns it was watched.
 	 */
-	private recording(created: Map<Entity, Recorded>): ProjectDocument<SceneNode> {
+	private recording(created: Map<Entity, Recorded>): ProjectDocument<HostNode> {
 		const document = this.document;
 		return {
 			stage: document.stage,
@@ -230,15 +230,15 @@ export class DocumentEditor {
 				return node;
 			},
 			setProperty: (node, name, value) => {
-				const recorded = created.get(node.entity);
+				const recorded = isSceneNode(node) ? created.get(node.entity) : undefined;
 				if (recorded && name !== SOURCE_ATTR && name !== 'children' && name !== 'ref' && isPropValue(value)) {
 					recorded.props[name] = value;
 				}
 				document.setProperty(node, name, value);
 			},
-			createTextNode: () => document.createTextNode(),
-			replaceText: () => document.replaceText(),
-			isTextNode: () => document.isTextNode(),
+			createTextNode: (text) => document.createTextNode(text),
+			replaceText: (node, text) => document.replaceText(node, text),
+			isTextNode: (node) => document.isTextNode(node),
 			insertNode: (parent, node, anchor) => document.insertNode(parent, node, anchor),
 			removeNode: (parent, node) => document.removeNode(parent, node),
 			getParentNode: (node) => document.getParentNode(node),
