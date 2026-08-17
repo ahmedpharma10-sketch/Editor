@@ -5,7 +5,7 @@
 import { createContext, onCleanup, useContext, type JSX } from 'solid-js';
 import { WorldProvider } from '@diffusionstudio/koota-solid';
 
-import { Engine, type EngineOptions } from './create-engine';
+import { createEngine, type Engine, type EngineOptions } from './create-engine';
 
 const EngineContext = createContext<Engine>();
 
@@ -24,7 +24,7 @@ export interface EngineProviderProps {
  * explicit instead of importing one god object.
  */
 export function EngineProvider(props: EngineProviderProps): JSX.Element {
-	const engine = new Engine(props.projectId, props.options);
+	const engine = createEngine(props.projectId, props.options);
 	onCleanup(() => engine.dispose());
 
 	return (

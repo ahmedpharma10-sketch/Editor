@@ -23,6 +23,7 @@ import {
 	isText,
 	ItemIndex,
 	Name,
+	Offset,
 	parseColor,
 	Playback,
 	Position,
@@ -32,6 +33,7 @@ import {
 	getEntityChildren,
 	Stage,
 	Root,
+	Rotation,
 	Scene,
 	Selected,
 	Source,
@@ -235,6 +237,17 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'y': {
 				entity.add(Position);
 				entity.set(Position, { [name]: toNumber(value) ?? 0 });
+				return;
+			}
+			case 'offsetX':
+			case 'offsetY': {
+				entity.add(Offset);
+				entity.set(Offset, { [name === 'offsetX' ? 'x' : 'y']: toNumber(value) ?? 0 });
+				return;
+			}
+			case 'rotation': {
+				entity.add(Rotation);
+				entity.set(Rotation, { value: toNumber(value) ?? 0 });
 				return;
 			}
 			case 'width':

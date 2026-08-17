@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { AudioEngine, createRuntimeWorld, RenderSurface, runSystems, Time } from '@diffusionstudio/runtime';
+import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, RenderSurface, Time } from '@diffusionstudio/runtime';
 
 import type { RuntimeWorld } from '@diffusionstudio/runtime';
 
@@ -20,7 +20,7 @@ export interface EngineOptions {
  * Input, HUD, and DOM-sync systems are app-side concerns layered on top by
  * the host, not part of this shell.
  */
-export class Engine {
+class Engine {
 	readonly world: RuntimeWorld;
 
 	private canvas: HTMLCanvasElement | null = null;
@@ -88,7 +88,11 @@ export class Engine {
 		const delta = this.lastTimestamp === null ? 0 : timestamp - this.lastTimestamp;
 		this.lastTimestamp = timestamp;
 		this.world.set(Time, { now: timestamp, delta });
-		runSystems(this.world);
+
+		playbackSystem(this.world);
+		motionSystem(this.world);
+		transformSystem(this.world);
+		renderSystem(this.world);
 	}
 
 	private loop(timestamp: number): void {
@@ -113,7 +117,15 @@ export class Engine {
 
 	public dispose(): void {
 		this.stop();
-		if (this.ownsAudioContext) void this.audioContext.close();
+		if (this.ownsAudioContext) {
+			this.audioContext.close();
+		}
 		this.world.destroy();
 	}
 }
+
+export function createEngine(projectId: string, options: EngineOptions = {}): Engine {
+	return new Engine(projectId, options);
+}
+
+export type { Engine };
