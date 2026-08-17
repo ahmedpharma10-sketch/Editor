@@ -6,17 +6,26 @@ import { trait } from 'koota';
 
 import { TransitionType } from '../constants';
 
-// Offset where the node starts inside its parent's timeline (frames).
-export const Delay = trait({ value: 0 });
+// The authored time of a node, in the vocabulary the JSX uses. One trait per
+// value, all frames, because a clip rarely says more than one of these things:
+// they are separate answers to separate questions, and absence is the answer
+// most nodes give. `resolveTimeRange` in actions/timing.ts fills the gaps.
+//
+// Start/End place the node on its parent's timeline. Absent Start is 0 (begin
+// with the parent), absent End is the source's natural duration, or 16s for a
+// node with no source. Scenes and groups without an End fit their children.
+export const Start = trait({ value: 0 });
+export const End = trait({ value: 0 });
 
-// Speed multiplier for the node's local time (1 = normal).
+// SourceIn/SourceOut pick the slice of the node's own source that plays there.
+// Absent SourceIn is 0 (from the top), absent SourceOut is the natural end.
+export const SourceIn = trait({ value: 0 });
+export const SourceOut = trait({ value: 0 });
+
+// Speed multiplier for the node's local time (1 = normal). Scales the source
+// window against the timeline window: at 2, twice the source frames fit into
+// the same stretch of timeline.
 export const PlaybackRate = trait({ value: 1 });
-
-// Explicit duration window in the clip's own local time. When present, the
-// node has fixed bounds (workarea on scenes, trimmed source on media clips).
-// When absent: scenes auto-fit to their children, other nodes have no
-// inherent duration (the runtime adds Trim immediately on creation).
-export const Trim = trait({ start: 0, end: 0 });
 
 // Explicit playback/export window on a scene.
 export const Workarea = trait({ start: 0, end: 0 });

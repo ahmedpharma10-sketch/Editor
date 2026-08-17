@@ -40,10 +40,11 @@ export const Computed = trait({
 	chars: undefined as string | undefined,
 	localTimeInSeconds: 0, // playhead position in seconds
 	localTime: 0, // playhead position in frames (mirrors localTimeInSeconds)
-	duration: 0, // frames
+	duration: 0, // end - start
 	start: 0,
 	end: 0,
-	delay: 0,
+	origin: 0, 	// The origin of the node's own timeline
+	playbackRate: 1,
 	visibility: 1,
 });
 

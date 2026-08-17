@@ -9,13 +9,13 @@ import { Or } from 'koota';
 
 import { store } from '../world/store';
 import {
-	ChildOf, Geometry, Group, Sequential, Trim, Computed,
+	ChildOf, Geometry, Group, Sequential, Computed,
 } from '../traits';
 import { isGroup } from '../queries/predicates';
 import { getEntityTree, getParentNode } from '../queries/hierarchy';
-import { computeTrimStart, computeTrimEnd } from '../utils/time';
 import { cloneSubtree } from '../world/serialize';
 import { deleteEntity } from './entities';
+import { trimEntityIn, trimEntityOut } from './timing';
 
 import type { Entity, World } from 'koota';
 
@@ -154,27 +154,22 @@ function resolveEntityOverlap(
 	} else if (!startCovered && endCovered) {
 		// Overlaps the dropped clip's left edge: keep the left remainder by
 		// pulling the out-point back to the drop start.
-		entity.add(Trim);
-		entity.set(Trim, { end: computeTrimEnd(entity, occStart) });
+		trimEntityOut(world, entity, occStart);
 	} else if (startCovered && !endCovered) {
 		// Overlaps the dropped clip's right edge: keep the right remainder by
 		// pushing the in-point forward to the drop end.
-		entity.add(Trim);
-		entity.set(Trim, { start: computeTrimStart(entity, occEnd) });
+		trimEntityIn(world, entity, occEnd);
 	} else {
 		// The dropped clip lands inside this one: split it into two halves around
 		// the span. Clone first so the copy inherits the original (un-shrunk)
-		// trim, then shrink the original to the left half and the copy to the
+		// window, then shrink the original to the left half and the copy to the
 		// right half.
-		const copyTrimStart = computeTrimStart(entity, occEnd);
 		const result = cloneSubtree(world, getEntityTree(world, entity));
 		const copy = result.get(entity);
 
-		entity.add(Trim);
-		entity.set(Trim, { end: computeTrimEnd(entity, occStart) });
+		trimEntityOut(world, entity, occStart);
 		if (copy !== undefined) {
-			copy.add(Trim);
-			copy.set(Trim, { start: copyTrimStart });
+			trimEntityIn(world, copy, occEnd);
 		}
 	}
 }

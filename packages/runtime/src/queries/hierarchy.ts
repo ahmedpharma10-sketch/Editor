@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { ChildOf, Computed, Name, Playback, PlaybackRate } from '../traits';
+import { ChildOf, Computed, Name, Playback } from '../traits';
 import { isDocument, isScene } from './predicates';
-import { sortByItemIndex } from '../utils';
+// Direct module, not the utils barrel: utils/time reaches back into this file.
+import { sortByItemIndex } from '../utils/sort';
 
 import type { Entity, World, QueryParameter } from 'koota';
 
@@ -65,14 +66,15 @@ export function getEntityTree(world: World, root: Entity): Entity[] {
 
 /**
  * Returns the local frame for a node in its own source/content time: the
- * timeline frame relative to the node's delay, scaled by its playback rate.
+ * timeline frame relative to the node's origin, scaled by its playback rate.
  * This matches `Computed.localTime` (the space keyframes are sampled
  * in), so keyframes authored at any playback rate land on the right content
  * frame.
  */
 export function getNodeLocalFrame(node: Entity): number {
-	const delay = node.get(Computed)?.delay ?? 0;
-	const playbackRate = node.get(PlaybackRate)?.value ?? 1;
+	const computed = node.get(Computed);
+	const origin = computed?.origin ?? 0;
+	const playbackRate = computed?.playbackRate || 1;
 
 	let current: Entity | null = node;
 	while (current) {
@@ -81,7 +83,7 @@ export function getNodeLocalFrame(node: Entity): number {
 		// must be a top-level playback entity
 		if (current.has(Playback) && parent === null) {
 			const currentTime = current.get(Computed)?.localTime ?? 0;
-			return Math.round((currentTime - delay) * playbackRate);
+			return Math.round((currentTime - origin) * playbackRate);
 		}
 
 		current = parent;

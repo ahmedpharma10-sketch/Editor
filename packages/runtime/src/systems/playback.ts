@@ -14,13 +14,14 @@ import { PaintType } from '../constants';
 import {
 	ChildOf, Hidden, Culled, Dragging,
 	Geometry, Group, AdjustmentLayer, Paint, Audio, Caption, Muted, Soloed,
-	Sequential, Transition, Playback, Workarea, Trim, PlaybackRate,
+	Sequential, Transition, Playback, Workarea,
 	AudioPlayback, Computed,
 	AudioDecoderHandle, AudioBusHandle, HtmlHostHandle,
 	Mode, FrameRate, Time, AudioEngine, FramePromises, Mounts,
 	Root,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
+import { getSourceWindow } from '../utils/time';
 import { clamp } from '../math/common';
 import { getTransitionWindow } from '../utils/transition';
 import {
@@ -115,7 +116,6 @@ function advancePlayhead(world: World, entity: Entity): void {
 
 function forwardVideoDecoder(world: World, scene: Entity, entity: Entity, fill: Entity): void {
 	const computed = store(world, Computed);
-	const trim = store(world, Trim);
 	const eid = entity.id();
 	const fps = world.get(FrameRate)?.value ?? 30;
 
@@ -126,19 +126,13 @@ function forwardVideoDecoder(world: World, scene: Entity, entity: Entity, fill: 
 	const hasCache = world.get(Mode)?.value === 'realtime';
 	const warmupDecoder = globalFrame >= start - WARMUP_FRAMES && globalFrame < end + WARMUP_FRAMES && hasCache;
 
-	let trimStart = 0;
-	let trimEnd = computed.duration[eid]!;
-
-	if (entity.has(Trim)) {
-		trimStart = trim.start[eid]!;
-		trimEnd = trim.end[eid] ?? trimEnd;
-	}
+	const source = getSourceWindow(entity);
 
 	const decoder = resolveVideoDecoder(world, fill);
 	if (!decoder) return;
 
 	if (computed.visibility[eid] === 1 || warmupDecoder) {
-		const seekFrame = clamp(localFrame, trimStart, trimEnd);
+		const seekFrame = clamp(localFrame, source.in, source.out);
 		const seekPromise = decoder.seekTo(seekFrame, fps);
 		framePromises(world)?.push(seekPromise ?? null);
 	}
@@ -146,7 +140,6 @@ function forwardVideoDecoder(world: World, scene: Entity, entity: Entity, fill: 
 
 function forwardSequenceDecoder(world: World, scene: Entity, entity: Entity, fill: Entity): void {
 	const computed = store(world, Computed);
-	const trim = store(world, Trim);
 	const eid = entity.id();
 	const fps = world.get(FrameRate)?.value ?? 30;
 
@@ -157,19 +150,13 @@ function forwardSequenceDecoder(world: World, scene: Entity, entity: Entity, fil
 	const hasCache = world.get(Mode)?.value === 'realtime';
 	const warmupDecoder = globalFrame >= start - WARMUP_FRAMES && globalFrame < end + WARMUP_FRAMES && hasCache;
 
-	let trimStart = 0;
-	let trimEnd = computed.duration[eid]!;
-
-	if (entity.has(Trim)) {
-		trimStart = trim.start[eid]!;
-		trimEnd = trim.end[eid] ?? trimEnd;
-	}
+	const source = getSourceWindow(entity);
 
 	const decoder = resolveSequenceDecoder(world, fill, hasCache);
 	if (!decoder) return;
 
 	if (computed.visibility[eid] === 1 || warmupDecoder) {
-		const seekFrame = clamp(localFrame, trimStart, trimEnd);
+		const seekFrame = clamp(localFrame, source.in, source.out);
 		const seekPromise = decoder.seekTo(seekFrame, fps);
 		framePromises(world)?.push(seekPromise);
 	}
@@ -197,7 +184,6 @@ function forwardAudioDecoder(world: World, scene: Entity, entity: Entity, audioS
 	const { decoder, initPromise } = resolvedDecoder;
 
 	const computed = store(world, Computed);
-	const trim = store(world, Trim);
 	const audioPlayback = store(world, AudioPlayback);
 	const playback = store(world, Playback);
 	const eid = entity.id();
@@ -206,11 +192,10 @@ function forwardAudioDecoder(world: World, scene: Entity, entity: Entity, audioS
 
 	const currentTime = computed.localTime[sid]!;
 	const localFrame = computed.localTime[eid]!;
-	const trimStart = trim.start[eid] ?? 0;
+	const source = getSourceWindow(entity);
 
-	const playbackRate = entity.get(PlaybackRate)?.value ?? 1;
-	const delay = computed.delay[eid]!;
-	const trimEnd = trim.end[eid] ?? computed.duration[eid] ?? 0;
+	const playbackRate = computed.playbackRate[eid] || 1;
+	const origin = computed.origin[eid]!;
 
 	const audioOffset = audioPlayback.contextOffsetInSeconds[sid] ?? 0;
 	const playbackOffset = audioPlayback.timelineOffsetInSeconds[sid] ?? 0;
@@ -226,11 +211,11 @@ function forwardAudioDecoder(world: World, scene: Entity, entity: Entity, audioS
 		const playPromise = decoder.playTo(bus, {
 			relativeFrom: localFrame / fps,
 			relativeTo: (localFrame + 15) / fps,
-			trimStart: trimStart / fps,
-			trimEnd: trimEnd / fps,
+			trimStart: source.in / fps,
+			trimEnd: source.out / fps,
 			playbackRate,
 			currentTime: currentTime / fps,
-			relativeDelay: (delay / fps) + audioDelay,
+			relativeDelay: (origin / fps) + audioDelay,
 		});
 		framePromises(world)?.push(playPromise);
 	} else {
@@ -318,13 +303,13 @@ function updateVisibility(world: World, scene: Entity, entity: Entity): void {
 		computed.visibility[eid] = 1;
 	} else {
 		const globalFrame = computed.localTime[scene.id()]!;
-		const delay = computed.delay[eid] ?? 0;
-		const playbackRate = entity.get(PlaybackRate)?.value ?? 1;
+		const origin = computed.origin[eid] ?? 0;
+		const playbackRate = computed.playbackRate[eid] || 1;
 
 		const start = computed.start[eid]!;
 		const end = computed.end[eid]!;
 
-		computed.localTime[eid] = Math.round((globalFrame - delay) * playbackRate);
+		computed.localTime[eid] = Math.round((globalFrame - origin) * playbackRate);
 		computed.visibility[eid] = globalFrame >= start && globalFrame < end ? 1 : 0;
 	}
 

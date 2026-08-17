@@ -19,7 +19,7 @@
 import { store } from './store';
 import {
 	ChildOf, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
-	Delay, PlaybackRate, Trim, Keyframe, ItemIndex,
+	Start, End, SourceIn, SourceOut, PlaybackRate, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Appearance, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
 	ColorStop, StrokeStyle, Size, Computed,
@@ -33,7 +33,7 @@ import { disposeDecoders, disconnectAudioBus } from '../media/dispose';
 import {
 	reactToChildAttached, reactToChildDetached, reactToAssetChange,
 	reactToPaintChange, recomputeEntityTimeRange, propagateTimeRangeDown,
-	bubbleTimeRangeUp, clampTrimToAssetDuration,
+	bubbleTimeRangeUp,
 } from '../actions/timing';
 import { propagateSize, resolveConstraintOffsets } from '../actions/resize';
 
@@ -105,14 +105,6 @@ export function observeWorld(world: World): () => void {
 		entity.remove(Position, Offset, Rotation, Scale, Skew, Anchor, Flip);
 	}));
 
-	// First Trim on an entity defaults its end to the current duration (the
-	// bitecs setComponent fallback), so a partial { start } set stays valid.
-	subs.push(world.onAdd(Trim, (entity) => {
-		if (entity.get(Trim)!.end === 0) {
-			entity.set(Trim, { end: store(world, Computed).duration[entity.id()] ?? 0 });
-		}
-	}));
-
 	// ── Time ranges ───────────────────────────────────────────
 
 	const recomputeAndBubble = (entity: Entity) => {
@@ -137,16 +129,14 @@ export function observeWorld(world: World): () => void {
 		bubbleTimeRangeUp(world, entity);
 	};
 
-	subs.push(world.onChange(Delay, propagateAndBubble));
-	subs.push(world.onChange(PlaybackRate, propagateAndBubble));
-
-	subs.push(world.onChange(Trim, (entity) => {
-		// Clamping re-enters this handler once via set; the second pass no-ops.
-		clampTrimToAssetDuration(world, entity);
-		recomputeAndBubble(entity);
-	}));
-
-	subs.push(world.onRemove(Trim, recomputeAndBubble));
+	for (const trait of [Start, End, SourceIn, SourceOut, PlaybackRate]) {
+		subs.push(world.onAdd(trait, propagateAndBubble));
+		subs.push(world.onChange(trait, propagateAndBubble));
+		subs.push(world.onRemove(trait, (entity) => {
+			propagateTimeRangeDown(world, entity, trait);
+			bubbleTimeRangeUp(world, entity);
+		}));
+	}
 
 	// ── Authored → Computed mirrors ───────────────────────────
 	// Base values for entities the motion system skips (no animation data);

@@ -4,8 +4,9 @@
 
 import { CONONICAL_TIME_BASE, PaintType } from '../constants';
 import {
-	Audio, AssetId, Cache, Computed, Paint, PlaybackRate, Assets, FrameRate,
+	Audio, AssetId, Cache, Computed, Paint, SourceIn, Assets, FrameRate,
 } from '../traits';
+import { getParentNode } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '../assets/types';
@@ -57,25 +58,37 @@ export function formatTimecode(seconds: number, frameRate: number): string {
 }
 
 /**
- * Computes the trim start frame (local) for a given entity,
- * based on the specified start frame (global) and playback rate.
+ * The scene frame that authored time 0 means for `entity`, its parent's
+ * origin. Converts between the absolute frames Computed works in and the
+ * parent-relative frames Start and End are authored in.
  */
-export function computeTrimStart(entity: Entity, start: number) {
-	const delay = entity.get(Computed)?.delay ?? 0;
-	const playbackRate = entity.get(PlaybackRate)?.value ?? 1;
+export function getTimelineOrigin(entity: Entity): number {
+	const parent = getParentNode(entity);
+	return parent === null ? 0 : (parent.get(Computed)?.origin ?? 0);
+}
 
-	return Math.round((start - delay) * playbackRate);
+/** The source frame `entity` is playing at scene frame `frame`. */
+export function getSourceFrameAt(entity: Entity, frame: number): number {
+	const computed = entity.get(Computed);
+	const origin = computed?.origin ?? 0;
+	const playbackRate = computed?.playbackRate || 1;
+
+	return Math.round((frame - origin) * playbackRate);
 }
 
 /**
- * Computes the trim end frame (local) for a given entity,
- * based on the specified end frame (global) and playback rate.
+ * The node's resolved source window, in source frames: where its in point is
+ * and how far its timeline span actually reaches into the source. Derived from
+ * the resolved duration rather than read off SourceOut, so a window the node
+ * never gets to play (an End that runs out first) is not reported as playing.
  */
-export function computeTrimEnd(entity: Entity, end: number) {
-	const delay = entity.get(Computed)?.delay ?? 0;
-	const playbackRate = entity.get(PlaybackRate)?.value ?? 1;
+export function getSourceWindow(entity: Entity): { in: number; out: number } {
+	const sourceIn = entity.get(SourceIn)?.value ?? 0;
+	const computed = entity.get(Computed);
+	const duration = computed?.duration ?? 0;
+	const playbackRate = computed?.playbackRate || 1;
 
-	return Math.round((end - delay) * playbackRate);
+	return { in: sourceIn, out: sourceIn + Math.round(duration * playbackRate) };
 }
 
 /** The asset backing a geometry: its own AssetId, or the first fill's. */

@@ -10,8 +10,8 @@ import Sqids from 'sqids';
 
 import { GeometryType, PaintType } from '../constants';
 import {
-	Geometry, Paint, Audio, Caption, Hidden, Name, AssetId, Delay, Trim,
-	KeepAspectRatio, Computed, Assets, AssetIds, ActiveScene,
+	Geometry, Paint, Audio, Caption, Hidden, Name, AssetId, Start, SourceIn,
+	SourceOut, KeepAspectRatio, Computed, Assets, AssetIds, ActiveScene,
 } from '../traits';
 import { store } from '../world/store';
 import { secondsToFrames } from '../utils/time';
@@ -124,18 +124,18 @@ export async function insertAssetInTimeline(
 	const scene = world.get(ActiveScene)?.entity ?? null;
 	if (scene === null) return null;
 
-	const delay = mode === 'playhead' ? store(world, Computed).localTime[scene.id()] ?? 0 : 0;
+	const start = mode === 'playhead' ? store(world, Computed).localTime[scene.id()] ?? 0 : 0;
 
 	// Resolve any async asset data up front so all the entity mutations below
 	// run synchronously (the app wraps them in a single undo step).
-	let transcriptTrim: { start: number; end: number } | null = null;
+	let spokenWords: { start: number; end: number } | null = null;
 	if (asset.type === 'TRANSCRIPT') {
 		// Transcript should be trimmed to the span of recognized words
 		const file = await getAssetFile(asset);
 		const transcript = JSON.parse(await file.text()) as Transcript;
 		const lastWord = transcript.at(-1)?.words.at(-1);
 		const firstWord = transcript.at(0)?.words.at(0);
-		transcriptTrim = {
+		spokenWords = {
 			start: secondsToFrames(firstWord?.start),
 			end: secondsToFrames(lastWord?.end),
 		};
@@ -144,8 +144,7 @@ export async function insertAssetInTimeline(
 	const entity = createEntity(world);
 	entity.add(Name);
 	entity.set(Name, { value: asset.name });
-	entity.add(Delay);
-	entity.set(Delay, { value: delay });
+	entity.add(Start({ value: start }));
 
 	if (asset.type === 'IMAGE' || asset.type === 'VIDEO' || asset.type === 'SEQUENCE') {
 		const width = Math.round(asset.width);
@@ -159,9 +158,10 @@ export async function insertAssetInTimeline(
 		entity.add(Geometry);
 		entity.set(Geometry, { value: GeometryType.TEXT });
 		entity.add(Caption);
-		if (transcriptTrim) {
-			entity.add(Trim);
-			entity.set(Trim, transcriptTrim);
+		if (spokenWords) {
+			entity.set(Start, { value: start + spokenWords.start });
+			entity.add(SourceIn({ value: spokenWords.start }));
+			entity.add(SourceOut({ value: spokenWords.end }));
 		}
 	} else {
 		entity.add(Geometry);

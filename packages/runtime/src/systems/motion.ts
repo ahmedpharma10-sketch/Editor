@@ -8,13 +8,14 @@ import { cubicBezier, steps, spring } from 'animejs';
 import { store } from '../world/store';
 import {
 	Geometry, Group, AdjustmentLayer, Hidden, Culled,
-	Computed, Cache, Animation, KeyframeTrack, Keyframe, Trim, Chars,
+	Computed, Cache, Animation, KeyframeTrack, Keyframe, Chars,
 	UniformScale, Position, Offset, Rotation, Scale, Skew, Size, Appearance,
 	Color, Blur, Volume, Effect, StrokeStyle, CornerRadius, MixedCornerRadius,
 	ColorStop,
 } from '../traits';
 import { AnimationType, AnimationPhase } from '../constants';
 import { revealChars, revealWords, scrambleChars } from '../utils/text-motion';
+import { getSourceWindow } from '../utils/time';
 
 import type { Entity, World } from 'koota';
 
@@ -184,7 +185,6 @@ export function motionSystem(world: World): void {
 	const cache = store(world, Cache);
 	const animation = store(world, Animation);
 	const keyframeTrack = store(world, KeyframeTrack);
-	const trimStore = store(world, Trim);
 	const worldProps = getPropertyPaths(world);
 
 	for (const entity of world.query(
@@ -200,13 +200,7 @@ export function motionSystem(world: World): void {
 
 		resetAnimatedValues(world, entity);
 
-		let trimStart = 0;
-		let trimEnd = computed.duration[eid];
-
-		if (entity.has(Trim)) {
-			trimStart = trimStore.start[eid];
-			trimEnd = trimStore.end[eid] ?? trimEnd;
-		}
+		const source = getSourceWindow(entity);
 
 		const localFrame = computed.localTime[eid];
 
@@ -219,8 +213,8 @@ export function motionSystem(world: World): void {
 			const delay = animation.delay[aid] ?? 0;
 			const isOut = animation.phase[aid] === AnimationPhase.OUT;
 			const windowStart = isOut
-				? trimEnd - duration - delay
-				: trimStart + delay;
+				? source.out - duration - delay
+				: source.in + delay;
 			const windowEnd = windowStart + duration;
 			if (isOut ? localFrame < windowStart : localFrame >= windowEnd) continue;
 

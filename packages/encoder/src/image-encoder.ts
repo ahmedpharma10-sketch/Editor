@@ -44,13 +44,16 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	const records = subtree.map(entity => serializeEntity(entity));
 
 	// Re-root the node. Its parent isn't part of the clone, so a dangling
-	// ChildOf would attach to an arbitrary entity in the new world; Delay and
-	// Hidden only mean something on the timeline it was lifted out of.
+	// ChildOf would attach to an arbitrary entity in the new world;
 	const rootRecord = records.find(record => record.eid === config.entity);
 	assert(rootRecord !== undefined, `No such entity: ${config.entity}`);
 	delete rootRecord.ChildOf;
-	delete rootRecord.Delay;
 	delete rootRecord.Hidden;
+	const rootStart = rootRecord.Start ?? 0;
+	delete rootRecord.Start;
+	if (rootRecord.End !== undefined) {
+		rootRecord.End -= rootStart;
+	}
 
 	const offscreenCanvas = new OffscreenCanvas(2, 2);
 	const offscreenCtx = offscreenCanvas.getContext('2d')!;
@@ -96,8 +99,8 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 
 	recomputeAllTimeRanges(world);
 
-	// Map "frame 0 = first visible frame": with Delay stripped the node's
-	// computed start is 0 unless it carries a Trim, whose start offsets it.
+	// Map "frame 0 = first visible frame": the node now starts at 0, and its
+	// source window puts its own in point there.
 	const startFrame = computed.start[root.id()] ?? 0;
 
 	// Entities in the clone that own a timeline clock

@@ -12,7 +12,8 @@ import {
 	Appearance, Color, CornerRadius, MixedCornerRadius, Blur, ScaleMode, Effect,
 	ColorStop, StrokeStyle, Shader,
 	Chars, TextStyle,
-	Delay, PlaybackRate, Trim, Playback, Sequential, Transition, ClipHeight, Expanded,
+	Start, End, SourceIn, SourceOut, PlaybackRate,
+	Playback, Sequential, Transition, ClipHeight, Expanded,
 	Volume, Muted,
 	KeyframeTrack, Keyframe, Animation, DocumentRoot,
 } from '../traits';
@@ -130,12 +131,11 @@ export interface EntityRecord {
 	Playback?: {
 		loop?: number;
 	};
-	Delay?: number;
+	Start?: number;
+	End?: number;
+	SourceIn?: number;
+	SourceOut?: number;
 	PlaybackRate?: number;
-	Trim?: {
-		start?: number;
-		end?: number;
-	};
 	Constraint?: {
 		horizontal?: number;
 		vertical?: number;
@@ -336,15 +336,20 @@ export function serializeEntity(entity: Entity): EntityRecord {
 			loop: entity.get(Playback)!.loop ? 1 : 0,
 		};
 	}
-	if (entity.has(Delay)) {
-		record.Delay = entity.get(Delay)!.value;
+	if (entity.has(Start)) {
+		record.Start = entity.get(Start)!.value;
+	}
+	if (entity.has(End)) {
+		record.End = entity.get(End)!.value;
+	}
+	if (entity.has(SourceIn)) {
+		record.SourceIn = entity.get(SourceIn)!.value;
+	}
+	if (entity.has(SourceOut)) {
+		record.SourceOut = entity.get(SourceOut)!.value;
 	}
 	if (entity.has(PlaybackRate)) {
 		record.PlaybackRate = entity.get(PlaybackRate)!.value;
-	}
-	if (entity.has(Trim)) {
-		const trim = entity.get(Trim)!;
-		record.Trim = { start: trim.start, end: trim.end };
 	}
 	if (entity.has(Transition)) {
 		const transition = entity.get(Transition)!;
@@ -574,17 +579,20 @@ export function deserializeEntity(entity: Entity, e: Partial<EntityRecord>): voi
 		entity.add(Playback);
 		entity.set(Playback, { loop: !!e.Playback.loop });
 	}
-	if (e.Delay !== undefined) {
-		entity.add(Delay);
-		entity.set(Delay, { value: e.Delay });
+	if (e.Start !== undefined) {
+		entity.add(Start({ value: e.Start }));
+	}
+	if (e.End !== undefined) {
+		entity.add(End({ value: e.End }));
+	}
+	if (e.SourceIn !== undefined) {
+		entity.add(SourceIn({ value: e.SourceIn }));
+	}
+	if (e.SourceOut !== undefined) {
+		entity.add(SourceOut({ value: e.SourceOut }));
 	}
 	if (e.PlaybackRate !== undefined) {
-		entity.add(PlaybackRate);
-		entity.set(PlaybackRate, { value: e.PlaybackRate });
-	}
-	if (e.Trim !== undefined) {
-		entity.add(Trim);
-		entity.set(Trim, defined(e.Trim));
+		entity.add(PlaybackRate({ value: e.PlaybackRate }));
 	}
 	if (e.Transition !== undefined) {
 		entity.add(Transition);

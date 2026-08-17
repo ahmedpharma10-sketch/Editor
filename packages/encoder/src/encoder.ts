@@ -16,7 +16,8 @@ import {
 	playbackSystem, motionSystem, transformSystem, renderSystem,
 	AudioBus, AudioBusHandle,
 	ChildOf, Geometry, Group, Paint, Workarea, Playback,
-	AudioPlayback, Computed, Delay, Trim, Transition, Keyframe, Animation,
+	AudioPlayback, Computed, Start, End, SourceIn, SourceOut,
+	Transition, Keyframe, Animation,
 	Position, Offset, Rotation, Scale, Skew,
 	Project, Mode, Time, FrameRate, RenderSurface, AudioEngine, Root,
 	resetCamera,
@@ -430,21 +431,20 @@ function rescaleFrameTimestamps(
 	const ratio = targetFrameRate / sourceFrameRate;
 	const rescale = (v: number) => Math.round(v * ratio);
 
-	const delay = store(world, Delay);
-	const trim = store(world, Trim);
 	const transition = store(world, Transition);
 	const keyframe = store(world, Keyframe);
 	const animation = store(world, Animation);
 
-	for (const entity of world.query(Or(Delay, Trim, Transition, Keyframe, Animation))) {
+	for (const trait of [Start, End, SourceIn, SourceOut]) {
+		const values = store(world, trait).value;
+		for (const entity of world.query(trait)) {
+			const eid = entity.id();
+			values[eid] = rescale(values[eid] ?? 0);
+		}
+	}
+
+	for (const entity of world.query(Or(Transition, Keyframe, Animation))) {
 		const eid = entity.id();
-		if (entity.has(Delay)) {
-			delay.value[eid] = rescale(delay.value[eid] ?? 0);
-		}
-		if (entity.has(Trim)) {
-			trim.start[eid] = rescale(trim.start[eid] ?? 0);
-			trim.end[eid] = rescale(trim.end[eid] ?? 0);
-		}
 		if (entity.has(Transition)) {
 			transition.duration[eid] = rescale(transition.duration[eid] ?? 0);
 		}
