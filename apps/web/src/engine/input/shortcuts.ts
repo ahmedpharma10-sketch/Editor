@@ -9,7 +9,7 @@
  * pressed, matches what is held against the table below and runs the action.
  */
 
-import { getSelection, Position, Selected } from '@diffusionstudio/runtime';
+import { getActiveEntity, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../editor';
 import { Keys } from '../traits';
@@ -43,6 +43,41 @@ export function duplicateSelection(world: World): void {
 	}
 }
 
+export function copySelection(world: World): void {
+	const selected = [...world.query(Selected)];
+
+	if (selected.length) {
+		getDocumentEditor(world).copy(selected);
+	}
+}
+
+/**
+ * Pastes where the selection points: into a selected container (a scene or
+ * group, on top of its children), on top of a selected leaf in that leaf's
+ * parent, or, with nothing selected, into the active scene. The editor keeps
+ * a paste out of the sequence it was copied from.
+ */
+export function pasteSelection(world: World): void {
+	const editor = getDocumentEditor(world);
+	const [selected] = world.query(Selected);
+
+	if (selected === undefined) {
+		const active = getActiveEntity(world);
+		if (active) editor.paste(active);
+		return;
+	}
+
+	if (isGroupLike(selected)) {
+		editor.paste(selected);
+		return;
+	}
+
+	const parent = getParentEntity(selected);
+	if (parent === null) return;
+	const siblings = getEntityChildren(world, parent);
+	editor.paste(parent, siblings[siblings.indexOf(selected) + 1]);
+}
+
 const NUDGE = 1;
 const NUDGE_FAST = 10;
 
@@ -68,6 +103,8 @@ const SHORTCUTS: readonly Shortcut[] = [
 	{ key: 'backspace', action: deleteSelection },
 	{ key: 'delete', action: deleteSelection },
 	{ key: 'd', mod: true, action: duplicateSelection },
+	{ key: 'c', mod: true, action: copySelection },
+	{ key: 'v', mod: true, action: pasteSelection },
 	{ key: 'arrowleft', action: nudge(-NUDGE, 0) },
 	{ key: 'arrowright', action: nudge(NUDGE, 0) },
 	{ key: 'arrowup', action: nudge(0, -NUDGE) },

@@ -18,7 +18,7 @@ import { authoredElement, authoredTree, getRuntimeDocument, insert, isSceneNode,
 
 import type { PropValue } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
-import type { HostNode, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
+import type { AuthoredTree, HostNode, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
 
 /**
  * A property the editor changed, in the vocabulary of the JSX rather than of
@@ -124,9 +124,20 @@ interface Recorded {
 	props: Record<string, PropValue>;
 }
 
+/**
+ * What `copy` took: the subtrees as authored, and the source of the parent
+ * they were copied out of (by stamp, so it outlives a remount), which `paste`
+ * needs to keep a clip out of the sequence it came from.
+ */
+interface Clipboard {
+	trees: AuthoredTree[];
+	parent?: string;
+}
+
 export class DocumentEditor {
 	private readonly world: World;
 	private sink?: (edit: EntityEdit) => void;
+	private clipboard: Clipboard = { trees: [] };
 
 	public constructor(world: World) {
 		this.world = world;
@@ -417,24 +428,10 @@ export class DocumentEditor {
 	 * `active`: one entity holds it). Returns the copies' top-level entities.
 	 */
 	public duplicate(entities: Entity | Entity[]): Entity[] {
-		const wanted = new Set(
-			(Array.isArray(entities) ? entities : [entities]).filter(
-				(entity) => entity.isAlive() && !entity.has(Stage) && !!entity.get(Source)?.value,
-			),
-		);
-		const roots = [...wanted].filter((entity) => {
-			for (let parent = getParentEntity(entity); parent; parent = getParentEntity(parent)) {
-				if (wanted.has(parent)) return false;
-			}
-			return true;
-		});
-
 		const copies: Entity[] = [];
-		for (const source of roots) {
-			const tree = authoredTree(this.world, source);
+		for (const source of this.subtreeRoots(entities)) {
+			const tree = this.spell(source);
 			if (!tree) continue;
-			delete tree.props.selected;
-			delete tree.props.active;
 
 			// Out of any sequence, on top of what it left.
 			let below = source;
@@ -453,6 +450,78 @@ export class DocumentEditor {
 
 		if (copies.length) this.select(copies);
 		return copies;
+	}
+
+	/**
+	 * Takes a copy of `entities` (the tops of their subtrees, as `duplicate`
+	 * would) for `paste`. Nothing is reported: the file only changes when the
+	 * copy lands. Leaves the clipboard alone when there is nothing to copy.
+	 */
+	public copy(entities: Entity | Entity[]): void {
+		const roots = this.subtreeRoots(entities);
+		const trees = roots.map((root) => this.spell(root)).filter((tree) => tree !== undefined);
+		if (!trees.length) return;
+		this.clipboard = { trees, parent: getParentEntity(roots[0]!)?.get(Source)?.value };
+	}
+
+	/**
+	 * Inserts what `copy` took under `parent`, in front of `anchor` or last,
+	 * with the same props it was copied with — same position, if the parent is
+	 * the same. Pasting back into the sequence it was copied out of would put a
+	 * clip on top of itself, so that goes to the sequence's parent instead, on
+	 * top of the sequence (`duplicate`'s rule). The selection moves to the
+	 * copies. Returns their top-level entities.
+	 */
+	public paste(parent: Entity, anchor?: Entity): Entity[] {
+		const { trees, parent: copiedFrom } = this.clipboard;
+		if (!trees.length) return [];
+
+		if (parent.has(Sequential) && copiedFrom !== undefined && parent.get(Source)?.value === copiedFrom) {
+			const outer = getParentEntity(parent);
+			if (!outer) return [];
+			const siblings = getEntityChildren(this.world, outer);
+			anchor = siblings[siblings.indexOf(parent) + 1];
+			parent = outer;
+		}
+
+		const copies: Entity[] = [];
+		for (const tree of trees) {
+			copies.push(...this.insertElement(parent, () => renderAuthored(tree), anchor));
+		}
+
+		if (copies.length) this.select(copies);
+		return copies;
+	}
+
+	/**
+	 * The tops of the subtrees `entities` span: those the file can address,
+	 * minus any that sit under another of them, in the given order.
+	 */
+	private subtreeRoots(entities: Entity | Entity[]): Entity[] {
+		const wanted = new Set(
+			(Array.isArray(entities) ? entities : [entities]).filter(
+				(entity) => entity.isAlive() && !entity.has(Stage) && !!entity.get(Source)?.value,
+			),
+		);
+		return [...wanted].filter((entity) => {
+			for (let parent = getParentEntity(entity); parent; parent = getParentEntity(parent)) {
+				if (wanted.has(parent)) return false;
+			}
+			return true;
+		});
+	}
+
+	/**
+	 * `entity`'s subtree as a project would author a copy of it: `selected`
+	 * goes (the copy is selected on its own terms) and so does `active` (one
+	 * entity holds it).
+	 */
+	private spell(entity: Entity): AuthoredTree | undefined {
+		const tree = authoredTree(this.world, entity);
+		if (!tree) return undefined;
+		delete tree.props.selected;
+		delete tree.props.active;
+		return tree;
 	}
 
 	/**
