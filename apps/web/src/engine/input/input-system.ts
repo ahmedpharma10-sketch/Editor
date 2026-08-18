@@ -63,7 +63,7 @@ let hovered: HitRegion | null = null;
 let dragged: HitRegion | null = null;
 
 export function inputSystem(world: World) {
-	const panning = world.get(Tool)?.value === ToolType.HAND || (world.get(Keys)?.has(' ') ?? false);
+	const panning = world.get(Tool)?.value === ToolType.HAND || (world.get(Keys)?.held.has(' ') ?? false);
 	const queue = world.get(PointerEvents)?.queue ?? [];
 	const regions = world.get(HitRegions)?.list ?? [];
 

@@ -63,7 +63,18 @@ export interface SourceMove {
   before?: string;
 }
 
-export type SourceEdit = SourceSet | SourceInsert | SourceMove;
+/**
+ * Removes the element named by `source` from the file, and with it everything
+ * it contains: its children are its text, and go the way a move takes them
+ * along. Addressed like a move — an unnamed element is a position, and cutting
+ * text renumbers positions, so the element is found before anything is cut.
+ */
+export interface SourceRemove {
+  kind: "remove";
+  source: string;
+}
+
+export type SourceEdit = SourceSet | SourceInsert | SourceMove | SourceRemove;
 
 export interface WriteResult {
   /** Sources that could not be written, as `id` or `id (prop)`. */
@@ -604,6 +615,11 @@ class SourceWriter {
           continue;
         }
 
+        if (edit.kind === "remove") {
+          if (!this.removeElement(file, sourceFile, edit, ids)) skipped.push(edit.source);
+          continue;
+        }
+
         const locator = locate(edit.source, ids)?.locator;
         if (locator === undefined) {
           skipped.push(edit.source);
@@ -755,6 +771,28 @@ class SourceWriter {
     if (!parent || (beforeId !== undefined && !before)) throw new Error("the element's new parent is gone");
 
     insertChild(sourceFile, parent, reindent(text, indent, elementOf(parent).getChildIndentationText()), before);
+    return true;
+  }
+
+  /**
+   * Cuts one element, subtree and all, out of the tree. False when the source
+   * does not name an element of this file — including one already gone: a
+   * remove of what a remove in this same write took along with its parent
+   * finds nothing, and that is not a failure of the file.
+   */
+  private removeElement(
+    file: string,
+    sourceFile: SourceFile,
+    edit: SourceRemove,
+    ids: Record<string, string>,
+  ): boolean {
+    const address = locate(edit.source, ids);
+    const locator = address?.file === file ? address.locator : undefined;
+    const tag = locator === undefined ? undefined : findTag(sourceFile, locator);
+    if (!tag) return false;
+
+    matchIndentation(sourceFile);
+    cutElement(sourceFile, elementOf(tag));
     return true;
   }
 }

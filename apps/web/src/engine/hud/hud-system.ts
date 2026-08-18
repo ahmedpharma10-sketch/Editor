@@ -72,7 +72,7 @@ export function hudSystem(world: World): void {
 function drawSnapLines(world: World, ctx: Ctx2D, resolution: number): void {
 	const lines = world.get(SnapLines)?.list ?? [];
 	// Mod suspends snapping, so the guides go with it.
-	if (lines.length === 0 || world.get(Keys)?.has('mod')) return;
+	if (lines.length === 0 || world.get(Keys)?.held.has('mod')) return;
 
 	const cross = Math.round(3 * resolution);
 

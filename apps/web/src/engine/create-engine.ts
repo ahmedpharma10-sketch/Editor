@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, RenderSurface, Time, ToolType, Tool, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
+import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
 import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
 import { Hud, Keys, Pointer, PointerEvents, SnapLines } from './traits';
 import { inputSystem } from './input/input-system';
+import { shortcutSystem } from './input/shortcuts';
 
 import type { RuntimeWorld } from '@diffusionstudio/runtime';
 import type { CanvasPointerEvent, PointerEventType } from '@diffusionstudio/runtime';
@@ -73,30 +74,42 @@ class Engine {
 	}
 
 	private readonly onBlur = () => {
-		this.world.get(Keys)!.clear();
+		// Key-up never arrives when focus leaves mid-hold (⌘-tab, devtools).
+		this.world.get(Keys)!.held.clear();
 	}
 
+	/**
+	 * Only records: what a press does is decided once a frame by the shortcut
+	 * system. Presses in text fields belong to the field. The one thing
+	 * decided here is whether the browser gets the event, since that cannot
+	 * wait for the frame — backspace would have navigated by then.
+	 */
 	private readonly onKeyDown = (event: KeyboardEvent) => {
 		if (
-			this.world.get(Tool)?.value === ToolType.HAND
-			|| this.world.get(Keys)?.has(' ')
+			event.target instanceof HTMLInputElement
+			|| event.target instanceof HTMLTextAreaElement
+			|| (event.target instanceof HTMLElement && event.target.isContentEditable)
 		) return;
 
 		const keys = this.world.get(Keys)!;
-		keys.add(event.key.toLowerCase());
+		const key = event.key.toLowerCase();
+		const isMod = event.key === 'Meta' || event.key === 'Control';
 
-		if (event.key === 'Meta' || event.key === 'Control') {
-			keys.add('mod');
-		}
+		keys.held.add(key);
+		if (isMod) keys.held.add('mod');
+		if (!event.repeat) this.world.set(Keys, { justPressed: true });
+
+		event.preventDefault();
 	}
 
 	private readonly onKeyUp = (event: KeyboardEvent) => {
 		const keys = this.world.get(Keys)!;
-		keys.delete(event.key.toLowerCase());
+		const key = event.key.toLowerCase();
+		const isMod = event.key === 'Meta' || event.key === 'Control';
 
-		if (event.key === 'Meta' || event.key === 'Control') {
-			keys.delete('mod');
-		}
+		keys.held.delete(key);
+		if (isMod) keys.held.delete('mod');
+		this.world.set(Keys, { justLifted: true });
 	};
 
 	private readonly loop = (timestamp: number): void => {
@@ -110,6 +123,11 @@ class Engine {
 		}
 
 		this.runSystems();
+
+		const keys = this.world.get(Keys);
+		if (keys?.justPressed || keys?.justLifted) {
+			this.world.set(Keys, { justPressed: false, justLifted: false });
+		}
 
 		this.rafId = requestAnimationFrame(this.loop);
 	}
@@ -151,6 +169,7 @@ class Engine {
 
 	private runSystems(): void {
 		inputSystem(this.world);
+		shortcutSystem(this.world);
 		playbackSystem(this.world);
 		motionSystem(this.world);
 		transformSystem(this.world);

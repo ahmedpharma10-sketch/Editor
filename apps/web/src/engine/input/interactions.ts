@@ -71,7 +71,7 @@ const HANDLE_CURSOR: Record<Handle, CursorType> = {
 
 const isHandle = (id: string): id is Handle => id in HANDLE_FACTOR;
 
-const keys = (world: World): Set<string> => world.get(Keys) ?? new Set<string>();
+const keys = (world: World): Set<string> => world.get(Keys)?.held ?? new Set<string>();
 
 const resolution = (world: World): number => world.get(RenderSurface)?.resolution ?? 1;
 

@@ -5,4 +5,5 @@
 export * from './cursor';
 export * from './input-system';
 export * from './interactions';
+export * from './shortcuts';
 export * from './snapping';

@@ -8,7 +8,7 @@ import { toast } from 'somoto';
 
 import { writeProject } from './host';
 
-import type { EntityEdit, InsertEdit, MoveEdit } from '@/engine/editor';
+import type { EntityEdit, InsertEdit, MoveEdit, RemoveEdit } from '@/engine/editor';
 import type { SourceEdit, WriteResult } from './host';
 import type { World } from 'koota';
 
@@ -27,9 +27,12 @@ class EditWriter {
 	// of them), then the moves, then per element, per prop: the last value for
 	// a prop is the only one worth writing, an element written twice is
 	// written once, and only where an element ended up is worth moving it to.
+	// Removes last: nothing else addressed to a removed element is worth
+	// writing, and once cut, an unnamed element's neighbours are elsewhere.
 	private inserts = new Map<string, InsertEdit>();
 	private moves = new Map<string, MoveEdit>();
 	private pending = new Map<string, InsertEdit['props']>();
+	private removes = new Set<string>();
 	// Pending sources a write is out for: edits to them wait for the answer.
 	private inflight = new Set<string>();
 	private timer: ReturnType<typeof setTimeout> | undefined;
@@ -46,6 +49,8 @@ class EditWriter {
 
 		if (edit.kind === 'insert') {
 			this.inserts.set(edit.source, edit);
+		} else if (edit.kind === 'remove') {
+			this.remove(edit);
 		} else if (edit.kind === 'move') {
 			// Where an element still waiting to be inserted goes is part of how
 			// it is inserted, not a move of it.
@@ -79,6 +84,53 @@ class EditWriter {
 		this.disposed = true;
 	}
 
+	/**
+	 * Forgets everything owed to an element that is going, and to whatever
+	 * was to be inserted under it: the entities went with it, so those inserts
+	 * have no element to become. An element the file never had (an insert
+	 * still waiting here) is simply not inserted; one it has, or that a write
+	 * out right now is naming, is removed by name.
+	 */
+	private remove(edit: RemoveEdit): void {
+		const doomed = new Set([edit.source]);
+		let grew = true;
+		while (grew) {
+			grew = false;
+			for (const insert of this.inserts.values()) {
+				if (doomed.has(insert.parent) && !doomed.has(insert.source)) {
+					doomed.add(insert.source);
+					grew = true;
+				}
+			}
+		}
+
+		// An insert still waiting here never reached the file: dropping it is
+		// the whole removal. Anything else the file has, or a write out right
+		// now is naming, and it goes from there by name.
+		if (!this.inserts.has(edit.source)) this.removes.add(edit.source);
+		for (const source of doomed) {
+			this.inserts.delete(source);
+			this.pending.delete(source);
+			this.moves.delete(source);
+		}
+
+		// Placement in front of an element that is gone means "last" now, the
+		// same answer the write gives to an anchor it cannot find.
+		for (const [source, insert] of this.inserts) {
+			if (insert.before !== undefined && doomed.has(insert.before)) {
+				const { before: _, ...rest } = insert;
+				this.inserts.set(source, rest);
+			}
+		}
+		for (const [source, move] of [...this.moves]) {
+			if (doomed.has(move.parent)) this.moves.delete(source);
+			else if (move.before !== undefined && doomed.has(move.before)) {
+				const { before: _, ...rest } = move;
+				this.moves.set(source, rest);
+			}
+		}
+	}
+
 	private schedule(): void {
 		clearTimeout(this.timer);
 		this.timer = setTimeout(() => this.flush(), DEBOUNCE);
@@ -86,7 +138,7 @@ class EditWriter {
 
 	private flush(): void {
 		this.timer = undefined;
-		if (!this.inserts.size && !this.moves.size && !this.pending.size) return;
+		if (!this.inserts.size && !this.moves.size && !this.pending.size && !this.removes.size) return;
 
 		// Anything addressed through an element whose insert is still out
 		// waits for its name: edits to it, and inserts or moves under or
@@ -95,6 +147,7 @@ class EditWriter {
 		const heldInserts = new Map([...this.inserts].filter(([, insert]) => waits(insert.parent) || waits(insert.before)));
 		const heldMoves = new Map([...this.moves].filter(([source, move]) => waits(source) || waits(move.parent) || waits(move.before)));
 		const held = new Map([...this.pending].filter(([source]) => waits(source)));
+		const heldRemoves = new Set([...this.removes].filter(waits));
 		const edits: SourceEdit[] = [
 			...[...this.inserts.values()]
 				.filter((insert) => !heldInserts.has(insert.source))
@@ -120,6 +173,11 @@ class EditWriter {
 			...[...this.pending]
 				.filter(([source]) => !held.has(source))
 				.map(([source, props]): SourceEdit => ({ kind: 'set', source, props })),
+			// Last: cutting an unnamed element moves the positions of everything
+			// after it, and nothing above is addressed to what is being removed.
+			...[...this.removes]
+				.filter((source) => !heldRemoves.has(source))
+				.map((source): SourceEdit => ({ kind: 'remove', source })),
 		];
 		if (!edits.length) return;
 
@@ -127,6 +185,7 @@ class EditWriter {
 		this.inserts = heldInserts;
 		this.moves = heldMoves;
 		this.pending = held;
+		this.removes = heldRemoves;
 
 		writeProject(this.dir, edits)
 			.then((result) => this.report(result))
@@ -188,13 +247,20 @@ class EditWriter {
 			this.moves.delete(source);
 			this.moves.set(next, { ...move, source: next, parent, ...(before === undefined ? {} : { before }) });
 		}
+		for (const source of [...this.removes]) {
+			const next = rename(source);
+			if (next === source) continue;
+			this.removes.delete(source);
+			// An element the file never had needs no removing from it.
+			if (next) this.removes.add(next);
+		}
 		for (const source of this.inflight) {
 			if (!ids[source]) editor.discardPending(source);
 		}
 		this.inflight = new Set();
 
 		// What was held back has its names now.
-		if (this.inserts.size || this.moves.size || this.pending.size) this.schedule();
+		if (this.inserts.size || this.moves.size || this.pending.size || this.removes.size) this.schedule();
 	}
 }
 

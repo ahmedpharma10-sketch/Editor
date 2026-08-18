@@ -30,11 +30,19 @@ export const Pointer = trait({
 });
 
 /**
- * Keys currently held, lowercased, with 'mod' standing in for meta/control so
- * a shortcut does not have to know which platform it is on. Mutated in place:
- * an AoS trait hands back the set itself.
+ * The keyboard, lowercased, with 'mod' standing in for meta/control so a
+ * shortcut does not have to know which platform it is on. `held` is what is
+ * down right now (what a gesture reads its modifiers from, mutated in
+ * place); `justPressed` and `justLifted` say whether a key went down or up
+ * since the last frame, for whatever acts on a press rather than a hold —
+ * which key it was is what `held` holds by then. Both flags are reset by the
+ * shortcut system, so anything reading them runs before it.
  */
-export const Keys = trait(() => new Set<string>());
+export const Keys = trait({
+	held: () => new Set<string>(),
+	justPressed: false,
+	justLifted: false,
+});
 
 export type SnapLine = { from: Point; to: Point };
 

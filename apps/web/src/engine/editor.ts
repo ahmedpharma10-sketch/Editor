@@ -67,7 +67,17 @@ export interface MoveEdit {
 	before?: string;
 }
 
-export type EntityEdit = PropEdit | InsertEdit | MoveEdit;
+/**
+ * An element the editor deleted, descendants included: they were its content
+ * in the file and went with it on the canvas, so only the top of a deleted
+ * subtree is reported. The entity is already gone when this is.
+ */
+export interface RemoveEdit {
+	kind: 'remove';
+	source: string;
+}
+
+export type EntityEdit = PropEdit | InsertEdit | MoveEdit | RemoveEdit;
 
 /**
  * Sources of elements the editor created that no write has named yet. Shaped
@@ -301,6 +311,37 @@ export class DocumentEditor {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Deletes `entities` and everything under them, and reports it so the
+	 * elements leave the file too. Only the tops of the doomed subtrees are
+	 * reported: a descendant of another doomed entity goes with it, in the file
+	 * as on the canvas. The stage, and anything the file does not know (no
+	 * source), stays. Returns the entities that were removed at the top level.
+	 */
+	public remove(entities: Entity | Entity[]): Entity[] {
+		const doomed = new Set(
+			(Array.isArray(entities) ? entities : [entities]).filter(
+				(entity) => entity.isAlive() && !entity.has(Stage) && !!entity.get(Source)?.value,
+			),
+		);
+		const roots = [...doomed].filter((entity) => {
+			for (let parent = getParentEntity(entity); parent; parent = getParentEntity(parent)) {
+				if (doomed.has(parent)) return false;
+			}
+			return true;
+		});
+
+		const document = this.document;
+		for (const entity of roots) {
+			if (!entity.isAlive()) continue;
+			const source = entity.get(Source)!.value;
+			document.removeNode({ entity: getParentEntity(entity) ?? document.stage.entity }, { entity });
+			this.sink?.({ kind: 'remove', source });
+		}
+
+		return roots;
 	}
 
 	/**
