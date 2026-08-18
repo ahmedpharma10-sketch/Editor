@@ -44,6 +44,9 @@ export const Effect = trait({
 // cross-fade.
 export const ColorStop = trait({ offset: 0 });
 
+// How a stroke sub-entity is drawn: line width, joins, caps. Lives on the
+// stroke itself (next to its Paint/Color/Opacity), so each stroke of a node
+// has its own width. Absent means a 1px miter/butt line.
 export const StrokeStyle = trait({
 	width: 1,
 	join: StrokeJoin.MITER as StrokeJoin,

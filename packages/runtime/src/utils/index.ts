@@ -5,6 +5,7 @@ export * from './color';
 export * from './text';
 export * from './live-mounts';
 export * from './sort';
+export * from './stroke';
 export * from './text-motion';
 export * from './time';
 export * from './transition';

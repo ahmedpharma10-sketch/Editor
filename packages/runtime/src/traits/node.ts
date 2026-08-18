@@ -40,8 +40,9 @@ export const IsMask = trait();
 // sub-entities in ChildOf queries).
 export const Shadow = trait();
 
-// Tag for stroke sub-entities (distinguishes them from the StrokeStyle trait
-// on the parent in ChildOf queries).
+// Tag for stroke sub-entities: the entity is the stroke's paint (Paint/Color/
+// Opacity/BlendMode like a fill; a missing Paint reads as solid) and carries
+// its own StrokeStyle.
 export const Stroke = trait();
 
 export const Hidden = trait();

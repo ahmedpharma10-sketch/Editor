@@ -14,6 +14,12 @@ export type Time = number | `${number}f` | `${string}:${string}`;
 
 export type Fit = "cover" | "contain" | "fill";
 
+/** How a stroke turns a corner: the canvas `lineJoin` values. */
+export type StrokeJoin = "miter" | "round" | "bevel";
+
+/** How a stroke ends an open path: the canvas `lineCap` values. */
+export type StrokeCap = "butt" | "round" | "square";
+
 /**
  * Easing for the segment from a keyframe to the next one: a named preset or
  * an explicit descriptor. `cubicBezier(x1,y1,x2,y2)` takes CSS-style control
@@ -145,7 +151,10 @@ export type PatchProps = {
    */
   offsetX?: Animatable<number>;
   offsetY?: Animatable<number>;
-  /** Box size, px. Defaults to the parent's size. Animatable. */
+  /**
+   * Box size, px. Defaults to the parent's size. Animatable. On a `<stroke>`
+   * `width` is the line width instead, px (default 1).
+   */
   width?: Animatable<number>;
   height?: Animatable<number>;
   /** Rotation in degrees. Animatable. */
@@ -154,6 +163,14 @@ export type PatchProps = {
   opacity?: Animatable<number>;
   /** Uniform corner radius, px. Animatable. */
   cornerRadius?: Animatable<number>;
+  /** Blur radius of a `<shadow>`, px. Default 0. Animatable. */
+  blur?: Animatable<number>;
+  /** How a `<stroke>` turns corners. Default "miter". */
+  join?: StrokeJoin;
+  /** How a `<stroke>` ends open paths (text glyphs). Default "butt". */
+  cap?: StrokeCap;
+  /** Miter length limit of a `<stroke>`, as a ratio of its width. Default 10. */
+  miterLimit?: number;
   /** Parent-timeline time at which the node begins. Default 0. */
   start?: Time;
   /** Parent-timeline time at which the node ends. Alternative to `sourceOut`. */
@@ -214,7 +231,7 @@ export type PatchProps = {
   /** CSS weights 100–900, or "normal" / "bold". */
   fontWeight?: number | "normal" | "bold";
   fontStyle?: "normal" | "italic";
-  /** Any CSS color: the glyph color on `<Text>`, the paint color on paints and color stops. Animatable. */
+  /** Any CSS color: the glyph color on `<Text>`, the paint color on paints, strokes, shadows and color stops. Animatable. */
   color?: Animatable<string>;
   /** Horizontal alignment of glyphs within the box. Default "left". */
   textAlign?: "left" | "center" | "right";
@@ -305,9 +322,27 @@ export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
 };
 
 export type RectProps = CommonProps & Pick<PatchProps, "fill"> & {
-  /** Paint children (`<SolidPaint>`, `<LinearGradientPaint>`, `<RadialGradientPaint>`). */
+  /**
+   * Paint children (`<SolidPaint>`, `<LinearGradientPaint>`,
+   * `<RadialGradientPaint>`), plus `<Stroke>` and `<Shadow>` children.
+   */
   children?: SolidJSX.Element;
 };
+
+/**
+ * `<stroke>` — an outline of the parent's box (or glyphs), a sub-entity like a
+ * paint: `color`/`opacity` are its paint, `width`/`join`/`cap`/`miterLimit`
+ * its line style. Several stack in document order, later ones on top.
+ */
+export type StrokeProps = Required<Pick<PatchProps, "color">> &
+  Pick<PatchProps, "opacity" | "width" | "join" | "cap" | "miterLimit">;
+
+/**
+ * `<shadow>` — a drop shadow beneath the parent's box (or glyphs): a blurred,
+ * offset copy of its silhouette in `color`. Several stack in document order.
+ */
+export type ShadowProps = Required<Pick<PatchProps, "color">> &
+  Pick<PatchProps, "opacity" | "blur" | "offsetX" | "offsetY">;
 
 export type SolidPaintProps = Required<Pick<PatchProps, "color">> & Pick<PatchProps, "opacity">;
 
@@ -324,14 +359,14 @@ export type ColorStopProps = Required<Pick<PatchProps, "offset" | "color">> &
 export type VideoProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "objectFit" | "volume" | "muted" | "syncTo"> & {
-    /** Paint children, stacked over the media paint created by `src`. */
+    /** Paint children, stacked over the media paint created by `src`; `<Stroke>` and `<Shadow>` children. */
     children?: SolidJSX.Element;
   };
 
 export type ImageProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "objectFit"> & {
-    /** Paint children, stacked over the media paint created by `src`. */
+    /** Paint children, stacked over the media paint created by `src`; `<Stroke>` and `<Shadow>` children. */
     children?: SolidJSX.Element;
   };
 
@@ -379,7 +414,10 @@ export type TextProps = CommonProps &
     PatchProps,
     "fontFamily" | "fontSize" | "fontWeight" | "fontStyle" | "color" | "textAlign" | "textBaseline"
   > & {
-    /** The text content. Required. */
+    /**
+     * The text content, required; alongside it, paint, `<Stroke>` and
+     * `<Shadow>` children styling the glyphs.
+     */
     children: SolidJSX.Element;
   };
 

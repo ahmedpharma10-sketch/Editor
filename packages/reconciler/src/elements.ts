@@ -31,7 +31,9 @@ import type {
   SceneProps,
   SequenceProps,
   ShaderPaintProps,
+  ShadowProps,
   SolidPaintProps,
+  StrokeProps,
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
@@ -88,6 +90,8 @@ export const SolidPaint = hostElement<SolidPaintProps>("SolidPaint");
 export const LinearGradientPaint = hostElement<GradientPaintProps>("LinearGradientPaint");
 export const RadialGradientPaint = hostElement<GradientPaintProps>("RadialGradientPaint");
 export const ColorStop = hostElement<ColorStopProps>("ColorStop");
+export const Stroke = hostElement<StrokeProps>("Stroke");
+export const Shadow = hostElement<ShadowProps>("Shadow");
 export const HtmlPaint = hostElement<HtmlPaintProps>("HtmlPaint");
 export const Html = hostElement<HtmlProps>("Html");
 export const ShaderPaint = hostElement<ShaderPaintProps>("ShaderPaint");

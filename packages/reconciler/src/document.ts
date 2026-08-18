@@ -10,6 +10,7 @@ import {
 	Assets,
 	Audio,
 	Background,
+	Blur,
 	Chars,
 	ClipsContent,
 	createEntity,
@@ -25,7 +26,6 @@ import {
 	getEntityTree,
 	getParentEntity,
 	getParentNode,
-	isPaintEntity,
 	isText,
 	ItemIndex,
 	Muted,
@@ -50,11 +50,16 @@ import {
 	Rotation,
 	Scene,
 	Selected,
+	Shadow,
 	Source,
 	SourceIn,
 	SourceOut,
 	setCameraMatrix,
 	Start,
+	Stroke,
+	StrokeCap,
+	StrokeJoin,
+	StrokeStyle,
 	TextAlign,
 	TextBaseline,
 	TextStyle,
@@ -196,6 +201,18 @@ const PAINT_TYPES: Record<string, PaintType> = {
 	solidPaint: PaintType.SOLID,
 	linearGradientPaint: PaintType.LINEAR_GRADIENT,
 	radialGradientPaint: PaintType.RADIAL_GRADIENT,
+};
+
+const STROKE_JOINS: Record<string, StrokeJoin> = {
+	miter: StrokeJoin.MITER,
+	round: StrokeJoin.ROUND,
+	bevel: StrokeJoin.BEVEL,
+};
+
+const STROKE_CAPS: Record<string, StrokeCap> = {
+	butt: StrokeCap.BUTT,
+	round: StrokeCap.ROUND,
+	square: StrokeCap.SQUARE,
 };
 
 const SCALE_MODES: Record<string, ScaleModeType> = {
@@ -355,14 +372,28 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				break;
 			}
 			case 'colorStop': {
-				// Position only; `color`/`opacity` add Color/Opacity like anywhere else.
 				entity = createEntity(this.world);
 				entity.add(ColorStop);
 				break;
 			}
+			case 'stroke': {
+				entity = createEntity(this.world);
+				entity.add(Stroke);
+				entity.add(Paint);
+				entity.set(Paint, { value: PaintType.SOLID });
+				entity.add(Color);
+				entity.add(StrokeStyle);
+				break;
+			}
+			case 'shadow': {
+				entity = createEntity(this.world);
+				entity.add(Shadow);
+				entity.add(Color);
+				break;
+			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint> and <colorStop>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke> and <shadow>).`,
 				);
 		}
 
@@ -473,8 +504,41 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'width':
 			case 'height': {
 				const size = toNumber(value);
+				if (entity.has(Stroke)) {
+					// A stroke's width is its line width; it has no box.
+					if (name === 'width') entity.set(StrokeStyle, { width: size ?? 1 });
+					return;
+				}
 				if (size === undefined) return;
 				resizeEntity(this.world, entity, { [name]: size });
+				return;
+			}
+			case 'join': {
+				if (!entity.has(Stroke)) return;
+				const join = typeof value === 'string' ? STROKE_JOINS[value] : undefined;
+				entity.set(StrokeStyle, { join: join ?? StrokeJoin.MITER });
+				return;
+			}
+			case 'cap': {
+				if (!entity.has(Stroke)) return;
+				const cap = typeof value === 'string' ? STROKE_CAPS[value] : undefined;
+				entity.set(StrokeStyle, { cap: cap ?? StrokeCap.BUTT });
+				return;
+			}
+			case 'miterLimit': {
+				if (!entity.has(Stroke)) return;
+				entity.set(StrokeStyle, { miterLimit: toNumber(value) ?? 10 });
+				return;
+			}
+			case 'blur': {
+				const blur = toNumber(value);
+				if (blur === undefined) {
+					entity.remove(Blur);
+					return;
+				}
+
+				entity.add(Blur);
+				entity.set(Blur, { value: blur });
 				return;
 			}
 			case 'start':
@@ -655,9 +719,6 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 		if (parent.entity === node.entity) return;
 
-		if (isText(parent.entity) && !isPaintEntity(node.entity)) {
-			throw new Error('<text> only takes text and paint children.');
-		}
 
 		if (getParentEntity(node.entity) !== parent.entity) {
 			// appendChild only takes top-level entities, so a move between two

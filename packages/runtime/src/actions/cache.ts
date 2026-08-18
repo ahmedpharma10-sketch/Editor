@@ -66,9 +66,10 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 	}
 
 	// A geometry carrying Paint is not a fill of its parent: that is its own
-	// intrinsic paint (see getIntrinsicPaint).
-	if (entity.has(Paint) && !entity.has(Geometry)) {
-		cache.fills[pid] = collect(Paint, Not(Geometry), ChildOf(parent))
+	// intrinsic paint (see getIntrinsicPaint). Nor is a stroke: its Paint is
+	// what the outline is drawn with.
+	if (entity.has(Paint) && !entity.has(Geometry) && !entity.has(Stroke)) {
+		cache.fills[pid] = collect(Paint, Not(Geometry), Not(Stroke), ChildOf(parent))
 			.sort(sortByItemIndex);
 	}
 

@@ -33,9 +33,11 @@ import type {
   SceneProps,
   SequenceProps,
   ShaderPaintProps,
+  ShadowProps,
   SolidPaintProps,
   SourceProps,
   StageProps,
+  StrokeProps,
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
@@ -82,6 +84,8 @@ export declare namespace JSX {
     linearGradientPaint: GradientPaintProps & SourceProps;
     radialGradientPaint: GradientPaintProps & SourceProps;
     colorStop: ColorStopProps & SourceProps;
+    stroke: StrokeProps & SourceProps;
+    shadow: ShadowProps & SourceProps;
     htmlPaint: HtmlPaintProps & SourceProps;
     html: HtmlProps & SourceProps;
     shaderPaint: ShaderPaintProps & SourceProps;

@@ -14,12 +14,12 @@ import { cubicBezier } from 'animejs';
 import { store } from '../world/store';
 import {
 	COMPOSITE_OPERATIONS, EffectType, GeometryType, PaintType, ScaleModeType,
-	StrokeCap, StrokeJoin, TransitionType,
+	TransitionType,
 } from '../constants';
 import {
 	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
-	BlendMode, Effect, StrokeStyle, AssetId, Transition, MixedCornerRadius,
+	BlendMode, Effect, AssetId, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
 	Mode, Time, FrameRate, Camera, Background, RenderSurface, Assets,
@@ -29,6 +29,7 @@ import {
 import { getParentNode } from '../queries/hierarchy';
 import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
+import { applyStrokeStyle } from '../utils/stroke';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
 import { getIntrinsicPaint } from '../utils/time';
@@ -497,15 +498,9 @@ function renderStrokes(world: World, entity: Entity): void {
 	const strokes = store(world, Cache).strokes[eid];
 	if (!strokes) return;
 
-	const strokeStyle = store(world, StrokeStyle);
 	const computed = store(world, Computed);
 	const blendMode = store(world, BlendMode);
 	const paintStore = store(world, Paint);
-
-	ctx.lineWidth = computed.strokeWidth[eid]!;
-	ctx.lineJoin = StrokeJoin[strokeStyle.join[eid] ?? 0]!.toLocaleLowerCase() as CanvasLineJoin;
-	ctx.lineCap = StrokeCap[strokeStyle.cap[eid] ?? 0]!.toLocaleLowerCase() as CanvasLineCap;
-	ctx.miterLimit = strokeStyle.miterLimit[eid] ?? 3;
 
 	for (const stroke of strokes) {
 		if (stroke.has(Hidden)) continue;
@@ -518,6 +513,7 @@ function renderStrokes(world: World, entity: Entity): void {
 			ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[bi]!;
 		}
 
+		applyStrokeStyle(ctx, world, stroke);
 		ctx.globalAlpha = savedAlpha * computed.opacity[sid]!;
 
 		const paintType = paintStore.value[sid];

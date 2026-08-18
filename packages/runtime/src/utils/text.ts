@@ -6,16 +6,17 @@
 
 import { store } from '../world/store';
 import {
-	COMPOSITE_OPERATIONS, PaintType, FontStyle, StrokeCap, StrokeJoin,
+	COMPOSITE_OPERATIONS, PaintType, FontStyle,
 	TextAlign, TextBaseline, TextCase,
 } from '../constants';
 import {
-	Size, Hidden, Paint, Color, Blur, Offset, Opacity, BlendMode, StrokeStyle,
+	Size, Hidden, Paint, Color, Blur, Offset, Opacity, BlendMode,
 	Chars, TextStyle, TextRange, TextCache, Cache, Computed, Camera,
 	RenderSurface, Root,
 } from '../traits';
 import { clamp } from '../math/common';
 import { colorToHex } from './color';
+import { applyStrokeStyle, findWidestStroke } from './stroke';
 import { createLinearGradient, createRadialGradient } from '../systems/gradients';
 
 import type { Entity, World } from 'koota';
@@ -142,16 +143,6 @@ function applyFont(ctx: Ctx, world: World, entity: Entity, ranges: Entity[]) {
 	ctx.font = `${mappedStyle} ${weight.toLowerCase()} ${size}px ${family}`.trim();
 	ctx.textBaseline = mappedBaseline;
 	ctx.letterSpacing = `${spacing}px`;
-}
-
-function applyStroke(ctx: Ctx, world: World, entity: Entity) {
-	const stroke = store(world, StrokeStyle);
-	const eid = entity.id();
-
-	ctx.lineWidth = stroke.width[eid] ?? 1;
-	ctx.lineJoin = StrokeJoin[stroke.join[eid] ?? 0]!.toLocaleLowerCase() as CanvasLineJoin;
-	ctx.lineCap = StrokeCap[stroke.cap[eid] ?? 0]!.toLocaleLowerCase() as CanvasLineCap;
-	ctx.miterLimit = stroke.miterLimit[eid] ?? 3;
 }
 
 function shapeTokens(world: World, entity: Entity): void {
@@ -306,11 +297,12 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 		for (const word of words) {
 			applyFont(ctx, world, entity, word.ranges);
 
-			const strokes = getStrokes(world, entity, word.ranges);
 			const shadows = getShadows(world, entity, word.ranges);
 
-			if (strokes.length) {
-				applyStroke(ctx, world, entity);
+			// A stroked word's shadow is the widest stroke's silhouette.
+			const widest = findWidestStroke(world, getStrokes(world, entity, word.ranges));
+			if (widest !== null) {
+				applyStrokeStyle(ctx, world, widest);
 			}
 
 			// Draw shadows first (if any)
@@ -325,7 +317,7 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				ctx.fillStyle = colorToHex(colorStore.value[sid] ?? 0x000000);
 				ctx.globalAlpha = savedAlpha * (opacityStore.value[sid] ?? 1);
 
-				if (strokes.length) {
+				if (widest !== null) {
 					ctx.strokeText(word.chars, word.x, word.y);
 				} else {
 					ctx.fillText(word.chars, word.x, word.y);
@@ -352,7 +344,6 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 			if (!strokes.length) continue;
 
 			applyFont(ctx, world, entity, word.ranges);
-			applyStroke(ctx, world, entity);
 
 			const w = computed.width[eid]!;
 			const h = computed.height[eid]!;
@@ -368,6 +359,7 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 					ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[blendMode]!;
 				}
 				ctx.globalAlpha = savedAlpha * (opacityStore.value[sid] ?? 1);
+				applyStrokeStyle(ctx, world, stroke);
 
 				const paintType = paintStore.value[sid];
 				if (paintType === PaintType.LINEAR_GRADIENT) {

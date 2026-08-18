@@ -103,6 +103,8 @@ export const COMPOSITION_TAGS = [
   "linearGradientPaint",
   "radialGradientPaint",
   "colorStop",
+  "stroke",
+  "shadow",
   "htmlPaint",
   "html",
   "shaderPaint",
