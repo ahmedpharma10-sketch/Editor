@@ -32,6 +32,8 @@ import {
 	resizeEntity,
 	secondsToFrames,
 	getEntityChildren,
+	Group,
+	Sequential,
 	Stage,
 	Root,
 	Rotation,
@@ -226,6 +228,21 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				resizeEntity(this.world, entity, { width: 1920, height: 1080 });
 				break;
 			}
+			case 'group': {
+				// No Size: a group's box is the union of its children's.
+				entity = createEntity(this.world);
+				entity.add(Group);
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				break;
+			}
+			case 'sequence': {
+				// Sequential's observer adds Group and keeps spatial traits off:
+				// a sequence sits at its parent's origin and mirrors its frame.
+				entity = createEntity(this.world);
+				entity.add(Sequential);
+				break;
+			}
 			case 'rect': {
 				entity = createEntity(this.world);
 				entity.add(Geometry);
@@ -247,7 +264,9 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				break;
 			}
 			default:
-				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene>, <rect> and <text>).`);
+				throw new Error(
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect> and <text>).`,
+				);
 		}
 
 		if (entity !== this.stage.entity) {
@@ -336,17 +355,20 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			case 'x':
 			case 'y': {
+				if (entity.has(Sequential)) return;
 				entity.add(Position);
 				entity.set(Position, { [name]: toNumber(value) ?? 0 });
 				return;
 			}
 			case 'offsetX':
 			case 'offsetY': {
+				if (entity.has(Sequential)) return;
 				entity.add(Offset);
 				entity.set(Offset, { [name === 'offsetX' ? 'x' : 'y']: toNumber(value) ?? 0 });
 				return;
 			}
 			case 'rotation': {
+				if (entity.has(Sequential)) return;
 				entity.add(Rotation);
 				entity.set(Rotation, { value: toNumber(value) ?? 0 });
 				return;
