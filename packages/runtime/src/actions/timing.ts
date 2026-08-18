@@ -9,7 +9,7 @@
 import { store } from '../world/store';
 import { DEFAULT_DURATION_FRAMES } from '../constants';
 import {
-	Geometry, Group, Paint, Caption, Cache, Computed, AssetId,
+	Geometry, Group, Paint, Caption, Cache, Computed, AssetId, IsMask,
 	Start, End, SourceIn, SourceOut, PlaybackRate, CaptionDecoderHandle,
 } from '../traits';
 import { isGroupLike } from '../queries/predicates';
@@ -28,7 +28,7 @@ type TimeTrait = typeof Start;
  * A trait a recompute may read as absent: one of the authored time traits, or
  * the node's own AssetId (its intrinsic media, another source of a length).
  */
-type Ignorable = TimeTrait | typeof AssetId;
+type Ignorable = TimeTrait | typeof AssetId | typeof IsMask;
 
 /**
  * The authored value, or undefined when the node doesn't carry it. `ignore`

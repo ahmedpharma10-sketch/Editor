@@ -22,13 +22,13 @@ import {
 	Start, End, SourceIn, SourceOut, PlaybackRate, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Opacity, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
-	ColorStop, StrokeStyle, Size, Computed, Active, Stage,
+	ColorStop, StrokeStyle, Size, Computed, Active, Stage, IsMask,
 	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
 	AudioDecoderHandle, CaptionDecoderHandle,
 	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
 } from '../traits';
 import { getParentEntity } from '../queries/hierarchy';
-import { rebuildCaches } from '../actions/cache';
+import { rebuildCaches, refileMask } from '../actions/cache';
 import { disposeDecoders, disconnectAudioBus } from '../media/dispose';
 import {
 	reactToChildAttached, reactToChildDetached, reactToAssetChange,
@@ -104,6 +104,14 @@ export function observeWorld(world: World): () => void {
 		entity.add(Group);
 		entity.remove(Position, Offset, Rotation, Scale, Skew, Anchor, Flip);
 	}));
+
+	const refile = (mask: boolean) => (entity: Entity) => {
+		const parent = getParentEntity(entity);
+		if (parent === null || !world.has(parent)) return;
+		refileMask(world, entity, parent, mask);
+	};
+	subs.push(world.onAdd(IsMask, refile(true)));
+	subs.push(world.onRemove(IsMask, refile(false)));
 
 	// One active entity per world, and only a root.
 	subs.push(world.onAdd(Active, (entity) => {

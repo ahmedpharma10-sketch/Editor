@@ -5,7 +5,7 @@ camelCase composition elements map 1:1 onto internal node types. Lowercase DOM v
 | Element | Internal node | Notes |
 | ------- | ------------- | ----- |
 | [`<group>`](./group.md) | **Container with Group tag** | Container with a transform; auto-fits its size from its children. Takes no `fill` or explicit size. |
-| [`<rect>`](./rect.md) | **Geometry with Solid paint** | A filled rectangle; takes only paint children. |
+| [`<rect>`](./rect.md) | **Geometry with Solid paint** | A filled rectangle; takes only paint children. With `mask` it clips its parent instead of drawing. |
 | [`<video>`](./video.md) | **Geometry with Video paint** | `src` resolves to a video asset. |
 | [`<image>`](./image.md) | **Geometry with Image paint** | `src` resolves to an image asset. |
 | [`<audio>`](./audio.md) | **Geometry with Audio component and a hidden Waveform paint** | No visual output; carries volume. |

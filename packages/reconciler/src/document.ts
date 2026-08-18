@@ -35,6 +35,7 @@ import {
 	getParentEntity,
 	getParentNode,
 	Hidden,
+	IsMask,
 	isText,
 	ItemIndex,
 	Keyframe,
@@ -765,6 +766,14 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 				entity.add(BlendMode);
 				entity.set(BlendMode, { value: mode });
+				return;
+			}
+			case 'mask': {
+				if (value === true && entity !== this.stage.entity) {
+					entity.add(IsMask);
+				} else {
+					entity.remove(IsMask);
+				}
 				return;
 			}
 			case 'hidden': {

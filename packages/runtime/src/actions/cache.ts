@@ -97,6 +97,28 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 	}
 }
 
+/**
+ * Move an attached geometry between its parent's `children` and `masks` when
+ * its `IsMask` tag is toggled in place. `rebuildCaches` files by trait on
+ * attach; here the queries cannot be trusted (koota fires onRemove before the
+ * tag is cleared), so the two lists are edited by hand.
+ */
+export function refileMask(world: World, entity: Entity, parent: Entity | null, mask: boolean): void {
+	if (parent === null || isStage(parent)) return;
+	if (!parent.has(Cache)) parent.add(Cache);
+
+	const cache = store(world, Cache);
+	const pid = parent.id();
+	const without = (list: Entity[] | undefined) => (list ?? []).filter((e) => e !== entity);
+
+	const masks = without(cache.masks[pid]);
+	const children = without(cache.children[pid]);
+	(mask ? masks : children).push(entity);
+
+	cache.masks[pid] = masks.sort(sortByItemIndex);
+	cache.children[pid] = children.sort(sortByItemIndex);
+}
+
 function isNodeEntity(entity: Entity): boolean {
 	return entity.has(Geometry) || entity.has(Group) || entity.has(AdjustmentLayer);
 }
