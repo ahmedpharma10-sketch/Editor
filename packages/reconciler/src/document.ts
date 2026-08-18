@@ -15,6 +15,7 @@ import {
 	End,
 	FontStyle,
 	FrameRate,
+	Loop,
 	Geometry,
 	GeometryType,
 	getEntityTree,
@@ -45,9 +46,10 @@ import {
 	TextBaseline,
 	TextStyle,
 } from '@diffusionstudio/runtime';
-import { parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
+import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix } from '@diffusionstudio/runtime';
+import type { PropValue } from '@diffusionstudio/jsx';
 import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
 
@@ -78,6 +80,40 @@ export type HostNode = SceneNode | TextNode;
  * parent entity via this trait rather than the other way around.
  */
 const TextParts = trait(() => new Set<TextNode>());
+
+/**
+ * What the project wrote on an entity's element, in the vocabulary of the JSX
+ * rather than of the traits it became: the tag, and every prop worth a value a
+ * source file could spell (see `PropValue`), as last set. Kept so an editor
+ * can spell an entity back out as an element — which is how a loop's
+ * iterations get written down one by one — without reading the traits
+ * backwards. `children` is not a prop here: an element's text is `Chars`, and
+ * its element children are the entity's.
+ */
+const Authored = trait(() => ({ tag: '', props: {} as Record<string, PropValue> }));
+
+/** Props that address or wire an element rather than describe it. */
+const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
+
+export interface AuthoredElement {
+	/** The camelCase tag the project used. */
+	tag: string;
+	props: Record<string, PropValue>;
+	/** The literal text of a `<text>`, when it holds any. */
+	text?: string;
+}
+
+/**
+ * The element `entity` was rendered from, as a project would author it, or
+ * undefined for an entity no document created (the stage included).
+ */
+export function authoredElement(entity: Entity): AuthoredElement | undefined {
+	const authored = entity.get(Authored);
+	if (authored === undefined) return undefined;
+
+	const text = isText(entity) ? entity.get(Chars)?.value : undefined;
+	return { tag: authored.tag, props: { ...authored.props }, ...(text ? { text } : {}) };
+}
 
 export function isSceneNode(node: HostNode): node is SceneNode {
 	return 'entity' in node;
@@ -214,6 +250,11 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				throw new Error(`<${tag}> is not supported yet (only <stage>, <scene>, <rect> and <text>).`);
 		}
 
+		if (entity !== this.stage.entity) {
+			entity.add(Authored);
+			entity.set(Authored, { tag: name, props: {} });
+		}
+
 		return { entity };
 	}
 
@@ -237,7 +278,25 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		if (!isSceneNode(node)) return;
 		const { entity } = node;
 
+		// Noted before it is interpreted: what the project wrote is what an
+		// editor spelling the element back out needs, however the traits pack it.
+		const authored = entity.get(Authored);
+		if (authored && !UNAUTHORED_PROPS.has(name)) {
+			if (isPropValue(value)) authored.props[name] = value;
+			else delete authored.props[name];
+		}
+
 		switch (name) {
+			case LOOP_ATTR: {
+				if (typeof value !== 'string' || !value) {
+					entity.remove(Loop);
+					return;
+				}
+
+				entity.add(Loop);
+				entity.set(Loop, { value });
+				return;
+			}
 			case SOURCE_ATTR: {
 				if (typeof value !== 'string' || !value) {
 					entity.remove(Source);

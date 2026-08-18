@@ -34,12 +34,51 @@ export const ID_ATTR = "id";
 export const SOURCE_ATTR = "__source";
 
 /**
+ * Attribute the compile step stamps onto every composition element that sits
+ * in the body of a `<For>` or `<Index>`, carrying the source of that loop
+ * (`<file>:<position of the loop element>`). Every iteration renders the same
+ * element, so its entities share one `SOURCE_ATTR` and cannot be written to
+ * one at a time; the loop stamp is what lets the editor tell that, gather the
+ * loop's entities, and have the source unrolled into one element per
+ * iteration before it writes. Only the nearest loop is named: an element in a
+ * loop within a loop is that inner loop's business.
+ */
+export const LOOP_ATTR = "__loop";
+
+/** The Solid control-flow components whose children render once per item. */
+export const LOOP_TAGS: readonly string[] = ["For", "Index"];
+
+export const isLoopTag = (tag: string): boolean => LOOP_TAGS.includes(tag);
+
+/**
  * What a prop can be worth in a source file: JSON, essentially. It is the
  * vocabulary an edit is expressed in — the value as a project would have
  * written it, not as a host happens to store it, so a color travels as
  * "#161616" rather than as the number the runtime packs it into.
  */
 export type PropValue = number | string | boolean | null | PropValue[] | { [key: string]: PropValue };
+
+/**
+ * Whether a value is one a source file could spell — a `PropValue`. An
+ * instance of a class (an `AssetRef`, say) is not, however plain its fields:
+ * spelled as an object literal it would read back as something else.
+ */
+export function isPropValue(value: unknown): value is PropValue {
+  if (value === null) return true;
+  switch (typeof value) {
+    case "string":
+    case "number":
+    case "boolean":
+      return true;
+    case "object": {
+      if (Array.isArray(value)) return value.every(isPropValue);
+      const prototype = Object.getPrototypeOf(value);
+      return (prototype === Object.prototype || prototype === null) && Object.values(value as object).every(isPropValue);
+    }
+    default:
+      return false;
+  }
+}
 
 /**
  * The composition elements — the tags that become entities. Everything else a

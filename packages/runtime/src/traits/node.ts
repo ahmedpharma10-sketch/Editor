@@ -63,6 +63,14 @@ export const Key = trait({ value: '' });
 // entity is not the element it was copied from.
 export const Source = trait({ value: '' });
 
+// On entities a `<For>`/`<Index>` body produced: the source of that loop (see
+// LOOP_ATTR in @diffusionstudio/jsx). Every iteration shares one Source, so
+// this is what tells the editor an element cannot be written to alone and
+// which entities are its fellow iterations. Set by the host while a project
+// renders and taken off once the loop has been unrolled in the source; not
+// serialized, for the same reason Source is not.
+export const Loop = trait({ value: '' });
+
 export const AssetId = trait({ value: '' });
 
 // Sibling order under a ChildOf parent.

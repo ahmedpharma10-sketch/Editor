@@ -10,11 +10,11 @@
  * where the commands live.
  */
 
-import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Selected, setActive, Source, Stage } from '@diffusionstudio/runtime';
-import { SOURCE_ATTR } from '@diffusionstudio/jsx';
+import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Loop, Selected, setActive, Source, Stage } from '@diffusionstudio/runtime';
+import { isPropValue, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
-import { getRuntimeDocument, insert, isSceneNode, withDocument } from '@diffusionstudio/reconciler';
+import { authoredElement, getRuntimeDocument, insert, isSceneNode, withDocument } from '@diffusionstudio/reconciler';
 
 import type { PropValue } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
@@ -77,7 +77,31 @@ export interface RemoveEdit {
 	source: string;
 }
 
-export type EntityEdit = PropEdit | InsertEdit | MoveEdit | RemoveEdit;
+/**
+ * One iteration of a loop as the canvas rendered it: for every element of the
+ * loop body, by source, the props it came out with and (for a text) its
+ * content, plus — for every iteration but the first, which keeps the body's
+ * own names — the pending source its entity has been re-stamped with, so the
+ * write can answer with the real one (see `isPendingSource`).
+ */
+export type LoopIteration = Record<string, { props: Record<string, PropValue>; text?: string; pending?: string }>;
+
+/**
+ * A `<For>`/`<Index>` the editor needs written out as its iterations, so that
+ * one of them can be edited without the others: `source` is any element of
+ * the loop's body (the writer finds the loop from it) and `iterations` what
+ * each rendering of that body came to. Reported before the edit that needed
+ * it; the entities are already re-stamped when it is. `loop` is the stamp
+ * they carried (see `Loop`), for `unsettle` to give back if the write declines.
+ */
+export interface UnrollEdit {
+	kind: 'unroll';
+	source: string;
+	loop: string;
+	iterations: LoopIteration[];
+}
+
+export type EntityEdit = PropEdit | InsertEdit | MoveEdit | RemoveEdit | UnrollEdit;
 
 /**
  * Sources of elements the editor created that no write has named yet. Shaped
@@ -89,22 +113,10 @@ let pendingCounter = 0;
 
 export const isPendingSource = (source: string): boolean => source.startsWith(PENDING_PREFIX);
 
-/** Whether a value is one a source file could spell: JSON, essentially. */
-function isPropValue(value: unknown): value is PropValue {
-	if (value === null) return true;
-	switch (typeof value) {
-		case 'string':
-		case 'number':
-		case 'boolean':
-			return true;
-		case 'object':
-			return Array.isArray(value)
-				? value.every(isPropValue)
-				: Object.values(value as object).every(isPropValue);
-		default:
-			return false;
-	}
-}
+const nextPendingSource = (): string => `${PENDING_PREFIX}${++pendingCounter}`;
+
+/** Whether an entity was rendered by a loop the source has not been asked to unroll yet. */
+export const isLooped = (entity: Entity): boolean => entity.isAlive() && entity.has(Loop);
 
 /** What `insertElement` learns about each element while it renders. */
 interface Recorded {
@@ -144,8 +156,14 @@ export class DocumentEditor {
 		this.reportEdit(entity, name, value);
 	}
 
-	/** Reports an edit whose change the editor already made itself. */
+	/**
+	 * Reports an edit whose change the editor already made itself. An entity a
+	 * loop rendered is settled first (see `settle`): its element is every
+	 * iteration's until the loop is unrolled, and the file hears about that
+	 * before it hears the value.
+	 */
 	public reportEdit(entity: Entity, name: string, value: PropValue): void {
+		this.settle(entity);
 		const source = entity.get(Source)?.value;
 
 		if (source) {
@@ -195,15 +213,125 @@ export class DocumentEditor {
 		const current = getActiveEntity(this.world);
 		if (current === entity) return;
 		setActive(this.world, entity);
-		if (current?.isAlive()) this.reportEdit(current, 'active', false);
-		if (entity) this.reportEdit(entity, 'active', true);
+		if (current?.isAlive() && !isLooped(current)) this.reportEdit(current, 'active', false);
+		if (entity && !isLooped(entity)) this.reportEdit(entity, 'active', true);
 	}
 
+	/**
+	 * Selection and activation of a looped entity stay on the canvas: pointing
+	 * at one iteration is not a reason to write the loop out, and the loop
+	 * body cannot say which iteration is meant. Once an edit has settled the
+	 * loop, they travel like anyone's.
+	 */
 	private setSelected(entity: Entity, selected: boolean): void {
 		if (!entity.isAlive() || entity.has(Stage) || entity.has(Selected) === selected) return;
 		if (selected) entity.add(Selected);
 		else entity.remove(Selected);
-		this.reportEdit(entity, 'selected', selected);
+		if (!isLooped(entity)) this.reportEdit(entity, 'selected', selected);
+	}
+
+	/**
+	 * Makes `entity` one the file can address on its own. An entity a loop
+	 * rendered shares its element — and so its source — with every other
+	 * iteration, so a write to it would be a write to all of them; before the
+	 * first edit reaches one, the loop is reported for unrolling with what each
+	 * iteration rendered, so the writer can spell the iterations out as
+	 * elements of their own and land the edit on the right one.
+	 *
+	 * The iterations are read off the canvas: the loop's entities are the
+	 * children of one parent that carry its stamp, in order, and the body
+	 * repeats through them (`a b a b` for a body of two elements). Every
+	 * iteration but the first is re-stamped with a pending source on the spot,
+	 * so anything the editor does to it from here on is addressed to its own
+	 * copy and waits for that copy's name (see the edit writer). The stamps
+	 * come off every entity of the loop, so this happens once; if the write
+	 * declines, `unsettle` puts everything back and the loop stays as it was.
+	 *
+	 * Left alone, with nothing reported, when the loop is not one the canvas
+	 * can spell out: an iteration that rendered something different from the
+	 * others, a loop within a loop, an element with no source. The writer
+	 * refuses to write into a loop, so such an edit is reported as skipped
+	 * rather than reaching every iteration.
+	 */
+	private settle(entity: Entity): void {
+		if (!isLooped(entity)) return;
+		const loop = entity.get(Loop)!.value;
+		const stamped = (candidate: Entity | null): boolean => candidate !== null && candidate.get(Loop)?.value === loop;
+
+		// Up to the top of this iteration, and to the element the loop rendered into.
+		let top = entity;
+		while (stamped(getParentEntity(top))) top = getParentEntity(top)!;
+		const container = getParentEntity(top);
+		if (container === null || isLooped(container)) return;
+
+		const roots = getEntityChildren(this.world, container).filter(stamped);
+		const first = roots[0]?.get(Source)?.value;
+		if (!first) return;
+
+		// The body's top-level sources repeat once per iteration.
+		const width = roots.findIndex((root, index) => index > 0 && root.get(Source)?.value === first);
+		const stride = width === -1 ? roots.length : width;
+		if (roots.length % stride !== 0) return;
+		const count = roots.length / stride;
+		if (!roots.every((root, index) => root.get(Source)?.value === roots[index % stride]!.get(Source)?.value)) return;
+
+		// What each iteration rendered, element by element, and the entities
+		// to re-stamp once it is all known to be spellable.
+		const iterations: LoopIteration[] = [];
+		const restamp: [Entity, string][] = [];
+		for (let index = 0; index < count; index++) {
+			const iteration: LoopIteration = {};
+			for (const root of roots.slice(index * stride, (index + 1) * stride)) {
+				for (const member of getEntityTree(this.world, root)) {
+					// Only what the project authored: the runtime's own
+					// sub-entities are derived from that, not written.
+					const authored = authoredElement(member);
+					if (!authored) continue;
+					const source = member.get(Source)?.value;
+					// A loop within the loop, or an element the file does not
+					// know, or one the body renders twice: not spellable.
+					if (!source || !stamped(member) || source in iteration) return;
+					const pending = index > 0 ? nextPendingSource() : undefined;
+					iteration[source] = { props: authored.props, ...(authored.text === undefined ? {} : { text: authored.text }), ...(pending ? { pending } : {}) };
+					if (pending) restamp.push([member, pending]);
+				}
+			}
+			iterations.push(iteration);
+		}
+
+		for (const [member, pending] of restamp) member.set(Source, { value: pending });
+		for (const root of roots) {
+			for (const member of getEntityTree(this.world, root)) member.remove(Loop);
+		}
+
+		this.sink?.({ kind: 'unroll', source: first, loop, iterations });
+	}
+
+	/**
+	 * Takes back an unroll the write declined: the entities go back to the
+	 * sources they had and to being the loop's, so that pointing at them stays
+	 * on the canvas and the next edit asks again. Nothing is destroyed — the
+	 * loop still renders them, it just cannot be written to.
+	 */
+	public unsettle(edit: UnrollEdit): void {
+		const originals = new Map<string, string>();
+		const members = new Set<string>();
+		for (const iteration of edit.iterations) {
+			for (const [source, { pending }] of Object.entries(iteration)) {
+				members.add(source);
+				if (pending) originals.set(pending, source);
+			}
+		}
+
+		for (const entity of this.world.query(Source)) {
+			const current = entity.get(Source)!.value;
+			const original = originals.get(current);
+			if (original) entity.set(Source, { value: original });
+			if (original || members.has(current)) {
+				entity.add(Loop);
+				entity.set(Loop, { value: edit.loop });
+			}
+		}
 	}
 
 	/**
@@ -224,6 +352,9 @@ export class DocumentEditor {
 	 */
 	public insertElement(parent: Entity, element: () => unknown, anchor?: Entity): Entity[] {
 		if (!parent.get(Source)?.value) return [];
+		// A child of one iteration's element, not of every iteration's.
+		this.settle(parent);
+		if (anchor) this.settle(anchor);
 
 		const created = new Map<Entity, Recorded>();
 		const dispose = createRoot((dispose) => {
@@ -275,14 +406,19 @@ export class DocumentEditor {
 	 * way would have put it (ordering included).
 	 */
 	public reparent(entity: Entity, parent: Entity, anchor?: Entity): boolean {
-		const source = entity.get(Source)?.value;
-		const parentSource = parent.get(Source)?.value;
-		if (!source || !parentSource) return false;
+		if (!entity.get(Source)?.value || !parent.get(Source)?.value) return false;
 		if (getParentEntity(entity) === parent && anchor === undefined) return false;
 		// Checked here rather than left to the document: a move into itself is
 		// a no-op there (nothing to report), and one into its own subtree is
 		// caught only after the node has already left the parent it had.
 		if (entity === parent || getEntityTree(this.world, entity).includes(parent)) return false;
+
+		// Each end of the move has to be one element, not every iteration's.
+		this.settle(entity);
+		this.settle(parent);
+		if (anchor) this.settle(anchor);
+		const source = entity.get(Source)!.value;
+		const parentSource = parent.get(Source)!.value;
 
 		const wasActive = entity.has(Active);
 
@@ -336,6 +472,8 @@ export class DocumentEditor {
 		const document = this.document;
 		for (const entity of roots) {
 			if (!entity.isAlive()) continue;
+			// Cut from the file as one iteration's element, not the body's.
+			this.settle(entity);
 			const source = entity.get(Source)!.value;
 			document.removeNode({ entity: getParentEntity(entity) ?? document.stage.entity }, { entity });
 			this.sink?.({ kind: 'remove', source });
@@ -385,7 +523,7 @@ export class DocumentEditor {
 			createElement: (tag) => {
 				const node = document.createElement(tag);
 				if (node !== document.stage) {
-					document.setProperty(node, SOURCE_ATTR, `${PENDING_PREFIX}${++pendingCounter}`);
+					document.setProperty(node, SOURCE_ATTR, nextPendingSource());
 					created.set(node.entity, { tag: tag.charAt(0).toLowerCase() + tag.slice(1), props: {} });
 				}
 				return node;

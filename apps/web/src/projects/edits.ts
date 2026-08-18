@@ -8,7 +8,7 @@ import { toast } from 'somoto';
 
 import { writeProject } from './host';
 
-import type { EntityEdit, InsertEdit, MoveEdit, RemoveEdit } from '@/engine/editor';
+import type { EntityEdit, InsertEdit, MoveEdit, RemoveEdit, UnrollEdit } from '@/engine/editor';
 import type { SourceEdit, WriteResult } from './host';
 import type { World } from 'koota';
 
@@ -23,18 +23,25 @@ class EditWriter {
 	private readonly dir: string;
 	private readonly world: World;
 
-	// Inserts first, in the order they were made (a child's parent may be one
-	// of them), then the moves, then per element, per prop: the last value for
-	// a prop is the only one worth writing, an element written twice is
-	// written once, and only where an element ended up is worth moving it to.
-	// Removes last: nothing else addressed to a removed element is worth
-	// writing, and once cut, an unnamed element's neighbours are elsewhere.
+	// Unrolls first: everything else addressed to what a loop rendered is
+	// addressed to the copies the unroll makes. Then inserts, in the order
+	// they were made (a child's parent may be one of them), then the moves,
+	// then per element, per prop: the last value for a prop is the only one
+	// worth writing, an element written twice is written once, and only where
+	// an element ended up is worth moving it to. Removes last: nothing else
+	// addressed to a removed element is worth writing, and once cut, an
+	// unnamed element's neighbours are elsewhere.
+	private unrolls = new Map<string, UnrollEdit>();
 	private inserts = new Map<string, InsertEdit>();
 	private moves = new Map<string, MoveEdit>();
 	private pending = new Map<string, InsertEdit['props']>();
 	private removes = new Set<string>();
 	// Pending sources a write is out for: edits to them wait for the answer.
 	private inflight = new Set<string>();
+	// The unrolls a write is out for. One the write declines is taken back
+	// (its entities go back to the loop) rather than discarded like a failed
+	// insert: the loop still renders them, it just cannot be written to.
+	private sent: UnrollEdit[] = [];
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private disposed = false;
 
@@ -47,7 +54,9 @@ class EditWriter {
 	public push(edit: EntityEdit): void {
 		if (this.disposed) return;
 
-		if (edit.kind === 'insert') {
+		if (edit.kind === 'unroll') {
+			this.unrolls.set(edit.source, edit);
+		} else if (edit.kind === 'insert') {
 			this.inserts.set(edit.source, edit);
 		} else if (edit.kind === 'remove') {
 			this.remove(edit);
@@ -138,7 +147,7 @@ class EditWriter {
 
 	private flush(): void {
 		this.timer = undefined;
-		if (!this.inserts.size && !this.moves.size && !this.pending.size && !this.removes.size) return;
+		if (!this.unrolls.size && !this.inserts.size && !this.moves.size && !this.pending.size && !this.removes.size) return;
 
 		// Anything addressed through an element whose insert is still out
 		// waits for its name: edits to it, and inserts or moves under or
@@ -149,6 +158,8 @@ class EditWriter {
 		const held = new Map([...this.pending].filter(([source]) => waits(source)));
 		const heldRemoves = new Set([...this.removes].filter(waits));
 		const edits: SourceEdit[] = [
+			// First: the copies an unroll makes are what the rest is addressed to.
+			...[...this.unrolls.values()].map(({ kind, source, iterations }): SourceEdit => ({ kind, source, iterations })),
 			...[...this.inserts.values()]
 				.filter((insert) => !heldInserts.has(insert.source))
 				.map(({ kind, source, parent, tag, props, before, text }): SourceEdit => ({
@@ -181,7 +192,13 @@ class EditWriter {
 		];
 		if (!edits.length) return;
 
-		this.inflight = new Set([...this.inflight, ...this.inserts.keys()].filter((source) => !heldInserts.has(source)));
+		// The names an unroll handed out are out with it.
+		this.sent = [...this.unrolls.values()];
+		this.unrolls = new Map();
+		this.inflight = new Set([
+			...[...this.inflight, ...this.inserts.keys()].filter((source) => !heldInserts.has(source)),
+			...this.sent.flatMap((unroll) => pendingsOf(unroll)),
+		]);
 		this.inserts = heldInserts;
 		this.moves = heldMoves;
 		this.pending = held;
@@ -197,19 +214,24 @@ class EditWriter {
 	private report(result: WriteResult): void {
 		if (result.error) {
 			toast.error('Could not write to the project', { description: result.error });
-		} else if (result.skipped.length) {
-			// Not a failure: the source computes these, and overwriting an
-			// expression with the value it happened to produce would delete
-			// someone's work.
-			toast.warning('Some props are computed and stay as they are', {
-				description: result.skipped.join(', '),
-			});
 		}
 
 		if (this.disposed) return;
 		const ids = result.ids ?? {};
 		const editor = getDocumentEditor(this.world);
 		editor.restamp(ids);
+
+		// An unroll the write declined: the loop's entities go back to being the
+		// loop's, and to the source they had (which the writer refuses to write
+		// into, so nothing owed to them below reaches the loop body).
+		const restored = new Set<string>();
+		const unrolled = new Set(result.unrolled ?? []);
+		for (const unroll of this.sent) {
+			if (unrolled.has(unroll.source)) continue;
+			editor.unsettle(unroll);
+			for (const pending of pendingsOf(unroll)) restored.add(pending);
+		}
+		this.sent = [];
 
 		// What piled up under a pending name while its write was out now
 		// belongs to the real one, or to nothing if the file would not have it.
@@ -255,7 +277,7 @@ class EditWriter {
 			if (next) this.removes.add(next);
 		}
 		for (const source of this.inflight) {
-			if (!ids[source]) editor.discardPending(source);
+			if (!ids[source] && !restored.has(source)) editor.discardPending(source);
 		}
 		this.inflight = new Set();
 
@@ -265,6 +287,13 @@ class EditWriter {
 }
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/** The pending sources an unroll stamped on the iterations it wrote out. */
+const pendingsOf = (unroll: UnrollEdit): string[] => {
+	return unroll.iterations
+		.flatMap((iteration) => Object.values(iteration)
+			.flatMap(({ pending }) => (pending ? [pending] : [])));
+}
 
 /**
  * Collects edits against the project in `dir` and writes them back.

@@ -11,16 +11,23 @@
 // disagreed, a drag would write to the wrong element; that invariant is why
 // these two modules are read together.
 
-import { ID_ATTR, SOURCE_ATTR, formatSource, isCompositionTag } from "@diffusionstudio/jsx";
+import { ID_ATTR, LOOP_ATTR, SOURCE_ATTR, formatSource, isCompositionTag, isLoopTag } from "@diffusionstudio/jsx";
 
-import type { PluginObj } from "@babel/core";
+import type { PluginObj, types as t } from "@babel/core";
 
 /** What babel hands a plugin factory. */
 type BabelApi = { types: typeof import("@babel/core").types };
 
+const jsxTagName = (element: t.JSXElement): string | undefined => {
+  const name = element.openingElement.name;
+  return name.type === "JSXIdentifier" ? name.name : undefined;
+};
+
 /**
  * Stamps every composition element with the location of its JSX source, so
  * entities on the canvas can be traced back to the code that produced them.
+ * An element in the body of a `<For>`/`<Index>` is also stamped with the
+ * location of that loop (see LOOP_ATTR).
  */
 export function sourcePlugin({ types }: BabelApi, { file }: { file: string }): PluginObj {
   return {
@@ -33,14 +40,23 @@ export function sourcePlugin({ types }: BabelApi, { file }: { file: string }): P
         // "the nth element in this file", and skipping some would make that
         // depend on which ones are composition elements today.
         let index = 0;
+        // Loops are addressed by their position too, since nothing else names
+        // them; visited before what they contain, so it is known by then.
+        const positions = new WeakMap<t.JSXElement, number>();
 
         program.traverse({
           JSXElement(path) {
             const position = index++;
+            positions.set(path.node, position);
 
             const opening = path.node.openingElement;
             const name = opening.name;
             if (name.type !== "JSXIdentifier" || !isCompositionTag(name.name)) return;
+
+            const loop = path.findParent(
+              (parent) => parent.isJSXElement() && isLoopTag(jsxTagName(parent.node) ?? ""),
+            );
+            const loopPosition = loop ? positions.get(loop.node as t.JSXElement) : undefined;
 
             // An element that names itself keeps that name; the position is the
             // fallback for elements nothing has had to write to yet. The id is
@@ -64,6 +80,15 @@ export function sourcePlugin({ types }: BabelApi, { file }: { file: string }): P
                 types.stringLiteral(formatSource(file, locator)),
               ),
             );
+
+            if (loopPosition !== undefined) {
+              opening.attributes.push(
+                types.jsxAttribute(
+                  types.jsxIdentifier(LOOP_ATTR),
+                  types.stringLiteral(formatSource(file, loopPosition)),
+                ),
+              );
+            }
           },
         });
       },

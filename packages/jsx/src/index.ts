@@ -24,9 +24,13 @@ export { parseTime, TIME_FPS } from "./time";
 export {
   COMPOSITION_TAGS,
   ID_ATTR,
+  LOOP_ATTR,
+  LOOP_TAGS,
   SOURCE_ATTR,
   formatSource,
   isCompositionTag,
+  isLoopTag,
+  isPropValue,
   parseSource,
 } from "./source";
 export type { CompositionTag, PropValue } from "./source";

@@ -9,10 +9,20 @@ import { join } from "node:path";
 import Sqids from "sqids";
 import { IndentationText, Project, SyntaxKind } from "ts-morph";
 
-import { ID_ATTR, formatSource, isCompositionTag, parseSource } from "@diffusionstudio/jsx";
+import { ID_ATTR, formatSource, isCompositionTag, isLoopTag, parseSource } from "@diffusionstudio/jsx";
 
 import type { PropValue } from "@diffusionstudio/jsx";
-import type { JsxAttribute, JsxElement, JsxOpeningElement, JsxSelfClosingElement, Node, SourceFile } from "ts-morph";
+import type {
+  ArrowFunction,
+  FunctionExpression,
+  JsxAttribute,
+  JsxElement,
+  JsxFragment,
+  JsxOpeningElement,
+  JsxSelfClosingElement,
+  Node,
+  SourceFile,
+} from "ts-morph";
 
 export type { PropValue };
 
@@ -74,7 +84,31 @@ export interface SourceRemove {
   source: string;
 }
 
-export type SourceEdit = SourceSet | SourceInsert | SourceMove | SourceRemove;
+/**
+ * One iteration of a loop as the canvas rendered it: for every composition
+ * element of the loop body, by its source, the props it came out with and (for
+ * a `<text>`) its literal content — the values that were computed from the
+ * item, spelled as literals. `pending` is the name the canvas already knows
+ * that iteration's copy of the element by; the write answers with the real
+ * one in `ids`. The first iteration keeps the body's own names, so it carries
+ * none.
+ */
+export type SourceIteration = Record<string, { props: Record<string, PropValue>; text?: string; pending?: string }>;
+
+/**
+ * Replaces the `<For>`/`<Index>` around the element named by `source` with
+ * one copy of its body per iteration, each spelling out what that iteration
+ * rendered. Nothing that comes after this in the same write can address a
+ * looped element (see `inLoop`): the loop is a recipe for elements, and a
+ * change to one of them means writing them down first.
+ */
+export interface SourceUnroll {
+  kind: "unroll";
+  source: string;
+  iterations: SourceIteration[];
+}
+
+export type SourceEdit = SourceSet | SourceInsert | SourceMove | SourceRemove | SourceUnroll;
 
 export interface WriteResult {
   /** Sources that could not be written, as `id` or `id (prop)`. */
@@ -85,6 +119,12 @@ export interface WriteResult {
    * wait for a recompile.
    */
   ids?: Record<string, string>;
+  /**
+   * The loops this write unrolled, by the `source` of the `SourceUnroll` that
+   * asked. An unroll not listed here was declined, and the canvas takes its
+   * loop back (see the edit writer).
+   */
+  unrolled?: string[];
   error?: string;
 }
 
@@ -107,11 +147,18 @@ const absolute = (dir: string, file: string): string => join(dir, ...file.split(
  * to find the handful that are elements.
  */
 function tags(sourceFile: SourceFile): JsxTag[] {
+  return tagsIn(sourceFile);
+}
+
+/** The JSX elements at and under `node`, in document order. */
+function tagsIn(node: Node): JsxTag[] {
   const found: JsxTag[] = [];
-  sourceFile.forEachDescendant((node: Node) => {
-    if (node.isKind(SyntaxKind.JsxSelfClosingElement)) found.push(node);
-    else if (node.isKind(SyntaxKind.JsxElement)) found.push(node.getOpeningElement());
-  });
+  const visit = (candidate: Node): void => {
+    if (candidate.isKind(SyntaxKind.JsxSelfClosingElement)) found.push(candidate);
+    else if (candidate.isKind(SyntaxKind.JsxElement)) found.push(candidate.getOpeningElement());
+  };
+  visit(node);
+  node.forEachDescendant(visit);
   return found;
 }
 
@@ -254,6 +301,85 @@ function matchIndentation(sourceFile: SourceFile): void {
 /** The whole element a tag opens — the tag itself when it is self-closing. */
 const elementOf = (tag: JsxTag): JsxElement | JsxSelfClosingElement =>
   tag.isKind(SyntaxKind.JsxOpeningElement) ? tag.getParentIfKindOrThrow(SyntaxKind.JsxElement) : tag;
+
+// ---------------------------------------------------------------------------
+// Loops
+
+type JsxBody = JsxElement | JsxSelfClosingElement | JsxFragment;
+type LoopCallback = ArrowFunction | FunctionExpression;
+
+const isLoopElement = (node: Node): node is JsxElement =>
+  node.isKind(SyntaxKind.JsxElement) && isLoopTag(tagName(node.getOpeningElement()));
+
+/**
+ * The nearest `<For>`/`<Index>` an element sits in the body of, if any. An
+ * element there is rendered once per item, so a write to it — a prop, a child,
+ * a move, a cut — would reach every iteration at once; the writer refuses
+ * those, and unrolls the loop instead when asked to (see `SourceUnroll`).
+ */
+const loopOf = (element: Node): JsxElement | undefined => element.getAncestors().find(isLoopElement);
+
+const inLoop = (tag: JsxTag): boolean => loopOf(elementOf(tag)) !== undefined;
+
+const isBlankText = (node: Node): boolean =>
+  node.isKind(SyntaxKind.JsxText) && node.containsOnlyTriviaWhiteSpaces();
+
+/**
+ * What a loop renders per item: the JSX its callback returns, when the
+ * callback is written out and returns nothing but JSX. Anything else — a
+ * reference to a function declared elsewhere, a body with statements of its
+ * own — computes its element in a way the source cannot be asked to spell out.
+ */
+function loopBody(loop: JsxElement): { callback: LoopCallback; body: JsxBody } | undefined {
+  const children = loop.getJsxChildren().filter((child) => !isBlankText(child));
+  if (children.length !== 1) return undefined;
+
+  const expression = children[0]!.asKind(SyntaxKind.JsxExpression)?.getExpression();
+  const callback = expression?.asKind(SyntaxKind.ArrowFunction) ?? expression?.asKind(SyntaxKind.FunctionExpression);
+  if (!callback) return undefined;
+
+  let returned: Node | undefined = callback.getBody();
+  if (returned.isKind(SyntaxKind.Block)) {
+    const statements = returned.getStatements();
+    if (statements.length !== 1) return undefined;
+    returned = statements[0]!.asKind(SyntaxKind.ReturnStatement)?.getExpression();
+  }
+  while (returned?.isKind(SyntaxKind.ParenthesizedExpression)) returned = returned.getExpression();
+
+  const body =
+    returned?.asKind(SyntaxKind.JsxElement) ??
+    returned?.asKind(SyntaxKind.JsxSelfClosingElement) ??
+    returned?.asKind(SyntaxKind.JsxFragment);
+  return body === undefined ? undefined : { callback, body };
+}
+
+/**
+ * The names a loop's callback binds — the item, the index, whatever it
+ * destructured (over-approximated: every identifier in the parameter list).
+ * These are what an unrolled copy no longer has a value for.
+ */
+function boundNames(callback: LoopCallback): Set<string> {
+  const names = new Set<string>();
+  for (const parameter of callback.getParameters()) {
+    const name = parameter.getNameNode();
+    if (name.isKind(SyntaxKind.Identifier)) names.add(name.getText());
+    for (const identifier of name.getDescendantsOfKind(SyntaxKind.Identifier)) names.add(identifier.getText());
+  }
+  return names;
+}
+
+/** Whether an attribute's value mentions any of `names`. */
+function mentions(attribute: JsxAttribute, names: Set<string>): boolean {
+  const initializer = attribute.getInitializer();
+  if (!initializer) return false;
+  if (initializer.isKind(SyntaxKind.Identifier) && names.has(initializer.getText())) return true;
+  return initializer.getDescendantsOfKind(SyntaxKind.Identifier).some((identifier) => names.has(identifier.getText()));
+}
+
+const isTextTag = (tag: JsxTag): boolean => {
+  const name = tagName(tag);
+  return name === "text" || name === "Text";
+};
 
 /**
  * Puts `child` (element text) under `parent`, in front of `before` (a direct
@@ -408,6 +534,7 @@ interface OpenFile {
 interface FileWrite {
   skipped: string[];
   ids: Record<string, string>;
+  unrolled: string[];
 }
 
 /**
@@ -552,11 +679,13 @@ class SourceWriter {
   public async applyEdits(edits: SourceEdit[]): Promise<WriteResult> {
     const skipped: string[] = [];
     const ids: Record<string, string> = {};
+    const unrolled: string[] = [];
 
     // Grouped by file: one parse and one write per file, however many elements
     // of it an edit touched. An insert lives in its parent's file, and a
-    // pending source in the file of the insert that made it; edits arrive in
-    // the order they were made, so a parent is filed before its children.
+    // pending source in the file of the insert (or the unroll) that made it;
+    // edits arrive in the order they were made, so a parent is filed before
+    // its children.
     const fileOf = new Map<string, string>();
     const byFile = new Map<string, SourceEdit[]>();
     for (const edit of edits) {
@@ -567,6 +696,13 @@ class SourceWriter {
         continue;
       }
       if (edit.kind === "insert") fileOf.set(edit.source, file);
+      if (edit.kind === "unroll") {
+        for (const iteration of edit.iterations) {
+          for (const { pending } of Object.values(iteration)) {
+            if (pending) fileOf.set(pending, file);
+          }
+        }
+      }
       byFile.set(file, [...(byFile.get(file) ?? []), edit]);
     }
 
@@ -587,10 +723,15 @@ class SourceWriter {
 
       skipped.push(...written.skipped);
       Object.assign(ids, written.ids);
+      unrolled.push(...written.unrolled);
     }
 
     await this.save();
-    return { skipped, ...(Object.keys(ids).length ? { ids } : {}) };
+    return {
+      skipped,
+      ...(Object.keys(ids).length ? { ids } : {}),
+      ...(unrolled.length ? { unrolled } : {}),
+    };
   }
 
   /**
@@ -602,6 +743,7 @@ class SourceWriter {
     const nextId = idAllocator(idsIn(sourceFile));
     const skipped: string[] = [];
     const ids: Record<string, string> = {};
+    const unrolled: string[] = [];
 
     try {
       for (const edit of entries) {
@@ -620,6 +762,12 @@ class SourceWriter {
           continue;
         }
 
+        if (edit.kind === "unroll") {
+          if (this.unrollLoop(file, sourceFile, edit, ids, nextId)) unrolled.push(edit.source);
+          else skipped.push(`${edit.source} (loop)`);
+          continue;
+        }
+
         const locator = locate(edit.source, ids)?.locator;
         if (locator === undefined) {
           skipped.push(edit.source);
@@ -633,6 +781,14 @@ class SourceWriter {
           const tag = findTag(sourceFile, locator);
           if (!tag) {
             skipped.push(edit.source);
+            break;
+          }
+
+          // One element of a loop cannot take a value the others do not:
+          // the loop has to be unrolled first (and would have been, in this
+          // same write, had the canvas been able to spell it out).
+          if (inLoop(tag)) {
+            skipped.push(`${edit.source} (loop)`);
             break;
           }
 
@@ -661,7 +817,7 @@ class SourceWriter {
 
     // The tree an edit leaves behind answers for itself before it is printed.
     this.dropUnparsed([file]);
-    return this.files.has(file) ? { skipped, ids } : undefined;
+    return this.files.has(file) ? { skipped, ids, unrolled } : undefined;
   }
 
   /**
@@ -681,7 +837,8 @@ class SourceWriter {
 
     const parentLocator = locate(edit.parent, ids)?.locator;
     const parent = parentLocator === undefined ? undefined : findTag(sourceFile, parentLocator);
-    if (!parent) return false;
+    // A child of a looped element would be a child of every iteration's.
+    if (!parent || inLoop(parent)) return false;
 
     let before: JsxTag | undefined;
     if (edit.before !== undefined) {
@@ -727,7 +884,8 @@ class SourceWriter {
       // element here that has nothing to do with it.
       const locator = address?.file === file ? address.locator : undefined;
       const tag = locator === undefined ? undefined : findTag(sourceFile, locator);
-      if (!tag) return undefined;
+      // Nothing in a loop moves, or is moved into: it is every iteration's.
+      if (!tag || inLoop(tag)) return undefined;
       const id = idOf(tag);
       if (id) return id;
 
@@ -789,10 +947,165 @@ class SourceWriter {
     const address = locate(edit.source, ids);
     const locator = address?.file === file ? address.locator : undefined;
     const tag = locator === undefined ? undefined : findTag(sourceFile, locator);
-    if (!tag) return false;
+    // Cutting a looped element would cut it from every iteration.
+    if (!tag || inLoop(tag)) return false;
 
     matchIndentation(sourceFile);
     cutElement(sourceFile, elementOf(tag));
+    return true;
+  }
+
+  /**
+   * Replaces the loop around one element with its iterations written out.
+   * The body — the JSX the loop's callback returns — is copied once per
+   * iteration, keeping the author's layout; then each copy's elements take
+   * the props that iteration rendered, spelled as literals, and lose the
+   * spreads those props came from. The first copy keeps the body's ids, the
+   * rest are named afresh and answered for in `ids`.
+   *
+   * False when the loop is not one the source can be asked to spell out: no
+   * loop around the element, a loop within a loop, a callback that computes
+   * rather than returns JSX, a body with anything but composition elements in
+   * it (a component's props are its own, and control flow renders on its own
+   * terms), an attribute that leans on the item and that the canvas did not
+   * report a value for, or an iteration the canvas knows less about than the
+   * body asks.
+   */
+  private unrollLoop(
+    file: string,
+    sourceFile: SourceFile,
+    edit: SourceUnroll,
+    ids: Record<string, string>,
+    nextId: () => string,
+  ): boolean {
+    const locator = locate(edit.source, ids)?.locator;
+    const tag = locator === undefined ? undefined : findTag(sourceFile, locator);
+    const loop = tag === undefined ? undefined : loopOf(elementOf(tag));
+    if (!tag || !loop || loopOf(loop)) return false;
+
+    const shape = loopBody(loop);
+    if (!shape) return false;
+    const bound = boundNames(shape.callback);
+
+    // What the canvas said, by id: every key must name an element of this file.
+    const iterations: Map<string, SourceIteration[string]>[] = [];
+    for (const iteration of edit.iterations) {
+      const byId = new Map<string, SourceIteration[string]>();
+      for (const [source, record] of Object.entries(iteration)) {
+        const address = parseSource(source);
+        if (address?.file !== file || typeof address.locator !== "string") return false;
+        byId.set(address.locator, record);
+      }
+      iterations.push(byId);
+    }
+    if (!iterations.length) return false;
+
+    // The body's top-level elements: the copies are their text.
+    const roots: (JsxElement | JsxSelfClosingElement)[] = [];
+    for (const child of shape.body.isKind(SyntaxKind.JsxFragment) ? shape.body.getJsxChildren() : [shape.body]) {
+      if (isBlankText(child)) continue;
+      if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) roots.push(child);
+      else return false;
+    }
+    if (!roots.length) return false;
+
+    // Checked before anything is touched: every element of the body is a named
+    // composition element every iteration accounts for, holds only what a copy
+    // can hold, and keeps no attribute that would be left pointing at the item.
+    const bodyTags = roots.flatMap(tagsIn);
+    const bodyIds: string[] = [];
+    for (const bodyTag of bodyTags) {
+      const id = idOf(bodyTag);
+      if (!isCompositionTag(tagName(bodyTag)) || !id || bodyIds.includes(id)) return false;
+      if (!iterations.every((iteration) => iteration.has(id))) return false;
+      bodyIds.push(id);
+
+      for (const attribute of bodyTag.getAttributes()) {
+        if (!attribute.isKind(SyntaxKind.JsxAttribute)) continue;
+        const name = attribute.getNameNode().getText();
+        if (name === ID_ATTR) continue;
+        if (iterations.every((iteration) => name in iteration.get(id)!.props)) continue;
+        if (mentions(attribute, bound)) return false;
+      }
+
+      const element = elementOf(bodyTag);
+      if (element.isKind(SyntaxKind.JsxSelfClosingElement)) continue;
+      const text = isTextTag(bodyTag);
+      for (const child of element.getJsxChildren()) {
+        if (isBlankText(child)) continue;
+        if (child.isKind(SyntaxKind.JsxText) || child.isKind(SyntaxKind.JsxExpression)) {
+          if (!text) return false;
+        } else if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {
+          if (text) return false;
+        } else {
+          return false;
+        }
+      }
+    }
+
+    // Before any indentation is measured: ts-morph counts it in units of a
+    // setting it does not learn from the file on its own.
+    matchIndentation(sourceFile);
+    const indent = loop.getIndentationText();
+
+    // Each copy: the roots' text at the loop's indentation, with the ids of
+    // every copy but the first swapped for fresh ones — by span, so the copies
+    // read exactly as the body does otherwise.
+    const minted: Map<string, string>[] = iterations.map(() => new Map());
+    const copies = iterations.map((iteration, index) =>
+      roots
+        .map((root) => {
+          let text = root.getText();
+          if (index > 0) {
+            const swaps = tagsIn(root)
+              .map((bodyTag) => {
+                const id = idOf(bodyTag)!;
+                const initializer = attributeOf(bodyTag, ID_ATTR)!.getInitializer()!;
+                const fresh = nextId();
+                minted[index]!.set(id, fresh);
+                const pending = iteration.get(id)!.pending;
+                if (pending) ids[pending] = formatSource(file, fresh);
+                return { start: initializer.getStart() - root.getStart(), end: initializer.getEnd() - root.getStart(), fresh };
+              })
+              .sort((a, b) => b.start - a.start);
+            for (const swap of swaps) text = `${text.slice(0, swap.start)}"${swap.fresh}"${text.slice(swap.end)}`;
+          }
+          return reindent(text, root.getIndentationText(), indent);
+        })
+        .join(`\n${indent}`),
+    );
+    sourceFile.replaceText([loop.getStart(), loop.getEnd()], copies.join(`\n${indent}`));
+
+    // Now every copy's elements answer to a name of their own: give each what
+    // its iteration rendered, one attribute at a time and re-found after each
+    // (editing one attribute forgets its siblings).
+    for (const [index, iteration] of iterations.entries()) {
+      for (const bodyId of bodyIds) {
+        const id = minted[index]!.get(bodyId) ?? bodyId;
+        const record = iteration.get(bodyId)!;
+        const found = (): JsxTag => {
+          const copy = findTag(sourceFile, id);
+          if (!copy) throw new Error(`the copy of ${bodyId} for iteration ${index} is gone`);
+          return copy;
+        };
+
+        // The spreads are what the recorded props stand in for.
+        for (let spread = found().getAttributes().find((a) => a.isKind(SyntaxKind.JsxSpreadAttribute)); spread; ) {
+          spread.remove();
+          spread = found().getAttributes().find((a) => a.isKind(SyntaxKind.JsxSpreadAttribute));
+        }
+        for (const [name, value] of Object.entries(record.props)) {
+          setProp(found(), name, value);
+        }
+
+        const element = elementOf(found());
+        if (element.isKind(SyntaxKind.JsxElement) && isTextTag(element.getOpeningElement())) {
+          const content = record.text ? jsxText(record.text) : "";
+          sourceFile.replaceText([element.getOpeningElement().getEnd(), element.getClosingElement().getStart()], content);
+        }
+      }
+    }
+
     return true;
   }
 }
