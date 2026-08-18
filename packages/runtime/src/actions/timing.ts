@@ -9,12 +9,12 @@
 import { store } from '../world/store';
 import { DEFAULT_DURATION_FRAMES } from '../constants';
 import {
-	Geometry, Group, Paint, Audio, Caption, Cache, Computed,
+	Geometry, Group, Paint, Caption, Cache, Computed, AssetId,
 	Start, End, SourceIn, SourceOut, PlaybackRate, CaptionDecoderHandle,
 } from '../traits';
 import { isGroupLike } from '../queries/predicates';
 import { getParentNode } from '../queries/hierarchy';
-import { findAssetDuration, getSourceFrameAt, getTimelineOrigin } from '../utils/time';
+import { findAssetDuration, getSourceFrameAt, getTimelineOrigin, isPaintEntity } from '../utils/time';
 
 import type { Entity, World } from 'koota';
 
@@ -25,12 +25,18 @@ import type { Entity, World } from 'koota';
 type TimeTrait = typeof Start;
 
 /**
+ * A trait a recompute may read as absent: one of the authored time traits, or
+ * the node's own AssetId (its intrinsic media, another source of a length).
+ */
+type Ignorable = TimeTrait | typeof AssetId;
+
+/**
  * The authored value, or undefined when the node doesn't carry it. `ignore`
  * reads one trait as absent: koota fires onRemove before it clears the trait,
  * so a removal handler has to recompute against the value that is going away
  * (the same reason rebuildCaches takes an exclude).
  */
-function authored(entity: Entity, trait: TimeTrait, ignore?: TimeTrait): number | undefined {
+function authored(entity: Entity, trait: TimeTrait, ignore?: Ignorable): number | undefined {
 	return trait === ignore ? undefined : entity.get(trait)?.value;
 }
 
@@ -51,10 +57,10 @@ function resolveDuration(
 	entity: Entity,
 	start: number,
 	sourceIn: number,
-	ignore?: TimeTrait,
+	ignore?: Ignorable,
 ): number {
 	const playbackRate = authored(entity, PlaybackRate, ignore) || 1;
-	const assetDuration = findAssetDuration(world, entity);
+	const assetDuration = findAssetDuration(world, entity, ignore === AssetId);
 
 	let duration = Infinity;
 
@@ -84,7 +90,7 @@ function resolveDuration(
  * comparing two nodes works in one space. The rate places source frame 0, which
  * is the origin every descendant is measured against.
  */
-export function recomputeEntityTimeRange(world: World, entity: Entity, ignore?: TimeTrait): void {
+export function recomputeEntityTimeRange(world: World, entity: Entity, ignore?: Ignorable): void {
 	const computed = store(world, Computed);
 	const eid = entity.id();
 
@@ -141,7 +147,7 @@ export function recomputeEntityTimeRange(world: World, entity: Entity, ignore?: 
  * the entity's origin or changes its rate has changed; every child below is
  * placed against that origin and has to be re-derived.
  */
-export function propagateTimeRangeDown(world: World, entity: Entity, ignore?: TimeTrait): void {
+export function propagateTimeRangeDown(world: World, entity: Entity, ignore?: Ignorable): void {
 	recomputeEntityTimeRange(world, entity, ignore);
 	for (const child of entity.get(Cache)?.children ?? []) {
 		propagateTimeRangeDown(world, child);
@@ -167,7 +173,7 @@ export function bubbleTimeRangeUp(world: World, child: Entity): void {
 }
 
 /** Whether the node takes its bounds from its children rather than authoring them. */
-export function fitsChildren(entity: Entity, ignore?: TimeTrait): boolean {
+export function fitsChildren(entity: Entity, ignore?: Ignorable): boolean {
 	return isGroupLike(entity) && authored(entity, End, ignore) === undefined;
 }
 
@@ -225,11 +231,13 @@ export function trimEntityOut(_world: World, entity: Entity, frame: number): voi
 /**
  * Re-derive the time range when the asset id of an entity changes.
  */
-export function reactToAssetChange(world: World, entity: Entity) {
-	if (entity.has(Paint)) {
+/**
+ * `removing`: the id is on its way off the entity (koota fires onRemove before
+ * clearing it), so recompute as if it were already gone.
+ */
+export function reactToAssetChange(world: World, entity: Entity, removing = false) {
+	if (isPaintEntity(entity)) {
 		reactToPaintChange(world, entity);
-	} else if (entity.has(Audio)) {
-		reactToGeometryDurationChange(world, entity);
 	} else if (entity.has(Caption)) {
 		// Re-pointed transcript: drop the decoder so it re-resolves with the
 		// new asset.
@@ -237,6 +245,11 @@ export function reactToAssetChange(world: World, entity: Entity) {
 			entity.get(CaptionDecoderHandle)?.dispose();
 			entity.set(CaptionDecoderHandle, null);
 		}
+	} else if (entity.has(Geometry)) {
+		// A geometry's own asset backs its intrinsic paint (a video's footage)
+		// or, on an audio clip, its recording: a new one is a new source length.
+		recomputeEntityTimeRange(world, entity, removing ? AssetId : undefined);
+		bubbleTimeRangeUp(world, entity);
 	}
 }
 
@@ -247,7 +260,8 @@ export function reactToAssetChange(world: World, entity: Entity) {
  * and a longer one gives back whatever the authored bounds still allow.
  */
 export function reactToPaintChange(world: World, paint: Entity) {
-	const entity = getParentNode(paint);
+	// A geometry's own Paint is its intrinsic paint: the geometry is the clip.
+	const entity = paint.has(Geometry) ? paint : getParentNode(paint);
 	if (entity === null || !entity.has(Geometry)) return;
 
 	recomputeEntityTimeRange(world, entity);
@@ -256,8 +270,8 @@ export function reactToPaintChange(world: World, paint: Entity) {
 
 /**
  * Recompute a geometry's bounds and bubble. Used when something other than its
- * own authored time shifts its duration (e.g. an attached asset id on an Audio
- * entity).
+ * own authored time shifts its duration (e.g. the intrinsic media its own
+ * asset id names).
  */
 export function reactToGeometryDurationChange(world: World, entity: Entity) {
 	if (!entity.has(Geometry)) return;

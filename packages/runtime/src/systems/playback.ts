@@ -21,7 +21,7 @@ import {
 	Root,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
-import { getSourceWindow } from '../utils/time';
+import { getIntrinsicPaint, getSourceWindow } from '../utils/time';
 import { clamp } from '../math/common';
 import { getTransitionWindow } from '../utils/transition';
 import {
@@ -250,9 +250,23 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 	const hidden = entity.has(Hidden) || entity.has(Culled);
 	const visualsEnabled = !hidden && world.get(Mode)?.value !== 'offline-audio';
 
+	let intrinsicVideo = false;
 	let paintAudioSource: Entity | undefined;
+
 	if (!hidden) {
-		for (const fill of world.query(ChildOf(entity), Paint, Not(Hidden))) {
+		const intrinsic = getIntrinsicPaint(entity);
+		if (intrinsic === PaintType.VIDEO) {
+			if (visualsEnabled) {
+				forwardVideoDecoder(world, scene, entity, entity);
+			}
+			intrinsicVideo = true;
+		} else if (intrinsic === PaintType.SEQUENCE && visualsEnabled) {
+			forwardSequenceDecoder(world, scene, entity, entity);
+		} else if (intrinsic === PaintType.IMAGE && visualsEnabled) {
+			forwardImageDecoder(world, scene, entity, entity);
+		}
+
+		for (const fill of world.query(ChildOf(entity), Paint, Not(Geometry), Not(Hidden))) {
 			const paint = paintStore.value[fill.id()];
 
 			if (paint === PaintType.VIDEO) {
@@ -285,7 +299,7 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 		forwardCaptionDecoder(world, scene, entity);
 	}
 
-	if (entity.has(Audio) || paintAudioSource) {
+	if (intrinsicVideo || entity.has(Audio) || paintAudioSource) {
 		forwardAudioDecoder(world, scene, entity, paintAudioSource);
 	}
 

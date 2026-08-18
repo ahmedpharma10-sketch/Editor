@@ -4,7 +4,7 @@
 
 import { CONONICAL_TIME_BASE, PaintType } from '../constants';
 import {
-	Audio, AssetId, Cache, Computed, Paint, SourceIn, Assets, FrameRate,
+	Audio, AssetId, Cache, Computed, Geometry, Paint, SourceIn, Assets, FrameRate,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
 
@@ -91,6 +91,23 @@ export function getSourceWindow(entity: Entity): { in: number; out: number } {
 	return { in: sourceIn, out: sourceIn + Math.round(duration * playbackRate) };
 }
 
+/**
+ * The paint a geometry is intrinsically made of: its own Paint trait, when it
+ * carries one. Like its own Color, an intrinsic paint is drawn (and played) by
+ * the geometry itself, from its own AssetId, beneath any paint children — a
+ * paint child is a sub-entity carrying Paint and an asset of its own. Only a
+ * geometry can have an intrinsic paint; a paint sub-entity has no Geometry.
+ */
+export function getIntrinsicPaint(entity: Entity): PaintType | undefined {
+	if (!entity.has(Geometry)) return undefined;
+	return entity.get(Paint)?.value;
+}
+
+/** Whether `entity` is a paint sub-entity (as opposed to a geometry with an intrinsic paint). */
+export function isPaintEntity(entity: Entity): boolean {
+	return entity.has(Paint) && !entity.has(Geometry);
+}
+
 /** The asset backing a geometry: its own AssetId, or the first fill's. */
 export function findGeometryAsset(world: World, entity: Entity): Asset | null {
 	const assets = world.get(Assets);
@@ -115,18 +132,20 @@ export function findGeometryAsset(world: World, entity: Entity): Asset | null {
 
 /**
  * Intrinsic duration (in project frames) of the media asset attached to an
- * entity: the audio asset on Audio clips, else the first video/sequence fill.
- * Null when nothing time-based is attached.
+ * entity: its own asset when the entity is an audio clip or its intrinsic
+ * paint is a video/sequence, else the first video/sequence fill. Null when
+ * nothing time-based is attached. `ignoreOwn` reads the entity's own asset as
+ * absent (for a handler of its removal).
  */
-export function findAssetDuration(world: World, entity: Entity): number | null {
+export function findAssetDuration(world: World, entity: Entity, ignoreOwn = false): number | null {
 	const assets = world.get(Assets);
 	if (!assets) return null;
 	const frameRate = world.get(FrameRate)?.value ?? 30;
 
-	if (entity.has(Audio)) {
+	const paint = getIntrinsicPaint(entity);
+	if (!ignoreOwn && (entity.has(Audio) || paint === PaintType.VIDEO || paint === PaintType.SEQUENCE)) {
 		const asset = assets.get(entity.get(AssetId)?.value ?? '');
-
-		if (asset?.type === 'AUDIO' || asset?.type === 'VIDEO') {
+		if (asset?.type === 'AUDIO' || asset?.type === 'VIDEO' || asset?.type === 'SEQUENCE') {
 			return secondsToFrames(asset.duration, frameRate);
 		}
 	}

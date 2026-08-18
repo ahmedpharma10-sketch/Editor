@@ -65,8 +65,10 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 		resetAnimatedValues(world, parent);
 	}
 
-	if (entity.has(Paint)) {
-		cache.fills[pid] = collect(Paint, ChildOf(parent))
+	// A geometry carrying Paint is not a fill of its parent: that is its own
+	// intrinsic paint (see getIntrinsicPaint).
+	if (entity.has(Paint) && !entity.has(Geometry)) {
+		cache.fills[pid] = collect(Paint, Not(Geometry), ChildOf(parent))
 			.sort(sortByItemIndex);
 	}
 

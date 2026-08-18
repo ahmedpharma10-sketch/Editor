@@ -139,6 +139,10 @@ export function observeWorld(world: World): () => void {
 		reactToAssetChange(world, entity);
 	}));
 
+	subs.push(world.onRemove(AssetId, (entity) => {
+		reactToAssetChange(world, entity, true);
+	}));
+
 	const propagateAndBubble = (entity: Entity) => {
 		propagateTimeRangeDown(world, entity);
 		bubbleTimeRangeUp(world, entity);

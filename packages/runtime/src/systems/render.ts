@@ -31,6 +31,7 @@ import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
+import { getIntrinsicPaint } from '../utils/time';
 import { createLinearGradient, createRadialGradient } from './gradients';
 import {
 	resolveImageDecoder, resolveVideoDecoder, resolveSequenceDecoder,
@@ -191,15 +192,81 @@ function buildEffects(world: World, entity: Entity): string | null {
 }
 
 /**
- * The geometry's intrinsic solid fill (its own Color trait), if any. Drawn
- * into the current path before the Paint sub-entities so it always sits at
- * the bottom of the fill stack. Reads Computed.color, so it animates.
+ * The geometry's intrinsic fill: its own Color trait (a solid, read from
+ * Computed.color so it animates) and its own Paint trait (see
+ * `getIntrinsicPaint`), if any, in that order. Drawn into the current path
+ * before the Paint sub-entities so it always sits at the bottom of the fill
+ * stack. A shader paint first in the stack takes an intrinsic image/video as
+ * its input instead (see `renderShaderFill`), in which case the media is not
+ * drawn here. Only media paints are intrinsic so far; a waveform (an audio
+ * clip's) has no picture on the canvas.
  */
 export function renderIntrinsicFill(world: World, entity: Entity): void {
-	if (!entity.has(Color)) return;
+	if (entity.has(Color)) {
+		const ctx = getCtx(world);
+		ctx.fillStyle = colorToHex(store(world, Computed).color[entity.id()] ?? 0);
+		ctx.fill();
+	}
+
+	const kind = mediaKind(getIntrinsicPaint(entity));
+	if (kind === null) return;
+	if (shaderInput(world, entity, store(world, Cache).fills[entity.id()] ?? [], 0) === entity) return;
+	renderMedia(world, entity, entity, kind);
+}
+
+type MediaKind = 'IMAGE' | 'VIDEO' | 'SEQUENCE';
+
+function mediaKind(paint: PaintType | undefined): MediaKind | null {
+	if (paint === PaintType.IMAGE) return 'IMAGE';
+	if (paint === PaintType.VIDEO) return 'VIDEO';
+	if (paint === PaintType.SEQUENCE) return 'SEQUENCE';
+	return null;
+}
+
+/** What the image/video/sequence decoders hand out to draw. */
+type MediaFrame = ImageBitmap | HTMLImageElement | HTMLCanvasElement | OffscreenCanvas;
+
+/**
+ * Draws the current frame of `source` (an image/video/sequence paint, or the
+ * geometry itself for intrinsic media) into `entity`'s box, fitted by the
+ * source's ScaleMode; a failed decoder paints the missing-asset color.
+ */
+function renderMedia(world: World, entity: Entity, source: Entity, kind: MediaKind): void {
 	const ctx = getCtx(world);
-	ctx.fillStyle = colorToHex(store(world, Computed).color[entity.id()] ?? 0);
-	ctx.fill();
+	const computed = store(world, Computed);
+	const eid = entity.id();
+	const w = computed.width[eid]!;
+	const h = computed.height[eid]!;
+
+	let frame: MediaFrame | null | undefined;
+	let failed = false;
+	if (kind === 'IMAGE') {
+		const decoder = resolveImageDecoder(world, source)?.decoder;
+		frame = decoder?.getBitmap(w, h);
+		failed = decoder?.failed ?? false;
+	} else if (kind === 'VIDEO') {
+		const decoder = resolveVideoDecoder(world, source);
+		frame = decoder?.toBitmap();
+		failed = decoder?.errored ?? false;
+	} else {
+		const decoder = resolveSequenceDecoder(world, source);
+		frame = decoder?.toBitmap();
+		failed = decoder?.errored ?? false;
+	}
+
+	if (frame) {
+		ctx.save();
+		ctx.clip();
+
+		const mode = store(world, ScaleMode).value[source.id()] ?? 0;
+		const [dx, dy, sw, sh] = getScaledImageProps(mode, frame.width, frame.height, w, h);
+		ctx.drawImage(frame, dx, dy, sw, sh);
+
+		ctx.restore();
+	} else if (failed) {
+		ctx.fillStyle = MISSING_ASSET_COLOR;
+		ctx.fill();
+	}
 }
 
 export function renderFills(world: World, entity: Entity): void {
@@ -207,7 +274,6 @@ export function renderFills(world: World, entity: Entity): void {
 	const computed = store(world, Computed);
 	const paintStore = store(world, Paint);
 	const appearance = store(world, Appearance);
-	const scaleMode = store(world, ScaleMode);
 	const eid = entity.id();
 	const fills = store(world, Cache).fills[eid] ?? [];
 
@@ -227,64 +293,11 @@ export function renderFills(world: World, entity: Entity): void {
 
 		const paint = paintStore.value[fid];
 		if (paint === PaintType.IMAGE) {
-			const decoder = resolveImageDecoder(world, fill)?.decoder;
-			const w = computed.width[eid]!;
-			const h = computed.height[eid]!;
-			const bitmap = decoder?.getBitmap(w, h);
-
-			if (bitmap) {
-				ctx.save();
-				ctx.clip();
-
-				const mode = scaleMode.value[fid] ?? 0;
-				const [dx, dy, sw, sh] = getScaledImageProps(mode, bitmap.width, bitmap.height, w, h);
-				ctx.drawImage(bitmap, dx, dy, sw, sh);
-
-				ctx.restore();
-			} else if (decoder?.failed) {
-				ctx.fillStyle = MISSING_ASSET_COLOR;
-				ctx.fill();
-			}
+			renderMedia(world, entity, fill, 'IMAGE');
 		} else if (paint === PaintType.VIDEO) {
-			const decoder = resolveVideoDecoder(world, fill);
-			const frame = decoder?.toBitmap();
-
-			if (frame) {
-				const w = computed.width[eid]!;
-				const h = computed.height[eid]!;
-
-				ctx.save();
-				ctx.clip();
-
-				const mode = scaleMode.value[fid] ?? 0;
-				const [dx, dy, sw, sh] = getScaledImageProps(mode, frame.width, frame.height, w, h);
-				ctx.drawImage(frame, dx, dy, sw, sh);
-
-				ctx.restore();
-			} else if (decoder?.errored) {
-				ctx.fillStyle = MISSING_ASSET_COLOR;
-				ctx.fill();
-			}
+			renderMedia(world, entity, fill, 'VIDEO');
 		} else if (paint === PaintType.SEQUENCE) {
-			const decoder = resolveSequenceDecoder(world, fill);
-			const frame = decoder?.toBitmap();
-
-			if (frame) {
-				const w = computed.width[eid]!;
-				const h = computed.height[eid]!;
-
-				ctx.save();
-				ctx.clip();
-
-				const mode = scaleMode.value[fid] ?? 0;
-				const [dx, dy, sw, sh] = getScaledImageProps(mode, frame.width, frame.height, w, h);
-				ctx.drawImage(frame, dx, dy, sw, sh);
-
-				ctx.restore();
-			} else if (decoder?.errored) {
-				ctx.fillStyle = MISSING_ASSET_COLOR;
-				ctx.fill();
-			}
+			renderMedia(world, entity, fill, 'SEQUENCE');
 		} else if (paint === PaintType.HTML) {
 			const host = fill.has(HtmlHostHandle) ? fill.get(HtmlHostHandle) : null;
 
@@ -327,61 +340,91 @@ export function renderFills(world: World, entity: Entity): void {
 	}
 }
 
-/** The current frame of a video/image paint, as a GPU-uploadable source. */
+/**
+ * Whether `source` is a picture a shader can sample: an image/video paint,
+ * be it a paint sub-entity or the geometry's own intrinsic paint.
+ */
+function shaderMediaKind(world: World, source: Entity): 'IMAGE' | 'VIDEO' | null {
+	if (!source.has(Paint)) return null;
+	const paint = store(world, Paint).value[source.id()];
+	if (paint === PaintType.IMAGE) return 'IMAGE';
+	if (paint === PaintType.VIDEO) return 'VIDEO';
+	return null;
+}
+
+/** The current frame of a video/image source, as a GPU-uploadable source. */
 function shaderSourceBitmap(
 	world: World,
-	fill: Entity,
+	source: Entity,
 	w: number,
 	h: number,
 ): { source: GPUCopyExternalImageSource; width: number; height: number } | null {
-	const paint = store(world, Paint).value[fill.id()];
+	const kind = shaderMediaKind(world, source);
 
-	if (paint === PaintType.IMAGE) {
-		const bitmap = resolveImageDecoder(world, fill)?.decoder?.getBitmap(w, h);
+	if (kind === 'IMAGE') {
+		const bitmap = resolveImageDecoder(world, source)?.decoder?.getBitmap(w, h);
 		return bitmap ? { source: bitmap, width: bitmap.width, height: bitmap.height } : null;
 	}
-	if (paint === PaintType.VIDEO) {
-		const frame = resolveVideoDecoder(world, fill)?.toBitmap();
+	if (kind === 'VIDEO') {
+		const frame = resolveVideoDecoder(world, source)?.toBitmap();
 		return frame ? { source: frame, width: frame.width, height: frame.height } : null;
 	}
 	return null;
 }
 
 /**
- * Whether the fill at `index` is the input of a ready shader paint directly
- * above it. Only the immediate neighbor counts (a hidden paint in between
- * decouples the pair). Must mirror `renderShaderFill`'s input selection
- * exactly — a consumed media paint that the shader then fails to draw would
- * blank the element, so both sides check pipeline readiness and frame
- * availability.
+ * The media directly below the fill at `index`, if it is one a shader could
+ * take as input: the visible image/video paint right before it, or, for the
+ * first fill, the geometry's own intrinsic image/video. Only the immediate
+ * neighbor counts (a hidden paint in between decouples the pair).
  */
-function shaderConsumesFill(world: World, entity: Entity, fills: Entity[], index: number): boolean {
-	const paintStore = store(world, Paint);
-	const computed = store(world, Computed);
-	const fill = fills[index]!;
-	const paint = paintStore.value[fill.id()];
-	if (paint !== PaintType.IMAGE && paint !== PaintType.VIDEO) return false;
-
-	const next = fills[index + 1];
-	if (next === undefined || paintStore.value[next.id()] !== PaintType.SHADER) return false;
-	if (next.has(Hidden)) return false;
-	if (!resolveShaderHost(world, next)?.ready) return false;
-
-	const w = computed.width[entity.id()]!;
-	const h = computed.height[entity.id()]!;
-	return shaderSourceBitmap(world, fill, w, h) !== null;
+function mediaBelow(world: World, entity: Entity, fills: Entity[], index: number): Entity | null {
+	const source = index === 0 ? entity : fills[index - 1]!;
+	if (source.has(Hidden)) return null;
+	return shaderMediaKind(world, source) === null ? null : source;
 }
 
 /**
- * Draws a shader paint: the media paint directly below it in the fill stack
- * is sampled as the shader's `source` texture and its output lands in the
- * parent's box in the media paint's place. Without a media paint below the
+ * The media the shader paint at `index` will sample this frame, or null when
+ * it has none to (there is no shader there, it is not ready, nothing samplable
+ * sits below it, or that has no frame yet). Whatever it returns is drawn by
+ * the shader and not on its own — a consumed media that the shader then fails
+ * to draw would blank the element, so this checks pipeline readiness and frame
+ * availability, and `renderShaderFill` draws exactly what it says.
+ */
+function shaderInput(world: World, entity: Entity, fills: Entity[], index: number): Entity | null {
+	const shader = fills[index];
+	if (shader === undefined || store(world, Paint).value[shader.id()] !== PaintType.SHADER) return null;
+	if (shader.has(Hidden)) return null;
+	if (!resolveShaderHost(world, shader)?.ready) return null;
+
+	const media = mediaBelow(world, entity, fills, index);
+	if (media === null) return null;
+
+	const computed = store(world, Computed);
+	const w = computed.width[entity.id()]!;
+	const h = computed.height[entity.id()]!;
+	return shaderSourceBitmap(world, media, w, h) === null ? null : media;
+}
+
+/**
+ * Whether the fill at `index` is the input of a ready shader paint directly
+ * above it (see `shaderInput`).
+ */
+function shaderConsumesFill(world: World, entity: Entity, fills: Entity[], index: number): boolean {
+	return shaderInput(world, entity, fills, index + 1) === fills[index];
+}
+
+/**
+ * Draws a shader paint: the media directly below it — the image/video paint
+ * before it in the fill stack, or the geometry's intrinsic media under the
+ * first fill — is sampled as the shader's `source` texture and its output
+ * lands in the parent's box in the media's place. Without media below the
  * shader runs procedurally over a transparent source; before the pipeline is
  * ready it draws nothing and the media, if any, draws normally.
  */
 function renderShaderFill(world: World, entity: Entity, fills: Entity[], index: number): void {
 	const ctx = getCtx(world);
-	const paintStore = store(world, Paint);
 	const computed = store(world, Computed);
 
 	const host = resolveShaderHost(world, fills[index]!);
@@ -391,15 +434,12 @@ function renderShaderFill(world: World, entity: Entity, fills: Entity[], index: 
 	const w = computed.width[eid]!;
 	const h = computed.height[eid]!;
 
-	// A visible media paint directly below is the shader's input. Anything
-	// else (no fill below, a hidden one, a solid/gradient) runs the shader
-	// procedurally over a transparent source, stacking like a normal paint.
-	const media = fills[index - 1];
-	const isMedia = media !== undefined
-		&& !media.has(Hidden)
-		&& (paintStore.value[media.id()] === PaintType.IMAGE || paintStore.value[media.id()] === PaintType.VIDEO);
+	// Anything but samplable media below (no fill below, a hidden one, a
+	// solid/gradient) runs the shader procedurally over a transparent source,
+	// stacking like a normal paint.
+	const media = mediaBelow(world, entity, fills, index);
 	let input: ReturnType<typeof shaderSourceBitmap> = null;
-	if (isMedia) {
+	if (media !== null) {
 		input = shaderSourceBitmap(world, media, w, h);
 		if (!input) return;
 	}

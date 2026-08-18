@@ -6,6 +6,9 @@
 import {
 	Active,
 	appendChild,
+	AssetId,
+	Assets,
+	Audio,
 	Background,
 	Chars,
 	ClipsContent,
@@ -23,13 +26,18 @@ import {
 	getParentNode,
 	isText,
 	ItemIndex,
+	Muted,
 	Name,
 	Offset,
+	Paint,
+	PaintType,
 	parseColor,
 	Playback,
 	Position,
 	removeChild,
 	resizeEntity,
+	ScaleMode,
+	ScaleModeType,
 	secondsToFrames,
 	getEntityChildren,
 	Group,
@@ -47,6 +55,7 @@ import {
 	TextAlign,
 	TextBaseline,
 	TextStyle,
+	Volume,
 } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
@@ -180,6 +189,12 @@ const TIME_TRAITS = {
 	sourceOut: SourceOut,
 } as const;
 
+const SCALE_MODES: Record<string, ScaleModeType> = {
+	cover: ScaleModeType.COVER,
+	contain: ScaleModeType.FIT,
+	fill: ScaleModeType.FILL,
+};
+
 const FONT_STYLES: Record<string, FontStyle> = {
 	normal: FontStyle.NORMAL,
 	italic: FontStyle.ITALIC,
@@ -287,9 +302,32 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.add(TextStyle);
 				break;
 			}
+			case 'video': {
+				entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.RECT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Paint);
+				entity.set(Paint, { value: PaintType.VIDEO });
+				resizeEntity(this.world, entity, { width: 1920, height: 1080 });
+				break;
+			}
+			case 'audio': {
+				entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.RECT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Audio);
+				entity.add(Paint);
+				entity.set(Paint, { value: PaintType.WAVEFORM });
+				resizeEntity(this.world, entity, { width: 500, height: 150 });
+				break;
+			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect> and <text>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video> and <audio>).`,
 				);
 		}
 
@@ -419,6 +457,47 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				const fps = this.world.get(FrameRate)?.value ?? 30;
 				entity.add(trait);
 				entity.set(trait, { value: secondsToFrames(seconds, fps) });
+				return;
+			}
+			case 'src': {
+				if (typeof value !== 'string' || !this.world.get(Assets)?.has(value)) {
+					entity.remove(AssetId);
+					return;
+				}
+
+				entity.add(AssetId);
+				entity.set(AssetId, { value });
+				return;
+			}
+			case 'objectFit': {
+				const mode = typeof value === 'string' ? SCALE_MODES[value] : undefined;
+				if (mode === undefined) {
+					entity.remove(ScaleMode);
+					return;
+				}
+
+				entity.add(ScaleMode);
+				entity.set(ScaleMode, { value: mode });
+				return;
+			}
+			case 'volume': {
+				// Decibels; -Infinity is silence, not an invalid number.
+				const decibels = value === -Infinity ? value : toNumber(value);
+				if (decibels === undefined) {
+					entity.remove(Volume);
+					return;
+				}
+
+				entity.add(Volume);
+				entity.set(Volume, { value: decibels });
+				return;
+			}
+			case 'muted': {
+				if (value === true) {
+					entity.add(Muted);
+				} else {
+					entity.remove(Muted);
+				}
 				return;
 			}
 			case 'fill':

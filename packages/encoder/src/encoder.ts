@@ -8,7 +8,7 @@ import {
 	AudioSample,
 	AudioSampleSource,
 } from 'mediabunny';
-import { Or } from 'koota';
+import { Not, Or } from 'koota';
 import {
 	createRuntimeWorld, setActive, serializeEntity, cloneFromRecords,
 	getEntityTree, propagateTimeRangeDown, framesToSeconds,
@@ -153,7 +153,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 		bitrate: audioBitrate,
 	});
 
-	const sceneFills = [...world.query(Paint, ChildOf(scene))];
+	const sceneFills = [...world.query(Paint, Not(Geometry), ChildOf(scene))];
 
 	const videoSource = new CanvasSource(offscreenCanvas, {
 		codec: videoCodec,
