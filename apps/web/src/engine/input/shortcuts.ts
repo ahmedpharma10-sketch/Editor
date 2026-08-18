@@ -9,7 +9,7 @@
  * pressed, matches what is held against the table below and runs the action.
  */
 
-import { Selected } from '@diffusionstudio/runtime';
+import { getSelection, Position, Selected } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../editor';
 import { Keys } from '../traits';
@@ -35,9 +35,38 @@ export function deleteSelection(world: World): void {
 	}
 };
 
+const NUDGE = 1;
+const NUDGE_FAST = 10;
+
+/**
+ * Moves every selected node by `dx`, `dy` in its own parent's space, the same
+ * `x`/`y` a drag writes, so a nudge is a drag of a known distance without the
+ * snapping.
+ */
+export function nudgeSelection(world: World, dx: number, dy: number): void {
+	const editor = getDocumentEditor(world);
+
+	for (const entity of getSelection(world)) {
+		const position = entity.get(Position);
+		if (!position) continue;
+		if (dx) editor.editProperty(entity, 'x', position.x + dx);
+		if (dy) editor.editProperty(entity, 'y', position.y + dy);
+	}
+}
+
+const nudge = (dx: number, dy: number) => (world: World): void => nudgeSelection(world, dx, dy);
+
 const SHORTCUTS: readonly Shortcut[] = [
 	{ key: 'backspace', action: deleteSelection },
 	{ key: 'delete', action: deleteSelection },
+	{ key: 'arrowleft', action: nudge(-NUDGE, 0) },
+	{ key: 'arrowright', action: nudge(NUDGE, 0) },
+	{ key: 'arrowup', action: nudge(0, -NUDGE) },
+	{ key: 'arrowdown', action: nudge(0, NUDGE) },
+	{ key: 'arrowleft', shift: true, action: nudge(-NUDGE_FAST, 0) },
+	{ key: 'arrowright', shift: true, action: nudge(NUDGE_FAST, 0) },
+	{ key: 'arrowup', shift: true, action: nudge(0, -NUDGE_FAST) },
+	{ key: 'arrowdown', shift: true, action: nudge(0, NUDGE_FAST) },
 ];
 
 /**
