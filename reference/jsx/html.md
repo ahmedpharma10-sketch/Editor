@@ -66,7 +66,7 @@ setInterval(() => setCount((c) => c + 1), 1000);
 
 | Prop | Type | Default | Meaning |
 | ---- | ---- | ------- | ------- |
-| `opacity` | `Animatable<number>` | `1` | Paint opacity, `0`-`1`. |
+| `opacity` | `number` | `1` | Paint opacity, `0`-`1`. |
 
 Like all paints, `<htmlPaint>` stacks with siblings in document order and clips to the parent's box (including `cornerRadius`).
 

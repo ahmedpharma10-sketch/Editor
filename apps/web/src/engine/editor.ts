@@ -184,8 +184,8 @@ export class DocumentEditor {
 
 	/**
 	 * Selects `entities`, replacing the current selection unless `extend` is
-	 * set. Selection is a document property (`selected` on the element, see
-	 * `PatchProps`), so it goes the way every editor change goes: the trait for
+	 * set. Selection is a document property (`selected` on the element), so it
+	 * goes the way every editor change goes: the trait for
 	 * the canvas, an edit for the file. Deselection reports `false`, which the
 	 * writer spells as the attribute's absence. Entities without a source
 	 * (nothing mounted yet) only get the trait; the stage is not selectable.

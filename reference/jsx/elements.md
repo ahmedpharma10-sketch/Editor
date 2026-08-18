@@ -37,15 +37,14 @@ All visual elements accept:
 | `key` | `string` | none | A within-render label so another node can reference this one (e.g. [`syncTo`](./audio-sync.md)); |
 | `scene` | `string` | none | Promotes a `<rect>` to a scene, the only mountable root, and is its identity across mounts (see [scene.md](./scene.md)). |
 | `name` | `string` | none | Human-readable node name. |
-| `x`, `y` | `Animatable<number>` | `0` | Position relative to the parent, px. |
-| `offsetX`, `offsetY` | `Animatable<number>` | `0` | Render-time translation on top of `x`/`y`, px; moves the drawn content without changing the layout box. Subpixel values are kept. |
-| `width`, `height` | `Animatable<number>` | parent size | Box size, px. |
-| `rotation` | `Animatable<number>` | `0` | Rotation in degrees. |
-| `opacity` | `Animatable<number>` | `1` | `0`-`1`. |
-| `cornerRadius` | `Animatable<number>` | `0` | Uniform corner radius, px. |
+| `x`, `y` | `number` | `0` | Position relative to the parent, px. |
+| `offsetX`, `offsetY` | `number` | `0` | Render-time translation on top of `x`/`y`, px; moves the drawn content without changing the layout box. Subpixel values are kept. |
+| `width`, `height` | `number` | parent size | Box size, px. |
+| `rotation` | `number` | `0` | Rotation in degrees. |
+| `opacity` | `number` | `1` | `0`-`1`. |
+| `cornerRadius` | `number` | `0` | Uniform corner radius, px. |
 | `start`, `end`, `sourceIn`, `sourceOut` | `Time` | see [timing.md](./timing.md) | Temporal placement. |
 | `transition` | `TransitionSpec \| null` | none | Transition into the next clip; direct children of `<sequence>` only (see [transitions.md](./transitions.md)). |
-| `animations` | `AnimationSpec[]` | none | Preset in/out animations over the clip's head and tail (see [animations.md](./animations.md)). |
 
-`Animatable` props also take a keyframe list; see [keyframes.md](./keyframes.md).
+Numeric props are animated by `<keyframeTrack>` children (see [keyframes.md](./keyframes.md)); preset in/out effects are `<animation>` children (see [animations.md](./animations.md)).
 

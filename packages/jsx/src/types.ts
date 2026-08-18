@@ -54,25 +54,11 @@ export type Easing =
   | `spring(${string})`
   | `steps(${string})`;
 
-export type Keyframe<T> = {
-  /** Node-local time: 0 is where the clip begins (its `start`). Any `Time` format. */
-  time: Time;
-  value: T;
-  /** Shapes the segment to the next keyframe; ignored on the last. Default "linear". */
-  easing?: Easing;
-};
-
 /**
- * A static value, or keyframes animating it over the node's local time.
- * Setting a static value removes any existing keyframe track on the property.
- */
-export type Animatable<T> = T | Keyframe<T>[];
-
-/**
- * The props a `<keyframeTrack>` can drive, by name: every `Animatable` prop.
- * Which entity's prop is the track's parent's (`width` under a `<stroke>` is
- * the line width, `value` under an `<effect>` its amount, `color`/`opacity`
- * under a paint the paint's).
+ * The props a `<keyframeTrack>` can drive, by name. Whose prop is the
+ * track's holder's: `x` under a `<rect>` is the rect's, `width` under a
+ * `<stroke>` the line width, `value` under an `<effect>` its amount,
+ * `color`/`opacity` under a paint the paint's.
  */
 export type AnimatableProperty =
   | "x"
@@ -98,7 +84,7 @@ export type TransitionType =
   | "fadeToBlack"
   | "fadeToWhite";
 
-/** The `transition` prop's value — see `PatchProps["transition"]`. */
+/** The `transition` prop's value — see `SequenceItemProps["transition"]`. */
 export type TransitionSpec = {
   /** Transition style. Default "dissolve". */
   type?: TransitionType;
@@ -127,21 +113,6 @@ export type AnimationType =
   | "appearChar"
   | "scramble";
 
-/** One entry of the `animations` prop's list — see `PatchProps["animations"]`. */
-export type AnimationSpec = {
-  /** Animation style. */
-  type: AnimationType;
-  /** "in" plays from the clip's head, "out" into its tail. Default "in". */
-  phase?: "in" | "out";
-  /** Length of the animation. Any `Time` format. Default 1 second. */
-  duration?: Time;
-  /**
-   * Gap between the clip edge and the animation: after the head for "in",
-   * before the tail for "out". Any `Time` format. Default 0.
-   */
-  delay?: Time;
-};
-
 /** Caption style presets — the editor's caption inspector presets. */
 export type CaptionPreset =
   | "classic"
@@ -152,13 +123,15 @@ export type CaptionPreset =
   | "guinea"
   | "stark";
 
-/**
- * Every property assignable through the renderer's property-write path. This
- * is the single property table: element props pick from it, and a patch-style
- * command takes any subset per patch entry with identical value requirements,
- * so JSX and any patch API can't drift.
- */
-export type PatchProps = {
+// ── Shared prop groups ──────────────────────────────────────────────────────
+//
+// Props several elements share, each defined once so its type and doc are the
+// same wherever it appears. Element prop types compose these and add what is
+// theirs alone. Any prop can be animated by a `<keyframeTrack>` child naming
+// it (see `AnimatableProperty`); none takes keyframes inline.
+
+/** What every element the editor can point at carries. */
+type IdentityProps = {
   /** Human-readable node name. */
   name?: string;
   /**
@@ -170,67 +143,40 @@ export type PatchProps = {
    * selected; the editor writes the bare attribute and removes it again.
    */
   selected?: boolean;
-  /**
-   * Whether this element is the one the playhead, timeline, and capture
-   * operate on. Editor state carried by the source like `selected`, with two
-   * rules the runtime holds: at most one element is active, and only a root
-   * (a direct child of `<stage>`) can be; a nested `active` is dropped. When
-   * a file names more than one, the last one rendered wins.
-   */
-  active?: boolean;
-  /** Position relative to the parent, px. Defaults to 0. Animatable. */
-  x?: Animatable<number>;
-  y?: Animatable<number>;
+};
+
+type PositionProps = {
+  /** Position relative to the parent, px. Defaults to 0. */
+  x?: number;
+  y?: number;
+};
+
+type OffsetProps = {
   /**
    * Render-time translation on top of `x`/`y`, px — moves the drawn content
    * without changing the layout box (the property slide animations drive).
-   * Subpixel values are kept. Defaults to 0. Animatable.
+   * Subpixel values are kept. Defaults to 0.
    */
-  offsetX?: Animatable<number>;
-  offsetY?: Animatable<number>;
-  /**
-   * Box size, px. Defaults to the parent's size. Animatable. On a `<stroke>`
-   * `width` is the line width instead, px (default 1).
-   */
-  width?: Animatable<number>;
-  height?: Animatable<number>;
-  /** Rotation in degrees. Animatable. */
-  rotation?: Animatable<number>;
-  /** Opacity, 0–1 (out-of-range values clamp, like CSS). Animatable. */
-  opacity?: Animatable<number>;
-  /** Uniform corner radius, px. Animatable. */
-  cornerRadius?: Animatable<number>;
-  /** Blur radius of a `<shadow>`, px. Default 0. Animatable. */
-  blur?: Animatable<number>;
-  /** How a `<stroke>` turns corners. Default "miter". */
-  join?: StrokeJoin;
-  /** How a `<stroke>` ends open paths (text glyphs). Default "butt". */
-  cap?: StrokeCap;
-  /** Miter length limit of a `<stroke>`, as a ratio of its width. Default 10. */
-  miterLimit?: number;
-  /** Which filter an `<effect>` applies, or which preset an `<animation>` plays. */
-  type?: EffectType | AnimationType;
-  /**
-   * An `<effect>`'s amount: px for "blur", degrees for "hueRotate", 0–1
-   * otherwise (animatable). On a `<keyframe>`, the value at its `time`: a
-   * number, or any CSS color on a `color` track.
-   */
-  value?: Animatable<number> | string;
-  /** Which prop a `<keyframeTrack>` animates, on the element holding the track. */
-  property?: AnimatableProperty;
-  /** A `<keyframe>`'s time, node-local: 0 is where the clip begins (its `start`). Any `Time` format. */
-  time?: Time;
-  /** Shapes the segment from a `<keyframe>` to the next one; ignored on the last. Default "linear". */
-  easing?: Easing;
-  /** Whether an `<animation>` plays from the clip's head ("in") or into its tail ("out"). Default "in". */
-  phase?: "in" | "out";
-  /** Length of an `<animation>`. Any `Time` format. Default 1 second. */
-  duration?: Time;
-  /**
-   * Gap between the clip edge and an `<animation>`: after the head for "in",
-   * before the tail for "out". Any `Time` format. Default 0.
-   */
-  delay?: Time;
+  offsetX?: number;
+  offsetY?: number;
+};
+
+type SizeProps = {
+  /** Box size, px. Defaults to the parent's size. */
+  width?: number;
+  height?: number;
+};
+
+type TransformProps = PositionProps & OffsetProps & SizeProps & {
+  /** Rotation in degrees. */
+  rotation?: number;
+  /** Opacity, 0–1 (out-of-range values clamp, like CSS). */
+  opacity?: number;
+  /** Uniform corner radius, px. */
+  cornerRadius?: number;
+};
+
+type TimingProps = {
   /** Parent-timeline time at which the node begins. Default 0. */
   start?: Time;
   /** Parent-timeline time at which the node ends. Alternative to `sourceOut`. */
@@ -239,97 +185,72 @@ export type PatchProps = {
   sourceIn?: Time;
   /** Source out point: where playback ends within the source. Defaults to the natural end. Alternative to `end`. */
   sourceOut?: Time;
-  /**
-   * `id` of another element carrying an audio track. Derives the timeline
-   * placement (`start`) by cross-correlating the two audio signals so the
-   * recordings coincide on the timeline. Mutually exclusive with `start`.
-   */
-  syncTo?: string;
+};
+
+type SequenceItemProps = {
   /**
    * Transition into the next clip, rendered centered on the cut, set on the
    * outgoing clip. Only on direct children of `<Sequence>`; a partial value
    * merges into the clip's existing transition, `null` removes it.
    */
   transition?: TransitionSpec | null;
-  /**
-   * Preset in/out animations, played over the clip's head and tail. The list
-   * replaces the node's existing animations; `[]` removes them all.
-   */
-  animations?: AnimationSpec[];
+};
+
+type FillProps = {
   /** Any CSS color, the node's intrinsic solid fill (drawn beneath any paint children); alpha is ignored — use `opacity`. */
   fill?: string;
+};
+
+type MediaProps = {
   /**
    * Path, URL, asset id, or a `generate.*` declaration. On `<Captions>` a
    * transcript source (.srt, .vtt, or transcript .json) mounted instead of
    * transcribing the scene; `generate.*` is not accepted there.
    */
-  src?: string | AssetRef;
-  /** How the source maps into the box. Default "cover" on `<Video>`, "contain" on `<Image>`. */
-  objectFit?: Fit;
-  /**
-   * Fragment-stage WGSL of a `<ShaderPaint>`, applied to the video/image
-   * paint directly below it in the paint stack, or run procedurally (over a
-   * transparent source) when there is none. Entry point
-   * `@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f`;
-   * sample the media with `sampleSource(uv)`.
-   */
-  wgsl?: string;
-  /**
-   * Values for the shader's `@group(1)` uniform declarations, matched by
-   * name: numbers bind to `f32`, arrays of 2-4 to `vec2f`-`vec4f`, CSS
-   * color strings to `vec3f`/`vec4f`.
-   */
-  uniforms?: Record<string, number | number[] | string>;
-  /** Decibels: 0 = unity gain, negative attenuates (-6 ≈ half as loud), -Infinity = silence. Use `muted` to silence. Animatable. */
-  volume?: Animatable<number>;
-  /** Excludes the node's audio from the mix; independent of `volume`. */
-  muted?: boolean;
-  /** A family available on the machine (`dapi fonts`). */
-  fontFamily?: string;
-  /** Font size, px. */
-  fontSize?: number;
-  /** CSS weights 100–900, or "normal" / "bold". */
-  fontWeight?: number | "normal" | "bold";
-  fontStyle?: "normal" | "italic";
-  /** Any CSS color: the glyph color on `<Text>`, the paint color on paints, strokes, shadows and color stops. Animatable. */
-  color?: Animatable<string>;
-  /** Horizontal alignment of glyphs within the box. Default "left". */
-  textAlign?: "left" | "center" | "right";
-  /** Vertical alignment within the box. Default "top". */
-  textBaseline?: "top" | "middle" | "bottom";
-  /** Position along the gradient, 0–1. Animatable. */
-  offset?: Animatable<number>;
-  /** Caption style preset — `<Captions>` only. Default "classic". */
-  preset?: CaptionPreset;
-  /** Fills the caption preset's color slots in order; any CSS color, alpha is ignored. */
-  colors?: string[];
-  /**
-   * Vertical placement of the caption block — `<Captions>` only: anchored to
-   * the top or bottom safe margin, or centered. The preset keeps owning the
-   * horizontal placement. Defaults to the preset's own alignment.
-   */
-  verticalAlign?: "top" | "center" | "bottom";
-  /**
-   * Transcription seed — `<Captions>` only. Part of the transcript cache key,
-   * so a new value bypasses the cached transcript and transcribes the scene
-   * again; reusing a value replays that take from cache.
-   */
-  seed?: number;
+  src: string | AssetRef;
 };
 
-type TimingProps = Pick<PatchProps, "start" | "end" | "sourceIn" | "sourceOut">;
+type FitProps = {
+  /** How the source maps into the box. Default "cover" on `<Video>`, "contain" on `<Image>`. */
+  objectFit?: Fit;
+};
 
-type CommonProps = TimingProps &
-  Pick<
-    PatchProps,
-    | "name" | "selected" | "x" | "y" | "offsetX" | "offsetY" | "width" | "height" | "rotation"
-    | "opacity" | "cornerRadius" | "transition" | "animations"
-  >;
+type AudioTrackProps = {
+  /** Decibels: 0 = unity gain, negative attenuates (-6 ≈ half as loud), -Infinity = silence. Use `muted` to silence. */
+  volume?: number;
+  /** Excludes the node's audio from the mix; independent of `volume`. */
+  muted?: boolean;
+  /**
+   * `id` of another element carrying an audio track. Derives the timeline
+   * placement (`start`) by cross-correlating the two audio signals so the
+   * recordings coincide on the timeline. Mutually exclusive with `start`.
+   */
+  syncTo?: string;
+};
+
+type OpacityProps = {
+  /** Opacity, 0–1 (out-of-range values clamp, like CSS). */
+  opacity?: number;
+};
+
+type ColorProps = {
+  /** Any CSS color: the glyph color on `<Text>`, the paint color on paints, strokes, shadows and color stops. */
+  color: string;
+};
+
+/** What every visual node accepts on top of its own props. */
+type CommonProps = IdentityProps & TransformProps & TimingProps & SequenceItemProps;
+
+/** Sub-entity children (`<KeyframeTrack>`) an element that is itself a style takes. */
+type TrackChildren = {
+  /** `<KeyframeTrack>` children. */
+  children?: SolidJSX.Element;
+};
 
 /**
  * What every composition element accepts on top of its own props. Read by the
- * compile step and never seen by a host, so it is not part of `PatchProps`:
- * nothing patches an id, because an id is not a property of the composition.
+ * compile step and never seen by a host: an id is not a property of the
+ * composition, it is how the source addresses the element.
  */
 export type SourceProps = {
   id?: string;
@@ -372,20 +293,28 @@ export type StageProps = {
  * `camera` does: the source is the document, so a scene dragged or clicked on
  * the canvas has nowhere else to be written back to.
  */
-export type SceneProps = Required<Pick<PatchProps, "width" | "height">> &
-  Pick<PatchProps, "name" | "selected" | "active" | "x" | "y" | "fill"> & {
-    children?: SolidJSX.Element;
-  };
-
-export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
-  /** Element children, and `<Effect>` children filtering the group as a whole. */
+export type SceneProps = IdentityProps & PositionProps & Required<SizeProps> & FillProps & {
+  /**
+   * Whether this element is the one the playhead, timeline, and capture
+   * operate on. Editor state carried by the source like `selected`, with two
+   * rules the runtime holds: at most one element is active, and only a root
+   * (a direct child of `<stage>`) can be; a nested `active` is dropped. When
+   * a file names more than one, the last one rendered wins.
+   */
+  active?: boolean;
   children?: SolidJSX.Element;
 };
 
-export type RectProps = CommonProps & Pick<PatchProps, "fill"> & {
+export type GroupProps = CommonProps & FillProps & {
+  /** Element children, plus `<Effect>` (filtering the group as a whole), `<Animation>` and `<KeyframeTrack>` children. */
+  children?: SolidJSX.Element;
+};
+
+export type RectProps = CommonProps & FillProps & {
   /**
    * Paint children (`<SolidPaint>`, `<LinearGradientPaint>`,
-   * `<RadialGradientPaint>`), plus `<Stroke>`, `<Shadow>` and `<Effect>` children.
+   * `<RadialGradientPaint>`), plus `<Stroke>`, `<Shadow>`, `<Effect>`,
+   * `<Animation>` and `<KeyframeTrack>` children.
    */
   children?: SolidJSX.Element;
 };
@@ -395,89 +324,110 @@ export type RectProps = CommonProps & Pick<PatchProps, "fill"> & {
  * paint: `color`/`opacity` are its paint, `width`/`join`/`cap`/`miterLimit`
  * its line style. Several stack in document order, later ones on top.
  */
-export type StrokeProps = Required<Pick<PatchProps, "color">> &
-  Pick<PatchProps, "opacity" | "width" | "join" | "cap" | "miterLimit"> & {
-    /** `<KeyframeTrack>` children. */
-    children?: SolidJSX.Element;
-  };
+export type StrokeProps = ColorProps & OpacityProps & TrackChildren & {
+  /** Line width, px. Default 1. */
+  width?: number;
+  /** How the stroke turns corners. Default "miter". */
+  join?: StrokeJoin;
+  /** How the stroke ends open paths (text glyphs). Default "butt". */
+  cap?: StrokeCap;
+  /** Miter length limit, as a ratio of the width. Default 10. */
+  miterLimit?: number;
+};
 
 /**
  * `<shadow>` — a drop shadow beneath the parent's box (or glyphs): a blurred,
  * offset copy of its silhouette in `color`. Several stack in document order.
  */
-export type ShadowProps = Required<Pick<PatchProps, "color">> &
-  Pick<PatchProps, "opacity" | "blur" | "offsetX" | "offsetY"> & {
-    /** `<KeyframeTrack>` children. */
-    children?: SolidJSX.Element;
-  };
+export type ShadowProps = ColorProps & OpacityProps & TrackChildren & {
+  /** Blur radius, px. Default 0. */
+  blur?: number;
+  /** Where the shadow sits relative to the silhouette, px. Default 0. */
+  offsetX?: number;
+  offsetY?: number;
+};
 
 /**
  * `<effect>` — a filter over the parent's rendered pixels (its fills, strokes
  * and children together), a sub-entity like a paint. Several stack in
  * document order.
  */
-export type EffectProps = {
+export type EffectProps = TrackChildren & {
+  /** Which filter to apply. */
   type: EffectType;
-  value: Animatable<number>;
-  /** `<KeyframeTrack>` children. */
-  children?: SolidJSX.Element;
+  /** The amount: px for "blur", degrees for "hueRotate", 0–1 otherwise. */
+  value: number;
 };
 
 /**
  * `<animation>` — one preset in/out animation of the node holding it, played
- * over the clip's head or tail: the element form of an `animations` entry, so
- * an editor has something to write to. Several stack in document order,
- * later ones writing over earlier ones on the properties they share.
+ * over the clip's head or tail. Several stack in document order, later ones
+ * writing over earlier ones on the properties they share; a `<keyframeTrack>`
+ * on the same property overrides the preset while it has keyframes.
  */
-export type AnimationProps = { type: AnimationType } & Pick<PatchProps, "phase" | "duration" | "delay">;
+export type AnimationProps = {
+  /** Which preset plays. */
+  type: AnimationType;
+  /** "in" plays from the clip's head, "out" into its tail. Default "in". */
+  phase?: "in" | "out";
+  /** Length of the animation. Any `Time` format. Default 1 second. */
+  duration?: Time;
+  /**
+   * Gap between the clip edge and the animation: after the head for "in",
+   * before the tail for "out". Any `Time` format. Default 0.
+   */
+  delay?: Time;
+};
 
 /**
  * `<keyframeTrack>` — the keyframes of one prop of the element holding it,
- * as elements: the addressable form of an `Animatable` prop's keyframe list,
- * so an editor moving a keyframe has an element to write it to. One track
- * per prop; a static value of that prop is what holds outside the keyframes.
+ * as elements, so an editor moving a keyframe has an element to write it to.
+ * One track per prop; the prop's static value is what holds when the track
+ * is empty. Outside the keyframed range the value holds at the first/last
+ * keyframe.
  */
-export type KeyframeTrackProps = Required<Pick<PatchProps, "property">> & {
+export type KeyframeTrackProps = {
+  /** Which prop of the holding element the track animates. */
+  property: AnimatableProperty;
   /** `<Keyframe>` children, in any order; they sort by `time`. */
   children?: SolidJSX.Element;
 };
 
 /** `<keyframe>` — one keyframe of the `<keyframeTrack>` holding it. */
-export type KeyframeProps = Required<Pick<PatchProps, "time" | "value">> & Pick<PatchProps, "easing">;
-
-export type SolidPaintProps = Required<Pick<PatchProps, "color">> & Pick<PatchProps, "opacity"> & {
-  /** `<KeyframeTrack>` children. */
-  children?: SolidJSX.Element;
+export type KeyframeProps = {
+  /** Node-local time: 0 is where the clip begins (its `start`). Any `Time` format. */
+  time: Time;
+  /** The value at `time`: a number, or any CSS color on a `color` track. */
+  value: number | string;
+  /** Shapes the segment to the next keyframe; ignored on the last. Default "linear". */
+  easing?: Easing;
 };
 
-export type GradientPaintProps = Pick<PatchProps, "opacity"> & {
+export type SolidPaintProps = ColorProps & OpacityProps & TrackChildren;
+
+export type GradientPaintProps = OpacityProps & {
   /** Gradient rotation in degrees. Defaults to 0 (left to right). */
   rotation?: number;
   /** `<ColorStop>` children — the gradient's color stops. */
   children?: SolidJSX.Element;
 };
 
-export type ColorStopProps = Required<Pick<PatchProps, "offset" | "color">> &
-  Pick<PatchProps, "opacity"> & {
-    /** `<KeyframeTrack>` children. */
+export type ColorStopProps = ColorProps & OpacityProps & TrackChildren & {
+  /** Position along the gradient, 0–1. */
+  offset: number;
+};
+
+export type VideoProps = CommonProps & MediaProps & FitProps & AudioTrackProps & {
+  /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>`, `<Effect>`, `<Animation>` and `<KeyframeTrack>` children. */
     children?: SolidJSX.Element;
   };
 
-export type VideoProps = CommonProps &
-  Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "objectFit" | "volume" | "muted" | "syncTo"> & {
-    /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>` and `<Effect>` children. */
+export type ImageProps = CommonProps & MediaProps & FitProps & {
+  /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>`, `<Effect>`, `<Animation>` and `<KeyframeTrack>` children. */
     children?: SolidJSX.Element;
   };
 
-export type ImageProps = CommonProps &
-  Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "objectFit"> & {
-    /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>` and `<Effect>` children. */
-    children?: SolidJSX.Element;
-  };
-
-export type HtmlPaintProps = Pick<PatchProps, "opacity"> & {
+export type HtmlPaintProps = OpacityProps & {
   /**
    * HTML children — real DOM elements laid out by the browser at the parent
    * geometry's box size and drawn into it (html-in-canvas). Fully reactive:
@@ -496,10 +446,24 @@ type HostCanvas = typeof globalThis extends { HTMLCanvasElement: new () => infer
   : { width: number; height: number; getContext(contextId: string, options?: unknown): unknown };
 
 /** `<ShaderPaint>` — transforms the media paint directly below it. Takes no children. */
-export type ShaderPaintProps = Required<Pick<PatchProps, "wgsl">> &
-  Pick<PatchProps, "uniforms" | "opacity">;
+export type ShaderPaintProps = OpacityProps & {
+  /**
+   * Fragment-stage WGSL, applied to the video/image paint directly below it
+   * in the paint stack, or run procedurally (over a transparent source) when
+   * there is none. Entry point
+   * `@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f`;
+   * sample the media with `sampleSource(uv)`.
+   */
+  wgsl: string;
+  /**
+   * Values for the shader's `@group(1)` uniform declarations, matched by
+   * name: numbers bind to `f32`, arrays of 2-4 to `vec2f`-`vec4f`, CSS
+   * color strings to `vec3f`/`vec4f`.
+   */
+  uniforms?: Record<string, number | number[] | string>;
+};
 
-export type SurfacePaintProps = Pick<PatchProps, "opacity"> & {
+export type SurfacePaintProps = OpacityProps & {
   /**
    * Receives the surface's backing canvas once the paint materializes. Draw to
    * any context type (2d, webgl, webgpu); the engine samples the bitmap every
@@ -512,31 +476,51 @@ export type SurfacePaintProps = Pick<PatchProps, "opacity"> & {
 /** `<Surface>` — a rectangle carrying a `<SurfacePaint>` with the given ref. */
 export type SurfaceProps = CommonProps & Pick<SurfacePaintProps, "ref">;
 
-export type AudioProps = TimingProps &
-  Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "name" | "volume" | "muted" | "syncTo" | "animations"> & {
-    /** `<KeyframeTrack>` children (a `volume` track). */
-    children?: SolidJSX.Element;
-  };
+export type AudioProps = IdentityProps & TimingProps & MediaProps & AudioTrackProps & {
+  /** `<KeyframeTrack>` (a `volume` track) and `<Animation>` children. */
+  children?: SolidJSX.Element;
+};
 
-export type TextProps = CommonProps &
-  Pick<
-    PatchProps,
-    "fontFamily" | "fontSize" | "fontWeight" | "fontStyle" | "color" | "textAlign" | "textBaseline"
-  > & {
+export type TextProps = CommonProps & Partial<ColorProps> & {
+  /** A family available on the machine (`dapi fonts`). */
+  fontFamily?: string;
+  /** Font size, px. */
+  fontSize?: number;
+  /** CSS weights 100–900, or "normal" / "bold". */
+  fontWeight?: number | "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  /** Horizontal alignment of glyphs within the box. Default "left". */
+  textAlign?: "left" | "center" | "right";
+  /** Vertical alignment within the box. Default "top". */
+  textBaseline?: "top" | "middle" | "bottom";
     /**
-     * The text content, required; alongside it, paint, `<Stroke>`, `<Shadow>`
-     * and `<Effect>` children styling the glyphs.
+     * The text content, required; alongside it, paint, `<Stroke>`, `<Shadow>`,
+     * `<Effect>`, `<Animation>` and `<KeyframeTrack>` children.
      */
     children: SolidJSX.Element;
   };
 
-export type SequenceProps = Pick<PatchProps, "name"> & {
+export type SequenceProps = Pick<IdentityProps, "name"> & {
   children?: SolidJSX.Element;
 };
 
-export type CaptionsProps = Pick<
-  PatchProps,
-  | "preset" | "colors" | "verticalAlign" | "offsetX" | "offsetY" | "src"
-  | "start" | "end" | "sourceIn" | "sourceOut" | "animations" | "seed"
->;
+export type CaptionsProps = TimingProps & OffsetProps & Partial<MediaProps> & {
+  /** Caption style preset. Default "classic". */
+  preset?: CaptionPreset;
+  /** Fills the caption preset's color slots in order; any CSS color, alpha is ignored. */
+  colors?: string[];
+  /**
+   * Vertical placement of the caption block: anchored to the top or bottom
+   * safe margin, or centered. The preset keeps owning the horizontal
+   * placement. Defaults to the preset's own alignment.
+   */
+  verticalAlign?: "top" | "center" | "bottom";
+  /**
+   * Transcription seed. Part of the transcript cache key, so a new value
+   * bypasses the cached transcript and transcribes the scene again; reusing
+   * a value replays that take from cache.
+   */
+  seed?: number;
+  /** `<Animation>` children. */
+  children?: SolidJSX.Element;
+};

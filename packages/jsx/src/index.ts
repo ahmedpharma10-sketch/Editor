@@ -37,10 +37,8 @@ export type { CompositionTag, PropValue } from "./source";
 export { useTicker, useFile } from "./hooks";
 export type { Ticker } from "./hooks";
 export type {
-  Animatable,
   AnimatableProperty,
   AnimationProps,
-  AnimationSpec,
   AnimationType,
   AudioProps,
   CameraMatrix,
@@ -56,10 +54,8 @@ export type {
   HtmlPaintProps,
   HtmlProps,
   ImageProps,
-  Keyframe,
   KeyframeProps,
   KeyframeTrackProps,
-  PatchProps,
   RectProps,
   SceneProps,
   SequenceProps,

@@ -6,7 +6,6 @@ export * from './document';
 export * from './elements';
 export { evaluate } from './evaluate';
 export { mount, type Mount } from './mount';
-export { PATCH_PROP_KEYS } from './patch';
 export { insert, renderProject, withDocument } from './renderer';
 export { JSX_RUNTIME } from './runtime';
 export type { ProjectDocument, ProjectTick } from './host';

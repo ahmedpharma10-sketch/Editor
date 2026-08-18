@@ -23,6 +23,4 @@ Paint elements are valid inside any filled visual element (`<rect>`, `<text>`, `
 | [`<surfacePaint>`](./surface-paint.md) | `opacity`, `ref` (**required**) | A canvas your `ref` callback draws into (any context type), sampled into the parent's box every frame. `<surface>` is shorthand for a `<rect>` carrying one. |
 | [`<shaderPaint>`](./shader-paint.md) | `opacity`, `wgsl` (**required**), `uniforms` | A WGSL fragment shader applied to the video/image paint directly below it (that media renders only through the shader's output), or run procedurally when there is none. |
 
-Colors accept any CSS color; alpha is ignored (use `opacity`). `color`, `opacity`, and `offset` are animatable (see [keyframes.md](./keyframes.md)), so gradients can animate. Paints have no spatial or timing props and cannot be stage roots.
-
-Paints are live entities like any other: patch them with `dapi node patch`, and add a stop to an existing gradient with `dapi node insert` (`node insert <paintId> '<colorStop offset={0.5} color="#FF0055" />'`).
+Colors accept any CSS color; alpha is ignored (use `opacity`). `color`, `opacity`, and `offset` are animatable with `<keyframeTrack>` children (see [keyframes.md](./keyframes.md)), so gradients can animate. Paints have no spatial or timing props and cannot be stage roots.
