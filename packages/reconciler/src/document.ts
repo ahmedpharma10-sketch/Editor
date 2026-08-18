@@ -79,6 +79,8 @@ import {
 	SurfaceHostHandle,
 	TextAlign,
 	TextBaseline,
+	TextCase,
+	TextRange,
 	TextStyle,
 	Transition,
 	TransitionType,
@@ -366,6 +368,13 @@ const TEXT_BASELINES: Record<string, TextBaseline> = {
 	top: TextBaseline.TOP,
 	middle: TextBaseline.MIDDLE,
 	bottom: TextBaseline.BOTTOM,
+	alphabetic: TextBaseline.ALPHABETIC,
+};
+
+const TEXT_CASES: Record<string, TextCase> = {
+	original: TextCase.ORIGINAL,
+	upper: TextCase.UPPER,
+	lower: TextCase.LOWER,
 };
 
 const FONT_WEIGHTS: Record<string, string> = {
@@ -481,6 +490,13 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.add(TextStyle);
 				break;
 			}
+			case 'textRange': {
+				entity = createEntity(this.world);
+				entity.add(TextRange);
+				entity.set(TextRange, { start: 0, end: null });
+				entity.add(TextStyle);
+				break;
+			}
 			case 'video': {
 				entity = createEntity(this.world);
 				entity.add(Geometry);
@@ -590,7 +606,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <textRange>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
 				);
 		}
 
@@ -899,6 +915,19 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'end':
 			case 'sourceIn':
 			case 'sourceOut': {
+				if (entity.has(TextRange)) {
+					// A range's start/end are character indices, not times; an
+					// unset end runs to the end of the text.
+					if (name === 'start') {
+						entity.set(TextRange, { start: Math.max(0, Math.trunc(toNumber(value) ?? 0)) });
+					}
+					if (name === 'end') {
+						const end = toNumber(value);
+						entity.set(TextRange, { end: end === undefined ? null : Math.max(0, Math.trunc(end)) });
+					}
+					return;
+				}
+
 				const trait = TIME_TRAITS[name];
 				const seconds = toSeconds(value);
 
@@ -1015,6 +1044,22 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'textBaseline': {
 				entity.add(TextStyle);
 				entity.set(TextStyle, { textBaseline: typeof value === 'string' ? TEXT_BASELINES[value] : undefined });
+				return;
+			}
+			case 'textCase': {
+				entity.add(TextStyle);
+				entity.set(TextStyle, { textCase: typeof value === 'string' ? TEXT_CASES[value] : undefined });
+				return;
+			}
+			case 'letterSpacing': {
+				entity.add(TextStyle);
+				entity.set(TextStyle, { letterSpacing: toNumber(value) });
+				return;
+			}
+			case 'leading': {
+				const leading = toNumber(value);
+				entity.add(TextStyle);
+				entity.set(TextStyle, { leading: leading !== undefined && leading > 0 ? leading : undefined });
 				return;
 			}
 			case 'background': {

@@ -41,6 +41,7 @@ import type {
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
+  TextRangeProps,
   VideoProps,
 } from "@diffusionstudio/jsx";
 
@@ -88,6 +89,7 @@ export const Video = hostElement<VideoProps>("Video");
 export const Image = hostElement<ImageProps>("Image");
 export const Audio = hostElement<AudioProps>("Audio");
 export const Text = hostElement<TextProps>("Text");
+export const TextRange = hostElement<TextRangeProps>("TextRange");
 export const Sequence = hostElement<SequenceProps>("Sequence");
 export const Captions = hostElement<CaptionsProps>("Captions");
 export const SolidPaint = hostElement<SolidPaintProps>("SolidPaint");

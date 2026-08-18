@@ -138,6 +138,9 @@ export type AnimationType =
   | "appearChar"
   | "scramble";
 
+/** How glyphs are cased when drawn, whatever the text says. Default "original". */
+export type TextCase = "original" | "upper" | "lower";
+
 /** Caption style presets — the editor's caption inspector presets. */
 export type CaptionPreset =
   | "classic"
@@ -283,6 +286,26 @@ type OpacityProps = {
 type ColorProps = {
   /** Any CSS color: the glyph color on `<Text>`, the paint color on paints, strokes, shadows and color stops. */
   color: string;
+};
+
+/**
+ * How glyphs are set: the style a `<text>` gives all its glyphs, and a
+ * `<textRange>` gives the glyphs it spans. Every field is optional on both; on
+ * a range an unset field inherits the text's, so a range says only what it
+ * changes.
+ */
+type FontProps = {
+  /** A family available on the machine (`dapi fonts`). */
+  fontFamily?: string;
+  /** Font size, px. */
+  fontSize?: number;
+  /** CSS weights 100–900, or "normal" / "bold". */
+  fontWeight?: number | "normal" | "bold";
+  fontStyle?: "normal" | "italic" | "oblique";
+  /** Extra space between glyphs, px (negative tightens). Default 0. */
+  letterSpacing?: number;
+  /** Casing applied when drawing; the text itself is left as written. Default "original". */
+  textCase?: TextCase;
 };
 
 /** What every visual node accepts on top of its own props. */
@@ -538,24 +561,42 @@ export type AudioProps = IdentityProps & TimingProps & MediaProps & AudioTrackPr
   children?: SolidJSX.Element;
 };
 
-export type TextProps = CommonProps & Partial<ColorProps> & {
-  /** A family available on the machine (`dapi fonts`). */
-  fontFamily?: string;
-  /** Font size, px. */
-  fontSize?: number;
-  /** CSS weights 100–900, or "normal" / "bold". */
-  fontWeight?: number | "normal" | "bold";
-  fontStyle?: "normal" | "italic";
+export type TextProps = CommonProps & Partial<ColorProps> & FontProps & {
   /** Horizontal alignment of glyphs within the box. Default "left". */
   textAlign?: "left" | "center" | "right";
-  /** Vertical alignment within the box. Default "top". */
-  textBaseline?: "top" | "middle" | "bottom";
-    /**
-     * The text content, required; alongside it, paint, `<Stroke>`, `<Shadow>`,
-     * `<Effect>`, `<Animation>` and `<KeyframeTrack>` children.
-     */
-    children: SolidJSX.Element;
-  };
+  /**
+   * Vertical alignment within the box: the block anchored to the top or
+   * bottom of the box or centered, or ("alphabetic") the first line's baseline
+   * at the top of the box. Default "top".
+   */
+  textBaseline?: "top" | "middle" | "bottom" | "alphabetic";
+  /** Line height as a multiple of each line's natural height. Default 1. */
+  leading?: number;
+  /**
+   * The text content, required; alongside it, `<TextRange>`, paint,
+   * `<Stroke>`, `<Shadow>`, `<Effect>`, `<Animation>` and `<KeyframeTrack>`
+   * children.
+   */
+  children: SolidJSX.Element;
+};
+
+/**
+ * `<textRange>` — a style override for a run of the parent `<text>`'s glyphs,
+ * a sub-entity like a paint: `start`/`end` address the run by character index
+ * into the text as written (before `textCase`), the rest is what changes
+ * inside it. Its own `color`, paints, strokes and shadows replace the text's
+ * for those glyphs; an unset font field inherits. Several stack in document
+ * order, later ones winning where they overlap; layout stays the text's
+ * (`textAlign`, `textBaseline`, `leading` are not per range).
+ */
+export type TextRangeProps = Partial<ColorProps> & FontProps & {
+  /** First character of the run, 0-based. */
+  start: number;
+  /** One past the last character of the run. Defaults to the end of the text. */
+  end?: number;
+  /** Paint, `<Stroke>`, `<Shadow>` and `<KeyframeTrack>` (a `color` track) children. */
+  children?: SolidJSX.Element;
+};
 
 export type SequenceProps = Pick<IdentityProps, "name"> & {
   children?: SolidJSX.Element;

@@ -382,20 +382,19 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 		ctx.textAlign = 'start';
 		ctx.textBaseline = 'top';
 
-		// The geometry's own Color is an intrinsic solid fill beneath every paint.
-		const hasIntrinsicFill = entity.has(Color);
-		const intrinsicFill = hasIntrinsicFill ? colorToHex(computed.color[eid] ?? 0) : '';
-
 		for (const word of words) {
+			// The geometry's own Color is an intrinsic solid fill beneath every
+			// paint; a range carrying a Color replaces it over the glyphs it spans.
+			const intrinsicFill = getIntrinsicColor(world, entity, word.ranges);
 			const fills = getFills(world, entity, word.ranges);
-			if (!fills.length && !hasIntrinsicFill) continue;
+			if (!fills.length && intrinsicFill === null) continue;
 
 			applyFont(ctx, world, entity, word.ranges);
 
 			const w = computed.width[eid]!;
 			const h = computed.height[eid]!;
 
-			if (hasIntrinsicFill) {
+			if (intrinsicFill !== null) {
 				ctx.globalAlpha = savedAlpha;
 				ctx.fillStyle = intrinsicFill;
 				ctx.fillText(word.chars, word.x, word.y);
@@ -545,6 +544,23 @@ export function transformText(text: string, textCase?: number): string {
 	}
 
 	return text;
+}
+
+/**
+ * The intrinsic glyph color for a run: the last of `ranges` carrying a Color
+ * wins over the text's own, as a hex string; null when neither has one.
+ */
+function getIntrinsicColor(world: World, entity: Entity, ranges: Entity[]): string | null {
+	const computed = store(world, Computed);
+	let value: number | undefined = entity.has(Color) ? computed.color[entity.id()] ?? 0 : undefined;
+
+	for (const range of ranges) {
+		if (range.has(Color)) {
+			value = computed.color[range.id()] ?? store(world, Color).value[range.id()] ?? 0;
+		}
+	}
+
+	return value === undefined ? null : colorToHex(value);
 }
 
 function getFills(world: World, entity: Entity, ranges: Entity[]): Entity[] {

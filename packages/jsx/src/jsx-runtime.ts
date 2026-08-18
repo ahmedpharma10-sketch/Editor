@@ -45,6 +45,7 @@ import type {
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
+  TextRangeProps,
   VideoProps,
 } from "./types";
 
@@ -82,6 +83,7 @@ export declare namespace JSX {
     image: (ImageProps & SourceProps) | SolidJSX.SVGElementTags["image"];
     audio: AudioProps & SourceProps;
     text: (TextProps & SourceProps) | SolidJSX.SVGElementTags["text"];
+    textRange: TextRangeProps & SourceProps;
     sequence: SequenceProps & SourceProps;
     captions: CaptionsProps & SourceProps;
     solidPaint: SolidPaintProps & SourceProps;

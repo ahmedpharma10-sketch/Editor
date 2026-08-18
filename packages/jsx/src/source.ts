@@ -97,6 +97,7 @@ export const COMPOSITION_TAGS = [
   "image",
   "audio",
   "text",
+  "textRange",
   "sequence",
   "captions",
   "solidPaint",

@@ -10,6 +10,7 @@ camelCase composition elements map 1:1 onto internal node types. Lowercase DOM v
 | [`<image>`](./image.md) | **Geometry with Image paint** | `src` resolves to an image asset. |
 | [`<audio>`](./audio.md) | **Geometry with Audio component and a hidden Waveform paint** | No visual output; carries volume. |
 | [`<text>`](./text.md) | **Geometry with Text component** | Children become editable glyphs. |
+| [`<textRange>`](./text.md#textrange) | **Text range sub-entity** | Style override over a run of the parent `<text>`'s glyphs, by character index. |
 | [`<sequence>`](./sequences.md) | **Sequential group** | Track container for back-to-back clips; positions are explicit. |
 | [`<captions>`](./captions.md) | **Caption node** | Transcribes the enclosing scene's audio. |
 | [`<solidPaint>`](./paints.md) | **Solid paint** | Paint child. |
