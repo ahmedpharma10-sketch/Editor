@@ -48,7 +48,7 @@ import {
 import { parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix } from '@diffusionstudio/runtime';
-import type { Entity, World } from 'koota';
+import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
 
 export interface SceneNode {
@@ -62,8 +62,53 @@ export interface TextNode {
 
 export type HostNode = SceneNode | TextNode;
 
+/**
+ * The text nodes a `<text>` entity holds, in order.
+ *
+ * The world is the document's only store: everything the document knows
+ * about a node lives on that node's entity as a trait, and nothing is
+ * mirrored in fields on `RuntimeDocument`. State that lives in two places
+ * drifts as soon as one side (a cascade destroy, a move, an undo) is
+ * updated without the other; state that lives on the entity is destroyed,
+ * copied and observed together with it. When the document needs something
+ * new, add a trait here — do not add a Map/Set field to the class.
+ *
+ * Text nodes themselves are the one thing not backed by an entity (they
+ * are the reconciler's, held by identity), which is why they hang off their
+ * parent entity via this trait rather than the other way around.
+ */
+const TextParts = trait(() => new Set<TextNode>());
+
 export function isSceneNode(node: HostNode): node is SceneNode {
 	return 'entity' in node;
+}
+
+/**
+ * The text nodes of `entity` in order; empty when it holds none.
+ */
+function textParts(entity: Entity): TextNode[] {
+	return Array.from(entity.get(TextParts) ?? []);
+}
+
+/**
+ * Re-derives `Chars` from the text nodes `entity` currently holds.
+ */
+function syncChars(entity: Entity): void {
+	if (!entity.isAlive()) return;
+	entity.add(Chars);
+	entity.set(Chars, { value: textParts(entity).map((part) => part.text).join('') });
+}
+
+/**
+ * Detaches `node` from its parent entity and refreshes that entity's text.
+ */
+function detachText(node: TextNode): void {
+	const parent = node.parent;
+	if (parent === null) return;
+
+	parent.entity.get(TextParts)?.delete(node);
+	node.parent = null;
+	syncChars(parent.entity);
 }
 
 const TIME_TRAITS = {
@@ -116,7 +161,6 @@ function toSeconds(value: unknown): number | undefined {
 export class RuntimeDocument implements ProjectDocument<HostNode> {
 	public readonly stage: SceneNode;
 	private readonly world: World;
-	private readonly texts = new Map<Entity, TextNode[]>();
 
 	public constructor(world: World) {
 		this.world = world;
@@ -180,10 +224,8 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 	public replaceText(node: HostNode, text: string): void {
 		if (isSceneNode(node)) return;
 		node.text = text;
-
 		if (node.parent) {
-			node.parent.entity.add(Chars);
-			node.parent.entity.set(Chars, { value: this.buildText(node) });
+			syncChars(node.parent.entity);
 		}
 	}
 
@@ -354,7 +396,24 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		}
 
 		if (!isSceneNode(node)) {
-			this.insertText(parent, node, anchor);
+			if (!isText(parent.entity)) {
+				throw new Error('Only <text> takes text children.');
+			}
+
+			if (node.parent && node.parent.entity !== parent.entity) {
+				detachText(node);
+			}
+
+			// The Set keeps insertion order, so a reorder is a rebuild.
+			parent.entity.add(TextParts);
+			const parts = textParts(parent.entity).filter((part) => part !== node);
+			const at = anchor && !isSceneNode(anchor) ? parts.indexOf(anchor) : -1;
+			if (at === -1) parts.push(node);
+			else parts.splice(at, 0, node);
+			parent.entity.set(TextParts, new Set(parts));
+
+			node.parent = parent;
+			syncChars(parent.entity);
 			return;
 		}
 
@@ -388,13 +447,13 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 	public removeNode(_parent: HostNode, node: HostNode): void {
 		if (!isSceneNode(node)) {
-			this.removeText(node);
+			detachText(node);
 			return;
 		}
 
 		if (node.entity.has(Stage)) {
-			for (const child of this.children(node)) {
-				this.removeNode(node, child);
+			for (const child of getEntityChildren(this.world, node.entity)) {
+				this.removeNode(node, { entity: child });
 			}
 			node.entity.set(Background, { value: DEFAULT_BACKGROUND });
 			node.entity.remove(Source);
@@ -402,12 +461,12 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		}
 		// Destroy cascades through the subtree; the text nodes held for it go too.
 		for (const entity of getEntityTree(this.world, node.entity)) {
-			const texts = this.texts.get(entity);
+			const texts = entity.get(TextParts);
 			if (texts === undefined) continue;
 			for (const text of texts) {
 				text.parent = null;
 			}
-			this.texts.delete(entity);
+			entity.remove(TextParts);
 		}
 		// ChildOf auto-destroys orphans, so paints go with it.
 		node.entity.destroy();
@@ -421,15 +480,19 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 	public getFirstChild(node: HostNode): HostNode | undefined {
 		if (!isSceneNode(node)) return undefined;
-		return this.texts.get(node.entity)?.[0] ?? this.children(node)[0];
+		const text = node.entity.get(TextParts)?.values().next().value;
+		if (text !== undefined) return text;
+		const child = getEntityChildren(this.world, node.entity).at(0);
+		return child === undefined ? undefined : { entity: child };
 	}
 
 	public getNextSibling(node: HostNode): HostNode | undefined {
 		if (!isSceneNode(node)) {
 			// A text entity has only text nodes to iterate.
-			const texts = node.parent ? this.texts.get(node.parent.entity) : undefined;
-			const at = texts?.indexOf(node) ?? -1;
-			return at === -1 ? undefined : texts![at + 1];
+			if (node.parent === null) return undefined;
+			const parts = textParts(node.parent.entity);
+			const at = parts.indexOf(node);
+			return at === -1 ? undefined : parts[at + 1];
 		}
 
 		const parent = this.getParentNode(node);
@@ -443,58 +506,6 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 	public dispose(): void {
 		this.removeNode(this.stage, this.stage);
-	}
-
-	/** Children of `parent` in draw order, as handles. */
-	private children(parent: SceneNode): SceneNode[] {
-		return getEntityChildren(this.world, parent.entity).map((entity) => ({ entity }));
-	}
-
-	private insertText(parent: SceneNode, node: TextNode, anchor?: HostNode): void {
-		if (!isText(parent.entity)) {
-			throw new Error('Only <text> takes text children.');
-		}
-
-		if (node.parent && node.parent.entity !== parent.entity) {
-			this.removeText(node);
-		}
-
-		let texts = this.texts.get(parent.entity);
-		if (texts === undefined) {
-			texts = [];
-			this.texts.set(parent.entity, texts);
-		}
-
-		const current = texts.indexOf(node);
-		if (current !== -1) texts.splice(current, 1);
-		const at = anchor && !isSceneNode(anchor) ? texts.indexOf(anchor) : -1;
-		if (at === -1) texts.push(node);
-		else texts.splice(at, 0, node);
-
-		node.parent = parent;
-		node.parent.entity.add(Chars);
-		node.parent.entity.set(Chars, { value: this.buildText(node) });
-	}
-
-	private removeText(node: TextNode): void {
-		const parent = node.parent;
-		if (parent === null) return;
-
-		const texts = this.texts.get(parent.entity);
-		const at = texts?.indexOf(node) ?? -1;
-		if (at !== -1) texts!.splice(at, 1);
-		node.parent = null;
-
-		if (parent.entity.isAlive()) {
-			parent.entity.add(Chars);
-			parent.entity.set(Chars, { value: this.buildText(node) });
-		}
-	}
-
-	private buildText(node: TextNode): string {
-		if (isSceneNode(node) || node.parent === null) return '';
-
-		return (this.texts.get(node.parent.entity) ?? []).map((node) => node.text).join('');
 	}
 }
 
