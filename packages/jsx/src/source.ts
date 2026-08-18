@@ -105,6 +105,7 @@ export const COMPOSITION_TAGS = [
   "colorStop",
   "stroke",
   "shadow",
+  "effect",
   "htmlPaint",
   "html",
   "shaderPaint",

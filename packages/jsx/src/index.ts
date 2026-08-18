@@ -46,6 +46,8 @@ export type {
   CaptionsProps,
   ColorStopProps,
   Easing,
+  EffectProps,
+  EffectType,
   Fit,
   GradientPaintProps,
   GroupProps,

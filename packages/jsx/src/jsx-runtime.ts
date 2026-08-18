@@ -24,6 +24,7 @@ import type {
   AudioProps,
   CaptionsProps,
   ColorStopProps,
+  EffectProps,
   GradientPaintProps,
   GroupProps,
   HtmlPaintProps,
@@ -86,6 +87,7 @@ export declare namespace JSX {
     colorStop: ColorStopProps & SourceProps;
     stroke: StrokeProps & SourceProps;
     shadow: ShadowProps & SourceProps;
+    effect: EffectProps & SourceProps;
     htmlPaint: HtmlPaintProps & SourceProps;
     html: HtmlProps & SourceProps;
     shaderPaint: ShaderPaintProps & SourceProps;

@@ -17,6 +17,8 @@ import {
 	DEFAULT_BACKGROUND,
 	Color,
 	ColorStop,
+	Effect,
+	EffectType,
 	End,
 	FontStyle,
 	FrameRate,
@@ -201,6 +203,17 @@ const PAINT_TYPES: Record<string, PaintType> = {
 	solidPaint: PaintType.SOLID,
 	linearGradientPaint: PaintType.LINEAR_GRADIENT,
 	radialGradientPaint: PaintType.RADIAL_GRADIENT,
+};
+
+const EFFECT_TYPES: Record<string, EffectType> = {
+	blur: EffectType.LAYER_BLUR,
+	brightness: EffectType.BRIGHTNESS,
+	contrast: EffectType.CONTRAST,
+	grayscale: EffectType.GRAYSCALE,
+	hueRotate: EffectType.HUE_ROTATION,
+	invert: EffectType.INVERT,
+	saturate: EffectType.SATURATE,
+	sepia: EffectType.SEPIA,
 };
 
 const STROKE_JOINS: Record<string, StrokeJoin> = {
@@ -391,9 +404,15 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.add(Color);
 				break;
 			}
+			case 'effect': {
+				entity = createEntity(this.world);
+				entity.add(Effect);
+				entity.set(Effect, { type: EffectType.LAYER_BLUR, value: 0 });
+				break;
+			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke> and <shadow>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke>, <shadow> and <effect>).`,
 				);
 		}
 
@@ -528,6 +547,17 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'miterLimit': {
 				if (!entity.has(Stroke)) return;
 				entity.set(StrokeStyle, { miterLimit: toNumber(value) ?? 10 });
+				return;
+			}
+			case 'type': {
+				if (!entity.has(Effect)) return;
+				const type = typeof value === 'string' ? EFFECT_TYPES[value] : undefined;
+				entity.set(Effect, { type: type ?? EffectType.LAYER_BLUR });
+				return;
+			}
+			case 'value': {
+				if (!entity.has(Effect)) return;
+				entity.set(Effect, { value: toNumber(value) ?? 0 });
 				return;
 			}
 			case 'blur': {

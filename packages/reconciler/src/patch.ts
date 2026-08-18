@@ -27,6 +27,8 @@ export const PATCH_PROP_KEYS = Object.keys({
 	join: true,
 	cap: true,
 	miterLimit: true,
+	type: true,
+	value: true,
 	start: true,
 	end: true,
 	sourceIn: true,

@@ -21,6 +21,21 @@ export type StrokeJoin = "miter" | "round" | "bevel";
 export type StrokeCap = "butt" | "round" | "square";
 
 /**
+ * An `<effect>`'s filter — the CSS filter functions, applied to the parent's
+ * rendered pixels. `blur` takes a radius in px, `hueRotate` degrees, the
+ * rest an amount 0–1.
+ */
+export type EffectType =
+  | "blur"
+  | "brightness"
+  | "contrast"
+  | "grayscale"
+  | "hueRotate"
+  | "invert"
+  | "saturate"
+  | "sepia";
+
+/**
  * Easing for the segment from a keyframe to the next one: a named preset or
  * an explicit descriptor. `cubicBezier(x1,y1,x2,y2)` takes CSS-style control
  * points, `spring(bounce,duration)` a 0–1 bounce and a duration in ms,
@@ -171,6 +186,10 @@ export type PatchProps = {
   cap?: StrokeCap;
   /** Miter length limit of a `<stroke>`, as a ratio of its width. Default 10. */
   miterLimit?: number;
+  /** Which filter an `<effect>` applies. */
+  type?: EffectType;
+  /** An `<effect>`'s amount: px for "blur", degrees for "hueRotate", 0–1 otherwise. Animatable. */
+  value?: Animatable<number>;
   /** Parent-timeline time at which the node begins. Default 0. */
   start?: Time;
   /** Parent-timeline time at which the node ends. Alternative to `sourceOut`. */
@@ -318,13 +337,14 @@ export type SceneProps = Required<Pick<PatchProps, "width" | "height">> &
   };
 
 export type GroupProps = CommonProps & Pick<PatchProps, "fill"> & {
+  /** Element children, and `<Effect>` children filtering the group as a whole. */
   children?: SolidJSX.Element;
 };
 
 export type RectProps = CommonProps & Pick<PatchProps, "fill"> & {
   /**
    * Paint children (`<SolidPaint>`, `<LinearGradientPaint>`,
-   * `<RadialGradientPaint>`), plus `<Stroke>` and `<Shadow>` children.
+   * `<RadialGradientPaint>`), plus `<Stroke>`, `<Shadow>` and `<Effect>` children.
    */
   children?: SolidJSX.Element;
 };
@@ -344,6 +364,13 @@ export type StrokeProps = Required<Pick<PatchProps, "color">> &
 export type ShadowProps = Required<Pick<PatchProps, "color">> &
   Pick<PatchProps, "opacity" | "blur" | "offsetX" | "offsetY">;
 
+/**
+ * `<effect>` — a filter over the parent's rendered pixels (its fills, strokes
+ * and children together), a sub-entity like a paint. Several stack in
+ * document order.
+ */
+export type EffectProps = Required<Pick<PatchProps, "type" | "value">>;
+
 export type SolidPaintProps = Required<Pick<PatchProps, "color">> & Pick<PatchProps, "opacity">;
 
 export type GradientPaintProps = Pick<PatchProps, "opacity"> & {
@@ -359,14 +386,14 @@ export type ColorStopProps = Required<Pick<PatchProps, "offset" | "color">> &
 export type VideoProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "objectFit" | "volume" | "muted" | "syncTo"> & {
-    /** Paint children, stacked over the media paint created by `src`; `<Stroke>` and `<Shadow>` children. */
+    /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>` and `<Effect>` children. */
     children?: SolidJSX.Element;
   };
 
 export type ImageProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
   Pick<PatchProps, "objectFit"> & {
-    /** Paint children, stacked over the media paint created by `src`; `<Stroke>` and `<Shadow>` children. */
+    /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>` and `<Effect>` children. */
     children?: SolidJSX.Element;
   };
 
@@ -415,8 +442,8 @@ export type TextProps = CommonProps &
     "fontFamily" | "fontSize" | "fontWeight" | "fontStyle" | "color" | "textAlign" | "textBaseline"
   > & {
     /**
-     * The text content, required; alongside it, paint, `<Stroke>` and
-     * `<Shadow>` children styling the glyphs.
+     * The text content, required; alongside it, paint, `<Stroke>`, `<Shadow>`
+     * and `<Effect>` children styling the glyphs.
      */
     children: SolidJSX.Element;
   };

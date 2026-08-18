@@ -22,6 +22,7 @@ import type {
   AudioProps,
   CaptionsProps,
   ColorStopProps,
+  EffectProps,
   GradientPaintProps,
   GroupProps,
   HtmlPaintProps,
@@ -92,6 +93,7 @@ export const RadialGradientPaint = hostElement<GradientPaintProps>("RadialGradie
 export const ColorStop = hostElement<ColorStopProps>("ColorStop");
 export const Stroke = hostElement<StrokeProps>("Stroke");
 export const Shadow = hostElement<ShadowProps>("Shadow");
+export const Effect = hostElement<EffectProps>("Effect");
 export const HtmlPaint = hostElement<HtmlPaintProps>("HtmlPaint");
 export const Html = hostElement<HtmlProps>("Html");
 export const ShaderPaint = hostElement<ShaderPaintProps>("ShaderPaint");
