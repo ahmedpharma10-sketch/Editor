@@ -38,6 +38,7 @@ export { useTicker, useFile } from "./hooks";
 export type { Ticker } from "./hooks";
 export type {
   Animatable,
+  AnimatableProperty,
   AnimationSpec,
   AnimationType,
   AudioProps,
@@ -55,6 +56,8 @@ export type {
   HtmlProps,
   ImageProps,
   Keyframe,
+  KeyframeProps,
+  KeyframeTrackProps,
   PatchProps,
   RectProps,
   SceneProps,

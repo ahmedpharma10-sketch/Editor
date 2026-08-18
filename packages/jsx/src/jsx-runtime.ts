@@ -30,6 +30,8 @@ import type {
   HtmlPaintProps,
   HtmlProps,
   ImageProps,
+  KeyframeProps,
+  KeyframeTrackProps,
   RectProps,
   SceneProps,
   SequenceProps,
@@ -88,6 +90,8 @@ export declare namespace JSX {
     stroke: StrokeProps & SourceProps;
     shadow: ShadowProps & SourceProps;
     effect: EffectProps & SourceProps;
+    keyframeTrack: KeyframeTrackProps & SourceProps;
+    keyframe: KeyframeProps & SourceProps;
     htmlPaint: HtmlPaintProps & SourceProps;
     html: HtmlProps & SourceProps;
     shaderPaint: ShaderPaintProps & SourceProps;

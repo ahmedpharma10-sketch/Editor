@@ -28,6 +28,8 @@ import type {
   HtmlPaintProps,
   HtmlProps,
   ImageProps,
+  KeyframeProps,
+  KeyframeTrackProps,
   RectProps,
   SceneProps,
   SequenceProps,
@@ -94,6 +96,8 @@ export const ColorStop = hostElement<ColorStopProps>("ColorStop");
 export const Stroke = hostElement<StrokeProps>("Stroke");
 export const Shadow = hostElement<ShadowProps>("Shadow");
 export const Effect = hostElement<EffectProps>("Effect");
+export const KeyframeTrack = hostElement<KeyframeTrackProps>("KeyframeTrack");
+export const Keyframe = hostElement<KeyframeProps>("Keyframe");
 export const HtmlPaint = hostElement<HtmlPaintProps>("HtmlPaint");
 export const Html = hostElement<HtmlProps>("Html");
 export const ShaderPaint = hostElement<ShaderPaintProps>("ShaderPaint");

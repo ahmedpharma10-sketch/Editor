@@ -68,6 +68,28 @@ export type Keyframe<T> = {
  */
 export type Animatable<T> = T | Keyframe<T>[];
 
+/**
+ * The props a `<keyframeTrack>` can drive, by name: every `Animatable` prop.
+ * Which entity's prop is the track's parent's (`width` under a `<stroke>` is
+ * the line width, `value` under an `<effect>` its amount, `color`/`opacity`
+ * under a paint the paint's).
+ */
+export type AnimatableProperty =
+  | "x"
+  | "y"
+  | "offsetX"
+  | "offsetY"
+  | "width"
+  | "height"
+  | "rotation"
+  | "opacity"
+  | "cornerRadius"
+  | "volume"
+  | "color"
+  | "offset"
+  | "blur"
+  | "value";
+
 /** Transition styles — the editor's transition inspector options. */
 export type TransitionType =
   | "dissolve"
@@ -188,8 +210,18 @@ export type PatchProps = {
   miterLimit?: number;
   /** Which filter an `<effect>` applies. */
   type?: EffectType;
-  /** An `<effect>`'s amount: px for "blur", degrees for "hueRotate", 0–1 otherwise. Animatable. */
-  value?: Animatable<number>;
+  /**
+   * An `<effect>`'s amount: px for "blur", degrees for "hueRotate", 0–1
+   * otherwise (animatable). On a `<keyframe>`, the value at its `time`: a
+   * number, or any CSS color on a `color` track.
+   */
+  value?: Animatable<number> | string;
+  /** Which prop a `<keyframeTrack>` animates, on the element holding the track. */
+  property?: AnimatableProperty;
+  /** A `<keyframe>`'s time, node-local: 0 is where the clip begins (its `start`). Any `Time` format. */
+  time?: Time;
+  /** Shapes the segment from a `<keyframe>` to the next one; ignored on the last. Default "linear". */
+  easing?: Easing;
   /** Parent-timeline time at which the node begins. Default 0. */
   start?: Time;
   /** Parent-timeline time at which the node ends. Alternative to `sourceOut`. */
@@ -355,23 +387,50 @@ export type RectProps = CommonProps & Pick<PatchProps, "fill"> & {
  * its line style. Several stack in document order, later ones on top.
  */
 export type StrokeProps = Required<Pick<PatchProps, "color">> &
-  Pick<PatchProps, "opacity" | "width" | "join" | "cap" | "miterLimit">;
+  Pick<PatchProps, "opacity" | "width" | "join" | "cap" | "miterLimit"> & {
+    /** `<KeyframeTrack>` children. */
+    children?: SolidJSX.Element;
+  };
 
 /**
  * `<shadow>` — a drop shadow beneath the parent's box (or glyphs): a blurred,
  * offset copy of its silhouette in `color`. Several stack in document order.
  */
 export type ShadowProps = Required<Pick<PatchProps, "color">> &
-  Pick<PatchProps, "opacity" | "blur" | "offsetX" | "offsetY">;
+  Pick<PatchProps, "opacity" | "blur" | "offsetX" | "offsetY"> & {
+    /** `<KeyframeTrack>` children. */
+    children?: SolidJSX.Element;
+  };
 
 /**
  * `<effect>` — a filter over the parent's rendered pixels (its fills, strokes
  * and children together), a sub-entity like a paint. Several stack in
  * document order.
  */
-export type EffectProps = Required<Pick<PatchProps, "type" | "value">>;
+export type EffectProps = Required<Pick<PatchProps, "type">> & {
+  value: Animatable<number>;
+  /** `<KeyframeTrack>` children. */
+  children?: SolidJSX.Element;
+};
 
-export type SolidPaintProps = Required<Pick<PatchProps, "color">> & Pick<PatchProps, "opacity">;
+/**
+ * `<keyframeTrack>` — the keyframes of one prop of the element holding it,
+ * as elements: the addressable form of an `Animatable` prop's keyframe list,
+ * so an editor moving a keyframe has an element to write it to. One track
+ * per prop; a static value of that prop is what holds outside the keyframes.
+ */
+export type KeyframeTrackProps = Required<Pick<PatchProps, "property">> & {
+  /** `<Keyframe>` children, in any order; they sort by `time`. */
+  children?: SolidJSX.Element;
+};
+
+/** `<keyframe>` — one keyframe of the `<keyframeTrack>` holding it. */
+export type KeyframeProps = Required<Pick<PatchProps, "time" | "value">> & Pick<PatchProps, "easing">;
+
+export type SolidPaintProps = Required<Pick<PatchProps, "color">> & Pick<PatchProps, "opacity"> & {
+  /** `<KeyframeTrack>` children. */
+  children?: SolidJSX.Element;
+};
 
 export type GradientPaintProps = Pick<PatchProps, "opacity"> & {
   /** Gradient rotation in degrees. Defaults to 0 (left to right). */
@@ -381,7 +440,10 @@ export type GradientPaintProps = Pick<PatchProps, "opacity"> & {
 };
 
 export type ColorStopProps = Required<Pick<PatchProps, "offset" | "color">> &
-  Pick<PatchProps, "opacity">;
+  Pick<PatchProps, "opacity"> & {
+    /** `<KeyframeTrack>` children. */
+    children?: SolidJSX.Element;
+  };
 
 export type VideoProps = CommonProps &
   Required<Pick<PatchProps, "src">> &
@@ -434,7 +496,10 @@ export type SurfaceProps = CommonProps & Pick<SurfacePaintProps, "ref">;
 
 export type AudioProps = TimingProps &
   Required<Pick<PatchProps, "src">> &
-  Pick<PatchProps, "name" | "volume" | "muted" | "syncTo" | "animations">;
+  Pick<PatchProps, "name" | "volume" | "muted" | "syncTo" | "animations"> & {
+    /** `<KeyframeTrack>` children (a `volume` track). */
+    children?: SolidJSX.Element;
+  };
 
 export type TextProps = CommonProps &
   Pick<

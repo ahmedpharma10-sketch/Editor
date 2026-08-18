@@ -30,6 +30,8 @@ import {
 	getParentNode,
 	isText,
 	ItemIndex,
+	Keyframe,
+	KeyframeTrack,
 	Muted,
 	Name,
 	Offset,
@@ -69,7 +71,7 @@ import {
 } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
-import type { CameraMatrix } from '@diffusionstudio/runtime';
+import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
 import type { PropValue } from '@diffusionstudio/jsx';
 import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
@@ -203,6 +205,43 @@ const PAINT_TYPES: Record<string, PaintType> = {
 	solidPaint: PaintType.SOLID,
 	linearGradientPaint: PaintType.LINEAR_GRADIENT,
 	radialGradientPaint: PaintType.RADIAL_GRADIENT,
+};
+
+/**
+ * A `<keyframeTrack>`'s `property` (a prop name) as the runtime's property
+ * path. `width` depends on the holder: a stroke's is its line width.
+ */
+const TRACK_PROPERTIES: Record<string, PropertyPath> = {
+	x: 'position.x',
+	y: 'position.y',
+	offsetX: 'offset.x',
+	offsetY: 'offset.y',
+	width: 'width',
+	height: 'height',
+	rotation: 'rotation',
+	opacity: 'opacity',
+	cornerRadius: 'vertexRadius',
+	volume: 'volume',
+	color: 'color',
+	offset: 'stop.offset',
+	blur: 'blur',
+	value: 'effect.value',
+};
+
+/**
+ * Named easings as the descriptors the runtime (and the editor's
+ * interpolation inspector) speak; the descriptor forms pass through with
+ * their whitespace dropped, linear is the empty string.
+ */
+const EASINGS: Record<string, string> = {
+	linear: '',
+	easeIn: 'cubicBezier(0.42,0,1,1)',
+	easeOut: 'cubicBezier(0,0,0.58,1)',
+	easeInOut: 'cubicBezier(0.42,0,0.58,1)',
+	gentle: 'spring(0.5,628)',
+	snappy: 'spring(0.15,300)',
+	bouncy: 'spring(0.4,500)',
+	strong: 'spring(0.65,400)',
 };
 
 const EFFECT_TYPES: Record<string, EffectType> = {
@@ -410,9 +449,22 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.set(Effect, { type: EffectType.LAYER_BLUR, value: 0 });
 				break;
 			}
+			case 'keyframeTrack': {
+				// `property` names the prop; the path it resolves to depends on the
+				// holder, so it is (re)resolved when the track is inserted.
+				entity = createEntity(this.world);
+				entity.add(KeyframeTrack);
+				break;
+			}
+			case 'keyframe': {
+				entity = createEntity(this.world);
+				entity.add(Keyframe);
+				entity.set(Keyframe, { easing: '' });
+				break;
+			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke>, <shadow> and <effect>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <keyframeTrack> and <keyframe>).`,
 				);
 		}
 
@@ -556,8 +608,31 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				return;
 			}
 			case 'value': {
+				if (entity.has(Keyframe)) {
+					// A number, or a color on a color track; either is a number to the trait.
+					entity.set(Keyframe, { value: toNumber(value) ?? parseColor(value) ?? 0 });
+					return;
+				}
 				if (!entity.has(Effect)) return;
 				entity.set(Effect, { value: toNumber(value) ?? 0 });
+				return;
+			}
+			case 'property': {
+				if (!entity.has(KeyframeTrack)) return;
+				this.resolveTrackProperty(entity, value);
+				return;
+			}
+			case 'time': {
+				if (!entity.has(Keyframe)) return;
+				const seconds = toSeconds(value);
+				const fps = this.world.get(FrameRate)?.value ?? 30;
+				entity.set(Keyframe, { time: seconds === undefined ? 0 : secondsToFrames(seconds, fps) });
+				return;
+			}
+			case 'easing': {
+				if (!entity.has(Keyframe)) return;
+				const easing = typeof value === 'string' ? value.replace(/\s+/g, '') : '';
+				entity.set(Keyframe, { easing: EASINGS[easing] ?? easing });
 				return;
 			}
 			case 'blur': {
@@ -716,6 +791,18 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 	}
 
 	/**
+	 * Writes a track's runtime property path from its authored `property`,
+	 * against the entity holding it (a `width` track under a stroke drives the
+	 * line width). Called when the prop is set and again on insertion, since
+	 * Solid sets props before the track has a parent.
+	 */
+	private resolveTrackProperty(track: Entity, property: unknown): void {
+		let path = typeof property === 'string' ? TRACK_PROPERTIES[property] : undefined;
+		if (path === 'width' && getParentEntity(track)?.has(Stroke)) path = 'stroke.width';
+		track.set(KeyframeTrack, { property: path ?? '' });
+	}
+
+	/**
 	 * Entity handles are minted per lookup, so every comparison here is between
 	 * entities: two handles for the same node are never the same object. Text
 	 * nodes are the exception, held by identity (see `TextNode`).
@@ -760,6 +847,10 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 
 			appendChild(this.world, node.entity, parent.entity);
+
+			if (node.entity.has(KeyframeTrack)) {
+				this.resolveTrackProperty(node.entity, node.entity.get(Authored)?.props.property);
+			}
 		}
 
 		const siblings = getEntityChildren(this.world, parent.entity).filter((sibling) => sibling !== node.entity);

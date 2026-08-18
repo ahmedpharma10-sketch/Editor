@@ -48,7 +48,10 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 			.sort(sortByItemIndex);
 	}
 
-	if (entity.has(KeyframeTrack)) {
+	// A track attached directly, or carried by a sub-entity (a paint, stroke,
+	// effect...) that is attached with tracks already under it: JSX builds
+	// bottom-up, so a paint's tracks exist before the paint meets its node.
+	if (entity.has(KeyframeTrack) || (!isNodeEntity(entity) && carriesKeyframeTrack(world, entity))) {
 		const node = findClosestParentGeometry(parent);
 		aggregateKeyframeTracks(world, node, exclude);
 		resetAnimatedValues(world, node);
@@ -94,11 +97,25 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 	}
 }
 
+function isNodeEntity(entity: Entity): boolean {
+	return entity.has(Geometry) || entity.has(Group) || entity.has(AdjustmentLayer);
+}
+
+/** Whether a KeyframeTrack sits under `entity`, short of any nested node. */
+function carriesKeyframeTrack(world: World, entity: Entity): boolean {
+	for (const child of world.query(ChildOf(entity))) {
+		if (child.has(KeyframeTrack)) return true;
+		if (isNodeEntity(child)) continue;
+		if (carriesKeyframeTrack(world, child)) return true;
+	}
+	return false;
+}
+
 /** Nearest self-or-ancestor node entity (geometry, group, adjustment layer). */
 export function findClosestParentGeometry(entity: Entity): Entity | null {
 	let current: Entity | null = entity;
 	while (current) {
-		if (current.has(Geometry) || current.has(Group) || current.has(AdjustmentLayer)) {
+		if (isNodeEntity(current)) {
 			return current;
 		}
 		current = getParentNode(current);
@@ -128,7 +145,7 @@ export function aggregateKeyframeTracks(world: World, node: Entity | null, exclu
 				continue;
 			}
 			// Stop at nested nodes; each owns its own cache entry.
-			if (child.has(Geometry) || child.has(Group) || child.has(AdjustmentLayer)) continue;
+			if (isNodeEntity(child)) continue;
 			walk(child);
 		}
 	};
