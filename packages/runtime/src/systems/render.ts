@@ -199,8 +199,9 @@ function buildEffects(world: World, entity: Entity): string | null {
  * before the Paint sub-entities so it always sits at the bottom of the fill
  * stack. A shader paint first in the stack takes an intrinsic image/video as
  * its input instead (see `renderShaderFill`), in which case the media is not
- * drawn here. Only media paints are intrinsic so far; a waveform (an audio
- * clip's) has no picture on the canvas.
+ * drawn here. Media paints and the surface paint (a `<surface>`, whose host
+ * lives on the geometry) are intrinsic; a waveform (an audio clip's) has no
+ * picture on the canvas.
  */
 export function renderIntrinsicFill(world: World, entity: Entity): void {
 	if (entity.has(Color)) {
@@ -211,7 +212,22 @@ export function renderIntrinsicFill(world: World, entity: Entity): void {
 		ctx.fill();
 	}
 
-	const kind = mediaKind(getIntrinsicPaint(entity));
+	const intrinsic = getIntrinsicPaint(entity);
+	if (intrinsic === PaintType.SURFACE) {
+		const host = entity.has(SurfaceHostHandle) ? entity.get(SurfaceHostHandle) : null;
+		if (host) {
+			const ctx = getCtx(world);
+			const computed = store(world, Computed);
+			const eid = entity.id();
+			ctx.save();
+			ctx.clip();
+			host.draw(ctx, computed.width[eid]!, computed.height[eid]!);
+			ctx.restore();
+		}
+		return;
+	}
+
+	const kind = mediaKind(intrinsic);
 	if (kind === null) return;
 	if (shaderInput(world, entity, store(world, Cache).fills[entity.id()] ?? [], 0) === entity) return;
 	renderMedia(world, entity, entity, kind);

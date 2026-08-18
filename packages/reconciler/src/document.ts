@@ -13,9 +13,12 @@ import {
 	Assets,
 	Audio,
 	Background,
+	BlendMode,
+	BlendModeType,
 	Blur,
 	Chars,
 	ClipsContent,
+	CornerRadius,
 	createEntity,
 	DEFAULT_BACKGROUND,
 	Color,
@@ -31,6 +34,7 @@ import {
 	getEntityTree,
 	getParentEntity,
 	getParentNode,
+	Hidden,
 	isText,
 	ItemIndex,
 	Keyframe,
@@ -43,15 +47,19 @@ import {
 	PaintType,
 	parseColor,
 	Playback,
+	PlaybackRate,
 	Position,
 	removeChild,
 	resizeEntity,
+	Scale,
 	ScaleMode,
 	ScaleModeType,
 	secondsToFrames,
 	getEntityChildren,
 	Group,
 	Sequential,
+	Shader,
+	Size,
 	Stage,
 	Root,
 	Rotation,
@@ -67,9 +75,14 @@ import {
 	StrokeCap,
 	StrokeJoin,
 	StrokeStyle,
+	SurfaceHost,
+	SurfaceHostHandle,
 	TextAlign,
 	TextBaseline,
 	TextStyle,
+	Transition,
+	TransitionType,
+	UniformScale,
 	Volume,
 } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
@@ -81,6 +94,17 @@ import type { ProjectDocument } from './host';
 
 export interface SceneNode {
 	readonly entity: Entity;
+}
+
+/**
+ * The node a `<surface>` or `<surfacePaint>` element creates: what its `ref`
+ * receives, like any other element's ref receives its node. `canvas` is the
+ * backing canvas (on the geometry for a `<surface>`, whose surface is its
+ * intrinsic paint; on the paint sub-entity for a `<surfacePaint>`), allocated
+ * with the element and sized to the holder's box; null without a DOM.
+ */
+export interface SurfaceNode extends SceneNode {
+	readonly canvas: HTMLCanvasElement | null;
 }
 
 export interface TextNode {
@@ -208,6 +232,36 @@ const PAINT_TYPES: Record<string, PaintType> = {
 	solidPaint: PaintType.SOLID,
 	linearGradientPaint: PaintType.LINEAR_GRADIENT,
 	radialGradientPaint: PaintType.RADIAL_GRADIENT,
+	shaderPaint: PaintType.SHADER,
+	surfacePaint: PaintType.SURFACE,
+};
+
+const TRANSITION_TYPES: Record<string, TransitionType> = {
+	dissolve: TransitionType.DISSOLVE,
+	slideFromRight: TransitionType.SLIDE_FROM_RIGHT,
+	slideFromLeft: TransitionType.SLIDE_FROM_LEFT,
+	fadeToBlack: TransitionType.FADE_TO_BLACK,
+	fadeToWhite: TransitionType.FADE_TO_WHITE,
+};
+
+/** The canvas composite operations, spelled camelCase like the other enums. */
+const BLEND_MODES: Record<string, BlendModeType> = {
+	sourceOver: BlendModeType.SOURCE_OVER,
+	multiply: BlendModeType.MULTIPLY,
+	screen: BlendModeType.SCREEN,
+	overlay: BlendModeType.OVERLAY,
+	darken: BlendModeType.DARKEN,
+	lighten: BlendModeType.LIGHTEN,
+	colorDodge: BlendModeType.COLOR_DODGE,
+	colorBurn: BlendModeType.COLOR_BURN,
+	hardLight: BlendModeType.HARD_LIGHT,
+	softLight: BlendModeType.SOFT_LIGHT,
+	difference: BlendModeType.DIFFERENCE,
+	exclusion: BlendModeType.EXCLUSION,
+	hue: BlendModeType.HUE,
+	saturation: BlendModeType.SATURATION,
+	color: BlendModeType.COLOR,
+	luminosity: BlendModeType.LUMINOSITY,
 };
 
 /**
@@ -222,6 +276,9 @@ const TRACK_PROPERTIES: Record<string, PropertyPath> = {
 	width: 'width',
 	height: 'height',
 	rotation: 'rotation',
+	scale: 'scale',
+	scaleX: 'scale.x',
+	scaleY: 'scale.y',
 	opacity: 'opacity',
 	cornerRadius: 'vertexRadius',
 	volume: 'volume',
@@ -316,6 +373,30 @@ const FONT_WEIGHTS: Record<string, string> = {
 	bold: '700',
 };
 
+/**
+ * Allocates a surface paint's host with the element (a canvas needs a DOM;
+ * a host without one leaves the paint blank and `canvas` null).
+ */
+function attachSurfaceHost(paint: Entity): void {
+	if (typeof document === 'undefined') return;
+	paint.add(SurfaceHostHandle);
+	paint.set(SurfaceHostHandle, new SurfaceHost());
+}
+
+/**
+ * Sizes the surface canvases of `holder` (its own, for a `<surface>`, and
+ * those of its `<surfacePaint>` children) to its authored box, so they draw
+ * at the box's resolution. Same-size calls are no-ops (SurfaceHost).
+ */
+function syncSurfaceSize(world: World, holder: Entity): void {
+	const size = holder.get(Size);
+	if (size === undefined) return;
+	holder.get(SurfaceHostHandle)?.setSize(size.width, size.height);
+	for (const child of getEntityChildren(world, holder)) {
+		child.get(SurfaceHostHandle)?.setSize(size.width, size.height);
+	}
+}
+
 function toNumber(value: unknown) {
 	if (value === undefined || value === null) {
 		return undefined;
@@ -342,7 +423,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		this.stage = { entity: world.get(Root)! };
 	}
 
-	public createElement(tag: string): SceneNode {
+	public createElement(tag: string): SceneNode | SurfaceNode {
 		// Composition elements arrive in either spelling: the camelCase
 		// intrinsics a project authors, or the PascalCase components the compile
 		// step (and an app inserting elements) uses.
@@ -436,11 +517,30 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			case 'solidPaint':
 			case 'linearGradientPaint':
-			case 'radialGradientPaint': {
+			case 'radialGradientPaint':
+			case 'shaderPaint':
+			case 'surfacePaint': {
 				entity = createEntity(this.world);
 				entity.add(Paint);
 				entity.set(Paint, { value: PAINT_TYPES[name]! });
 				if (name === 'solidPaint') entity.add(Color);
+				if (name === 'shaderPaint') entity.add(Shader);
+				if (name === 'surfacePaint') attachSurfaceHost(entity);
+				break;
+			}
+			case 'surface': {
+				// A rect whose intrinsic paint is the surface, like <video>'s is
+				// its media: the host lives on the geometry itself.
+				entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.RECT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Paint);
+				entity.set(Paint, { value: PaintType.SURFACE });
+				attachSurfaceHost(entity);
+				resizeEntity(this.world, entity, { width: 100, height: 100 });
+				syncSurfaceSize(this.world, entity);
 				break;
 			}
 			case 'colorStop': {
@@ -490,13 +590,24 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
 				);
 		}
 
 		if (entity !== this.stage.entity) {
 			entity.add(Authored);
 			entity.set(Authored, { tag: name, props: {} });
+		}
+
+		if (name === 'surface' || name === 'surfacePaint') {
+			// A getter, not a copy: the node holds no state of its own.
+			const node: SurfaceNode = {
+				entity,
+				get canvas() {
+					return entity.get(SurfaceHostHandle)?.canvas ?? null;
+				},
+			};
+			return node;
 		}
 
 		return { entity };
@@ -598,6 +709,101 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.set(Rotation, { value: toNumber(value) ?? 0 });
 				return;
 			}
+			case 'scale': {
+				// Uniform; wins over scaleX/scaleY while present (motion system).
+				if (entity.has(Sequential)) return;
+				const scale = toNumber(value);
+				if (scale === undefined) {
+					entity.remove(UniformScale);
+					return;
+				}
+
+				entity.add(UniformScale);
+				entity.set(UniformScale, { value: scale });
+				return;
+			}
+			case 'scaleX':
+			case 'scaleY': {
+				if (entity.has(Sequential)) return;
+				entity.add(Scale);
+				entity.set(Scale, { [name === 'scaleX' ? 'x' : 'y']: toNumber(value) ?? 1 });
+				return;
+			}
+			case 'cornerRadius': {
+				const radius = toNumber(value);
+				if (radius === undefined) {
+					entity.remove(CornerRadius);
+					return;
+				}
+
+				entity.add(CornerRadius);
+				entity.set(CornerRadius, { value: radius });
+				return;
+			}
+			case 'blendMode': {
+				const mode = typeof value === 'string' ? BLEND_MODES[value] : undefined;
+				if (mode === undefined || mode === BlendModeType.SOURCE_OVER) {
+					entity.remove(BlendMode);
+					return;
+				}
+
+				entity.add(BlendMode);
+				entity.set(BlendMode, { value: mode });
+				return;
+			}
+			case 'hidden': {
+				if (value === true && entity !== this.stage.entity) {
+					entity.add(Hidden);
+				} else {
+					entity.remove(Hidden);
+				}
+				return;
+			}
+			case 'playbackRate': {
+				const rate = toNumber(value);
+				if (rate === undefined || rate === 0) {
+					entity.remove(PlaybackRate);
+					return;
+				}
+
+				entity.add(PlaybackRate);
+				entity.set(PlaybackRate, { value: rate });
+				return;
+			}
+			case 'transition': {
+				if (typeof value !== 'object' || value === null) {
+					entity.remove(Transition);
+					return;
+				}
+
+				if (!entity.has(Transition)) {
+					entity.add(Transition);
+					entity.set(Transition, { type: TransitionType.DISSOLVE, duration: this.toFrames(1) });
+				}
+
+				const spec = value as { type?: unknown; duration?: unknown };
+				if ('type' in spec) {
+					const type = typeof spec.type === 'string' ? TRANSITION_TYPES[spec.type] : undefined;
+					entity.set(Transition, { type: type ?? TransitionType.DISSOLVE });
+				}
+				if ('duration' in spec) {
+					entity.set(Transition, { duration: this.toFrames(toSeconds(spec.duration) ?? 1) });
+				}
+				return;
+			}
+			case 'wgsl': {
+				if (!entity.has(Shader)) return;
+				entity.set(Shader, { code: typeof value === 'string' ? value : '' });
+				return;
+			}
+			case 'uniforms': {
+				if (!entity.has(Shader)) return;
+				const uniforms = typeof value === 'object' && value !== null && !Array.isArray(value)
+					? { ...(value as Record<string, number | number[] | string>) }
+					: null;
+				entity.set(Shader, { uniforms });
+				return;
+			}
 			case 'width':
 			case 'height': {
 				const size = toNumber(value);
@@ -608,6 +814,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				}
 				if (size === undefined) return;
 				resizeEntity(this.world, entity, { [name]: size });
+				syncSurfaceSize(this.world, entity);
 				return;
 			}
 			case 'join': {
@@ -896,6 +1103,9 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 			if (node.entity.has(KeyframeTrack)) {
 				this.resolveTrackProperty(node.entity, node.entity.get(Authored)?.props.property);
+			}
+			if (node.entity.has(SurfaceHostHandle)) {
+				syncSurfaceSize(this.world, parent.entity);
 			}
 		}
 

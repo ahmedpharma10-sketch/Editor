@@ -21,6 +21,28 @@ export type StrokeJoin = "miter" | "round" | "bevel";
 export type StrokeCap = "butt" | "round" | "square";
 
 /**
+ * How an element composites over what is below it: the canvas
+ * `globalCompositeOperation` blend modes, camelCase. Default "sourceOver".
+ */
+export type BlendMode =
+  | "sourceOver"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "darken"
+  | "lighten"
+  | "colorDodge"
+  | "colorBurn"
+  | "hardLight"
+  | "softLight"
+  | "difference"
+  | "exclusion"
+  | "hue"
+  | "saturation"
+  | "color"
+  | "luminosity";
+
+/**
  * An `<effect>`'s filter — the CSS filter functions, applied to the parent's
  * rendered pixels. `blur` takes a radius in px, `hueRotate` degrees, the
  * rest an amount 0–1.
@@ -68,6 +90,9 @@ export type AnimatableProperty =
   | "width"
   | "height"
   | "rotation"
+  | "scale"
+  | "scaleX"
+  | "scaleY"
   | "opacity"
   | "cornerRadius"
   | "volume"
@@ -170,10 +195,27 @@ type SizeProps = {
 type TransformProps = PositionProps & OffsetProps & SizeProps & {
   /** Rotation in degrees. */
   rotation?: number;
+  /** Uniform scale about the box origin, 1 = natural size. Overrides `scaleX`/`scaleY` while set. */
+  scale?: number;
+  /** Per-axis scale, 1 = natural size. */
+  scaleX?: number;
+  scaleY?: number;
   /** Opacity, 0–1 (out-of-range values clamp, like CSS). */
   opacity?: number;
   /** Uniform corner radius, px. */
   cornerRadius?: number;
+};
+
+/** How an element composites, and whether it does at all. */
+type CompositeProps = {
+  /** Blend mode over what is below. Default "sourceOver". */
+  blendMode?: BlendMode;
+  /**
+   * Excludes the element from rendering (and its audio from the mix) without
+   * removing it: it keeps its place in the timeline and its children. Absent
+   * means shown.
+   */
+  hidden?: boolean;
 };
 
 type TimingProps = {
@@ -185,6 +227,11 @@ type TimingProps = {
   sourceIn?: Time;
   /** Source out point: where playback ends within the source. Defaults to the natural end. Alternative to `end`. */
   sourceOut?: Time;
+  /**
+   * Speed multiplier for the node's local time, 1 = normal: at 2, twice the
+   * source plays in the same stretch of timeline. Default 1.
+   */
+  playbackRate?: number;
 };
 
 type SequenceItemProps = {
@@ -239,7 +286,10 @@ type ColorProps = {
 };
 
 /** What every visual node accepts on top of its own props. */
-type CommonProps = IdentityProps & TransformProps & TimingProps & SequenceItemProps;
+type CommonProps = IdentityProps & TransformProps & CompositeProps & TimingProps & SequenceItemProps;
+
+/** What every paint accepts on top of its own props. */
+type PaintProps = OpacityProps & CompositeProps;
 
 /** Sub-entity children (`<KeyframeTrack>`) an element that is itself a style takes. */
 type TrackChildren = {
@@ -324,7 +374,7 @@ export type RectProps = CommonProps & FillProps & {
  * paint: `color`/`opacity` are its paint, `width`/`join`/`cap`/`miterLimit`
  * its line style. Several stack in document order, later ones on top.
  */
-export type StrokeProps = ColorProps & OpacityProps & TrackChildren & {
+export type StrokeProps = ColorProps & PaintProps & TrackChildren & {
   /** Line width, px. Default 1. */
   width?: number;
   /** How the stroke turns corners. Default "miter". */
@@ -339,7 +389,7 @@ export type StrokeProps = ColorProps & OpacityProps & TrackChildren & {
  * `<shadow>` — a drop shadow beneath the parent's box (or glyphs): a blurred,
  * offset copy of its silhouette in `color`. Several stack in document order.
  */
-export type ShadowProps = ColorProps & OpacityProps & TrackChildren & {
+export type ShadowProps = ColorProps & OpacityProps & Pick<CompositeProps, "hidden"> & TrackChildren & {
   /** Blur radius, px. Default 0. */
   blur?: number;
   /** Where the shadow sits relative to the silhouette, px. Default 0. */
@@ -403,9 +453,9 @@ export type KeyframeProps = {
   easing?: Easing;
 };
 
-export type SolidPaintProps = ColorProps & OpacityProps & TrackChildren;
+export type SolidPaintProps = ColorProps & PaintProps & TrackChildren;
 
-export type GradientPaintProps = OpacityProps & {
+export type GradientPaintProps = PaintProps & {
   /** Gradient rotation in degrees. Defaults to 0 (left to right). */
   rotation?: number;
   /** `<ColorStop>` children — the gradient's color stops. */
@@ -427,7 +477,7 @@ export type ImageProps = CommonProps & MediaProps & FitProps & {
     children?: SolidJSX.Element;
   };
 
-export type HtmlPaintProps = OpacityProps & {
+export type HtmlPaintProps = PaintProps & {
   /**
    * HTML children — real DOM elements laid out by the browser at the parent
    * geometry's box size and drawn into it (html-in-canvas). Fully reactive:
@@ -446,7 +496,7 @@ type HostCanvas = typeof globalThis extends { HTMLCanvasElement: new () => infer
   : { width: number; height: number; getContext(contextId: string, options?: unknown): unknown };
 
 /** `<ShaderPaint>` — transforms the media paint directly below it. Takes no children. */
-export type ShaderPaintProps = OpacityProps & {
+export type ShaderPaintProps = PaintProps & {
   /**
    * Fragment-stage WGSL, applied to the video/image paint directly below it
    * in the paint stack, or run procedurally (over a transparent source) when
@@ -463,14 +513,21 @@ export type ShaderPaintProps = OpacityProps & {
   uniforms?: Record<string, number | number[] | string>;
 };
 
-export type SurfacePaintProps = OpacityProps & {
-  /**
-   * Receives the surface's backing canvas once the paint materializes. Draw to
-   * any context type (2d, webgl, webgpu); the engine samples the bitmap every
-   * frame and stretches it into the parent geometry's box. Callback form
-   * only — the renderer has no element to assign to a variable ref.
-   */
-  ref: (canvas: HostCanvas) => void;
+/**
+ * What a `<surface>` / `<surfacePaint>` ref receives: the element's node, as
+ * every ref does, with the paint's backing canvas on it. Draw to `canvas` with
+ * any context type (2d, webgl, webgpu); the engine samples the bitmap every
+ * frame and stretches it into the holder's box. The canvas is allocated with
+ * the element and sized to the holder's `width`/`height` (a same-size set is a
+ * no-op, so `renderer.setSize` from your own code is not clobbered); null
+ * where the host has no DOM. Both ref forms work: `ref={(s) => ...}` and
+ * `let s: SurfaceHandle; <surface ref={s} />`.
+ */
+export type SurfaceHandle = { readonly canvas: HostCanvas | null };
+
+export type SurfacePaintProps = PaintProps & {
+  /** Callback or variable ref; receives a `SurfaceHandle`. */
+  ref?: SurfaceHandle | ((surface: SurfaceHandle) => void);
 };
 
 /** `<Surface>` — a rectangle carrying a `<SurfacePaint>` with the given ref. */
