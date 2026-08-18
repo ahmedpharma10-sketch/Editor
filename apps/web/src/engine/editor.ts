@@ -10,11 +10,11 @@
  * where the commands live.
  */
 
-import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Loop, Selected, setActive, Source, Stage } from '@diffusionstudio/runtime';
+import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Loop, Selected, Sequential, setActive, Source, Stage } from '@diffusionstudio/runtime';
 import { isPropValue, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
-import { authoredElement, getRuntimeDocument, insert, isSceneNode, withDocument } from '@diffusionstudio/reconciler';
+import { authoredElement, authoredTree, getRuntimeDocument, insert, isSceneNode, renderAuthored, withDocument } from '@diffusionstudio/reconciler';
 
 import type { PropValue } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
@@ -397,6 +397,62 @@ export class DocumentEditor {
 		}
 
 		return [...created.keys()].filter((entity) => !created.has(getParentEntity(entity)!));
+	}
+
+	/**
+	 * Copies `entities`, subtrees included, and reports the copies as inserts
+	 * so they land in the file too. A copy is spelled from what its source was
+	 * authored as (`authoredTree`), so it has the same props — the same
+	 * position — and sits in the same parent, right on top of its source
+	 * (inserted after it in order). Only the tops of the selected subtrees are
+	 * copied: a descendant of another one goes with it.
+	 *
+	 * The exception is a node inside a sequence: two clips at the same time
+	 * conflict there, so the copy goes to the nearest parent that is not a
+	 * sequence, on top of the sequence it came out of. A sequence has no
+	 * spatial identity and no time of its own, so the same props put the copy
+	 * where the source is.
+	 *
+	 * The selection moves to the copies (`selected` is not copied, nor is
+	 * `active`: one entity holds it). Returns the copies' top-level entities.
+	 */
+	public duplicate(entities: Entity | Entity[]): Entity[] {
+		const wanted = new Set(
+			(Array.isArray(entities) ? entities : [entities]).filter(
+				(entity) => entity.isAlive() && !entity.has(Stage) && !!entity.get(Source)?.value,
+			),
+		);
+		const roots = [...wanted].filter((entity) => {
+			for (let parent = getParentEntity(entity); parent; parent = getParentEntity(parent)) {
+				if (wanted.has(parent)) return false;
+			}
+			return true;
+		});
+
+		const copies: Entity[] = [];
+		for (const source of roots) {
+			const tree = authoredTree(this.world, source);
+			if (!tree) continue;
+			delete tree.props.selected;
+			delete tree.props.active;
+
+			// Out of any sequence, on top of what it left.
+			let below = source;
+			let parent = getParentEntity(below);
+			while (parent && parent.has(Sequential)) {
+				below = parent;
+				parent = getParentEntity(below);
+			}
+			if (!parent) continue;
+
+			const siblings = getEntityChildren(this.world, parent);
+			const anchor = siblings[siblings.indexOf(below) + 1];
+
+			copies.push(...this.insertElement(parent, () => renderAuthored(tree), anchor));
+		}
+
+		if (copies.length) this.select(copies);
+		return copies;
 	}
 
 	/**

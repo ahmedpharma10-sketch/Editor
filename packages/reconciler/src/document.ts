@@ -117,6 +117,30 @@ export function authoredElement(entity: Entity): AuthoredElement | undefined {
 	return { tag: authored.tag, props: { ...authored.props }, ...(text ? { text } : {}) };
 }
 
+/** An authored element with the authored elements under it, in order. */
+export interface AuthoredTree extends AuthoredElement {
+	children: AuthoredTree[];
+}
+
+/**
+ * The subtree `entity` was rendered from, as a project would author it:
+ * `authoredElement` of it and, recursively, of every child of its that a
+ * document created. Sub-entities the runtime derives (a recipe's paints) are
+ * not elements and are left out; they come back with the recipe.
+ */
+export function authoredTree(world: World, entity: Entity): AuthoredTree | undefined {
+	const element = authoredElement(entity);
+	if (element === undefined) return undefined;
+
+	const children: AuthoredTree[] = [];
+	for (const child of getEntityChildren(world, entity)) {
+		const tree = authoredTree(world, child);
+		if (tree) children.push(tree);
+	}
+
+	return { ...element, children };
+}
+
 export function isSceneNode(node: HostNode): node is SceneNode {
 	return 'entity' in node;
 }

@@ -14,9 +14,10 @@
  */
 
 import { splitProps } from "solid-js";
-import { createElement, spread, use } from "./renderer";
+import { createElement, createTextNode, insertNode, setProp, spread, use } from "./renderer";
 
 import type { JSX as SolidJSX } from "solid-js";
+import type { AuthoredTree } from "./document";
 import type {
   AudioProps,
   CaptionsProps,
@@ -51,6 +52,27 @@ function hostElement<P extends object>(tag: string): (props: P) => SolidJSX.Elem
     spread(el, rest, false);
     return el as SolidJSX.Element;
   };
+}
+
+/**
+ * Builds host nodes from an `AuthoredTree` (see `authoredTree`), the way a
+ * project spelling those elements would: one element per node with its props
+ * set and its text and children inserted, in order. Static — the values are
+ * what the tree holds — and written into whatever document is active, so an
+ * editor renders it inside `insertElement`'s thunk to duplicate a subtree.
+ */
+export function renderAuthored(tree: AuthoredTree): unknown {
+  const node = createElement(tree.tag);
+  for (const [name, value] of Object.entries(tree.props)) {
+    setProp(node, name, value);
+  }
+  if (tree.text !== undefined) {
+    insertNode(node, createTextNode(tree.text));
+  }
+  for (const child of tree.children) {
+    insertNode(node, renderAuthored(child));
+  }
+  return node;
 }
 
 export const Scene = hostElement<SceneProps>("Scene");

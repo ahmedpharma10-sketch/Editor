@@ -35,6 +35,14 @@ export function deleteSelection(world: World): void {
 	}
 };
 
+export function duplicateSelection(world: World): void {
+	const selected = [...world.query(Selected)];
+
+	if (selected.length) {
+		getDocumentEditor(world).duplicate(selected);
+	}
+}
+
 const NUDGE = 1;
 const NUDGE_FAST = 10;
 
@@ -59,6 +67,7 @@ const nudge = (dx: number, dy: number) => (world: World): void => nudgeSelection
 const SHORTCUTS: readonly Shortcut[] = [
 	{ key: 'backspace', action: deleteSelection },
 	{ key: 'delete', action: deleteSelection },
+	{ key: 'd', mod: true, action: duplicateSelection },
 	{ key: 'arrowleft', action: nudge(-NUDGE, 0) },
 	{ key: 'arrowright', action: nudge(NUDGE, 0) },
 	{ key: 'arrowup', action: nudge(0, -NUDGE) },
