@@ -39,6 +39,7 @@ export type { Ticker } from "./hooks";
 export type {
   Animatable,
   AnimatableProperty,
+  AnimationProps,
   AnimationSpec,
   AnimationType,
   AudioProps,

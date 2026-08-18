@@ -208,8 +208,8 @@ export type PatchProps = {
   cap?: StrokeCap;
   /** Miter length limit of a `<stroke>`, as a ratio of its width. Default 10. */
   miterLimit?: number;
-  /** Which filter an `<effect>` applies. */
-  type?: EffectType;
+  /** Which filter an `<effect>` applies, or which preset an `<animation>` plays. */
+  type?: EffectType | AnimationType;
   /**
    * An `<effect>`'s amount: px for "blur", degrees for "hueRotate", 0–1
    * otherwise (animatable). On a `<keyframe>`, the value at its `time`: a
@@ -222,6 +222,15 @@ export type PatchProps = {
   time?: Time;
   /** Shapes the segment from a `<keyframe>` to the next one; ignored on the last. Default "linear". */
   easing?: Easing;
+  /** Whether an `<animation>` plays from the clip's head ("in") or into its tail ("out"). Default "in". */
+  phase?: "in" | "out";
+  /** Length of an `<animation>`. Any `Time` format. Default 1 second. */
+  duration?: Time;
+  /**
+   * Gap between the clip edge and an `<animation>`: after the head for "in",
+   * before the tail for "out". Any `Time` format. Default 0.
+   */
+  delay?: Time;
   /** Parent-timeline time at which the node begins. Default 0. */
   start?: Time;
   /** Parent-timeline time at which the node ends. Alternative to `sourceOut`. */
@@ -407,11 +416,20 @@ export type ShadowProps = Required<Pick<PatchProps, "color">> &
  * and children together), a sub-entity like a paint. Several stack in
  * document order.
  */
-export type EffectProps = Required<Pick<PatchProps, "type">> & {
+export type EffectProps = {
+  type: EffectType;
   value: Animatable<number>;
   /** `<KeyframeTrack>` children. */
   children?: SolidJSX.Element;
 };
+
+/**
+ * `<animation>` — one preset in/out animation of the node holding it, played
+ * over the clip's head or tail: the element form of an `animations` entry, so
+ * an editor has something to write to. Several stack in document order,
+ * later ones writing over earlier ones on the properties they share.
+ */
+export type AnimationProps = { type: AnimationType } & Pick<PatchProps, "phase" | "duration" | "delay">;
 
 /**
  * `<keyframeTrack>` — the keyframes of one prop of the element holding it,

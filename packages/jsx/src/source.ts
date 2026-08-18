@@ -106,6 +106,7 @@ export const COMPOSITION_TAGS = [
   "stroke",
   "shadow",
   "effect",
+  "animation",
   "keyframeTrack",
   "keyframe",
   "htmlPaint",

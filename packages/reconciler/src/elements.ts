@@ -19,6 +19,7 @@ import { createElement, createTextNode, insertNode, setProp, spread, use } from 
 import type { JSX as SolidJSX } from "solid-js";
 import type { AuthoredTree } from "./document";
 import type {
+  AnimationProps,
   AudioProps,
   CaptionsProps,
   ColorStopProps,
@@ -96,6 +97,7 @@ export const ColorStop = hostElement<ColorStopProps>("ColorStop");
 export const Stroke = hostElement<StrokeProps>("Stroke");
 export const Shadow = hostElement<ShadowProps>("Shadow");
 export const Effect = hostElement<EffectProps>("Effect");
+export const Animation = hostElement<AnimationProps>("Animation");
 export const KeyframeTrack = hostElement<KeyframeTrackProps>("KeyframeTrack");
 export const Keyframe = hostElement<KeyframeProps>("Keyframe");
 export const HtmlPaint = hostElement<HtmlPaintProps>("HtmlPaint");

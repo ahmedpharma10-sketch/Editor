@@ -5,6 +5,9 @@
 
 import {
 	Active,
+	Animation,
+	AnimationPhase,
+	AnimationType,
 	appendChild,
 	AssetId,
 	Assets,
@@ -244,6 +247,23 @@ const EASINGS: Record<string, string> = {
 	strong: 'spring(0.65,400)',
 };
 
+const ANIMATION_TYPES: Record<string, AnimationType> = {
+	fade: AnimationType.FADE,
+	gain: AnimationType.GAIN,
+	grow: AnimationType.GROW,
+	shrink: AnimationType.SHRINK,
+	blur: AnimationType.BLUR,
+	slideLeft: AnimationType.SLIDE_LEFT,
+	slideRight: AnimationType.SLIDE_RIGHT,
+	slideUp: AnimationType.SLIDE_UP,
+	slideDown: AnimationType.SLIDE_DOWN,
+	spin: AnimationType.SPIN,
+	twist: AnimationType.TWIST,
+	appearWord: AnimationType.APPEAR_WORD,
+	appearChar: AnimationType.APPEAR_CHAR,
+	scramble: AnimationType.SCRAMBLE,
+};
+
 const EFFECT_TYPES: Record<string, EffectType> = {
 	blur: EffectType.LAYER_BLUR,
 	brightness: EffectType.BRIGHTNESS,
@@ -449,6 +469,12 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.set(Effect, { type: EffectType.LAYER_BLUR, value: 0 });
 				break;
 			}
+			case 'animation': {
+				entity = createEntity(this.world);
+				entity.add(Animation);
+				entity.set(Animation, { duration: this.toFrames(1) });
+				break;
+			}
 			case 'keyframeTrack': {
 				// `property` names the prop; the path it resolves to depends on the
 				// holder, so it is (re)resolved when the track is inserted.
@@ -464,7 +490,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <keyframeTrack> and <keyframe>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
 				);
 		}
 
@@ -602,9 +628,26 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				return;
 			}
 			case 'type': {
+				if (entity.has(Animation)) {
+					const type = typeof value === 'string' ? ANIMATION_TYPES[value] : undefined;
+					entity.set(Animation, { type: type ?? AnimationType.FADE });
+					return;
+				}
 				if (!entity.has(Effect)) return;
 				const type = typeof value === 'string' ? EFFECT_TYPES[value] : undefined;
 				entity.set(Effect, { type: type ?? EffectType.LAYER_BLUR });
+				return;
+			}
+			case 'phase': {
+				if (!entity.has(Animation)) return;
+				entity.set(Animation, { phase: value === 'out' ? AnimationPhase.OUT : AnimationPhase.IN });
+				return;
+			}
+			case 'duration':
+			case 'delay': {
+				if (!entity.has(Animation)) return;
+				const seconds = toSeconds(value);
+				entity.set(Animation, { [name]: this.toFrames(seconds ?? (name === 'duration' ? 1 : 0)) });
 				return;
 			}
 			case 'value': {
@@ -625,8 +668,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'time': {
 				if (!entity.has(Keyframe)) return;
 				const seconds = toSeconds(value);
-				const fps = this.world.get(FrameRate)?.value ?? 30;
-				entity.set(Keyframe, { time: seconds === undefined ? 0 : secondsToFrames(seconds, fps) });
+				entity.set(Keyframe, { time: this.toFrames(seconds ?? 0) });
 				return;
 			}
 			case 'easing': {
@@ -658,9 +700,8 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 					return;
 				}
 
-				const fps = this.world.get(FrameRate)?.value ?? 30;
 				entity.add(trait);
-				entity.set(trait, { value: secondsToFrames(seconds, fps) });
+				entity.set(trait, { value: this.toFrames(seconds) });
 				return;
 			}
 			case 'src': {
@@ -788,6 +829,11 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				// such a project still renders what this host understands.
 				return;
 		}
+	}
+
+	/** Seconds as frames of this project. */
+	private toFrames(seconds: number): number {
+		return secondsToFrames(seconds, this.world.get(FrameRate)?.value ?? 30);
 	}
 
 	/**

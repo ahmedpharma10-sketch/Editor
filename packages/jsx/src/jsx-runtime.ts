@@ -21,6 +21,7 @@
 import type { JSX as SolidJSX } from "solid-js";
 import type { AssetInput } from "./generate";
 import type {
+  AnimationProps,
   AudioProps,
   CaptionsProps,
   ColorStopProps,
@@ -90,6 +91,7 @@ export declare namespace JSX {
     stroke: StrokeProps & SourceProps;
     shadow: ShadowProps & SourceProps;
     effect: EffectProps & SourceProps;
+    animation: AnimationProps & SourceProps;
     keyframeTrack: KeyframeTrackProps & SourceProps;
     keyframe: KeyframeProps & SourceProps;
     htmlPaint: HtmlPaintProps & SourceProps;
