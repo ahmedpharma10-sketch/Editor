@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { Chars, getActiveEntity, getEntityChildren, getParentEntity, isText, Selected, setActive, Source, Stage } from '@diffusionstudio/runtime';
+import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Selected, setActive, Source, Stage } from '@diffusionstudio/runtime';
 import { SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -53,7 +53,21 @@ export interface InsertEdit {
 	text?: string;
 }
 
-export type EntityEdit = PropEdit | InsertEdit;
+/**
+ * An element the editor moved to another parent: `parent` is the element it
+ * belongs to now and `before`, when present, the sibling it was placed in
+ * front of; without it, last. The entity is already there when this is
+ * reported. Nesting is the one thing a prop cannot say, so this is its own
+ * edit: dragging a clip into a scene has to move the element itself.
+ */
+export interface MoveEdit {
+	kind: 'move';
+	source: string;
+	parent: string;
+	before?: string;
+}
+
+export type EntityEdit = PropEdit | InsertEdit | MoveEdit;
 
 /**
  * Sources of elements the editor created that no write has named yet. Shaped
@@ -242,6 +256,51 @@ export class DocumentEditor {
 		}
 
 		return [...created.keys()].filter((entity) => !created.has(getParentEntity(entity)!));
+	}
+
+	/**
+	 * Moves `entity` under `parent`, in front of `anchor` or last, and reports
+	 * it so the element moves in the file too. The move goes through the
+	 * document, so the canvas ends up exactly where a project nesting it that
+	 * way would have put it (ordering included).
+	 */
+	public reparent(entity: Entity, parent: Entity, anchor?: Entity): boolean {
+		const source = entity.get(Source)?.value;
+		const parentSource = parent.get(Source)?.value;
+		if (!source || !parentSource) return false;
+		if (getParentEntity(entity) === parent && anchor === undefined) return false;
+		// Checked here rather than left to the document: a move into itself is
+		// a no-op there (nothing to report), and one into its own subtree is
+		// caught only after the node has already left the parent it had.
+		if (entity === parent || getEntityTree(this.world, entity).includes(parent)) return false;
+
+		const wasActive = entity.has(Active);
+
+		try {
+			this.document.insertNode({ entity: parent }, { entity }, anchor ? { entity: anchor } : undefined);
+		} catch {
+			return false;
+		}
+
+		// An anchor the file does not name cannot be pointed at; appending is
+		// the honest answer, and where the document put it either way.
+		const before = anchor?.get(Source)?.value;
+
+		this.sink?.({
+			kind: 'move',
+			source,
+			parent: parentSource,
+			...(before ? { before } : {}),
+		});
+
+		// Only a root holds the active tag (see world/observers), so a node
+		// that just stopped being one has lost it; the file hears that here
+		// rather than keeping an `active` its own rules would strip on reload.
+		if (wasActive && !entity.has(Active)) {
+			this.reportEdit(entity, 'active', false);
+		}
+
+		return true;
 	}
 
 	/**

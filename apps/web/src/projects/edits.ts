@@ -8,7 +8,7 @@ import { toast } from 'somoto';
 
 import { writeProject } from './host';
 
-import type { EntityEdit, InsertEdit } from '@/engine/editor';
+import type { EntityEdit, InsertEdit, MoveEdit } from '@/engine/editor';
 import type { SourceEdit, WriteResult } from './host';
 import type { World } from 'koota';
 
@@ -24,9 +24,11 @@ class EditWriter {
 	private readonly world: World;
 
 	// Inserts first, in the order they were made (a child's parent may be one
-	// of them), then per element, per prop: the last value for a prop is the
-	// only one worth writing, and an element written twice is written once.
+	// of them), then the moves, then per element, per prop: the last value for
+	// a prop is the only one worth writing, an element written twice is
+	// written once, and only where an element ended up is worth moving it to.
 	private inserts = new Map<string, InsertEdit>();
+	private moves = new Map<string, MoveEdit>();
 	private pending = new Map<string, InsertEdit['props']>();
 	// Pending sources a write is out for: edits to them wait for the answer.
 	private inflight = new Set<string>();
@@ -44,6 +46,19 @@ class EditWriter {
 
 		if (edit.kind === 'insert') {
 			this.inserts.set(edit.source, edit);
+		} else if (edit.kind === 'move') {
+			// Where an element still waiting to be inserted goes is part of how
+			// it is inserted, not a move of it.
+			const insert = this.inserts.get(edit.source);
+
+			if (insert) {
+				const moved: InsertEdit = { ...insert, parent: edit.parent };
+				if (edit.before === undefined) delete moved.before;
+				else moved.before = edit.before;
+				this.inserts.set(edit.source, moved);
+			} else {
+				this.moves.set(edit.source, edit);
+			}
 		} else {
 			// A prop of an element still waiting to be inserted is part of how
 			// it is inserted.
@@ -71,12 +86,14 @@ class EditWriter {
 
 	private flush(): void {
 		this.timer = undefined;
-		if (!this.inserts.size && !this.pending.size) return;
+		if (!this.inserts.size && !this.moves.size && !this.pending.size) return;
 
 		// Anything addressed through an element whose insert is still out
-		// waits for its name: edits to it, and inserts under or beside it.
+		// waits for its name: edits to it, and inserts or moves under or
+		// beside it.
 		const waits = (source: string | undefined): boolean => source !== undefined && this.inflight.has(source);
 		const heldInserts = new Map([...this.inserts].filter(([, insert]) => waits(insert.parent) || waits(insert.before)));
+		const heldMoves = new Map([...this.moves].filter(([source, move]) => waits(source) || waits(move.parent) || waits(move.before)));
 		const held = new Map([...this.pending].filter(([source]) => waits(source)));
 		const edits: SourceEdit[] = [
 			...[...this.inserts.values()]
@@ -90,6 +107,16 @@ class EditWriter {
 					...(before === undefined ? {} : { before }),
 					...(text === undefined ? {} : { text }),
 				})),
+			// After the inserts: a move may be into an element this same write
+			// is adding. Before the props, which then land on it where it is.
+			...[...this.moves.values()]
+				.filter((move) => !heldMoves.has(move.source))
+				.map(({ kind, source, parent, before }): SourceEdit => ({
+					kind,
+					source,
+					parent,
+					...(before === undefined ? {} : { before }),
+				})),
 			...[...this.pending]
 				.filter(([source]) => !held.has(source))
 				.map(([source, props]): SourceEdit => ({ kind: 'set', source, props })),
@@ -98,6 +125,7 @@ class EditWriter {
 
 		this.inflight = new Set([...this.inflight, ...this.inserts.keys()].filter((source) => !heldInserts.has(source)));
 		this.inserts = heldInserts;
+		this.moves = heldMoves;
 		this.pending = held;
 
 		writeProject(this.dir, edits)
@@ -147,13 +175,26 @@ class EditWriter {
 			const { before: _, ...rest } = insert;
 			this.inserts.set(source, { ...rest, parent, ...(before === undefined ? {} : { before }) });
 		}
+		for (const [source, move] of [...this.moves]) {
+			const next = rename(source);
+			const parent = rename(move.parent);
+			// Neither the element nor the place it was going made it into the
+			// file; the insert's own discard takes the entity with it.
+			if (next === undefined || parent === undefined) {
+				this.moves.delete(source);
+				continue;
+			}
+			const before = move.before === undefined ? undefined : rename(move.before);
+			this.moves.delete(source);
+			this.moves.set(next, { ...move, source: next, parent, ...(before === undefined ? {} : { before }) });
+		}
 		for (const source of this.inflight) {
 			if (!ids[source]) editor.discardPending(source);
 		}
 		this.inflight = new Set();
 
 		// What was held back has its names now.
-		if (this.inserts.size || this.pending.size) this.schedule();
+		if (this.inserts.size || this.moves.size || this.pending.size) this.schedule();
 	}
 }
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { trait, type Entity } from 'koota';
+import { trait, type Entity, type World } from 'koota';
 
 import { createLiveMounts } from '../utils/live-mounts';
 
@@ -93,6 +93,36 @@ export type HudTarget = {
 	kind: 'hud';
 	id: string;
 	quad: Quad;
+	entity?: Entity;
+};
+
+export type PointerEventType =
+	| 'pointermove'
+	| 'pointerdown'
+	| 'pointerup'
+	| 'pointerenter'
+	| 'pointerleave'
+	| 'dragstart'
+	| 'drag'
+	| 'dragend'
+	| 'click'
+	| 'dblclick';
+
+/**
+ * A pointer event in canvas device pixels (CSS pixels x resolution), which is
+ * the space WorldTransform and the hit region quads are in. Not a DOM event:
+ * the app's input layer distills one of these per DOM event, and adds the
+ * gesture types (drag*, pointerenter/leave) the DOM has no equivalent for.
+ */
+export type CanvasPointerEvent = {
+	type: PointerEventType;
+	clientX: number;
+	clientY: number;
+	button: number; // 0: left, 1: middle, 2: right
+};
+
+export type DispatchedPointerEvent = CanvasPointerEvent & {
+	target: EntityTarget | HudTarget;
 };
 
 // Paint-order hit regions collected during a render pass (topmost last). The
@@ -102,7 +132,7 @@ export type HudTarget = {
 // default interaction handlers.
 export type HitRegion = {
 	target: EntityTarget | HudTarget;
-	callback?: (world: unknown, event: unknown) => void;
+	callback?: (world: World, event: DispatchedPointerEvent) => void;
 };
 
 export const HitRegions = trait({ list: () => [] as HitRegion[] });

@@ -6,6 +6,7 @@ import { createMemo, onCleanup, onMount } from 'solid-js';
 import { useTrait, useWorld } from '@diffusionstudio/koota-solid';
 import { panCamera, setCamera, zoomCameraAt, getCamera, RenderSurface, getCameraMatrix, Root } from '@diffusionstudio/runtime';
 import { useEditor } from './hooks/use-editor';
+import { updateCursor } from './input/cursor';
 
 import type { JSX } from 'solid-js';
 
@@ -44,13 +45,7 @@ export function CameraController(): JSX.Element {
 	let startE = 0;
 	let startF = 0;
 
-	const updateCursor = (): void => {
-		const target = canvas();
 
-		if (target) {
-			target.style.cursor = panning ? 'grabbing' : (spaceHeld ? 'grab' : '');
-		}
-	};
 
 	/** Pointer position in canvas CSS pixels. */
 	const localPoint = (event: { clientX: number; clientY: number }): [x: number, y: number] => {
@@ -68,7 +63,7 @@ export function CameraController(): JSX.Element {
 		}
 
 		panPointerId = null;
-		updateCursor();
+		updateCursor(world, spaceHeld ? 'grab' : 'default');
 	};
 
 	const handleWheel = (event: WheelEvent): void => {
@@ -104,7 +99,7 @@ export function CameraController(): JSX.Element {
 		const camera = getCamera(world);
 		startE = camera.e;
 		startF = camera.f;
-		updateCursor();
+		updateCursor(world, 'grabbing');
 	};
 
 	const handlePointerMove = (event: PointerEvent): void => {
@@ -125,23 +120,21 @@ export function CameraController(): JSX.Element {
 	const handleKeyDown = (event: KeyboardEvent): void => {
 		if (event.code !== 'Space' || event.repeat || isEditable(event.target)) return;
 		spaceHeld = true;
-		updateCursor();
+		updateCursor(world, 'grab');
 	};
 
 	const handleKeyUp = (event: KeyboardEvent): void => {
 		if (event.code !== 'Space') return;
 		spaceHeld = false;
-		// Releasing space mid-drag ends the pan even though the pointer is
-		// still down, matching how the pan was armed.
 		endPan();
-		updateCursor();
+		updateCursor(world, 'default');
 	};
 
 	const handleBlur = (): void => {
 		// Key-up never arrives when focus leaves mid-hold (⌘-tab, devtools).
 		spaceHeld = false;
 		endPan();
-		updateCursor();
+		updateCursor(world, 'default');
 	};
 
 	onMount(() => {

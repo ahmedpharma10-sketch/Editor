@@ -2,19 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The write direction of a project's JSX: `applyEdits` puts a value the editor
-// arrived at back into the attribute that produced it, and `stampProject`
-// gives elements the durable names that survive edits made to the file in
-// between.
-//
-// Elements are addressed the way `./source` stamps them: by position in
-// document order until they have an `id`. Both directions walk every JSX
-// element a file has, so the nth tag here is the nth stamp there — one order,
-// two parsers.
-//
-// ts-morph owns the parsing and the printing. It edits the syntax tree and
-// re-prints only what changed, so a write touches the attribute it was asked
-// to and leaves the rest of the file byte for byte as its author wrote it.
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -61,7 +48,22 @@ export interface SourceInsert {
   text?: string;
 }
 
-export type SourceEdit = SourceSet | SourceInsert;
+/**
+ * Moves the element named by `source` under the one named by `parent`, in
+ * front of the child named by `before` or last. The element travels as it was
+ * written — its own text, re-indented for where it lands — so a move is the
+ * one edit that does not touch what an element says, only where it says it.
+ * Both ends must be in one file: an element cannot move into another module's
+ * JSX any more than a project could have put it there.
+ */
+export interface SourceMove {
+  kind: "move";
+  source: string;
+  parent: string;
+  before?: string;
+}
+
+export type SourceEdit = SourceSet | SourceInsert | SourceMove;
 
 export interface WriteResult {
   /** Sources that could not be written, as `id` or `id (prop)`. */
@@ -275,6 +277,42 @@ function insertChild(sourceFile: SourceFile, parent: JsxTag, child: string, befo
   const closing = element.getClosingElement();
   if (closing.isFirstNodeOnLine()) sourceFile.insertText(closing.getStartLinePos(), `${childIndent}${child}\n`);
   else sourceFile.insertText(closing.getStart(), `\n${childIndent}${child}\n${indent}`);
+}
+
+/**
+ * Takes an element out of the tree, and the line it stood on when it had one
+ * to itself, so what is left reads as if it had never been there.
+ */
+function cutElement(sourceFile: SourceFile, element: JsxElement | JsxSelfClosingElement): void {
+  let start = element.getStart();
+  let end = element.getEnd();
+
+  if (element.isFirstNodeOnLine()) {
+    const rest = sourceFile.getFullText().slice(end);
+    const breakAt = rest.indexOf("\n");
+    const trailing = breakAt === -1 ? rest : rest.slice(0, breakAt + 1);
+
+    if (!trailing.trim()) {
+      start = element.getStartLinePos();
+      end += trailing.length;
+    }
+  }
+
+  sourceFile.removeText(start, end);
+}
+
+/**
+ * An element's text at a new indentation level. Every line after the first
+ * moves by the same amount, so the block keeps the shape its author gave it;
+ * a line indented less than the element itself is left where it is.
+ */
+function reindent(text: string, from: string, to: string): string {
+  if (from === to) return text;
+
+  return text
+    .split("\n")
+    .map((line, index) => (index === 0 || !line.startsWith(from) ? line : `${to}${line.slice(from.length)}`))
+    .join("\n");
 }
 
 /** Whether an expression is a value rather than a way of computing one. */
@@ -561,6 +599,11 @@ class SourceWriter {
           continue;
         }
 
+        if (edit.kind === "move") {
+          if (!this.moveElement(file, sourceFile, edit, ids, nextId)) skipped.push(edit.source);
+          continue;
+        }
+
         const locator = locate(edit.source, ids)?.locator;
         if (locator === undefined) {
           skipped.push(edit.source);
@@ -643,6 +686,75 @@ class SourceWriter {
       setProp(findTag(sourceFile, id)!, name, value);
     }
     ids[edit.source] = formatSource(file, id);
+    return true;
+  }
+
+  /**
+   * Moves one element to another parent: its text is cut from where it stands
+   * and put back under the new one. False when either end is not an element of
+   * this file, or when the move is one no tree can hold (an element into
+   * itself or into its own subtree).
+   *
+   * Everything is addressed by id first, since cutting the text renumbers the
+   * positions the sources of an unnamed element would otherwise rely on.
+   */
+  private moveElement(
+    file: string,
+    sourceFile: SourceFile,
+    edit: SourceMove,
+    ids: Record<string, string>,
+    nextId: () => string,
+  ): boolean {
+    const named = (source: string): string | undefined => {
+      const address = locate(source, ids);
+      // Ids are allocated per file, so one from elsewhere could name an
+      // element here that has nothing to do with it.
+      const locator = address?.file === file ? address.locator : undefined;
+      const tag = locator === undefined ? undefined : findTag(sourceFile, locator);
+      if (!tag) return undefined;
+      const id = idOf(tag);
+      if (id) return id;
+
+      const minted = nextId();
+      tag.addAttribute({ name: ID_ATTR, initializer: `"${minted}"` });
+      // The write answers with it: the canvas addresses this element by
+      // position until it hears otherwise, and the move invalidates that.
+      ids[source] = formatSource(file, minted);
+      return minted;
+    };
+
+    // Named before anything is cut, and each stamp re-parses, so the tags are
+    // re-found from the ids afterwards rather than held across the edits.
+    const id = named(edit.source);
+    const parentId = named(edit.parent);
+    if (!id || !parentId || id === parentId) return false;
+    const beforeId = edit.before === undefined ? undefined : named(edit.before);
+    if (edit.before !== undefined && !beforeId) return false;
+
+    const element = elementOf(findTag(sourceFile, id)!);
+    const parentElement = elementOf(findTag(sourceFile, parentId)!);
+    if (parentElement.getAncestors().includes(element)) return false;
+
+    if (beforeId !== undefined) {
+      const anchor = elementOf(findTag(sourceFile, beforeId)!);
+      if (anchor.getParent() !== parentElement) return false;
+    }
+
+    // Before any indentation is measured: ts-morph counts it in units of a
+    // setting it does not learn from the file on its own.
+    matchIndentation(sourceFile);
+    const text = element.getText();
+    const indent = element.getIndentationText();
+    cutElement(sourceFile, element);
+
+    const parent = findTag(sourceFile, parentId);
+    const before = beforeId === undefined ? undefined : findTag(sourceFile, beforeId);
+    // Neither can have gone with the cut (a destination inside what is being
+    // moved was refused above), and the element is out of the tree by now, so
+    // this is the file dropping out of the write rather than a skipped edit.
+    if (!parent || (beforeId !== undefined && !before)) throw new Error("the element's new parent is gone");
+
+    insertChild(sourceFile, parent, reindent(text, indent, elementOf(parent).getChildIndentationText()), before);
     return true;
   }
 }

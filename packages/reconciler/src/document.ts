@@ -364,11 +364,6 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			throw new Error('<text> only takes text children.');
 		}
 
-		// Scenes own a timeline, so one inside another has no coherent reading.
-		if (node.entity.has(Scene) && !parent.entity.has(Stage)) {
-			throw new Error('<scene> is only allowed as a direct child of <stage>.');
-		}
-
 		if (getParentEntity(node.entity) !== parent.entity) {
 			// appendChild only takes top-level entities, so a move between two
 			// parents goes back through the stage on the way.
