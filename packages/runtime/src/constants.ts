@@ -10,7 +10,7 @@ export const DEFAULT_DURATION_FRAMES = 16 * 30;
 export const MIN_CAMERA_ZOOM = 0.01;
 export const MAX_CAMERA_ZOOM = 10;
 
-export enum BlendMode {
+export enum BlendModeType {
   SOURCE_OVER,
   MULTIPLY,
   SCREEN,
@@ -29,7 +29,7 @@ export enum BlendMode {
   LUMINOSITY,
 };
 
-export const COMPOSITE_OPERATIONS = Object.keys(BlendMode)
+export const COMPOSITE_OPERATIONS = Object.keys(BlendModeType)
   .filter(key => isNaN(Number(key)))
   .map(key => key.toLowerCase().replace(/_/g, '-')) as GlobalCompositeOperation[];
 

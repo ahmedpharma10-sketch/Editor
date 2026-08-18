@@ -9,7 +9,7 @@ import {
 	Caption,
 	Position, Offset, Rotation, Scale, UniformScale, Anchor, Skew, Size, Flip,
 	Constraint, KeepAspectRatio,
-	Appearance, Color, CornerRadius, MixedCornerRadius, Blur, ScaleMode, Effect,
+	Opacity, BlendMode, Color, CornerRadius, MixedCornerRadius, Blur, ScaleMode, Effect,
 	ColorStop, StrokeStyle, Shader,
 	Chars, TextStyle,
 	Start, End, SourceIn, SourceOut, PlaybackRate,
@@ -93,10 +93,8 @@ export interface EntityRecord {
 		x?: -1 | 1;
 		y?: -1 | 1;
 	};
-	Appearance?: {
-		opacity?: number;
-		blendMode?: number;
-	};
+	Opacity?: number;
+	BlendMode?: number;
 	CornerRadius?: number;
 	MixedCornerRadius?: {
 		topLeft: number;
@@ -116,8 +114,6 @@ export interface EntityRecord {
 	Muted?: {};
 	ColorStop?: {
 		offset?: number;
-		color?: number;
-		opacity?: number;
 	};
 	StrokeStyle?: {
 		width?: number;
@@ -271,9 +267,11 @@ export function serializeEntity(entity: Entity): EntityRecord {
 		const flip = entity.get(Flip)!;
 		record.Flip = { x: flip.x, y: flip.y };
 	}
-	if (entity.has(Appearance)) {
-		const appearance = entity.get(Appearance)!;
-		record.Appearance = { opacity: appearance.opacity, blendMode: appearance.blendMode };
+	if (entity.has(Opacity)) {
+		record.Opacity = entity.get(Opacity)!.value;
+	}
+	if (entity.has(BlendMode)) {
+		record.BlendMode = entity.get(BlendMode)!.value;
 	}
 	if (entity.has(CornerRadius)) {
 		record.CornerRadius = entity.get(CornerRadius)!.value;
@@ -310,8 +308,7 @@ export function serializeEntity(entity: Entity): EntityRecord {
 		record.Muted = {};
 	}
 	if (entity.has(ColorStop)) {
-		const stop = entity.get(ColorStop)!;
-		record.ColorStop = { offset: stop.offset, color: stop.color, opacity: stop.opacity };
+		record.ColorStop = { offset: entity.get(ColorStop)!.offset };
 	}
 	if (entity.has(StrokeStyle)) {
 		const stroke = entity.get(StrokeStyle)!;
@@ -516,9 +513,13 @@ export function deserializeEntity(entity: Entity, e: Partial<EntityRecord>): voi
 		entity.add(Flip);
 		entity.set(Flip, defined(e.Flip));
 	}
-	if (e.Appearance !== undefined) {
-		entity.add(Appearance);
-		entity.set(Appearance, defined(e.Appearance));
+	if (e.Opacity !== undefined) {
+		entity.add(Opacity);
+		entity.set(Opacity, { value: e.Opacity });
+	}
+	if (e.BlendMode !== undefined) {
+		entity.add(BlendMode);
+		entity.set(BlendMode, { value: e.BlendMode });
 	}
 	if (e.CornerRadius !== undefined) {
 		entity.add(CornerRadius);

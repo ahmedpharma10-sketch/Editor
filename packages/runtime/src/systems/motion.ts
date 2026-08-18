@@ -9,7 +9,7 @@ import { store } from '../world/store';
 import {
 	Geometry, Group, AdjustmentLayer, Hidden, Culled,
 	Computed, Cache, Animation, KeyframeTrack, Keyframe, Chars,
-	UniformScale, Position, Offset, Rotation, Scale, Skew, Size, Appearance,
+	UniformScale, Position, Offset, Rotation, Scale, Skew, Size, Opacity,
 	Color, Blur, Volume, Effect, StrokeStyle, CornerRadius, MixedCornerRadius,
 	ColorStop,
 } from '../traits';
@@ -36,7 +36,7 @@ export function resetAnimatedValues(world: World, entity: Entity | null) {
 	computed.rotation[eid] = store(world, Rotation).value[eid] ?? 0;
 	computed.skewX[eid] = store(world, Skew).x[eid] ?? 0;
 	computed.skewY[eid] = store(world, Skew).y[eid] ?? 0;
-	computed.opacity[eid] = store(world, Appearance).opacity[eid] ?? 1;
+	computed.opacity[eid] = store(world, Opacity).value[eid] ?? 1;
 	computed.color[eid] = store(world, Color).value[eid] ?? 0;
 	computed.blur[eid] = store(world, Blur).value[eid] ?? 0;
 	computed.volume[eid] = store(world, Volume).value[eid] ?? 0;
@@ -47,8 +47,6 @@ export function resetAnimatedValues(world: World, entity: Entity | null) {
 	computed.cornerRadiusBottomRight[eid] = store(world, MixedCornerRadius).bottomRight[eid] ?? 0;
 	computed.cornerRadiusBottomLeft[eid] = store(world, MixedCornerRadius).bottomLeft[eid] ?? 0;
 	computed.stopOffset[eid] = store(world, ColorStop).offset[eid] ?? 0;
-	computed.stopColor[eid] = store(world, ColorStop).color[eid] ?? 0;
-	computed.stopOpacity[eid] = store(world, ColorStop).opacity[eid] ?? 1;
 	computed.chars[eid] = store(world, Chars).value[eid] ?? '';
 
 	if (entity.has(UniformScale)) {
@@ -297,7 +295,7 @@ export function getPropertyPaths(world: World) {
 		},
 		'opacity': {
 			computed: computed.opacity,
-			authored: store(world, Appearance).opacity,
+			authored: store(world, Opacity).value,
 		},
 		'color': {
 			computed: computed.color,
@@ -342,14 +340,6 @@ export function getPropertyPaths(world: World) {
 		'stop.offset': {
 			computed: computed.stopOffset,
 			authored: store(world, ColorStop).offset,
-		},
-		'stop.color': {
-			computed: computed.stopColor,
-			authored: store(world, ColorStop).color,
-		},
-		'stop.opacity': {
-			computed: computed.stopOpacity,
-			authored: store(world, ColorStop).opacity,
 		},
 		'chars': {
 			computed: computed.chars,
@@ -462,7 +452,7 @@ function sampleTrack(
 		const startValue = keyframe.value[keyframes[i]!.id()]!;
 		const endValue = keyframe.value[keyframes[i + 1]!.id()]!;
 
-		if (property === 'color' || property === 'stop.color') {
+		if (property === 'color') {
 			return lerpColor(startValue, endValue, progress);
 		}
 

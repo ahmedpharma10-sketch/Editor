@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, Shadow, Appearance, Blur, Offset, TextStyle } from '../../traits';
+import { Paint, Color, Shadow, Opacity, Blur, Offset, TextStyle } from '../../traits';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, resolveTranscript, setChars } from './utils';
@@ -72,8 +72,8 @@ export class ClassicCaptionDecoder implements CaptionDecoder {
 		shadow.add(Shadow);
 		shadow.add(Color);
 		shadow.set(Color, { value: 0x000000 });
-		shadow.add(Appearance);
-		shadow.set(Appearance, { opacity: 1 });
+		shadow.add(Opacity);
+		shadow.set(Opacity, { value: 1 });
 		shadow.add(Blur);
 		shadow.set(Blur, { value: 28 });
 		shadow.add(Offset);

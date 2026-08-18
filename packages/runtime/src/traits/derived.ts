@@ -33,8 +33,6 @@ export const Computed = trait({
 	cornerRadiusBottomRight: 0,
 	cornerRadiusBottomLeft: 0,
 	stopOffset: 0,
-	stopColor: 0,
-	stopOpacity: 1,
 	width: 0,
 	height: 0,
 	chars: undefined as string | undefined,

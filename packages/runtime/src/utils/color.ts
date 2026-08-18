@@ -107,6 +107,18 @@ export function colorToHex(color: number): string {
 }
 
 /**
+ * A CSS color for `color` at `opacity`: the hex when opaque, else an rgba().
+ */
+export function colorToCss(color: number, opacity: number): string {
+	if (opacity >= 1) return colorToHex(color);
+
+	const r = (color >> 16) & 0xFF;
+	const g = (color >> 8) & 0xFF;
+	const b = color & 0xFF;
+	return `rgba(${r},${g},${b},${clamp(opacity, 0, 1)})`;
+}
+
+/**
  * Packs RGB channel values (0-255) into a numeric hex color (0xRRGGBB).
  */
 export function rgbToColor(r: number, g: number, b: number): number {

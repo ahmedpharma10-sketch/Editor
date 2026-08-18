@@ -4,14 +4,16 @@
 
 import { trait } from 'koota';
 
-import { BlendMode, EffectType, ScaleModeType, StrokeJoin, StrokeCap } from '../constants';
+import { BlendModeType, EffectType, ScaleModeType, StrokeJoin, StrokeCap } from '../constants';
 
-export const Appearance = trait({
-	opacity: 1,
-	blendMode: BlendMode.SOURCE_OVER as BlendMode,
-});
+// Opacity of whatever the entity is: a node, a paint, a stroke, a shadow, a
+// gradient stop's color. Absent means opaque.
+export const Opacity = trait({ value: 1 });
 
-// Solid color.
+// How the entity composites over what is below it. Absent means source-over.
+export const BlendMode = trait({ value: BlendModeType.SOURCE_OVER as BlendModeType });
+
+// Solid color (0xRRGGBB). Its translucency, when any, is the entity's Opacity.
 export const Color = trait({ value: 0 });
 
 export const CornerRadius = trait({ value: 0 });
@@ -35,10 +37,12 @@ export const Effect = trait({
 	value: 0,
 });
 
-// Single gradient stop. Each stop is its own entity, ChildOf the gradient
-// fill. Stop count is fixed for the lifetime of the fill: to animate between
-// gradients with different stop counts use a separate fill and cross-fade.
-export const ColorStop = trait({ offset: 0, color: 0, opacity: 1 });
+// Single gradient stop: its position along the gradient (0-1). Its color and
+// opacity are the entity's Color and Opacity. Each stop is its own entity, ChildOf the
+// gradient fill. Stop count is fixed for the lifetime of the fill: to animate
+// between gradients with different stop counts use a separate fill and
+// cross-fade.
+export const ColorStop = trait({ offset: 0 });
 
 export const StrokeStyle = trait({
 	width: 1,

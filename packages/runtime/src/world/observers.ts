@@ -21,7 +21,7 @@ import {
 	ChildOf, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
 	Start, End, SourceIn, SourceOut, PlaybackRate, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
-	Appearance, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
+	Opacity, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
 	ColorStop, StrokeStyle, Size, Computed, Active, Stage,
 	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
 	AudioDecoderHandle, CaptionDecoderHandle,
@@ -207,8 +207,8 @@ export function observeWorld(world: World): () => void {
 		computed.skewY[entity.id()] = y;
 	});
 
-	mirror(Appearance, (entity) => {
-		store(world, Computed).opacity[entity.id()] = entity.get(Appearance)!.opacity;
+	mirror(Opacity, (entity) => {
+		store(world, Computed).opacity[entity.id()] = entity.get(Opacity)!.value;
 	});
 
 	mirror(Color, (entity) => {
@@ -241,11 +241,7 @@ export function observeWorld(world: World): () => void {
 	});
 
 	mirror(ColorStop, (entity) => {
-		const computed = store(world, Computed);
-		const stop = entity.get(ColorStop)!;
-		computed.stopOffset[entity.id()] = stop.offset;
-		computed.stopColor[entity.id()] = stop.color;
-		computed.stopOpacity[entity.id()] = stop.opacity;
+		store(world, Computed).stopOffset[entity.id()] = entity.get(ColorStop)!.offset;
 	});
 
 	mirror(StrokeStyle, (entity) => {

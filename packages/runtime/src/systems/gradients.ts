@@ -8,7 +8,7 @@
 
 import { store } from '../world/store';
 import { ChildOf, ColorStop, Position, Computed } from '../traits';
-import { colorToHex } from '../utils/color';
+import { colorToCss } from '../utils/color';
 
 import type { Entity, World } from 'koota';
 
@@ -21,24 +21,15 @@ function addStopsTo(world: World, fill: Entity, gradient: CanvasGradient): void 
 			const raw = computed.stopOffset[stop.id()]!;
 			return {
 				offset: raw <= 1 ? Math.max(0, raw) : raw % 1,
-				color: computed.stopColor[stop.id()]!,
-				opacity: computed.stopOpacity[stop.id()]!,
+				color: computed.color[stop.id()] ?? 0,
+				opacity: computed.opacity[stop.id()] ?? 1,
 			};
 		})
 		.sort((a, b) => a.offset - b.offset);
 
 	for (const { offset, color, opacity } of stops) {
-		gradient.addColorStop(offset, toGradientColor(color, opacity));
+		gradient.addColorStop(offset, colorToCss(color, opacity));
 	}
-}
-
-function toGradientColor(color: number, opacity: number): string {
-	if (opacity >= 1) return colorToHex(color);
-
-	const r = (color >> 16) & 0xFF;
-	const g = (color >> 8) & 0xFF;
-	const b = color & 0xFF;
-	return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, opacity))})`;
 }
 
 /** Create a canvas linear gradient from a gradient paint sub-entity. */

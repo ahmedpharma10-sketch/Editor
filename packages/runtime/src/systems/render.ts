@@ -19,7 +19,7 @@ import {
 import {
 	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
-	Appearance, Effect, StrokeStyle, AssetId, Transition, MixedCornerRadius,
+	BlendMode, Effect, StrokeStyle, AssetId, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
 	Mode, Time, FrameRate, Camera, Background, RenderSurface, Assets,
@@ -204,7 +204,9 @@ function buildEffects(world: World, entity: Entity): string | null {
 export function renderIntrinsicFill(world: World, entity: Entity): void {
 	if (entity.has(Color)) {
 		const ctx = getCtx(world);
-		ctx.fillStyle = colorToHex(store(world, Computed).color[entity.id()] ?? 0);
+		const computed = store(world, Computed);
+		const eid = entity.id();
+		ctx.fillStyle = colorToHex(computed.color[eid] ?? 0);
 		ctx.fill();
 	}
 
@@ -273,7 +275,7 @@ export function renderFills(world: World, entity: Entity): void {
 	const ctx = getCtx(world);
 	const computed = store(world, Computed);
 	const paintStore = store(world, Paint);
-	const appearance = store(world, Appearance);
+	const blendMode = store(world, BlendMode);
 	const eid = entity.id();
 	const fills = store(world, Cache).fills[eid] ?? [];
 
@@ -283,7 +285,7 @@ export function renderFills(world: World, entity: Entity): void {
 		const fid = fill.id();
 		const savedAlpha = ctx.globalAlpha;
 		const savedCO = ctx.globalCompositeOperation;
-		const bi = appearance.blendMode[fid] ?? 0;
+		const bi = blendMode.value[fid] ?? 0;
 
 		if (bi !== 0) {
 			ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[bi]!;
@@ -497,7 +499,7 @@ function renderStrokes(world: World, entity: Entity): void {
 
 	const strokeStyle = store(world, StrokeStyle);
 	const computed = store(world, Computed);
-	const appearance = store(world, Appearance);
+	const blendMode = store(world, BlendMode);
 	const paintStore = store(world, Paint);
 
 	ctx.lineWidth = computed.strokeWidth[eid]!;
@@ -510,7 +512,7 @@ function renderStrokes(world: World, entity: Entity): void {
 		const sid = stroke.id();
 		const savedAlpha = ctx.globalAlpha;
 		const savedCO = ctx.globalCompositeOperation;
-		const bi = appearance.blendMode[sid] ?? 0;
+		const bi = blendMode.value[sid] ?? 0;
 
 		if (bi !== 0) {
 			ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[bi]!;
@@ -810,9 +812,9 @@ export function renderNode(world: World, entity: Entity): void {
 		ctx.clip();
 	}
 
-	// Appearance
+	// Opacity and blend mode
 	ctx.globalAlpha *= computed.opacity[eid]!;
-	const bi = store(world, Appearance).blendMode[eid] ?? 0;
+	const bi = store(world, BlendMode).value[eid] ?? 0;
 	if (bi !== 0) ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[bi]!;
 
 	const effects = buildEffects(world, entity);

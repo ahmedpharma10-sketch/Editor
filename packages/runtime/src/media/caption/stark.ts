@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { BlendMode, CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, Appearance, TextStyle } from '../../traits';
+import { BlendModeType, CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
+import { Paint, Color, BlendMode, TextStyle } from '../../traits';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, resolveTranscript, setChars } from './utils';
@@ -62,8 +62,8 @@ export class StarkCaptionDecoder implements CaptionDecoder {
 		fill.set(Paint, { value: PaintType.SOLID });
 		fill.add(Color);
 		fill.set(Color, { value: 0xFFFFFF });
-		fill.add(Appearance);
-		fill.set(Appearance, { blendMode: BlendMode.DIFFERENCE });
+		fill.add(BlendMode);
+		fill.set(BlendMode, { value: BlendModeType.DIFFERENCE });
 		appendChild(world, fill, entity);
 
 		loadWebFont(world, 'Figtree');

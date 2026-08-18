@@ -10,7 +10,7 @@ import {
 	TextAlign, TextBaseline, TextCase,
 } from '../constants';
 import {
-	Size, Hidden, Paint, Color, Blur, Offset, Appearance, StrokeStyle,
+	Size, Hidden, Paint, Color, Blur, Offset, Opacity, BlendMode, StrokeStyle,
 	Chars, TextStyle, TextRange, TextCache, Cache, Computed, Camera,
 	RenderSurface, Root,
 } from '../traits';
@@ -284,7 +284,8 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 	const offsetStore = store(world, Offset);
 	const blurStore = store(world, Blur);
 	const colorStore = store(world, Color);
-	const appearance = store(world, Appearance);
+	const opacityStore = store(world, Opacity);
+	const blendStore = store(world, BlendMode);
 	const paintStore = store(world, Paint);
 
 	const savedAlpha = ctx.globalAlpha;
@@ -322,7 +323,7 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				ctx.shadowBlur = (blurStore.value[sid] ?? 0) * shadowScale;
 				ctx.shadowColor = colorToHex(colorStore.value[sid] ?? 0x000000);
 				ctx.fillStyle = colorToHex(colorStore.value[sid] ?? 0x000000);
-				ctx.globalAlpha = savedAlpha * (appearance.opacity[sid] ?? 1);
+				ctx.globalAlpha = savedAlpha * (opacityStore.value[sid] ?? 1);
 
 				if (strokes.length) {
 					ctx.strokeText(word.chars, word.x, word.y);
@@ -362,11 +363,11 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				const sid = stroke.id();
 
 				const savedCO = ctx.globalCompositeOperation;
-				const blendMode = appearance.blendMode[sid] ?? 0;
+				const blendMode = blendStore.value[sid] ?? 0;
 				if (blendMode !== 0) {
 					ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[blendMode]!;
 				}
-				ctx.globalAlpha = savedAlpha * (appearance.opacity[sid] ?? 1);
+				ctx.globalAlpha = savedAlpha * (opacityStore.value[sid] ?? 1);
 
 				const paintType = paintStore.value[sid];
 				if (paintType === PaintType.LINEAR_GRADIENT) {
@@ -413,11 +414,11 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				const fid = fill.id();
 
 				const savedCO = ctx.globalCompositeOperation;
-				const blendMode = appearance.blendMode[fid] ?? 0;
+				const blendMode = blendStore.value[fid] ?? 0;
 				if (blendMode !== 0) {
 					ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[blendMode]!;
 				}
-				ctx.globalAlpha = savedAlpha * (appearance.opacity[fid] ?? 1);
+				ctx.globalAlpha = savedAlpha * (opacityStore.value[fid] ?? 1);
 
 				const paintType = paintStore.value[fid];
 				if (paintType === PaintType.LINEAR_GRADIENT) {

@@ -15,6 +15,7 @@ import {
 	createEntity,
 	DEFAULT_BACKGROUND,
 	Color,
+	ColorStop,
 	End,
 	FontStyle,
 	FrameRate,
@@ -24,11 +25,13 @@ import {
 	getEntityTree,
 	getParentEntity,
 	getParentNode,
+	isPaintEntity,
 	isText,
 	ItemIndex,
 	Muted,
 	Name,
 	Offset,
+	Opacity,
 	Paint,
 	PaintType,
 	parseColor,
@@ -189,6 +192,12 @@ const TIME_TRAITS = {
 	sourceOut: SourceOut,
 } as const;
 
+const PAINT_TYPES: Record<string, PaintType> = {
+	solidPaint: PaintType.SOLID,
+	linearGradientPaint: PaintType.LINEAR_GRADIENT,
+	radialGradientPaint: PaintType.RADIAL_GRADIENT,
+};
+
 const SCALE_MODES: Record<string, ScaleModeType> = {
 	cover: ScaleModeType.COVER,
 	contain: ScaleModeType.FIT,
@@ -313,6 +322,17 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				resizeEntity(this.world, entity, { width: 1920, height: 1080 });
 				break;
 			}
+			case 'image': {
+				entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.RECT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Paint);
+				entity.set(Paint, { value: PaintType.IMAGE });
+				resizeEntity(this.world, entity, { width: 1920, height: 1080 });
+				break;
+			}
 			case 'audio': {
 				entity = createEntity(this.world);
 				entity.add(Geometry);
@@ -325,9 +345,24 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				resizeEntity(this.world, entity, { width: 500, height: 150 });
 				break;
 			}
+			case 'solidPaint':
+			case 'linearGradientPaint':
+			case 'radialGradientPaint': {
+				entity = createEntity(this.world);
+				entity.add(Paint);
+				entity.set(Paint, { value: PAINT_TYPES[name]! });
+				if (name === 'solidPaint') entity.add(Color);
+				break;
+			}
+			case 'colorStop': {
+				// Position only; `color`/`opacity` add Color/Opacity like anywhere else.
+				entity = createEntity(this.world);
+				entity.add(ColorStop);
+				break;
+			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video> and <audio>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <video>, <image>, <audio>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint> and <colorStop>).`,
 				);
 		}
 
@@ -513,6 +548,23 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.set(Color, { value: color });
 				return;
 			}
+			case 'opacity': {
+				const opacity = toNumber(value);
+				if (opacity === undefined) {
+					entity.remove(Opacity);
+					return;
+				}
+
+				entity.add(Opacity);
+				entity.set(Opacity, { value: opacity });
+				return;
+			}
+			case 'offset': {
+				if (entity.has(ColorStop)) {
+					entity.set(ColorStop, { offset: toNumber(value) ?? 0 });
+				}
+				return;
+			}
 			case 'fontSize': {
 				const size = toNumber(value);
 				entity.add(TextStyle);
@@ -603,8 +655,8 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 		if (parent.entity === node.entity) return;
 
-		if (isText(parent.entity)) {
-			throw new Error('<text> only takes text children.');
+		if (isText(parent.entity) && !isPaintEntity(node.entity)) {
+			throw new Error('<text> only takes text and paint children.');
 		}
 
 		if (getParentEntity(node.entity) !== parent.entity) {
