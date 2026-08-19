@@ -5,7 +5,8 @@
 // One command to develop the desktop app from source. It:
 //   1. builds the CLI, so a linked `dapi` (see symlink:create) runs the
 //      latest code and the app's headless server matches it;
-//   2. starts the web dev server (Vite on :5173);
+//   2. starts the web dev server (Vite on :5173), first reclaiming the port
+//      from a Vite left behind by an earlier run that did not come down;
 //   3. waits for that server, then launches Electron, which loads it.
 // Ctrl-C tears the whole tree down.
 
@@ -16,7 +17,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const BIN = join(ROOT, "node_modules", ".bin");
-const DEV_URL = "http://localhost:5173";
+const DEV_PORT = 5173;
+const DEV_URL = `http://localhost:${DEV_PORT}`;
 const children = [];
 let shuttingDown = false;
 
@@ -77,11 +79,66 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => shutdown(0));
 }
 
+/** PIDs listening on a TCP port (macOS/Linux via lsof); [] when none or unknown. */
+function listeners(port) {
+  try {
+    const out = execFileSync("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { stdio: ["ignore", "pipe", "ignore"] });
+    return out.toString().split("\n").map((line) => Number(line.trim())).filter(Boolean);
+  } catch {
+    return []; // lsof exits 1 when nothing listens.
+  }
+}
+
+/** The command line of a process, or "" when it is gone. */
+function commandOf(pid) {
+  try {
+    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Frees the dev port. A Vite left over from an earlier run of this repo
+ * (Ctrl-C'd terminal, crashed Electron, a detached child) is killed and the
+ * port awaited; anything else on the port is not ours to touch, so we say
+ * what it is and stop.
+ */
+async function reclaimPort(port) {
+  const pids = listeners(port);
+  if (!pids.length) return;
+  for (const pid of pids) {
+    const command = commandOf(pid);
+    if (!command.includes("vite") || !command.includes(ROOT.replace(/\/$/, ""))) {
+      console.error(`[dev:desktop] port ${port} is in use by another process (pid ${pid}): ${command || "unknown"}`);
+      process.exit(1);
+    }
+    console.log(`[dev:desktop] port ${port} held by a stale vite (pid ${pid}); stopping it…`);
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // Already gone.
+    }
+  }
+  const deadline = Date.now() + 5000;
+  while (listeners(port).length) {
+    if (Date.now() > deadline) {
+      for (const pid of listeners(port)) {
+        try { process.kill(pid, "SIGKILL"); } catch { /* gone */ }
+      }
+      await new Promise((r) => setTimeout(r, 200));
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 // 1. Build the CLI (blocking) so `dapi` and the app agree on the latest code.
 console.log("[dev:desktop] building CLI…");
 execFileSync("npm", ["run", "build", "--workspace=@diffusionstudio/cli"], { stdio: "inherit" });
 
-// 2. Start the web dev server.
+// 2. Start the web dev server, on a port that is free.
+await reclaimPort(DEV_PORT);
 console.log("[dev:desktop] starting web dev server…");
 run("web", "vite", [], join(ROOT, "apps", "web"));
 

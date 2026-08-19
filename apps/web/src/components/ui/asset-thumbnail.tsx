@@ -79,7 +79,7 @@ function MediaThumbnail(props: { asset: Asset; width: number; cache?: AssetCache
       <img
         src={url()!}
         alt=""
-        class="w-full h-full object-cover select-none"
+        class="absolute inset-0 size-full object-cover select-none"
       />
     </Show>
   );

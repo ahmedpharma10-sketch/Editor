@@ -216,12 +216,12 @@ class Engine {
 		if (this.ownsAudioContext) {
 			this.audioContext.close();
 		}
-		this.world.destroy();
-		this.unsubscribeEventListeners();
-		this.world.get(PointerEvents)!.queue.length = 0;
 
+		this.unsubscribeEventListeners();
 		this.unsubscribe.forEach(unsubscribe => unsubscribe());
 		this.unsubscribe.length = 0;
+		this.world.get(PointerEvents)?.queue.splice(0);
+		this.world.destroy();
 	}
 
 	private unsubscribeEventListeners(): void {
