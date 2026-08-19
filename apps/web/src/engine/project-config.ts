@@ -163,7 +163,9 @@ export class ProjectConfig {
 	/** Detaches the config from the world. */
 	public dispose(): void {
 		this.disposed = true;
-		if (this.world.get(ProjectConfigTrait) === this) this.world.remove(ProjectConfigTrait);
+		if (this.world.get(ProjectConfigTrait) === this) {
+			this.world.set(ProjectConfigTrait, null);
+		}
 	}
 }
 
