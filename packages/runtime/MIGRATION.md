@@ -58,6 +58,7 @@ Every world spawns one `Stage` entity; all rendered entities descend from it. "T
 - Max 16 live worlds; `world.destroy()` in test loops and throwaway offline worlds. Stores are indexed by `entity.id()`; `world.id()` is a world slot, not an entity. World traits sit on a hidden internal entity that is not public API.
 - `set` throws if the trait is missing and merges partials; `add` is idempotent and never resets values, hence add-then-set everywhere. On an exclusive relation, `add` re-targets in place.
 - Events: exclusive re-target fires remove(old) then add(new); a redundant same-pair add fires nothing; **remove events fire while the departing child is still in the old target's queries** (hence the `exclude`/`ignore` params in `rebuildCaches` and the timing observers). onAdd fires after initial values are applied and may set traits. onChange fires even when the value is unchanged.
+- **`destroy()` strips an entity's traits before it fires the ChildOf removal**, so a handler on that event cannot ask the departing child what it was. `rebuildCaches` files by trait and so filed nothing on the way out, leaving every destroyed entity in its parent's `Cache` lists (a deleted stroke kept its row, a deleted node kept its place in `children`); `evictFromCaches` drops it by identity instead. Anything else keyed on what a child *is* has the same hole.
 
 ## apps/web integration
 
@@ -75,7 +76,7 @@ Done:
 | Draw tools + toolbar (armed tool is the `Tool` world trait) | `components/canvas/draw-overlay.tsx` |
 | Input, HUD, camera, alignment | `engine/input/`, `engine/hud/`, `engine/align.ts` |
 | Project config (per-scene export settings in package.json) | `engine/project-config.ts` |
-| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text | `components/sidebar-right/inspector/` |
+| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text, strokes | `components/sidebar-right/inspector/` |
 | Local font families (web fonts and loading are the runtime's) | `engine/fonts.ts` (`getLocalFonts`) |
 
 Hosted JSX surface is `COMPOSITION_TAGS` (`packages/jsx/src/source.ts`): the structural tags, the media tags, `<captions>`, the paint family, `<stroke>`, `<shadow>`, `<effect>`, `<animation>`, `<keyframeTrack>`/`<keyframe>`, `<html>`/`<surface>`. `mask` is a `<rect>` prop, not a tag.
@@ -90,8 +91,13 @@ Conventions worth repeating when migrating the next panel:
 - A picker that previews on hover writes the trait alone, so while it is open the trait holds the hover and not the authored value. Keep the authored one in a signal seeded at mount (panels remount per selection) and move it only on a selection: it is what the control displays *and* what the close restores. Reading it back off the trait restores the hover instead, permanently. `AppearanceSettings`' blend mode and the text panel's family/weight both do this.
 - What a `<text>` says is its children, not a prop, so it travels as its own edit end to end: `editor.editText` -> `TextEdit` -> the writer's `SourceSet.text` -> `RuntimeDocument.setText`. The document keeps the reconciler's text nodes: the first says all of it and the rest say nothing, so a project that later re-renders one of them still lands.
 - A text is the one element whose box is optional (`Size` absent = sized to its glyphs), so the text panel's "Grow" toggle is `width`/`height` being authored at all. Unsetting a bound drops `Size` only once neither is left, which is why the toggle writes `width` before `height`.
+- `Cache`'s lists are derived like `Computed` (store writes, no events), so a panel listing sub-entities reads them through `useDerived` too. Keep the empty fallback a module constant: a fresh `[]` per sample defeats the memo's comparison.
+- Reordering siblings is a swap through `editor.reparent`, not an index write: `ItemIndex` is the document's to assign (`insertNode` renumbers the whole sibling list), and a move needs an anchor, since `reparent` appends without one and refuses an append into the parent the element already has. So "move later" moves the *next* sibling in front of this one.
+- A shared control that knows *which* prop it edits keyframes it itself, off an `Entity` (`ColorOpacityPicker`'s `keyframeTarget`, now koota's); only a control that cannot know takes the diamond as a slot (`ControlledTextField`, `ColorOpacityRow`). Moving one of these moves it whole: the bitecs panels still calling it lose their diamonds until they migrate, and its recent-colors palette now queries the koota world for them too (both providers are mounted).
 
-Still on bitecs: transform, caption-settings, fills, strokes, shadows, effects, animations, transition, masks, audio, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
+Still on bitecs: transform, caption-settings, fills, shadows, effects, animations, transition, masks, audio, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
+
+The stroke panel moved with the model: `StrokeStyle` is the stroke's, not the node's (as `<stroke width join cap miterLimit>` always was), so Weight/Join/Miter sit under each stroke's row instead of once per node. `<stroke>` is a solid paint that takes no paint children, so its picker is the color one alone, with no gradient or asset tab and no `FillPicker` behind it. `cap` still has no control (it shows only on open paths, and there are no icons for it).
 
 Two deliberate departures from the old text panel: `letterSpacing` is shown in px (the trait's unit and the prop's; the bitecs panel showed the same number as a percentage), and the font a text is set in — family, weight, size — is written out plainly rather than unset at its default, since a font is what a text *is* and not a modifier of it. `<captions>` has no host yet, so the caption half of the panel is unreachable and was carried over as it stood.
 

@@ -178,7 +178,6 @@ export function ShadowInspector(props: ShadowInspectorProps) {
             onOpacityChange={updateOpacity}
             onBeginChange={(label) => world.history.startTransaction(label)}
             onEndChange={() => world.history.commitTransaction()}
-            keyframeTarget={props.shadowEid}
           />
         </FloatingInspectorContent>
       </FloatingInspector>

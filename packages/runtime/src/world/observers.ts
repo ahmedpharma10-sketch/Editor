@@ -28,7 +28,7 @@ import {
 	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
 } from '../traits';
 import { getParentEntity } from '../queries/hierarchy';
-import { rebuildCaches, refileMask } from '../actions/cache';
+import { evictFromCaches, rebuildCaches, refileMask } from '../actions/cache';
 import { disposeDecoders, disconnectAudioBus } from '../media/dispose';
 import {
 	reactToChildAttached, reactToChildDetached, reactToAssetChange,
@@ -62,10 +62,14 @@ export function observeWorld(world: World): () => void {
 	// still present in the old parent's queries, so it is excluded by hand.
 	// Destroy cascades parent-first through ChildOf (autoDestroy 'orphan'),
 	// so a descendant's parent may already be gone: nothing to rebuild then.
+	// The eviction follows the rebuild rather than replacing it: a destroy has
+	// already taken the child's traits, so the rebuild files nothing and the
+	// child would stay in the lists it was in.
 	subs.push(world.onRemove(ChildOf('*'), (child, parent) => {
 		disconnectAudioBus(world, child);
 		if (!world.has(parent)) return;
 		rebuildCaches(world, child, parent, child);
+		evictFromCaches(world, child, parent);
 		reactToChildDetached(world, child);
 	}));
 

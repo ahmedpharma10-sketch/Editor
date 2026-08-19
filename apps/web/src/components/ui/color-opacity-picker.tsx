@@ -4,7 +4,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
+import { Keyframe } from "@/components/ui/keyframe";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { checkerboardStyle } from "@/components/ui/opacity-swatch";
 import {
@@ -30,10 +30,11 @@ import {
   type Accessor,
   type Setter,
 } from "solid-js";
-import { useEngine } from "@/context/engine";
-import { useQuery } from "@/components/engine/hooks";
-import { DEFAULT_BACKGROUND } from "@/components/engine";
+import { useQuery } from "@diffusionstudio/koota-solid";
+import { Color, DEFAULT_BACKGROUND } from "@diffusionstudio/runtime";
 import { toast } from "somoto";
+
+import type { Entity } from "koota";
 
 const COLOR_TYPES = ["Hex", "HSL", "RGB"] as const;
 type ColorType = (typeof COLOR_TYPES)[number];
@@ -52,7 +53,8 @@ export type ColorOpacityPickerProps = {
   onBeginChange?(label: string): void;
   onEndChange?(): void;
   withoutOpacity?: boolean;
-  keyframeTarget?: number;
+  /** The entity the sliders keyframe, when what they edit is a prop of one. */
+  keyframeTarget?: Entity;
 };
 
 function getSliderRatio(
@@ -77,15 +79,12 @@ export function ColorOpacityPicker(props: ColorOpacityPickerProps) {
   let hueRef: HTMLDivElement | undefined;
   let opacityRef: HTMLDivElement | undefined;
 
-  const { world } = useEngine();
-  const c = world.components;
-
-  const colorEntities = useQuery([c.Color]);
+  const colorEntities = useQuery(Color);
 
   const documentColors = createMemo(() => {
     const colors = new Set<number>();
-    for (const eid of colorEntities()) {
-      colors.add(c.Color[eid] ?? DEFAULT_BACKGROUND); // fallback is background color
+    for (const entity of colorEntities()) {
+      colors.add(entity.get(Color)?.value ?? DEFAULT_BACKGROUND); // fallback is background color
       if (colors.size >= 36) break;
     }
     return Array.from(colors);

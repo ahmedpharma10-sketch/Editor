@@ -35,7 +35,6 @@ export function SolidFillPicker(props: SolidColorPickerProps) {
       onOpacityChange={updateOpacity}
       onBeginChange={(label) => world.history.startTransaction(label)}
       onEndChange={() => world.history.commitTransaction()}
-      keyframeTarget={props.fillEid}
     />
   );
 }

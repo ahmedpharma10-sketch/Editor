@@ -97,6 +97,35 @@ export function rebuildCaches(world: World, entity: Entity, parent: Entity | nul
 	}
 }
 
+/** Every list a `Cache` keeps, for the paths that cannot ask which one applies. */
+const CACHE_LISTS = [
+	'children', 'fills', 'shadows', 'strokes', 'effects',
+	'textRanges', 'masks', 'keyframeTracks', 'keyframes', 'animations',
+] as const;
+
+/**
+ * Drop `entity` from every list its parent kept it in. The detach path cannot
+ * leave this to `rebuildCaches`, which files by trait: a destroy strips the
+ * entity's traits *before* it fires the ChildOf removal, so by then nothing
+ * says which lists the child was in and every branch is skipped. Membership
+ * still says it, and dropping one entry needs no query and no re-sort.
+ */
+export function evictFromCaches(world: World, entity: Entity, parent: Entity | null): void {
+	if (parent === null || isStage(parent) || !parent.has(Cache)) return;
+
+	const cache = store(world, Cache);
+	const pid = parent.id();
+
+	for (const list of CACHE_LISTS) {
+		const members = cache[list][pid];
+		// A fresh array, not a splice: the lists are read as derived state, and
+		// a new identity is the only signal a reader gets that one changed.
+		if (members?.includes(entity)) {
+			cache[list][pid] = members.filter((member) => member !== entity);
+		}
+	}
+}
+
 /**
  * Move an attached geometry between its parent's `children` and `masks` when
  * its `IsMask` tag is toggled in place. `rebuildCaches` files by trait on
