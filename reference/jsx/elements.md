@@ -44,6 +44,7 @@ All visual elements accept:
 | `rotation` | `number` | `0` | Rotation in degrees. |
 | `opacity` | `number` | `1` | `0`-`1`. |
 | `cornerRadius` | `number` | `0` | Uniform corner radius, px. |
+| `cornerRadiusTopLeft`, `cornerRadiusTopRight`, `cornerRadiusBottomRight`, `cornerRadiusBottomLeft` | `number` | `cornerRadius` | Per-corner radius, px; a corner without one takes `cornerRadius`, so `cornerRadius={20} cornerRadiusTopLeft={0}` rounds three corners. |
 | `start`, `end`, `sourceIn`, `sourceOut` | `Time` | see [timing.md](./timing.md) | Temporal placement. |
 | `transition` | `TransitionSpec \| null` | none | Transition into the next clip; direct children of `<sequence>` only (see [transitions.md](./transitions.md)). |
 

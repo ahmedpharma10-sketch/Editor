@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/floating-inspector";
 import { Icon } from "@/components/ui/icon";
 import { IncrementDecrementControl } from "@/components/ui/increment-decrement-control";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { SliderInput } from "@/components/ui/slider-input";
 import { ControlledTextField } from "@/components/ui/text-field";
 import { useEngine } from "@/context/engine";

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useEngine } from "@/context/engine";
 import { useEntityState, setComponent, useEntityTag, removeComponent, removeKeyframeTrack } from "@/components/engine";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { SegmentedIconTabs } from "@/components/ui/segmented-icon-tabs";
 import { hasComponent } from "bitecs";
 

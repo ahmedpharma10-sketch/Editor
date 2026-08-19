@@ -25,7 +25,7 @@ import { useEngine } from "@/context/engine";
 import { useEntityState, getParentEntity, setComponent } from "@/components/engine";
 import { createStoredSignal } from "@/lib/store";
 import { store } from "@/init";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { hasComponent } from "bitecs";
 
 

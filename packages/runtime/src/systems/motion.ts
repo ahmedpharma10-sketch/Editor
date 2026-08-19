@@ -17,44 +17,52 @@ import { AnimationType, AnimationPhase } from '../constants';
 import { revealChars, revealWords, scrambleChars } from '../utils/text-motion';
 import { getSourceWindow } from '../utils/time';
 
-import type { Entity, World } from 'koota';
+import type { Entity, Trait, TraitRecord, World } from 'koota';
 
 /**
  * Reset an entity's Computed values back to its authored trait values.
- * Motion (animations + keyframes) then layers on top each frame.
+ * Motion (animations + keyframes) then layers on top each frame. A trait
+ * the entity does not carry counts as its default: koota leaves store slots
+ * as they were when a trait is removed, so the slot alone cannot say.
+ * `ignore` treats one more trait as absent, for onRemove handlers (koota
+ * fires them before the trait is cleared).
  */
-export function resetAnimatedValues(world: World, entity: Entity | null) {
+export function resetAnimatedValues(world: World, entity: Entity | null, ignore?: Trait) {
 	if (entity === null) return;
 
 	const computed = store(world, Computed);
 	const eid = entity.id();
+	const read = <T extends Trait, K extends keyof TraitRecord<T>>(trait: T, field: K, fallback: TraitRecord<T>[K]): TraitRecord<T>[K] => {
+		if (trait === ignore || !entity.has(trait)) return fallback;
+		return (store(world, trait) as Record<K, TraitRecord<T>[K][]>)[field][eid] ?? fallback;
+	};
 
-	computed.positionX[eid] = store(world, Position).x[eid] ?? 0;
-	computed.positionY[eid] = store(world, Position).y[eid] ?? 0;
-	computed.offsetX[eid] = store(world, Offset).x[eid] ?? 0;
-	computed.offsetY[eid] = store(world, Offset).y[eid] ?? 0;
-	computed.rotation[eid] = store(world, Rotation).value[eid] ?? 0;
-	computed.skewX[eid] = store(world, Skew).x[eid] ?? 0;
-	computed.skewY[eid] = store(world, Skew).y[eid] ?? 0;
-	computed.opacity[eid] = store(world, Opacity).value[eid] ?? 1;
-	computed.color[eid] = store(world, Color).value[eid] ?? 0;
-	computed.blur[eid] = store(world, Blur).value[eid] ?? 0;
-	computed.volume[eid] = store(world, Volume).value[eid] ?? 0;
-	computed.strokeWidth[eid] = store(world, StrokeStyle).width[eid] ?? 1;
-	computed.cornerRadius[eid] = store(world, CornerRadius).value[eid] ?? 0;
-	computed.cornerRadiusTopLeft[eid] = store(world, MixedCornerRadius).topLeft[eid] ?? 0;
-	computed.cornerRadiusTopRight[eid] = store(world, MixedCornerRadius).topRight[eid] ?? 0;
-	computed.cornerRadiusBottomRight[eid] = store(world, MixedCornerRadius).bottomRight[eid] ?? 0;
-	computed.cornerRadiusBottomLeft[eid] = store(world, MixedCornerRadius).bottomLeft[eid] ?? 0;
-	computed.stopOffset[eid] = store(world, ColorStop).offset[eid] ?? 0;
-	computed.chars[eid] = store(world, Chars).value[eid] ?? '';
+	computed.positionX[eid] = read(Position, 'x', 0);
+	computed.positionY[eid] = read(Position, 'y', 0);
+	computed.offsetX[eid] = read(Offset, 'x', 0);
+	computed.offsetY[eid] = read(Offset, 'y', 0);
+	computed.rotation[eid] = read(Rotation, 'value', 0);
+	computed.skewX[eid] = read(Skew, 'x', 0);
+	computed.skewY[eid] = read(Skew, 'y', 0);
+	computed.opacity[eid] = read(Opacity, 'value', 1);
+	computed.color[eid] = read(Color, 'value', 0);
+	computed.blur[eid] = read(Blur, 'value', 0);
+	computed.volume[eid] = read(Volume, 'value', 0);
+	computed.strokeWidth[eid] = read(StrokeStyle, 'width', 1);
+	computed.cornerRadius[eid] = read(CornerRadius, 'value', 0);
+	computed.cornerRadiusTopLeft[eid] = read(MixedCornerRadius, 'topLeft', 0);
+	computed.cornerRadiusTopRight[eid] = read(MixedCornerRadius, 'topRight', 0);
+	computed.cornerRadiusBottomRight[eid] = read(MixedCornerRadius, 'bottomRight', 0);
+	computed.cornerRadiusBottomLeft[eid] = read(MixedCornerRadius, 'bottomLeft', 0);
+	computed.stopOffset[eid] = read(ColorStop, 'offset', 0);
+	computed.chars[eid] = read(Chars, 'value', '');
 
-	if (entity.has(UniformScale)) {
-		computed.scaleX[eid] = store(world, UniformScale).value[eid] ?? 1;
-		computed.scaleY[eid] = store(world, UniformScale).value[eid] ?? 1;
+	if (entity.has(UniformScale) && ignore !== UniformScale) {
+		computed.scaleX[eid] = read(UniformScale, 'value', 1);
+		computed.scaleY[eid] = read(UniformScale, 'value', 1);
 	} else {
-		computed.scaleX[eid] = store(world, Scale).x[eid] ?? 1;
-		computed.scaleY[eid] = store(world, Scale).y[eid] ?? 1;
+		computed.scaleX[eid] = read(Scale, 'x', 1);
+		computed.scaleY[eid] = read(Scale, 'y', 1);
 	}
 }
 

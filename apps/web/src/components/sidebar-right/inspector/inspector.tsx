@@ -23,11 +23,11 @@ import { BackgroundSettings } from "./background";
 import { SceneTemplatePanel } from "./scene-template";
 import { AssetInfoPanel } from "./asset-info";
 import { TimeSettings } from "./time";
+import { AppearanceSettings } from "./appearance";
 // import { Alignment } from "./alignment";
 // import { ExportPanel } from "./export";
 // import { TransformSettings } from "./transform";
 // import { LayoutPanel } from "./layout";
-// import { AppearanceSettings } from "./appearance";
 // import { CaptionSettings } from "./caption-settings";
 // import { TextPanel } from "./text";
 // import { FillsSettings } from "./fills";
@@ -137,9 +137,9 @@ export function Inspector() {
             <LayoutPanel selection={nodes()} />
           </Show> */}
 
-          {/* <Show when={includesTarget("shape", "text", "scene", "caption", "group", "audio", "mask")}>
+          <Show when={includesTarget("shape", "text", "scene", "caption", "group", "audio", "mask")}>
             <AppearanceSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("caption")}>
             <CaptionSettings selection={nodes()} />

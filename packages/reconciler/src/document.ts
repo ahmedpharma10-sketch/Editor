@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Chars, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Chars, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
@@ -172,7 +172,7 @@ const TRANSITION_TYPES: Record<string, TransitionType> = {
 };
 
 /** The canvas composite operations, spelled camelCase like the other enums. */
-const BLEND_MODES: Record<string, BlendModeType> = {
+export const BLEND_MODES: Record<string, BlendModeType> = {
 	sourceOver: BlendModeType.SOURCE_OVER,
 	multiply: BlendModeType.MULTIPLY,
 	screen: BlendModeType.SCREEN,
@@ -208,12 +208,30 @@ const TRACK_PROPERTIES: Record<string, PropertyPath> = {
 	scaleY: 'scale.y',
 	opacity: 'opacity',
 	cornerRadius: 'vertexRadius',
+	cornerRadiusTopLeft: 'mixedVertexRadius.topLeft',
+	cornerRadiusTopRight: 'mixedVertexRadius.topRight',
+	cornerRadiusBottomRight: 'mixedVertexRadius.bottomRight',
+	cornerRadiusBottomLeft: 'mixedVertexRadius.bottomLeft',
 	volume: 'volume',
 	color: 'color',
 	offset: 'stop.offset',
 	blur: 'blur',
 	value: 'effect.value',
 };
+
+/**
+ * The runtime property path a `<keyframeTrack property>` under `holder`
+ * drives, or undefined for a name no track can take. `width` depends on the
+ * holder: a stroke's is its line width.
+ */
+export function trackPropertyPath(holder: Entity | null, property: string): PropertyPath | undefined {
+	const path = TRACK_PROPERTIES[property];
+	if (path === 'width' && holder?.has(Stroke)) return 'stroke.width';
+	return path;
+}
+
+/** The `<rect>` props of the per-corner radii, in the trait's (CSS) order. */
+const CORNER_PROPS = ['cornerRadiusTopLeft', 'cornerRadiusTopRight', 'cornerRadiusBottomRight', 'cornerRadiusBottomLeft'] as const;
 
 /**
  * Named easings as the descriptors the runtime (and the editor's
@@ -331,8 +349,13 @@ function syncSurfaceSize(world: World, holder: Entity): void {
 	}
 }
 
+/**
+ * A numeric prop's value, or undefined for none. A boolean is none, not 0
+ * or 1: `false` is how an editor unsets a prop (the writer spells it as the
+ * attribute's absence), and a number prop has no true.
+ */
 function toNumber(value: unknown) {
-	if (value === undefined || value === null) {
+	if (value === undefined || value === null || typeof value === 'boolean') {
 		return undefined;
 	}
 
@@ -674,11 +697,19 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				const radius = toNumber(value);
 				if (radius === undefined) {
 					entity.remove(CornerRadius);
-					return;
+				} else {
+					entity.add(CornerRadius);
+					entity.set(CornerRadius, { value: radius });
 				}
-
-				entity.add(CornerRadius);
-				entity.set(CornerRadius, { value: radius });
+				// The corners without a radius of their own take this one.
+				this.syncCornerRadii(entity);
+				return;
+			}
+			case 'cornerRadiusTopLeft':
+			case 'cornerRadiusTopRight':
+			case 'cornerRadiusBottomRight':
+			case 'cornerRadiusBottomLeft': {
+				this.syncCornerRadii(entity);
 				return;
 			}
 			case 'blendMode': {
@@ -1022,9 +1053,28 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 	 * Solid sets props before the track has a parent.
 	 */
 	private resolveTrackProperty(track: Entity, property: unknown): void {
-		let path = typeof property === 'string' ? TRACK_PROPERTIES[property] : undefined;
-		if (path === 'width' && getParentEntity(track)?.has(Stroke)) path = 'stroke.width';
+		const path = typeof property === 'string' ? trackPropertyPath(getParentEntity(track), property) : undefined;
 		track.set(KeyframeTrack, { property: path ?? '' });
+	}
+
+	/**
+	 * Derives `MixedCornerRadius` from the five radius props as authored: it
+	 * is present while any corner has a radius of its own, and a corner
+	 * without one takes `cornerRadius`. Recomputed whole on every one of the
+	 * five, so the order Solid sets them in does not matter.
+	 */
+	private syncCornerRadii(entity: Entity): void {
+		const props = entity.get(Authored)?.props ?? {};
+		const corners = CORNER_PROPS.map((name) => toNumber(props[name]));
+		if (corners.every((corner) => corner === undefined)) {
+			entity.remove(MixedCornerRadius);
+			return;
+		}
+
+		const uniform = toNumber(props.cornerRadius) ?? 0;
+		const [topLeft, topRight, bottomRight, bottomLeft] = corners.map((corner) => corner ?? uniform);
+		entity.add(MixedCornerRadius);
+		entity.set(MixedCornerRadius, { topLeft, topRight, bottomRight, bottomLeft });
 	}
 
 	/**

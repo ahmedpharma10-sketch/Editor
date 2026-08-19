@@ -5,7 +5,7 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
 import { Icon } from "@/components/ui/icon";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { OpacitySwatch } from "@/components/ui/opacity-swatch";
 import { useEngine } from "@/context/engine";
 import { mergeColorWithOpacity } from "@/utils";

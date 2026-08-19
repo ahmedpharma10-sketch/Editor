@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ControlledTextField } from "@/components/ui/text-field";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { OpacitySwatch } from "@/components/ui/opacity-swatch";
 import {
   FloatingInspector,

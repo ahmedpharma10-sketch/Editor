@@ -8,7 +8,7 @@ import { ControlledTextField } from "@/components/ui/text-field";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { useEntityState, useEntityTag, isScene, addComponent, removeComponent, setComponent, resizeEntity } from "@/components/engine";
 import {
   Checkbox,

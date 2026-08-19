@@ -20,7 +20,7 @@ import { ControlledTextField } from "@/components/ui/text-field";
 import { IncrementDecrementControl } from "@/components/ui/increment-decrement-control";
 import { useEntityState, setComponent } from "@/components/engine";
 import { useEngine } from "@/context/engine";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 
 
 type ShadowInspectorProps = {

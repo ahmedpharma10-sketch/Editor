@@ -13,3 +13,4 @@ export * from './input';
 export * from './hud';
 export * from './library';
 export * from './asset-actions';
+export * from './keyframes';

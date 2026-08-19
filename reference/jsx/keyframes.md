@@ -20,7 +20,7 @@ A `<keyframeTrack>` animates one prop of the element holding it over the node's 
 | `<keyframeTrack>` | `property` (**required**) | The prop of the holding element it drives, by name. One track per prop. |
 | `<keyframe>` | `time` (**required**), `value` (**required**), `easing` | One keyframe: node-local time in any [time format](./timing.md#time-formats), the value at that time (a number, or any CSS color on a `color` track), and the easing into the next keyframe. |
 
-Animatable props (`property`): `x`, `y`, `offsetX`, `offsetY`, `width`, `height`, `rotation`, `opacity`, `cornerRadius`, `volume`, `color`, `offset`, `blur`, `value`. Whose prop is the track's holder's: a track under a [paint or color stop](./paints.md) animates the paint (`color`, `opacity`, `offset`), under a `<stroke>` the stroke (`width` is the line width), under a `<shadow>` the shadow (`blur`, `offsetX`, `offsetY`), under an `<effect>` its `value`. For preset in/out effects (fade, slides, text reveals, ...) use [`<animation>`](./animations.md) instead.
+Animatable props (`property`): `x`, `y`, `offsetX`, `offsetY`, `width`, `height`, `rotation`, `scale`, `scaleX`, `scaleY`, `opacity`, `cornerRadius`, `cornerRadiusTopLeft`, `cornerRadiusTopRight`, `cornerRadiusBottomRight`, `cornerRadiusBottomLeft`, `volume`, `color`, `offset`, `blur`, `value`. Whose prop is the track's holder's: a track under a [paint or color stop](./paints.md) animates the paint (`color`, `opacity`, `offset`), under a `<stroke>` the stroke (`width` is the line width), under a `<shadow>` the shadow (`blur`, `offsetX`, `offsetY`), under an `<effect>` its `value`. For preset in/out effects (fade, slides, text reveals, ...) use [`<animation>`](./animations.md) instead.
 
 ## Semantics
 

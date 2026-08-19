@@ -95,6 +95,10 @@ export type AnimatableProperty =
   | "scaleY"
   | "opacity"
   | "cornerRadius"
+  | "cornerRadiusTopLeft"
+  | "cornerRadiusTopRight"
+  | "cornerRadiusBottomRight"
+  | "cornerRadiusBottomLeft"
   | "volume"
   | "color"
   | "offset"
@@ -207,6 +211,14 @@ type TransformProps = PositionProps & OffsetProps & SizeProps & {
   opacity?: number;
   /** Uniform corner radius, px. */
   cornerRadius?: number;
+  /**
+   * Per-corner radius, px. A corner without one takes `cornerRadius`, so
+   * `cornerRadius={20} cornerRadiusTopLeft={0}` rounds three corners.
+   */
+  cornerRadiusTopLeft?: number;
+  cornerRadiusTopRight?: number;
+  cornerRadiusBottomRight?: number;
+  cornerRadiusBottomLeft?: number;
 };
 
 /** How an element composites, and whether it does at all. */

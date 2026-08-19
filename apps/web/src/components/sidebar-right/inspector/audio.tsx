@@ -7,7 +7,7 @@ import { ControlRow } from "@/components/ui/control-group";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ControlledTextField } from "@/components/ui/text-field";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 import { useVolumeMeter, type ChannelLevels } from "@/hooks/use-volume-meter";
 import { cx } from "@/lib/cva";
 

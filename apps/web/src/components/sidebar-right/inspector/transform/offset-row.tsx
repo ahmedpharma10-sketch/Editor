@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useEngine } from "@/context/engine";
 import { useEntityState, addComponent, setComponent } from "@/components/engine";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Keyframe } from "@/components/ui/keyframe-bitecs";
 
 
 export type OffsetRowProps = {

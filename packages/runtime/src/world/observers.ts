@@ -36,6 +36,7 @@ import {
 	bubbleTimeRangeUp,
 } from '../actions/timing';
 import { propagateSize, resolveConstraintOffsets } from '../actions/resize';
+import { resetAnimatedValues } from '../systems/motion';
 
 import type { Entity, Trait, World } from 'koota';
 
@@ -170,11 +171,14 @@ export function observeWorld(world: World): () => void {
 	// Base values for entities the motion system skips (no animation data);
 	// animated entities re-derive them every frame via resetAnimatedValues.
 	// Registered on add and change so both spawn-with-value and add-then-set
-	// arrive in Computed. Trait removal does not reset (same as bitecs).
+	// arrive in Computed. Removal re-derives from what is left (the trait
+	// being removed counts as gone), so an unset prop falls back to its
+	// default on the canvas rather than holding the last value.
 
-	const mirror = (trait: Trait, apply: (entity: Entity) => void) => {
+	const mirror = (trait: Trait, apply: (entity: Entity) => void, onRemove = true) => {
 		subs.push(world.onAdd(trait, apply));
 		subs.push(world.onChange(trait, apply));
+		if (onRemove) subs.push(world.onRemove(trait, (entity) => resetAnimatedValues(world, entity, trait)));
 	};
 
 	mirror(Position, (entity) => {
@@ -262,7 +266,7 @@ export function observeWorld(world: World): () => void {
 	// is a plain set now, so the propagation rides on the event instead.
 	mirror(Size, (entity) => {
 		propagateSize(world, entity);
-	});
+	}, false);
 
 	return () => {
 		for (const unsubscribe of subs) unsubscribe();

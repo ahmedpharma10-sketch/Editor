@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/context-menu';
 import { useEngine } from '@/context/engine';
 import { useEntityState, setComponent } from '@/components/engine';
-import { Keyframe } from '@/components/ui/keyframe';
+import { Keyframe } from '@/components/ui/keyframe-bitecs';
 
 
 type RotateRowProps = {

@@ -6,7 +6,7 @@ import { createMemo, Show } from 'solid-js';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from '@/components/ui/tooltip';
-import { Keyframe } from '@/components/ui/keyframe';
+import { Keyframe } from '@/components/ui/keyframe-bitecs';
 import { useEngine } from '@/context/engine';
 import { useECS } from '@/context/ecs';
 import { KEYFRAME_TRACK_HEIGHT } from '@/components/engine/timeline/config';
