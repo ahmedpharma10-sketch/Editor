@@ -8,16 +8,18 @@ import { ControlledTextField } from "@/components/ui/text-field";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
-import { useEntityState, useEntityTag, isScene, addComponent, removeComponent, setComponent, resizeEntity } from "@/components/engine";
+import { Keyframe } from "@/components/ui/keyframe";
 import {
   Checkbox,
   CheckboxControl,
   CheckboxInput,
   CheckboxLabel,
 } from "@/components/ui/checkbox";
-import { useEngine } from "@/context/engine";
 import { createMemo, For, Show } from "solid-js";
+import { useHas, useWorld } from "@diffusionstudio/koota-solid";
+import { ClipsContent, Computed, KeepAspectRatio, isScene } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -32,63 +34,91 @@ import {
 
 import { PRESET_CATEGORIES } from "@/lib/layout-presets";
 
+import type { Entity } from "koota";
 
 type LayoutPanelProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
 const DEFAULT_WIDTH = 1920;
 const DEFAULT_HEIGHT = 1080;
 
 export function LayoutPanel(props: LayoutPanelProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-  const eid = () => props.selection.values().next().value!;
-  const sceneSelected = createMemo(() => isScene(world, eid()));
-  const width = useEntityState(c.Computed.width, eid, 0);
-  const height = useEntityState(c.Computed.height, eid, 0);
+  const sceneSelected = createMemo(() => isScene(entity()));
+  const width = useDerived(() => entity().get(Computed)?.width ?? 0);
+  const height = useDerived(() => entity().get(Computed)?.height ?? 0);
 
-  const keepAspectRatio = useEntityTag(c.KeepAspectRatio, eid);
-  const clipsContent = useEntityTag(c.ClipsContent, eid);
+  const keepAspectRatio = useHas(entity, KeepAspectRatio);
+  const clipsContent = useHas(entity, ClipsContent);
 
   const toggleClipsContent = (checked: boolean) => {
     if (checked) {
-      addComponent(world, eid(), c.ClipsContent);
+      entity().add(ClipsContent);
     } else {
-      removeComponent(world, eid(), c.ClipsContent);
+      entity().remove(ClipsContent);
     }
   };
 
   const orientation = createMemo<"square" | "horizontal" | "vertical">(() => {
-    const currentWidth = width() ?? DEFAULT_WIDTH;
-    const currentHeight = height() ?? DEFAULT_HEIGHT;
+    const currentWidth = width() || DEFAULT_WIDTH;
+    const currentHeight = height() || DEFAULT_HEIGHT;
 
     if (currentWidth === currentHeight) return "square";
     return currentWidth > currentHeight ? "horizontal" : "vertical";
   });
 
+  /** Pins the lock to `width`×`height`, the ratio later edits keep. */
+  const lockAspectRatio = (width: number, height: number) => {
+    if (width <= 0 || height <= 0) return;
+    entity().add(KeepAspectRatio);
+    entity().set(KeepAspectRatio, { width, height });
+  };
+
+  const resize = (params: { width?: number; height?: number }) => {
+    let { width, height } = params;
+
+    const aspect = entity().get(KeepAspectRatio);
+    if (aspect && aspect.width > 0 && aspect.height > 0) {
+      const ratio = aspect.width / aspect.height;
+      if (width !== undefined) {
+        height = Math.round(width / ratio);
+      } else if (height !== undefined) {
+        width = Math.round(height * ratio);
+      }
+    }
+
+    if (width !== undefined) {
+      width = Math.round(width);
+      syncKeyframe(world, editor, entity(), "width", width);
+      editor.editProperty(entity(), "width", width);
+    }
+    if (height !== undefined) {
+      height = Math.round(height);
+      syncKeyframe(world, editor, entity(), "height", height);
+      editor.editProperty(entity(), "height", height);
+    }
+  };
+
   const handleWidthChange = (width: number) => {
-    resizeEntity(world, eid(), { width });
+    resize({ width });
   };
 
   const handleHeightChange = (height: number) => {
-    resizeEntity(world, eid(), { height });
+    resize({ height });
   };
 
   const toggleAspectRatio = () => {
     if (keepAspectRatio()) {
-      removeComponent(world, eid(), c.KeepAspectRatio);
+      entity().remove(KeepAspectRatio);
       return;
     }
 
     // Lock: snapshot current absolute dimensions
-    const width = c.Computed.width[eid()];
-    const height = c.Computed.height[eid()];
-
-    if (width > 0 && height > 0) {
-      setComponent(world, eid(), c.KeepAspectRatio, { width, height });
-    }
+    lockAspectRatio(width(), height());
   };
 
   const aspectIcon = () => {
@@ -115,25 +145,21 @@ export function LayoutPanel(props: LayoutPanelProps) {
     return "Square";
   };
 
-  const toggleAspectOrientation = () => {
-    const currentWidth = width() ?? DEFAULT_WIDTH;
-    const currentHeight = height() ?? DEFAULT_HEIGHT;
-
-    setComponent(world, eid(), c.KeepAspectRatio, {
-      width: currentHeight,
-      height: currentWidth,
-    });
-
-    // Swap width and height
-    resizeEntity(world, eid(), {
-      width: currentHeight,
-      height: currentWidth
-    });
+  /** A size chosen outright (orientation swap, preset): the lock follows it rather than fighting it. */
+  const setSize = (width: number, height: number) => {
+    if (keepAspectRatio()) {
+      lockAspectRatio(width, height);
+    }
+    resize({ width, height });
   };
 
-  const handleResizeEntity = (width: number, height: number) => {
-    resizeEntity(world, eid(), { width, height });
-  }
+  const toggleAspectOrientation = () => {
+    const currentWidth = width() || DEFAULT_WIDTH;
+    const currentHeight = height() || DEFAULT_HEIGHT;
+
+    // Swap width and height
+    setSize(currentHeight, currentWidth);
+  };
 
   return (
     <PanelSection
@@ -165,7 +191,7 @@ export function LayoutPanel(props: LayoutPanelProps) {
                         <DropdownMenuGroupLabel>{category.label}</DropdownMenuGroupLabel>
                         <For each={category.items}>{
                           (item) => (
-                            <DropdownMenuItem {...item} onSelect={() => handleResizeEntity(item.width, item.height)}>
+                            <DropdownMenuItem {...item} onSelect={() => setSize(item.width, item.height)}>
                               <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
                                 {item.label}
                               </span>
@@ -231,7 +257,7 @@ export function LayoutPanel(props: LayoutPanelProps) {
           limitEvents
           skipEmpty
           sliderEnabled
-          keyframe={<Keyframe target={eid()} property="width" />}
+          keyframe={<Keyframe target={entity()} property="width" />}
         />
         <ControlledTextField
           class="group"
@@ -243,7 +269,7 @@ export function LayoutPanel(props: LayoutPanelProps) {
           limitEvents
           skipEmpty
           sliderEnabled
-          keyframe={<Keyframe target={eid()} property="height" />}
+          keyframe={<Keyframe target={entity()} property="height" />}
         />
       </ControlRow>
 
