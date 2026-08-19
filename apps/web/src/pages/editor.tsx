@@ -16,6 +16,7 @@ import { useWorld } from '@diffusionstudio/koota-solid';
 import { mount } from '@diffusionstudio/reconciler';
 import { getDocumentEditor } from '@/engine/editor';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
+import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
 import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
 import { compileProject, watchProject, projectDir } from '@/projects/host';
@@ -45,6 +46,8 @@ export function EditorPage() {
 
     // The library first: a mounted project's `src` values name its assets.
     const library = attachLibrary(world, dir);
+    // The project's own settings (package.json `diffusion`), next to the scene.
+    const config = attachProjectConfig(world, dir);
 
     const unmount = (): void => {
       // Before the entities go: what the editor changed is still owed to the
@@ -89,6 +92,10 @@ export function EditorPage() {
       if (isLibraryFile(path)) {
         library.load();
       } else {
+        // package.json is the config and the record (`main`) in one, so a
+        // hand edit to it reloads both; the app's own config writes never
+        // reach here (main keeps them from the watcher).
+        if (isProjectConfigFile(path)) config.load();
         loadProject();
       }
     });
@@ -97,6 +104,7 @@ export function EditorPage() {
       disposed = true;
       unwatch();
       unmount();
+      config.dispose();
       library.dispose();
     });
   });

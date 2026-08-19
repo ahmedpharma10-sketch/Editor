@@ -101,6 +101,16 @@ export function writeProject(dir: string, edits: SourceEdit[]): Promise<WriteRes
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_WRITE, { dir, edits });
 }
 
+/** The project's config (the `diffusion` field of its package.json), unparsed; null when absent. */
+export function readProjectConfig(dir: string): Promise<unknown> {
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_CONFIG_READ, { dir });
+}
+
+/** Replaces the project's config (null removes the field). Kept from the watcher like `writeProject`. */
+export function writeProjectConfig(dir: string, config: unknown): Promise<void> {
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_CONFIG_WRITE, { dir, config });
+}
+
 /**
  * Watches a project folder and calls `onChange` (debounced) when a file
  * inside it changes. Returns the unwatch function.

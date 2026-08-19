@@ -3,8 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import type { VideoCodec, AudioCodec } from "mediabunny";
-import type { ContainerFormat } from "@/components/engine/encode/types";
-import type { ExportConfig } from "./export-progress";
+import type { ContainerFormat, ExportConfig as ProjectExportConfig } from "@/engine/project-config";
+
+/** What an export is made with: the project's export config less the template label. */
+export type ExportConfig = Omit<ProjectExportConfig, "template">;
 
 export type ExportTemplate = {
   id: string;

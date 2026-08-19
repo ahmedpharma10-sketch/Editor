@@ -6,7 +6,7 @@ import { ControlScrollArea } from "@/components/ui/control-scrollarea";
 import { Show, createMemo } from "solid-js";
 import {
   ToolType,
-  // getParentNode,
+  getParentNode,
   isAdjustmentLayer,
   isAudio,
   isCaption,
@@ -25,7 +25,7 @@ import { AssetInfoPanel } from "./asset-info";
 import { TimeSettings } from "./time";
 import { AppearanceSettings } from "./appearance";
 import { Alignment } from "./alignment";
-// import { ExportPanel } from "./export";
+import { ExportPanel } from "./export";
 // import { TransformSettings } from "./transform";
 // import { LayoutPanel } from "./layout";
 // import { CaptionSettings } from "./caption-settings";
@@ -78,8 +78,8 @@ export function Inspector() {
   const { asset } = useAssetSelection();
 
   // For ExportPanel (root scenes only) and TransitionSettings (sequence items).
-  // const parent = createMemo(() => getParentNode(first()));
-  // const isNested = createMemo(() => parent() !== null);
+  const parent = createMemo(() => getParentNode(first()));
+  const isNested = createMemo(() => parent() !== null);
   // const isSequenceChild = createMemo(() => {
   //   const entity = parent();
   //   return entity !== null && isSequence(entity);
@@ -117,9 +117,9 @@ export function Inspector() {
             <Alignment />
           </Show>
 
-          {/* <Show when={includesTarget("scene") && !isNested()}>
+          <Show when={includesTarget("scene") && !isNested()}>
             <ExportPanel selection={nodes()} />
-          </Show> */}
+          </Show>
 
           <Show when={includesTarget("stage")}>
             <BackgroundSettings />

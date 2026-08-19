@@ -4,9 +4,8 @@
 
 import type { StreamTargetChunk } from 'mediabunny';
 
-// The container format is part of the persisted document model (the
-// ExportSettings trait), so the runtime owns the type.
-export type { ContainerFormat } from '@diffusionstudio/runtime';
+/** Container format of the output file. */
+export type ContainerFormat = 'mp4' | 'webm' | 'ogg' | 'mov';
 
 // Minimal FileSystemFileHandle-shaped target
 export interface WritableFileTarget {

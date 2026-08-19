@@ -12,6 +12,7 @@
 import { trait } from 'koota';
 
 import type { CanvasPointerEvent, Point } from '@diffusionstudio/runtime';
+import type { ProjectConfig as ProjectConfigStore } from './project-config';
 
 export type PointerPhase = 'pressed' | 'lifted';
 
@@ -70,3 +71,10 @@ export const PointerEvents = trait({ queue: () => [] as CanvasPointerEvent[] });
  * being looked at is editor state, not something the JSX says.
  */
 export const AssetSelection = trait({ id: null as string | null });
+
+/**
+ * The config of the project on disk (its package.json `diffusion` field),
+ * attached while a project is open; see `./project-config`. The handle only,
+ * like Library: the values are its own reactive state.
+ */
+export const ProjectConfig = trait(() => null as ProjectConfigStore | null);

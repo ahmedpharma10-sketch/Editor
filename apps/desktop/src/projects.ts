@@ -424,6 +424,32 @@ ${text}`, "utf8");
   await rename(temp, path);
 }
 
+// ---------------------------------------------------------------------------
+// Config
+
+/** The package.json field the project's config lives under. */
+const CONFIG_FIELD = "diffusion";
+
+/** The project's config (package.json `diffusion`), or null when there is none. */
+export async function readConfig(dir: string): Promise<unknown> {
+  const pkg = await readPackage(dir);
+  return pkg?.[CONFIG_FIELD] ?? null;
+}
+
+/**
+ * Replaces the project's config in its package.json (removes the field for
+ * null), leaving the rest of the record alone. The watcher is told to keep
+ * quiet about it, like the manifest: the app already shows these values.
+ */
+export async function writeConfig(dir: string, config: unknown): Promise<void> {
+  const pkg = (await readPackage(dir)) ?? packageJson(basename(dir), basename(dir));
+  const next: PackageJson = { ...pkg };
+  if (config === null || config === undefined) delete next[CONFIG_FIELD];
+  else next[CONFIG_FIELD] = config;
+  markSelfWrite(dir, "package.json");
+  await writePackage(dir, next);
+}
+
 /** Entries of a directory; [] when it is missing or not a directory. */
 export async function listEntries(dir: string, source: string): Promise<FsEntry[]> {
   const path = sourcePath(dir, source);

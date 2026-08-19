@@ -52,6 +52,8 @@ export const MAIN_CHANNELS = {
   PROJECTS_UNWATCH: "projects:unwatch",
   PROJECTS_MANIFEST_READ: "projects:manifest-read",
   PROJECTS_MANIFEST_WRITE: "projects:manifest-write",
+  PROJECTS_CONFIG_READ: "projects:config-read",
+  PROJECTS_CONFIG_WRITE: "projects:config-write",
   PROJECTS_FS_LIST: "projects:fs-list",
   PROJECTS_FS_STAT: "projects:fs-stat",
   PROJECTS_FS_REMOVE: "projects:fs-remove",
@@ -149,6 +151,11 @@ export type MainRequestMap = {
   // The asset manifest (`assets.yml`) as plain data; null when there is none.
   [MAIN_CHANNELS.PROJECTS_MANIFEST_READ]: { request: { dir: string }; response: unknown };
   [MAIN_CHANNELS.PROJECTS_MANIFEST_WRITE]: { request: { dir: string; manifest: unknown }; response: void };
+  // The project's config: the `diffusion` field of its package.json, as
+  // parsed (null when absent). The renderer owns its shape; see
+  // `projects/config` in the web app.
+  [MAIN_CHANNELS.PROJECTS_CONFIG_READ]: { request: { dir: string }; response: unknown };
+  [MAIN_CHANNELS.PROJECTS_CONFIG_WRITE]: { request: { dir: string; config: unknown }; response: void };
   // Project file system, for the asset library. `source` is project-relative
   // or absolute; `path` is always project-relative. Writes stream through the
   // FILE_WRITE_* channels (which create parent directories).

@@ -6,9 +6,6 @@ import { trait } from 'koota';
 
 import { GeometryType, PaintType, CaptionType, CaptionAlign } from '../constants';
 
-import type { VideoCodec, AudioCodec } from 'mediabunny';
-import type { ContainerFormat } from '../capture/format';
-
 // Geometric primitive: RECT or TEXT (see GeometryType). Other node-like roles
 // (group, audio, scene, caption) are layered on top via tag traits.
 export const Geometry = trait({ value: GeometryType.RECT as GeometryType });
@@ -93,17 +90,4 @@ export const Caption = trait({
 	type: CaptionType.CLASSIC as CaptionType,
 	colors: () => [] as number[],
 	verticalAlign: undefined as CaptionAlign | undefined, // unset = the preset's default
-});
-
-export const ExportSettings = trait({
-	templateId: null as string | null,
-	format: undefined as ContainerFormat | undefined,
-	videoEnabled: undefined as boolean | undefined,
-	videoCodec: undefined as VideoCodec | undefined,
-	videoBitrate: undefined as number | undefined,
-	videoFps: undefined as number | undefined,
-	videoResolution: undefined as number | undefined,
-	audioEnabled: undefined as boolean | undefined,
-	audioCodec: undefined as AudioCodec | undefined,
-	audioSampleRate: undefined as number | undefined,
 });
