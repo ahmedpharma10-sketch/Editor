@@ -20,7 +20,7 @@ import {
 import { useSelection, useTool } from "@/engine/hooks";
 import { InspectorHeader } from "./inspector-header";
 import { BackgroundSettings } from "./background";
-// import { SceneTemplatePanel } from "./scene-template";
+import { SceneTemplatePanel } from "./scene-template";
 // import { Alignment } from "./alignment";
 // import { ExportPanel } from "./export";
 // import { TimeSettings } from "./time";
@@ -114,9 +114,9 @@ export function Inspector() {
       <InspectorHeader />
       <Show when={selectionHash()} keyed>
         <ControlScrollArea class="flex-1 min-h-0">
-          {/* <Show when={includesTarget("scene-tool")}>
+          <Show when={includesTarget("scene-tool")}>
             <SceneTemplatePanel />
-          </Show> */}
+          </Show>
 
           {/* <Show when={nodes().length > 1}>
             <Alignment />

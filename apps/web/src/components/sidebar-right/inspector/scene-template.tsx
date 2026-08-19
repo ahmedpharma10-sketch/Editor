@@ -5,46 +5,38 @@
 import { For, Show, createSignal } from "solid-js";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
-import { useEngine } from "@/context/engine";
-import { PaintType, GeometryType, ToolType, createEntity, switchActiveScene, addComponent, appendChild, setComponent, resizeEntity } from "@/components/engine";
-import { screenToWorld } from "@/components/engine";
-import { getNextName } from "@/components/engine";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Scene } from "@diffusionstudio/reconciler";
+import { Root, Source, Tool, ToolType, getNextName, getViewport, screenToWorld } from "@diffusionstudio/runtime";
+import { useEditor } from "@/engine/hooks";
 
 import { PRESET_CATEGORIES, type LayoutPresetCategory, type LayoutPreset } from "@/lib/layout-presets";
 
 
 export function SceneTemplatePanel() {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
 
   const createScene = (preset: LayoutPreset) => {
-    // Place scene near center of viewport
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    const worldCenter = screenToWorld(world, centerX, centerY);
-    const sceneName = getNextName(world, "Scene");
-    const sceneX = Math.round(worldCenter.x - preset.width / 2);
-    const sceneY = Math.round(worldCenter.y - preset.height / 2);
+    const root = world.get(Root)!;
+    if (!root.get(Source)?.value) return;
 
-    const eid = world.history.transaction('Add scene', () => {
-      const sceneEid = createEntity(world);
-      setComponent(world, sceneEid, c.Geometry, GeometryType.RECT);
-      addComponent(world, sceneEid, c.Scene);
-      addComponent(world, sceneEid, c.ClipsContent);
-      setComponent(world, sceneEid, c.Playback, {});
-      setComponent(world, sceneEid, c.Name, sceneName);
-      setComponent(world, sceneEid, c.Position, { x: sceneX, y: sceneY });
-      resizeEntity(world, sceneEid, { width: preset.width, height: preset.height });
+    // Centered in the viewport.
+    const viewport = getViewport(world);
+    const center = screenToWorld(world, (viewport?.width ?? 0) / 2, (viewport?.height ?? 0) / 2);
+    const name = getNextName(world, "Scene");
+    const x = Math.round(center.x - preset.width / 2);
+    const y = Math.round(center.y - preset.height / 2);
 
-      const fillEid = createEntity(world);
-      setComponent(world, fillEid, c.Paint, PaintType.SOLID);
-      setComponent(world, fillEid, c.Color, 0x000000);
-      appendChild(world, fillEid, sceneEid);
-      return sceneEid;
-    });
+    const [scene] = editor.insertElement(root, () => (
+      <Scene name={name} x={x} y={y} width={preset.width} height={preset.height} fill="#000000" />
+    ));
+    if (scene) {
+      editor.activate(scene);
+      editor.select(scene);
+    }
 
-    switchActiveScene(world, eid);
-    world.selection.tool = ToolType.MOVE;
+    world.set(Tool, { value: ToolType.MOVE });
   };
 
   return (
