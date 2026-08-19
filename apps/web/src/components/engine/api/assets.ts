@@ -9,7 +9,6 @@ import { ALL_FORMATS, InputTrack, UrlSource } from 'mediabunny';
 import { BlobSource } from 'mediabunny';
 import { Input } from 'mediabunny';
 import { nanoid } from "nanoid";
-import Sqids from "sqids";
 import { saveDirectoryHandle, retrieveDirectoryHandle } from "../db";
 import { GeometryType, PaintType } from "../components";
 import { secondsToFrames } from "../utils/time";
@@ -32,7 +31,6 @@ import type { Transcript } from "@diffusionstudio/api-contract";
 
 const URL_REGEX = /\b(?:https?|ftp|blob):\/\/[^\s]+/;
 const DEFAULT_SEQUENCE_FPS = 30;
-const sqids = new Sqids({ minLength: 4 });
 
 type MediaInput =
   | string
@@ -100,22 +98,20 @@ export function invalidateAssets(world: EngineWorld): void {
 export function allocateId(world: EngineWorld): string {
   const state = assetState(world);
   state.counter += 1;
-  return sqids.encode([state.counter]);
+  return state.counter.toString(36).padStart(4, "0");
 }
 
 /**
- * Raises the id counter past every sqid in `ids`. Non-sqid ids (e.g. legacy
- * "fld-…" folder ids) are ignored. Restores may run in parallel, so this only
- * ever raises the counter.
+ * Raises the id counter past every counter id in `ids`. Ids that are not
+ * base36 numbers (e.g. legacy "fld-…" folder ids) are ignored. Restores may
+ * run in parallel, so this only ever raises the counter.
  */
 export function raiseIdCounter(world: EngineWorld, ids: Iterable<string>): void {
   const state = assetState(world);
   for (const id of ids) {
-    const decoded = sqids.decode(id);
-    const num = decoded[0];
-    if (decoded.length === 1 && Number.isFinite(num) && num > state.counter) {
-      state.counter = num;
-    }
+    if (!/^[0-9a-z]+$/i.test(id)) continue;
+    const num = parseInt(id, 36);
+    if (Number.isSafeInteger(num) && num > state.counter) state.counter = num;
   }
 }
 

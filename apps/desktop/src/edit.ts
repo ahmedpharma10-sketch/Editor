@@ -3,10 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
+import { randomInt } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import Sqids from "sqids";
 import { IndentationText, Project, SyntaxKind } from "ts-morph";
 
 import { ID_ATTR, formatSource, isCompositionTag, isLoopTag, parseSource } from "@diffusionstudio/jsx";
@@ -133,8 +133,6 @@ type JsxTag = JsxOpeningElement | JsxSelfClosingElement;
 
 const SOURCE_FILE = /\.[jt]sx?$/;
 
-const sqids = new Sqids({ minLength: 2 });
-
 const absolute = (dir: string, file: string): string => join(dir, ...file.split("/"));
 
 // ---------------------------------------------------------------------------
@@ -185,21 +183,17 @@ function findTag(sourceFile: SourceFile, locator: number | string): JsxTag | und
 const idsIn = (sourceFile: SourceFile): Set<string> =>
   new Set(tags(sourceFile).flatMap((tag) => idOf(tag) ?? []));
 
-function counterOf(id: string): number {
-  const decoded = sqids.decode(id);
-  return decoded.length === 1 && Number.isInteger(decoded[0]) ? decoded[0]! : 0;
-}
+const ID_LENGTH = 6;
+const ID_SPACE = 36 ** ID_LENGTH;
 
+/**
+ * Ids only need to be unique within their file, so a fresh one is simply
+ * drawn until it misses everything already taken.
+ */
 function idAllocator(taken: Set<string>): () => string {
-  let counter = 0;
-
-  for (const id of taken) {
-    counter = Math.max(counter, counterOf(id));
-  }
-
   return () => {
     while (true) {
-      const id = sqids.encode([++counter]);
+      const id = randomInt(ID_SPACE).toString(36).padStart(ID_LENGTH, "0");
       if (taken.has(id)) continue;
       taken.add(id);
       return id;

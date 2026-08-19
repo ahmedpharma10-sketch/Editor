@@ -143,7 +143,7 @@ export function AssetThumbnail(props: AssetThumbnailProps) {
   const width = () => props.size?.width ?? DEFAULT_THUMBNAIL_WIDTH;
 
   return (
-    <div class={cx(props.class, 'relative')} draggable={props.draggable}>
+    <div class={cx('relative', props.class)} draggable={props.draggable}>
       <Show when={props.asset.mimeType.startsWith('image') || props.asset.mimeType.startsWith('video')}>
         <MediaThumbnail asset={props.asset} width={width()} cache={props.cache} />
       </Show>
