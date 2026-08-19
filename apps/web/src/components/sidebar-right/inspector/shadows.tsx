@@ -2,13 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { For, Show, createSignal } from 'solid-js';
-import { Icon } from '@/components/ui/icon';
-import { ItemRow } from "@/components/ui/item-row";
-import { PanelSection } from '@/components/ui/panel-section';
-import { ShadowInspector } from './shadow-inspector';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,128 +12,87 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { getSiblingEntities, useEntityState, useEntityTag, createEntity, deleteEntity, type EngineWorld, addComponent, appendChild, removeComponent, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { colorToHex } from "@/utils/color";
-import { hasComponent } from 'bitecs';
+import { Icon } from "@/components/ui/icon";
+import { ItemRow } from "@/components/ui/item-row";
+import { PanelSection } from "@/components/ui/panel-section";
+import { useHas } from "@diffusionstudio/koota-solid";
+import { Shadow as ShadowElement } from "@diffusionstudio/reconciler";
+import { Cache, Computed, Hidden, colorToHex } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { ShadowInspector } from "./shadow-inspector";
 
+import type { Entity } from "koota";
+
+/**
+ * What "Add shadow" authors. `<shadow>`'s own defaults are all zero, which
+ * draws the silhouette back onto itself, so a shadow added from the panel
+ * says where it sits and how soft it is.
+ */
 const DEFAULT_SHADOW = {
-  color: 0x000000,
+  color: "#000000",
   opacity: 0.25,
   blur: 4,
-  offsetX: 0,
   offsetY: 4,
 };
 
-type ShadowRowProps = {
-  nodeEid: number;
-  shadowEid: number;
-  onInspectorChange(shadowEid: number | null): void;
-}
+// Stable identity, so a node without shadows does not resample every tick.
+const NO_SHADOWS: Entity[] = [];
 
-function ShadowRow(props: ShadowRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
-  const colorNum = useEntityState(c.Computed.color, props.shadowEid, 0x000000);
-  const hidden = useEntityTag(c.Hidden, props.shadowEid);
-
-  const color = () => colorToHex(colorNum()).replace('#', '');
-  const toggleHidden = () => {
-    if (hasComponent(world, props.shadowEid, c.Hidden)) {
-      removeComponent(world, props.shadowEid, c.Hidden);
-    } else {
-      addComponent(world, props.shadowEid, c.Hidden);
-    }
-  };
-
-  const handleRemoveShadow = () => {
-    deleteEntity(world, props.shadowEid);
-    props.onInspectorChange(null);
-  };
-
-  const handleOpenInspector = () => props.onInspectorChange(props.shadowEid);
-
-  const reorderShadow = (world: EngineWorld, direction: number) => {
-    const shadows = getSiblingEntities(world, props.shadowEid, c.Shadow);
-    const index = shadows.indexOf(props.shadowEid);
-    const newIndex = index + direction;
-    if (newIndex >= 0 && newIndex < shadows.length) {
-      shadows.splice(newIndex, 0, shadows.splice(index, 1)[0]);
-      for (const [index, eid] of shadows.entries()) {
-        setComponent(world, eid, c.ItemIndex, index);
-      }
-    }
-  };
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger>
-        <ItemRow
-          label="Shadow"
-          value={color()}
-          icon={<Icon name="color-grade" />}
-          onClick={handleOpenInspector}
-          disabled={hidden()}
-        >
-          <Tooltip>
-            <TooltipTrigger
-              as={Button}
-              size="icon"
-              variant="ghost"
-              class="text-muted-foreground"
-              onClick={handleRemoveShadow}
-            >
-              <Icon name="close-remove-small" />
-            </TooltipTrigger>
-            <TooltipContent>Remove shadow</TooltipContent>
-          </Tooltip>
-        </ItemRow>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={() => reorderShadow(world, 1)}>
-          Move Up
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => reorderShadow(world, -1)}>
-          Move Down
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={toggleHidden}>
-          {hidden() ? "Unhide" : "Hide"}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={handleRemoveShadow}>
-          Remove
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-}
-
-type ShadowSettingsProps = {
-  selection: Set<number>;
+type ShadowsSettingsProps = {
+  selection: Entity[];
 };
 
-export function ShadowsSettings(props: ShadowSettingsProps) {
-  const { world } = useEngine();
-  const c = world.components;
+/**
+ * The `<shadow>` children of the selected node, in paint order (the list is
+ * shown topmost first, so the last element in the file is the first row).
+ * A row opens the shadow's own inspector; what it shows is the color, since
+ * that is the one thing a shadow always says.
+ */
+export function ShadowsSettings(props: ShadowsSettingsProps) {
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-  const [inspectingShadow, setInspectingShadow] = createSignal<number | null>(null);
+  let anchorRef!: HTMLDivElement;
 
-  let anchorRef: HTMLDivElement | undefined;
+  const [picked, setPicked] = createSignal<Entity>();
 
-  const eid = () => props.selection.values().next().value!;
-  const shadows = useEntityState(c.Cache.shadows, eid, []);
+  // Cache is derived state, written without change events.
+  const shadows = useDerived(() => entity().get(Cache)?.shadows ?? NO_SHADOWS);
 
-  const handleAddShadow = () => {
-    world.history.transaction('Add shadow', () => {
-      const shadowEid = createEntity(world);
-      addComponent(world, shadowEid, c.Shadow);
-      setComponent(world, shadowEid, c.Color, DEFAULT_SHADOW.color);
-      setComponent(world, shadowEid, c.Appearance, { opacity: DEFAULT_SHADOW.opacity });
-      setComponent(world, shadowEid, c.Blur, DEFAULT_SHADOW.blur);
-      setComponent(world, shadowEid, c.Offset, { x: DEFAULT_SHADOW.offsetX, y: DEFAULT_SHADOW.offsetY });
-      appendChild(world, shadowEid, eid());
-    });
+  const handleAppendShadow = () => {
+    editor.insertElement(entity(), () => (
+      <ShadowElement
+        color={DEFAULT_SHADOW.color}
+        opacity={DEFAULT_SHADOW.opacity}
+        blur={DEFAULT_SHADOW.blur}
+        offsetY={DEFAULT_SHADOW.offsetY}
+      />
+    ));
+  };
+
+  // Read back off the list, so removing a shadow closes the inspector on it.
+  const editing = createMemo(() => {
+    const shadow = picked();
+    return shadow !== undefined && shadows().includes(shadow) ? shadow : undefined;
+  });
+
+  /**
+   * Swaps `shadow` with its neighbour, later in the file (`direction` 1, on
+   * top) or earlier. Written as a swap because a move needs an anchor:
+   * `reparent` appends without one, and refuses an append into the parent the
+   * element already has.
+   */
+  const handleReorderShadow = (shadow: Entity, direction: number) => {
+    const siblings = shadows();
+    const index = siblings.indexOf(shadow);
+    const target = index + direction;
+    if (index === -1 || target < 0 || target >= siblings.length) return;
+
+    if (direction > 0) {
+      editor.reparent(siblings[target]!, entity(), shadow);
+    } else {
+      editor.reparent(shadow, entity(), siblings[target]!);
+    }
   };
 
   return (
@@ -152,7 +107,7 @@ export function ShadowsSettings(props: ShadowSettingsProps) {
               size="icon"
               variant="ghost"
               class="text-muted-foreground"
-              onClick={handleAddShadow}
+              onClick={handleAppendShadow}
             >
               <Icon name="plus-add" />
             </TooltipTrigger>
@@ -161,23 +116,81 @@ export function ShadowsSettings(props: ShadowSettingsProps) {
         }
       >
         <For each={shadows().toReversed()}>
-          {(shadowEid: number) => (
+          {(shadow) => (
             <ShadowRow
-              shadowEid={shadowEid}
-              nodeEid={eid()}
-              onInspectorChange={setInspectingShadow}
+              shadow={shadow}
+              onSelect={() => setPicked(shadow)}
+              onRemove={() => editor.remove(shadow)}
+              onMoveUp={() => handleReorderShadow(shadow, 1)}
+              onMoveDown={() => handleReorderShadow(shadow, -1)}
             />
           )}
         </For>
       </PanelSection>
-      <Show when={inspectingShadow()}>
+
+      <Show when={editing() !== undefined}>
         <ShadowInspector
-          onClose={() => setInspectingShadow(null)}
-          anchorRef={anchorRef!}
-          nodeEid={eid()}
-          shadowEid={inspectingShadow()!}
+          shadow={editing()!}
+          anchorRef={anchorRef}
+          onClose={() => setPicked(undefined)}
         />
       </Show>
     </>
+  );
+}
+
+type ShadowRowProps = {
+  shadow: Entity;
+  onSelect(): void;
+  onRemove(): void;
+  onMoveUp(): void;
+  onMoveDown(): void;
+};
+
+function ShadowRow(props: ShadowRowProps) {
+  const editor = useEditor();
+
+  const color = useDerived(() => props.shadow.get(Computed)?.color ?? 0);
+  const hidden = useHas(() => props.shadow, Hidden);
+
+  const toggleHidden = () => {
+    editor.editProperty(props.shadow, "hidden", !hidden());
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <ItemRow
+          label="Shadow"
+          value={colorToHex(color()).replace("#", "")}
+          icon={<Icon name="color-grade" />}
+          onClick={props.onSelect}
+          disabled={hidden()}
+        >
+          <Tooltip>
+            <TooltipTrigger
+              as={Button}
+              size="icon"
+              variant="ghost"
+              class="text-muted-foreground"
+              onClick={props.onRemove}
+            >
+              <Icon name="close-remove-small" />
+            </TooltipTrigger>
+            <TooltipContent>Remove shadow</TooltipContent>
+          </Tooltip>
+        </ItemRow>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={props.onMoveUp}>Move Up</ContextMenuItem>
+        <ContextMenuItem onSelect={props.onMoveDown}>Move Down</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={toggleHidden}>
+          {hidden() ? "Unhide" : "Hide"}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={props.onRemove}>Remove</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

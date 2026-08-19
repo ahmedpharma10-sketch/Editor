@@ -32,7 +32,7 @@ import { LayoutPanel } from "./layout";
 import { TextPanel } from "./text";
 // import { FillsSettings } from "./fills";
 import { StrokesSettings } from "./strokes";
-// import { ShadowsSettings } from "./shadows";
+import { ShadowsSettings } from "./shadows";
 // import { EffectsSettings } from "./effects";
 // import { AnimationsSettings } from "./animations";
 // import { TransitionSettings } from "./transition";
@@ -157,9 +157,9 @@ export function Inspector() {
             <StrokesSettings selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("shape", "text", "scene", "caption")}>
+          <Show when={includesTarget("shape", "text", "scene", "caption")}>
             <ShadowsSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("shape", "text", "scene", "caption")}>
             <EffectsSettings selection={nodes()} />

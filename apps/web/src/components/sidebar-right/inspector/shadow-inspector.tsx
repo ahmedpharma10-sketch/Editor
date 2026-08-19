@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createSignal } from 'solid-js';
+import { createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Icon } from "@/components/ui/icon";
@@ -10,73 +10,85 @@ import {
   FloatingInspector,
   FloatingInspectorContent,
   FloatingInspectorHeader,
-  FloatingInspectorTitle,
   FloatingInspectorSeparator,
+  FloatingInspectorTitle,
 } from "@/components/ui/floating-inspector";
 import { ControlRow } from "@/components/ui/control-group";
 import { ColorOpacityRow } from "@/components/ui/color-opacity-row";
 import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
 import { ControlledTextField } from "@/components/ui/text-field";
 import { IncrementDecrementControl } from "@/components/ui/increment-decrement-control";
-import { useEntityState, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
+import { Keyframe } from "@/components/ui/keyframe";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Computed, colorToHex } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
 
+import type { Entity } from "koota";
+
+/** `<shadow>`'s defaults; a control left at one of these unsets its prop. */
+const DEFAULT_OPACITY = 1;
+const DEFAULT_OFFSET = 0;
+const DEFAULT_BLUR = 0;
 
 type ShadowInspectorProps = {
-  onClose(): void;
+  shadow: Entity;
   anchorRef: HTMLElement;
-  nodeEid: number;
-  shadowEid: number;
+  onClose(): void;
 };
 
+/**
+ * One `<shadow>`: its paint (color and opacity) and how it is cast (offset
+ * and blur). A shadow is a solid color and takes no paint children, so the
+ * color half is the color picker alone, with no gradient or asset tab.
+ */
 export function ShadowInspector(props: ShadowInspectorProps) {
+  const world = useWorld();
+  const editor = useEditor();
+
   let colorRowRef: HTMLDivElement | undefined;
 
-  const { world } = useEngine();
-  const c = world.components;
+  const [pickingColor, setPickingColor] = createSignal(false);
 
-  const [isColorPickerOpen, setIsColorPickerOpen] = createSignal(false);
+  const color = useDerived(() => props.shadow.get(Computed)?.color ?? 0);
+  const opacity = useDerived(() => props.shadow.get(Computed)?.opacity ?? DEFAULT_OPACITY);
+  const offsetX = useDerived(() => props.shadow.get(Computed)?.offsetX ?? DEFAULT_OFFSET);
+  const offsetY = useDerived(() => props.shadow.get(Computed)?.offsetY ?? DEFAULT_OFFSET);
+  const blur = useDerived(() => props.shadow.get(Computed)?.blur ?? DEFAULT_BLUR);
 
-  const color = useEntityState(c.Computed.color, props.shadowEid, 0x000000);
-  const opacity = useEntityState(c.Computed.opacity, props.shadowEid, 0.25);
-  const offsetX = useEntityState(c.Computed.offsetX, props.shadowEid, 0);
-  const offsetY = useEntityState(c.Computed.offsetY, props.shadowEid, 4);
-  const blur = useEntityState(c.Computed.blur, props.shadowEid, 0);
+  /** A shadow's color is required, never unset. */
+  const editColor = (value: number) => {
+    const hex = colorToHex(value);
+    editor.editProperty(props.shadow, "color", hex);
+    syncKeyframe(world, editor, props.shadow, "color", hex);
+  };
 
-  const updateColor = (color: number) => {
-    setComponent(world, props.shadowEid, c.Color, color);
+  const editOpacity = (value: number) => {
+    const next = Math.round(value * 100) / 100;
+    editor.editProperty(props.shadow, "opacity", next === DEFAULT_OPACITY ? false : next);
+    syncKeyframe(world, editor, props.shadow, "opacity", next);
   };
-  const updateOpacity = (opacity: number) => {
-    setComponent(world, props.shadowEid, c.Appearance, { opacity });
+
+  const editOffset = (axis: "offsetX" | "offsetY", value: number) => {
+    editor.editProperty(props.shadow, axis, value === DEFAULT_OFFSET ? false : value);
+    syncKeyframe(world, editor, props.shadow, axis, value);
   };
-  const updateOffsetX = (x: number) => {
-    setComponent(world, props.shadowEid, c.Offset, { x });
-  };
-  const updateOffsetY = (y: number) => {
-    setComponent(world, props.shadowEid, c.Offset, { y });
-  };
-  const updateBlur = (blur: number) => {
-    setComponent(world, props.shadowEid, c.Blur, blur);
+
+  const editBlur = (value: number) => {
+    editor.editProperty(props.shadow, "blur", value === DEFAULT_BLUR ? false : value);
+    syncKeyframe(world, editor, props.shadow, "blur", value);
   };
 
   const handleClose = () => {
-    setIsColorPickerOpen(false);
+    setPickingColor(false);
     props.onClose();
   };
 
-
   return (
     <>
-      <FloatingInspector
-        open={true}
-        anchorRef={props.anchorRef}
-        width={248}
-      >
+      <FloatingInspector open anchorRef={props.anchorRef} width={248}>
         <FloatingInspectorHeader class="items-center justify-between">
-          <FloatingInspectorTitle>
-            Drop Shadow
-          </FloatingInspectorTitle>
+          <FloatingInspectorTitle>Drop Shadow</FloatingInspectorTitle>
           <Tooltip>
             <TooltipTrigger
               as={Button}
@@ -95,12 +107,11 @@ export function ShadowInspector(props: ShadowInspectorProps) {
           <ControlRow label="Color" ref={colorRowRef}>
             <ColorOpacityRow
               color={color()}
-              onChangeColor={updateColor}
+              onChangeColor={editColor}
               opacity={opacity()}
-              onChangeOpacity={updateOpacity}
-              onStartTransaction={() => world.history.startTransaction("Edit shadow opacity")}
-              onEndTransaction={() => world.history.commitTransaction()}
-              onClick={() => setIsColorPickerOpen(true)}
+              onChangeOpacity={editOpacity}
+              onClick={() => setPickingColor(true)}
+              keyframe={<Keyframe target={props.shadow} property="opacity" />}
             />
           </ControlRow>
 
@@ -109,20 +120,20 @@ export function ShadowInspector(props: ShadowInspectorProps) {
               <ControlledTextField
                 icon={<Icon name="prop-x-position" class="size-6" />}
                 value={offsetX()}
-                onNumber={updateOffsetX}
+                onNumber={(value) => editOffset("offsetX", value)}
                 autoSelect
                 sliderEnabled
                 limitEvents
-                keyframe={<Keyframe target={props.shadowEid} property="offset.x" />}
+                keyframe={<Keyframe target={props.shadow} property="offsetX" />}
               />
               <ControlledTextField
                 icon={<Icon name="prop-y-position" class="size-6" />}
                 value={offsetY()}
-                onNumber={updateOffsetY}
+                onNumber={(value) => editOffset("offsetY", value)}
                 autoSelect
                 sliderEnabled
                 limitEvents
-                keyframe={<Keyframe target={props.shadowEid} property="offset.y" />}
+                keyframe={<Keyframe target={props.shadow} property="offsetY" />}
               />
             </div>
           </ControlRow>
@@ -131,15 +142,15 @@ export function ShadowInspector(props: ShadowInspectorProps) {
             <div class="grid grid-cols-2 gap-2">
               <ControlledTextField
                 value={blur()}
-                onNumber={updateBlur}
+                onNumber={editBlur}
                 min={0}
                 autoSelect
                 limitEvents
-                keyframe={<Keyframe target={props.shadowEid} property="blur" />}
+                keyframe={<Keyframe target={props.shadow} property="blur" />}
               />
               <IncrementDecrementControl
-                onDecrement={() => updateBlur(Math.max(0, blur() - 1))}
-                onIncrement={() => updateBlur(blur() + 1)}
+                onDecrement={() => editBlur(Math.max(0, blur() - 1))}
+                onIncrement={() => editBlur(blur() + 1)}
                 decrementLabel="Decrease blur"
                 incrementLabel="Increase blur"
               />
@@ -148,11 +159,7 @@ export function ShadowInspector(props: ShadowInspectorProps) {
         </FloatingInspectorContent>
       </FloatingInspector>
 
-      <FloatingInspector
-        open={isColorPickerOpen}
-        anchorRef={() => colorRowRef}
-        offset={26}
-      >
+      <FloatingInspector open={pickingColor} anchorRef={() => colorRowRef} offset={26}>
         <FloatingInspectorHeader>
           <FloatingInspectorTitle>Color</FloatingInspectorTitle>
           <div class="ml-auto">
@@ -162,7 +169,7 @@ export function ShadowInspector(props: ShadowInspectorProps) {
                 size="icon"
                 variant="ghost"
                 class="text-muted-foreground"
-                onClick={() => setIsColorPickerOpen(false)}
+                onClick={() => setPickingColor(false)}
               >
                 <Icon name="close-remove" class="size-6" />
               </TooltipTrigger>
@@ -174,10 +181,9 @@ export function ShadowInspector(props: ShadowInspectorProps) {
           <ColorOpacityPicker
             color={color()}
             opacity={opacity()}
-            onColorChange={updateColor}
-            onOpacityChange={updateOpacity}
-            onBeginChange={(label) => world.history.startTransaction(label)}
-            onEndChange={() => world.history.commitTransaction()}
+            onColorChange={editColor}
+            onOpacityChange={editOpacity}
+            keyframeTarget={props.shadow}
           />
         </FloatingInspectorContent>
       </FloatingInspector>
