@@ -95,8 +95,9 @@ export function TextPanel(props: TextPanelProps) {
   const chars = useTrait(entity, Chars);
   const hasSize = useHas(entity, Size);
 
-  const fontFamily = () => style()?.fontFamily ?? 'Inter';
-  const fontWeight = () => style()?.fontWeight ?? '400';
+  const [selectedFamily, setSelectedFamily] = createSignal(entity().get(TextStyle)?.fontFamily ?? 'Inter');
+  const [selectedWeight, setSelectedWeight] = createSignal(entity().get(TextStyle)?.fontWeight ?? '400');
+
   const fontSize = () => style()?.fontSize ?? 16;
   const leading = () => style()?.leading ?? 1;
   const letterSpacing = () => style()?.letterSpacing ?? 0;
@@ -125,6 +126,7 @@ export function TextPanel(props: TextPanelProps) {
   };
 
   const handleFontFamilyChange = (family: string) => {
+    setSelectedFamily(family);
     editor.editProperty(entity(), 'fontFamily', family);
 
     if (family in WebFonts) {
@@ -133,6 +135,9 @@ export function TextPanel(props: TextPanelProps) {
   };
 
   const handleFontWeightChange = (weight: string) => {
+    if (weight === selectedWeight()) return;
+
+    setSelectedWeight(weight);
     // Authored as a CSS number, which is the only spelling the prop takes
     // besides the "normal"/"bold" keywords the panel does not offer.
     editor.editProperty(entity(), 'fontWeight', Number(weight));
@@ -173,7 +178,7 @@ export function TextPanel(props: TextPanelProps) {
 
       <ControlRow label="Font">
         <FontDropdown
-          family={fontFamily()}
+          family={selectedFamily()}
           onPreview={(family) => previewFont({ fontFamily: family })}
           onFamilyChange={handleFontFamilyChange}
           onWeightsChange={setAvailableWeights}
@@ -183,7 +188,7 @@ export function TextPanel(props: TextPanelProps) {
       <ControlRow label="Sizing" contentClass="flex gap-2 items-center">
         <Select
           class="flex-1 min-w-0"
-          value={fontWeight()}
+          value={selectedWeight()}
           onChange={v => handleFontWeightChange(v ?? '400')}
           options={weightOptions().map(w => w.value)}
           itemComponent={itemProps => (
@@ -197,11 +202,11 @@ export function TextPanel(props: TextPanelProps) {
         >
           <SelectTrigger>
             <SelectValue>
-              {weightOptions().find(w => w.value === fontWeight())?.label}
+              {weightOptions().find(w => w.value === selectedWeight())?.label}
             </SelectValue>
           </SelectTrigger>
           <SelectPortal>
-            <SelectContent onCloseAutoFocus={() => previewFont({ fontWeight: fontWeight() })} />
+            <SelectContent onCloseAutoFocus={() => previewFont({ fontWeight: selectedWeight() })} />
           </SelectPortal>
         </Select>
 
@@ -328,10 +333,11 @@ function FontDropdown(props: FontDropdownProps) {
     return fonts.filter((f) => f.family.toLowerCase().includes(q));
   });
 
-  const handleOpenChange = () => {
+  const handleOpenChange = (isOpen: boolean) => {
     setFontQuery('');
-    // Whatever was hovered last goes; the selection is the only edit.
-    props.onPreview(props.family);
+    // Whatever was hovered last goes: only a selection authors a family, and
+    // `family` is the authored one whether or not this picker changed it.
+    if (!isOpen) props.onPreview(props.family);
   };
 
   const handleGrantAccess = async () => {
