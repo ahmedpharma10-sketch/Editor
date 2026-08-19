@@ -8,21 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Icon } from "@/components/ui/icon";
 import { formatDuration } from "@/utils/formatters";
-import { getAudioPeaksAsync } from "@/components/engine/decoders/audio-peaks";
-import { useEngine } from "@/context/engine";
-import { assetsVersion, getAssetFile } from "@/components/engine";
+import { getAssetFile } from "@diffusionstudio/runtime";
+import { derivePeaks, assetName } from "@diffusionstudio/assets";
+import { useLibrary } from "@/engine/library";
 
-import type { Asset, AudioAsset, VideoAsset } from '@/components/engine/db';
+import type { Asset } from '@diffusionstudio/assets';
 
-type VisualAsset = Extract<Asset, { type: 'IMAGE' | 'VIDEO' }>;
+type VisualAsset = Extract<Asset, { type: 'IMAGE' | 'VIDEO' | 'SEQUENCE' }>;
+
+const keyOf = (asset: Asset): string => `${asset.id}:${asset.stat?.mtime ?? ''}`;
 
 export function AssetInfoPreview(props: { asset: Asset }) {
-  const engine = useEngine();
+  const library = useLibrary();
   let mediaRef: HTMLMediaElement | undefined;
   let prevObjectUrl: string | undefined;
 
   const [objectUrl] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
+    () => keyOf(props.asset),
     async () => {
       if (prevObjectUrl) {
         URL.revokeObjectURL(prevObjectUrl);
@@ -40,23 +42,25 @@ export function AssetInfoPreview(props: { asset: Asset }) {
   );
 
   const [peaks] = createResource(
-    () => props.asset.type === 'AUDIO'
-      ? `${props.asset.id}:${assetsVersion(engine.world)}`
-      : null,
-    () => getAudioPeaksAsync(props.asset as AudioAsset | VideoAsset),
+    () => props.asset.type === 'AUDIO' ? keyOf(props.asset) : null,
+    async () => {
+      const cache = library()?.cache;
+      if (cache) return cache.peaks(props.asset);
+      return derivePeaks(await getAssetFile(props.asset));
+    },
   );
 
   const [duration, setDuration] = createSignal(0);
   const [currentTime, setCurrentTime] = createSignal(0);
   const [playing, setPlaying] = createSignal(false);
 
-  const isImage = createMemo(() => props.asset.type === 'IMAGE');
+  const isImage = createMemo(() => props.asset.type === 'IMAGE' || props.asset.type === 'SEQUENCE');
   const isVideo = createMemo(() => props.asset.type === 'VIDEO');
   const isAudio = createMemo(() => props.asset.type === 'AUDIO');
   const isTranscript = createMemo(() => props.asset.type === 'TRANSCRIPT');
   const canPlay = createMemo(() => isVideo() || isAudio());
 
-  const showProgress = createMemo(() => props.asset.type !== 'IMAGE' && !isTranscript());
+  const showProgress = createMemo(() => canPlay());
 
   const progress = createMemo(() => {
     const mediaDuration = duration();
@@ -169,7 +173,7 @@ export function AssetInfoPreview(props: { asset: Asset }) {
                 />
               </Show>
               <Show when={isImage()}>
-                <img class="size-full object-cover" src={url()} alt={props.asset.name} />
+                <img class="size-full object-cover" src={url()} alt={assetName(props.asset)} />
               </Show>
             </>
           )}

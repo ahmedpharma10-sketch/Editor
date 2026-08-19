@@ -7,3 +7,4 @@ export * from './use-camera';
 export * from './use-editor';
 export * from './use-tool';
 export * from './use-selection';
+export * from './use-asset-selection';

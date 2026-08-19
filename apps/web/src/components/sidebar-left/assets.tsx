@@ -29,6 +29,7 @@ import {
 import { LazyAssetItem } from "./asset-item";
 import { FolderItem, handleFolderDrop, isAssetOrFolderDrag, ASSET_DRAG_TYPE, FOLDER_DRAG_TYPE } from "./folder-item";
 import { useLibrary } from "@/engine/library";
+import { useAssetSelection } from "@/engine/hooks";
 import { droppedFiles, importFiles, pickAndImport } from "@/engine/asset-actions";
 
 import type { AssetLibrary } from "@diffusionstudio/assets";
@@ -45,12 +46,12 @@ export function Assets() {
   let dragCounter = 0;
 
   const library = useLibrary();
+  const { id: selectedAssetId, select: setSelectedAssetId } = useAssetSelection();
   const { openPromptInput } = usePromptInput();
   const [query, setQuery] = createSignal("");
   const [assetFilter, setAssetFilter] = createSignal<AssetFilter>("ALL");
   const [isDragging, setIsDragging] = createSignal(false);
   const [renamingFolder, setRenamingFolder] = createSignal<string | null>(null);
-  const [selectedAssetId, setSelectedAssetId] = createSignal<string | null>(null);
   const [currentFolder, setCurrentFolder] = createSignal("");
 
   const allAssets = createMemo(() => library()?.list().filter((asset) => asset.type !== "SCRIPT") ?? []);
@@ -118,11 +119,6 @@ export function Assets() {
     if (!folders || !folder || folders.has(folder)) return;
     while (folder && !folders.has(folder)) folder = dirname(folder);
     setCurrentFolder(folder);
-  });
-
-  createEffect(() => {
-    const selected = selectedAssetId();
-    if (selected && !library()?.get(selected)) setSelectedAssetId(null);
   });
 
   const withLibrary = (run: (library: AssetLibrary) => void | Promise<void>) => {

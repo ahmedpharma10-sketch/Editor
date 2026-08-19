@@ -6,7 +6,7 @@ import { createSignal, onMount, onCleanup, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
 import { useWorld } from "@diffusionstudio/koota-solid";
 import { assetName } from "@diffusionstudio/assets";
-import { pickFiles, saveAssetAs } from "@/engine/asset-actions";
+import { insertAssetAtPlayhead, replaceAssetSource, saveAssetAs } from "@/engine/asset-actions";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,7 +19,6 @@ import {
 import { AssetThumbnail } from "../ui/asset-thumbnail";
 import { formatAssetDuration } from "@/utils";
 import { useLibrary } from "@/engine/library";
-import { insertAsset } from "@/engine/insert-asset";
 import { ASSET_DRAG_TYPE } from "./folder-item";
 
 import type { Asset } from "@diffusionstudio/assets";
@@ -94,25 +93,13 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
     });
   };
 
-  /** Points the asset at another file; the JSX keeps naming it by path. */
   const handleReplaceMedia = async () => {
     const lib = library();
-    const [file] = await pickFiles({ multiple: false });
-    const path = file && lib ? lib.fs.pathOf?.(file) : null;
-    if (!lib || !path) return;
-    try {
-      await lib.relink(props.asset, path);
-    } catch (e) {
-      toast.error("Failed to replace", { description: (e as Error).message });
-    }
+    if (lib) await replaceAssetSource(lib, props.asset);
   };
 
   const handleSaveAs = () => saveAssetAs(props.asset);
-  const handleInsertToTimeline = () => {
-    if (!insertAsset(world, props.asset)) {
-      toast("Nothing to insert into", { description: "Open a project first." });
-    }
-  };
+  const handleInsertToTimeline = () => insertAssetAtPlayhead(world, props.asset);
 
   return (
     <ContextMenu>

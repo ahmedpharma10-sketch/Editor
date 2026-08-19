@@ -15,43 +15,44 @@ import {
 import { AssetInfoPreview } from "./asset-info-preview";
 import { supabase } from "@/lib/supabase";
 import { toClientConfig } from "@/components/genai/use-generation-records";
-import { insertAssetInTimeline, replaceAssetHandle, useAssets } from "@/components/engine";
-import { useEngine } from "@/context/engine";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { assetName } from "@diffusionstudio/assets";
+import { useLibrary } from "@/engine/library";
+import { useAssetSelection } from "@/engine/hooks";
+import { insertAssetAtPlayhead, replaceAssetSource } from "@/engine/asset-actions";
 
-import type { Asset } from "@/components/engine/db";
+import type { Asset } from "@diffusionstudio/assets";
 
-
+/** Information about the library asset picked in the assets panel. */
 export function AssetInfoPanel() {
-  const { world } = useEngine();
-  const assets = useAssets(world);
+  const world = useWorld();
+  const library = useLibrary();
+  const selection = useAssetSelection();
 
   const [nameExpanded, setNameExpanded] = createSignal(false);
 
-  const selectedAsset = () => assets.selected().values().next().value;
-
-  const handleReplace = () => {
-    const asset = selectedAsset();
-    if (!asset) return;
-    replaceAssetHandle(world, asset);
+  const handleReplace = async () => {
+    const lib = library();
+    const asset = selection.asset();
+    if (!lib || !asset) return;
+    // A relink mints a new id; keep the panel on the asset.
+    const next = await replaceAssetSource(lib, asset);
+    if (next) selection.select(next);
   };
 
   const handleInsert = () => {
-    const asset = selectedAsset();
-    if (!asset) return;
-    insertAssetInTimeline(world, asset, 'playhead');
+    const asset = selection.asset();
+    if (asset) insertAssetAtPlayhead(world, asset);
   };
 
-  const metadataRows = useAssetMetadataRows(selectedAsset);
+  const metadataRows = useAssetMetadataRows(selection.asset);
 
   return (
     <div class="flex flex-col w-full px-4 border-t border-border">
       <div class="h-12 flex items-center justify-between">
         <span class="text-base font-strong">Information</span>
-        {/* <Button class="text-muted-foreground" size="icon" variant="ghost">
-          <Icon name="more-three-dots-small" />
-        </Button> */}
       </div>
-      <Show when={selectedAsset()}>
+      <Show when={selection.asset()}>
         {asset => <AssetInfoPreview asset={asset()} />}
       </Show>
 
@@ -76,7 +77,7 @@ export function AssetInfoPanel() {
             "break-all": nameExpanded(),
           }}
         >
-          {selectedAsset()?.name ?? 'Untitled'}
+          {selection.asset() ? assetName(selection.asset()!) : 'Untitled'}
         </span>
       </button>
       <div class="flex flex-col gap-1 my-2">
@@ -98,7 +99,7 @@ export function AssetInfoPanel() {
                   <span class="w-20 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">
                     {row.label}
                   </span>
-                  <span class="min-w-0 flex-1 text-right overflow-hidden text-ellipsis whitespace-nowrap">
+                  <span class="min-w-0 flex-1 text-right overflow-hidden text-ellipsis whitespace-nowrap" title={row.value ?? undefined}>
                     {row.value}
                   </span>
                 </div>
@@ -112,7 +113,7 @@ export function AssetInfoPanel() {
 }
 
 export function useAssetMetadataRows(asset: Accessor<Asset | undefined>) {
-  const generationId = createMemo(() => asset()?.generationId ?? null);
+  const generationId = createMemo(() => asset()?.generation?.id ?? null);
 
   const [config] = createResource(() => generationId(), async (id) => {
     if (!id || !supabase) return undefined;
@@ -132,31 +133,25 @@ export function useAssetMetadataRows(asset: Accessor<Asset | undefined>) {
     const a = asset();
     if (!a) return [];
 
-    const dimensions =
-      a.type === "IMAGE" || a.type === "VIDEO"
-        ? `${a.width}\u00D7${a.height}`
-        : null;
-    const resolution = a.type === "VIDEO" ? `${a.height}p` : null;
-    const aspectRatio =
-      a.type === "IMAGE" || a.type === "VIDEO"
-        ? formatAspectRatio(a.width, a.height)
-        : null;
+    const visual = a.type === "IMAGE" || a.type === "VIDEO" || a.type === "SEQUENCE";
+    const timed = a.type === "VIDEO" || a.type === "AUDIO" || a.type === "SEQUENCE";
+
+    const dimensions = visual ? `${a.width}×${a.height}` : null;
+    const resolution = a.type === "VIDEO" || a.type === "SEQUENCE" ? `${a.height}p` : null;
+    const aspectRatio = visual ? formatAspectRatio(a.width, a.height) : null;
     const frameRate =
-      a.type === "VIDEO"
+      a.type === "VIDEO" || a.type === "SEQUENCE"
         ? `${Math.round(a.frameRate)} FPS`
         : null;
-    const duration =
-      a.type === "VIDEO" || a.type === "AUDIO"
-        ? formatDuration(a.duration)
-        : null;
-    const fileSize = a.size != null ? formatBytes(a.size) : null;
+    const duration = timed ? formatDuration(a.duration) : null;
+    const fileSize = a.stat ? formatBytes(a.stat.size) : null;
     const format = formatMimeTypeLabel(a.mimeType);
     const channels =
       a.type === "AUDIO" || a.type === "VIDEO"
         ? formatChannels(a.channels)
         : null;
     const imported = formatAssetDate(a.createdAt);
-    const created = formatAssetDate(a.lastModified);
+    const modified = a.stat ? formatAssetDate(a.stat.mtime) : null;
     const c = config();
     const prompt = c?.prompt ?? null;
     const model = c?.model ?? null;
@@ -171,7 +166,8 @@ export function useAssetMetadataRows(asset: Accessor<Asset | undefined>) {
       { label: "Format", value: format },
       { label: "Channels", value: channels },
       { label: "Imported", value: imported },
-      { label: "Created", value: created },
+      { label: "Modified", value: modified },
+      { label: "Source", value: a.source },
       { label: "Prompt", value: prompt },
       { label: "Model", value: model },
     ];

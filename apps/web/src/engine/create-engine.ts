@@ -5,7 +5,7 @@
 import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
 import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
-import { Hud, Keys, Pointer, PointerEvents, SnapLines } from './traits';
+import { AssetSelection, Hud, Keys, Pointer, PointerEvents, SnapLines } from './traits';
 import { inputSystem } from './input/input-system';
 import { shortcutSystem } from './input/shortcuts';
 
@@ -39,7 +39,7 @@ class Engine {
 
 	public constructor(projectId: string, options: EngineOptions = {}) {
 		this.world = createRuntimeWorld(projectId);
-		this.world.add(Pointer, Keys, SnapLines, Hud, PointerEvents);
+		this.world.add(Pointer, Keys, SnapLines, Hud, PointerEvents, AssetSelection);
 
 		this.unsubscribe.push(
 			this.world.onAdd(ChildOf('*'), () => (this.interactiveDirty = true)),

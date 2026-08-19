@@ -17,10 +17,11 @@ import {
   isShape,
   isText,
 } from "@diffusionstudio/runtime";
-import { useSelection, useTool } from "@/engine/hooks";
+import { useAssetSelection, useSelection, useTool } from "@/engine/hooks";
 import { InspectorHeader } from "./inspector-header";
 import { BackgroundSettings } from "./background";
 import { SceneTemplatePanel } from "./scene-template";
+import { AssetInfoPanel } from "./asset-info";
 // import { Alignment } from "./alignment";
 // import { ExportPanel } from "./export";
 // import { TimeSettings } from "./time";
@@ -37,18 +38,10 @@ import { SceneTemplatePanel } from "./scene-template";
 // import { TransitionSettings } from "./transition";
 // import { MasksSettings } from "./masks";
 // import { AudioSettings } from "./audio";
-// import { AssetInfoPanel } from "./asset-info";
 // import { InterpolationSettings } from "./interpolation";
 
 import type { Entity } from "koota";
 
-/**
- * What the inspector is looking at. Decided by the armed tool first, then the
- * selection: keyframes win over nodes, then a selected library asset (not
- * wired yet: asset selection is local to the assets panel), a single node is classified by its
- * traits (order matters: a scene is also RECT + ClipsContent), and anything
- * else falls back to the stage.
- */
 export type SelectionTarget =
   | "scene-tool"
   | "keyframe"
@@ -82,6 +75,7 @@ function classifyNode(entity: Entity): SelectionTarget {
 export function Inspector() {
   const tool = useTool();
   const { nodes, keyframes, first } = useSelection();
+  const { asset } = useAssetSelection();
 
   // For ExportPanel (root scenes only) and TransitionSettings (sequence items).
   // const parent = createMemo(() => getParentNode(first()));
@@ -94,6 +88,7 @@ export function Inspector() {
   const selectionTarget = createMemo<SelectionTarget>(() => {
     if (tool() === ToolType.SCENE) return "scene-tool";
     if (keyframes().length > 0) return "keyframe";
+    if (asset()) return "asset";
     const entity = first();
     if (nodes().length === 1 && entity) return classifyNode(entity);
     return "stage";
@@ -102,7 +97,7 @@ export function Inspector() {
   // Remounts the panels when the selection changes, so per-panel local state
   // (open pickers, text fields mid-edit) never carries over to another entity.
   const selectionHash = createMemo(() => {
-    return [...nodes(), ...keyframes()].join(",") + selectionTarget();
+    return [...nodes(), ...keyframes(), asset()?.id ?? ""].join(",") + selectionTarget();
   });
 
   const includesTarget = (...targets: SelectionTarget[]) => {
@@ -186,9 +181,9 @@ export function Inspector() {
             <AudioSettings selection={nodes()} />
           </Show> */}
 
-          {/* <Show when={includesTarget("asset")}>
+          <Show when={includesTarget("asset")}>
             <AssetInfoPanel />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("keyframe")}>
             <InterpolationSettings />

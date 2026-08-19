@@ -62,3 +62,11 @@ export const Hud = trait({ mode: 'idle' as HudMode });
  * Queue of pointer events to be processed by the input system.
  */
 export const PointerEvents = trait({ queue: () => [] as CanvasPointerEvent[] });
+
+/**
+ * The library asset picked in the assets panel, by id (null for none). The
+ * inspector shows its information; a click on empty canvas clears it, like
+ * it clears the node selection. Not a document property: which asset is
+ * being looked at is editor state, not something the JSX says.
+ */
+export const AssetSelection = trait({ id: null as string | null });

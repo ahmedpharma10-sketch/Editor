@@ -7,6 +7,9 @@
 
 import { toast } from "somoto";
 import { importFiles as importFilesInto, pickFiles, saveAssetAs as saveAs } from "@diffusionstudio/assets";
+import { insertAsset } from "./insert-asset";
+
+import type { World } from "koota";
 
 import type { Asset, AssetLibrary } from "@diffusionstudio/assets";
 
@@ -37,4 +40,29 @@ export async function importFiles(library: AssetLibrary, files: ReadonlyArray<Fi
 /** Opens the file picker and imports what the user picks into `folder`. */
 export async function pickAndImport(library: AssetLibrary, folder: string): Promise<Asset[]> {
   return importFiles(library, await pickFiles(), folder);
+}
+
+/**
+ * Lets the user pick another file for `asset` and points it there; the JSX
+ * keeps naming it by path. Returns the relinked asset, or null when the
+ * picker was dismissed, the host cannot tell the file's path, or the relink
+ * failed (reported).
+ */
+export async function replaceAssetSource(library: AssetLibrary, asset: Asset): Promise<Asset | null> {
+  const [file] = await pickFiles({ multiple: false });
+  const path = file ? library.fs.pathOf?.(file) : null;
+  if (!path) return null;
+  try {
+    return await library.relink(asset, path);
+  } catch (error) {
+    toast.error("Failed to replace", { description: (error as Error).message });
+    return null;
+  }
+}
+
+/** Inserts `asset` at the playhead of the active scene; tells the user when there is nowhere to put it. */
+export function insertAssetAtPlayhead(world: World, asset: Asset): void {
+  if (!insertAsset(world, asset)) {
+    toast("Nothing to insert into", { description: "Open a project first." });
+  }
 }
