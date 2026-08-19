@@ -22,9 +22,9 @@ import { InspectorHeader } from "./inspector-header";
 import { BackgroundSettings } from "./background";
 import { SceneTemplatePanel } from "./scene-template";
 import { AssetInfoPanel } from "./asset-info";
+import { TimeSettings } from "./time";
 // import { Alignment } from "./alignment";
 // import { ExportPanel } from "./export";
-// import { TimeSettings } from "./time";
 // import { TransformSettings } from "./transform";
 // import { LayoutPanel } from "./layout";
 // import { AppearanceSettings } from "./appearance";
@@ -125,9 +125,9 @@ export function Inspector() {
             <BackgroundSettings />
           </Show>
 
-          {/* <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "group", "mask", "adjustment")}>
+          <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "group", "mask", "adjustment")}>
             <TimeSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "group", "mask", "adjustment")}>
             <TransformSettings selection={nodes()} />

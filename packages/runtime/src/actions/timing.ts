@@ -186,10 +186,9 @@ export function fitsChildren(entity: Entity, ignore?: Ignorable): boolean {
 export function pinEndToCurrentBounds(world: World, entity: Entity): void {
 	if (entity.has(End)) return;
 
-	const start = entity.get(Start)?.value ?? 0;
-	const duration = store(world, Computed).duration[entity.id()] ?? 0;
+	const end = store(world, Computed).end[entity.id()] ?? 0;
 
-	entity.add(End({ value: start + duration }));
+	entity.add(End({ value: end - getTimelineOrigin(entity) }));
 }
 
 /**

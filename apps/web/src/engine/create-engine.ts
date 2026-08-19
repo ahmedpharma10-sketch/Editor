@@ -37,6 +37,14 @@ class Engine {
 	public running: Accessor<boolean>;
 	private setRunning: Setter<boolean>;
 
+	/**
+	 * Ticks once per frame, after the systems ran. The one signal derived
+	 * state is sampled against (see `useDerived`); a plain Solid signal, so
+	 * following the tick costs no koota subscription.
+	 */
+	public frame: Accessor<number>;
+	private setFrame: Setter<number>;
+
 	public constructor(projectId: string, options: EngineOptions = {}) {
 		this.world = createRuntimeWorld(projectId);
 		this.world.add(Pointer, Keys, SnapLines, Hud, PointerEvents, AssetSelection);
@@ -47,6 +55,7 @@ class Engine {
 		);
 
 		[this.running, this.setRunning] = createSignal(false);
+		[this.frame, this.setFrame] = createSignal(0);
 
 		this.ownsAudioContext = options.audioContext === undefined;
 		this.audioContext = options.audioContext ?? new AudioContext({ latencyHint: 'playback' });
@@ -123,6 +132,7 @@ class Engine {
 		}
 
 		this.runSystems();
+		this.setFrame((count) => count + 1);
 
 		const keys = this.world.get(Keys);
 		if (keys?.justPressed || keys?.justLifted) {
