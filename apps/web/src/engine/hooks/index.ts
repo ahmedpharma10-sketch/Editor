@@ -6,3 +6,4 @@ export * from './use-active-scene';
 export * from './use-camera';
 export * from './use-editor';
 export * from './use-tool';
+export * from './use-selection';
