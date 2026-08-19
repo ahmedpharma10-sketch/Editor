@@ -7,7 +7,7 @@ import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
 import { assert } from '../utils/assert';
 import { getAssetFile } from '../actions/assets';
 
-import type { Asset } from '../assets/types';
+import type { Asset } from '@diffusionstudio/assets';
 
 // Envelope sample rate. 500 Hz → 2 ms resolution (well under one video frame),
 // and keeps the FFT small enough for multi-minute clips. Parabolic
@@ -149,7 +149,7 @@ function prefixSums(x: Float32Array): { sum: Float64Array; sumSq: Float64Array }
 const offsetCache = new Map<string, Promise<AudioSyncResult>>();
 
 export function computeAudioSyncOffsetCached(a: Asset, b: Asset): Promise<AudioSyncResult> {
-  const key = `${a.hash}:${b.hash}`;
+  const key = `${a.id}:${b.id}`;
   const cached = offsetCache.get(key);
   if (cached) return cached;
   const promise = computeAudioSyncOffset(a, b);

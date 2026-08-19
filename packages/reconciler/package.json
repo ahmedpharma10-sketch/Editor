@@ -18,6 +18,7 @@
     "koota"
   ],
   "dependencies": {
+    "@diffusionstudio/assets": "*",
     "@diffusionstudio/jsx": "*",
     "@diffusionstudio/runtime": "*",
     "koota": "^0.6.6"

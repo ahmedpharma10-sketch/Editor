@@ -4,15 +4,15 @@
 
 import { BlobSource, ALL_FORMATS, Input, InputVideoTrack, EncodedPacketSink, EncodedPacket, CanvasSink, type WrappedCanvas } from 'mediabunny';
 
-import { AssetId, VideoDecoderHandle, Assets, Mode } from '../traits';
+import { AssetId, VideoDecoderHandle, Mode } from '../traits';
 import { assert } from '../utils/assert';
-import { getAssetFile } from '../actions/assets';
+import { getAsset, getAssetFile } from '../actions/assets';
 import { FrameCache } from './frame-cache';
 import { getKeyframeIndex } from './keyframe-index';
 
 import type { Entity, World } from 'koota';
 import type { KeyframeIndex } from './keyframe-index';
-import type { VideoAsset } from '../assets/types';
+import type { VideoAsset } from '@diffusionstudio/assets';
 
 
 export type VideoBufferMode = 'discarded' | 'idle' | 'alive';
@@ -719,7 +719,7 @@ export function resolveVideoDecoder(world: World, entity: Entity): VideoDecoderI
 	// Asset changed — dispose old decoder and create a new one.
 	existing?.dispose();
 
-	const asset = world.get(Assets)?.get(assetId);
+	const asset = getAsset(world, assetId);
 	if (!asset || asset.type !== 'VIDEO') return null;
 
 	const decoder = world.get(Mode)?.value === 'realtime'

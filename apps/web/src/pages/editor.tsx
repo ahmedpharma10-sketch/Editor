@@ -15,6 +15,7 @@ import { toast } from 'somoto';
 import { useWorld } from '@diffusionstudio/koota-solid';
 import { mount } from '@diffusionstudio/reconciler';
 import { getDocumentEditor } from '@/engine/editor';
+import { attachLibrary, isLibraryFile } from '@/engine/library';
 import { createEditWriter } from '@/projects/edits';
 import { compileProject, watchProject, projectDir } from '@/projects/host';
 import { useProjectId } from "@/hooks/use-project-id";
@@ -41,6 +42,9 @@ export function EditorPage() {
     let disposed = false;
     let generation = 0;
 
+    // The library first: a mounted project's `src` values name its assets.
+    const library = attachLibrary(world, dir);
+
     const unmount = (): void => {
       // Before the entities go: what the editor changed is still owed to the
       // file, whatever happens to the scene that showed it.
@@ -52,9 +56,9 @@ export function EditorPage() {
       mounted = undefined;
     };
 
-    const load = async (): Promise<void> => {
+    const loadProject = async (): Promise<void> => {
       const current = ++generation;
-      const result = await compileProject(dir);
+      const [result] = await Promise.all([compileProject(dir), library.load()]);
       if (disposed || current !== generation) return;
 
       // A broken edit keeps the last good render on the canvas.
@@ -77,13 +81,21 @@ export function EditorPage() {
       }
     };
 
-    void load();
-    const unwatch = watchProject(dir, () => void load());
+    loadProject();
+  
+    const unwatch = watchProject(dir, (path) => {
+      if (isLibraryFile(path)) {
+        library.load();
+      } else {
+        loadProject();
+      }
+    });
 
     onCleanup(() => {
       disposed = true;
       unwatch();
       unmount();
+      library.dispose();
     });
   });
 

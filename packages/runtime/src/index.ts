@@ -6,7 +6,6 @@ export * from './world/serialize';
 export * from './world/store';
 export * from './queries';
 export * from './actions';
-export * from './assets/types';
 export * from './systems';
 export * from './math';
 export * from './media';

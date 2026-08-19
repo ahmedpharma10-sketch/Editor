@@ -6,7 +6,7 @@ import { AudioSampleSink } from 'mediabunny';
 
 import { getAudioTrack } from './audio';
 
-import type { AudioAsset, VideoAsset } from '../assets/types';
+import type { AudioAsset, VideoAsset } from '@diffusionstudio/assets';
 
 const peakCache = new Map<string, Uint8ClampedArray>();
 const inflight = new Map<string, Promise<Uint8ClampedArray | null>>();

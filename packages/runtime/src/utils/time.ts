@@ -4,12 +4,12 @@
 
 import { CONONICAL_TIME_BASE, PaintType } from '../constants';
 import {
-	Audio, AssetId, Cache, Computed, Geometry, Paint, SourceIn, Assets, FrameRate,
+	Audio, AssetId, Cache, Computed, Geometry, Paint, SourceIn, Library, FrameRate,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
-import type { Asset } from '../assets/types';
+import type { Asset } from '@diffusionstudio/assets';
 
 export function snapToMs(seconds: number) {
 	return Math.round(seconds * CONONICAL_TIME_BASE) / CONONICAL_TIME_BASE;
@@ -110,7 +110,7 @@ export function isPaintEntity(entity: Entity): boolean {
 
 /** The asset backing a geometry: its own AssetId, or the first fill's. */
 export function findGeometryAsset(world: World, entity: Entity): Asset | null {
-	const assets = world.get(Assets);
+	const assets = world.get(Library);
 	if (!assets) return null;
 
 	const ownId = entity.get(AssetId)?.value;
@@ -138,7 +138,7 @@ export function findGeometryAsset(world: World, entity: Entity): Asset | null {
  * absent (for a handler of its removal).
  */
 export function findAssetDuration(world: World, entity: Entity, ignoreOwn = false): number | null {
-	const assets = world.get(Assets);
+	const assets = world.get(Library);
 	if (!assets) return null;
 	const frameRate = world.get(FrameRate)?.value ?? 30;
 

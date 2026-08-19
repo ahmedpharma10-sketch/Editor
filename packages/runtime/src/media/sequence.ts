@@ -2,12 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { AssetId, SequenceDecoderHandle, Assets } from '../traits';
+import { AssetId, SequenceDecoderHandle } from '../traits';
+import { getAsset } from '../actions/assets';
 import { assert } from '../utils/assert';
 import { FrameCache } from './frame-cache';
 
 import type { Entity, World } from 'koota';
-import type { SequenceAsset } from '../assets/types';
+import type { SequenceAsset } from '@diffusionstudio/assets';
 
 const FRAME_EXTENSIONS = /\.(png|jpe?g|webp|avif|bmp|gif)$/i;
 
@@ -246,7 +247,7 @@ export function resolveSequenceDecoder(world: World, entity: Entity, hasCache = 
 	const assetId = entity.get(AssetId)?.value;
 	if (!assetId) return null;
 
-	const asset = world.get(Assets)?.get(assetId);
+	const asset = getAsset(world, assetId);
 	if (!asset || asset.type !== 'SEQUENCE') return null;
 
 	// Identity check (not just id) so decoders rebuild when asset metadata —

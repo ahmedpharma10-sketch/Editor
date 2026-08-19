@@ -11,3 +11,5 @@ export * from './editor';
 export * from './traits';
 export * from './input';
 export * from './hud';
+export * from './library';
+export * from './asset-actions';

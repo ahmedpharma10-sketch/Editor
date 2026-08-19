@@ -7,7 +7,7 @@ import { trait, type Entity, type World } from 'koota';
 import { createLiveMounts } from '../utils/live-mounts';
 
 import type { FontSource } from '../fonts/types';
-import type { Asset, Folder } from '../assets/types';
+import type { AssetLibrary } from '@diffusionstudio/assets';
 import type { Quad } from '../math/aabb';
 
 // Singleton state attached to the world itself (world.get/world.set).
@@ -64,15 +64,10 @@ export const AudioEngine = trait({
 // Fonts registered for text layout.
 export const Fonts = trait({ list: () => [] as FontSource[] });
 
-// Asset metadata by id (model only; the app persists and rehydrates it).
-export const Assets = trait(() => new Map<string, Asset>());
-
-// Asset-library folder tree by id (model only, like Assets).
-export const Folders = trait(() => new Map<string, Folder>());
-
-// Allocation state for the project's shared asset/folder id space (sqids
-// over a monotonic counter), so an id never refers to both kinds.
-export const AssetIds = trait({ counter: 0 });
+// The project's asset library, once the host has attached one (it needs the
+// project's file system): every asset an entity's AssetId can name, library
+// and transient alike. Null in a world without a project.
+export const Library = trait(() => null as AssetLibrary | null);
 
 // Live JSX mount registry; running graphs advance once per frame.
 export const Mounts = trait(() => createLiveMounts());

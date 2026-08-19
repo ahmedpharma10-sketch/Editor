@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { AssetId, ImageDecoderHandle, Assets } from '../traits';
-import { getAssetFile } from '../actions/assets';
+import { AssetId, ImageDecoderHandle } from '../traits';
+import { getAsset, getAssetFile } from '../actions/assets';
 
 import type { Entity, World } from 'koota';
-import type { ImageAsset } from '../assets/types';
+import type { ImageAsset } from '@diffusionstudio/assets';
 
 export type DecodedImage = ImageBitmap | HTMLImageElement;
 
@@ -236,7 +236,7 @@ export function resolveImageDecoder(world: World, entity: Entity): ResolvedImage
 	// Asset changed: release the old decoder and acquire one for the new asset.
 	if (existing) existing.dispose();
 
-	const asset = world.get(Assets)?.get(assetId);
+	const asset = getAsset(world, assetId);
 	if (!asset || asset.type !== 'IMAGE') return null;
 
 	const cache = getDecoderCache(world);

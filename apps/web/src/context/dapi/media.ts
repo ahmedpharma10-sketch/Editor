@@ -3,46 +3,41 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
-import { ElectronFileHandle } from '@/lib/electron-file-handle';
 import { pickInformativeTimes } from './frame-triage';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, filmstripAsset, waveformAsset, describeFileAsset, getAssetFile, formatTimecode, composeSheet, planSheet, planSheetSizes, sheetTimecode } from '@/components/engine';
+import { uploadBlob, composeSheet, planSheet, planSheetSizes, sheetTimecode } from '@/components/engine';
 import { assert } from '@/utils';
-import {
-  transcodeForTranscription,
-  transcodeForAnalysis,
-  startResumableSession,
-  uploadResumableStream,
-} from '@/components/engine';
+import { startResumableSession, uploadResumableStream } from '@/components/engine';
+import { filmstripAsset, formatTimecode, getAsset, getAssetFile, getLibrary, Project, transcodeForAnalysis, transcodeForTranscription, waveformAsset } from '@diffusionstudio/runtime';
+import { assetName } from '@diffusionstudio/assets';
 
-import type { Engine } from "@/components/engine";
-import type { Asset } from "@/components/engine/db";
+import type { World } from 'koota';
+import type { Asset } from '@diffusionstudio/assets';
 import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaFrameResult, TimecodedImage, MediaProbeRequest, AssetRef, MediaTranscribeRequest, MediaTranscribeResult, MediaFilmstripRequest, MediaFilmstripResult, MediaWaveformRequest, MediaWaveformResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
-import type { Accessor } from "solid-js";
 
 /**
- * Resolves a command target: an id looks up the project's asset library, a
- * path describes the file in place as an ephemeral asset (never added to the
- * library). Ephemeral assets carry the path as their id.
+ * Resolves a command target: an id (or library path) looks up the project's
+ * asset library; a path is described in place through the library without
+ * being added to it (a transient asset).
  */
-async function resolveAssetRef(world: Engine["world"], ref: AssetRef): Promise<Asset> {
-  if ("path" in ref) return describeFileAsset(new ElectronFileHandle(ref.path));
-  const asset = world.assets.get(ref.id);
+async function resolveAssetRef(world: World, ref: AssetRef): Promise<Asset> {
+  if ("path" in ref) return getLibrary(world).resolve(ref.path);
+  const asset = getAsset(world, ref.id);
   assert(asset, `Asset ${ref.id} not found.`);
   return asset;
 }
 
 const PROBE_SAMPLE_PACKETS = 200;
 
-export function handleMediaProbe(engine: Accessor<Engine>) {
+export function handleMediaProbe(world: World) {
   return async (req: MediaProbeRequest): Promise<unknown> => {
-    const { world } = engine();
     const asset = await resolveAssetRef(world, req);
 
     const blob = await getAssetFile(asset);
     const base = {
       id: asset.id,
-      name: asset.name,
+      name: assetName(asset),
+      path: asset.path,
       type: asset.type,
       mimeType: asset.mimeType,
       size: blob.size,
@@ -111,11 +106,10 @@ const FRAME_QUALITY_BUDGETS = {
 // Default cap on frames returned by auto selection when `count` is not given.
 const AUTO_MAX_FRAMES = 30;
 
-export function handleMediaFrame(engine: Accessor<Engine>) {
+export function handleMediaFrame(world: World) {
   return async (req: MediaFrameRequest): Promise<MediaFrameResult> => {
     const { times, count, start, end, quality, auto } = req;
     const combine = req.combine ?? true;
-    const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
     assert(asset.type === "VIDEO", `Asset ${id} is not a video.`);
@@ -249,9 +243,8 @@ export function handleMediaFrame(engine: Accessor<Engine>) {
 
 const transcripts = new Map<string, TranscriptSegment[]>();
 
-export function handleMediaTranscribe(engine: Accessor<Engine>) {
+export function handleMediaTranscribe(world: World) {
   return async (req: MediaTranscribeRequest): Promise<MediaTranscribeResult> => {
-    const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
     assert(
@@ -259,7 +252,7 @@ export function handleMediaTranscribe(engine: Accessor<Engine>) {
       `Asset ${id} is not a video or audio asset.`,
     );
 
-    let transcript = transcripts.get(asset.hash);
+    let transcript = transcripts.get(asset.id);
     if (!transcript) {
       const uploadId = crypto.randomUUID();
       const audioFile = await transcodeForTranscription(asset);
@@ -271,16 +264,15 @@ export function handleMediaTranscribe(engine: Accessor<Engine>) {
         throw new Error("No speech detected. The audio does not appear to contain recognizable speech.");
       }
 
-      transcripts.set(asset.hash, transcript);
+      transcripts.set(asset.id, transcript);
     }
 
     return { segments: transcript };
   };
 }
 
-export function handleMediaFilmstrip(engine: Accessor<Engine>) {
+export function handleMediaFilmstrip(world: World) {
   return async (req: MediaFilmstripRequest): Promise<MediaFilmstripResult> => {
-    const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const { dataUrl, ...rest } = await filmstripAsset(asset, { start: req.start, end: req.end, scale: req.scale });
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
@@ -288,9 +280,8 @@ export function handleMediaFilmstrip(engine: Accessor<Engine>) {
   };
 }
 
-export function handleMediaWaveform(engine: Accessor<Engine>) {
+export function handleMediaWaveform(world: World) {
   return async (req: MediaWaveformRequest): Promise<MediaWaveformResult> => {
-    const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const { dataUrl, ...rest } = await waveformAsset(asset, { start: req.start, end: req.end, scale: req.scale });
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
@@ -298,11 +289,10 @@ export function handleMediaWaveform(engine: Accessor<Engine>) {
   };
 }
 
-export function handleMediaListen(engine: Accessor<Engine>) {
+export function handleMediaListen(world: World) {
   return async (req: MediaListenRequest): Promise<MediaListenResult> => {
     const { prompt, start, end } = req;
     let { stripVideo } = req;
-    const { world } = engine();
     const asset = await resolveAssetRef(world, req);
     const id = asset.id;
     assert(
@@ -317,8 +307,7 @@ export function handleMediaListen(engine: Accessor<Engine>) {
       asset.type === "VIDEO" ? (stripVideo ? "audio/ogg" : "video/mp4") : "audio/ogg";
 
     const window = hasWindow ? `-${start ?? 0}-${end ?? "end"}` : "";
-    const key = world.assets.has(id) ? id : asset.hash;
-    const uploadId = `${world.projectId}-${key}-analyze${stripVideo ? "-audio" : ""}${window}`
+    const uploadId = `${world.get(Project)?.id ?? "project"}-${id}-analyze${stripVideo ? "-audio" : ""}${window}`
       .replace(/[^A-Za-z0-9._-]/g, "_");
     const { uploadUrl, fileRef } = await trpc.getUploadUrl.mutate({
       action: "resumable",

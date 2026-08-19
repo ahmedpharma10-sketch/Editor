@@ -21,5 +21,4 @@ export * from './group';
 export * from './frame';
 export * from './clipboard';
 export * from './assets';
-export * from './folders';
 export * from './interactive';

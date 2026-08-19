@@ -50,6 +50,11 @@ export const MAIN_CHANNELS = {
   PROJECTS_WRITE: "projects:write",
   PROJECTS_WATCH: "projects:watch",
   PROJECTS_UNWATCH: "projects:unwatch",
+  PROJECTS_MANIFEST_READ: "projects:manifest-read",
+  PROJECTS_MANIFEST_WRITE: "projects:manifest-write",
+  PROJECTS_FS_LIST: "projects:fs-list",
+  PROJECTS_FS_STAT: "projects:fs-stat",
+  PROJECTS_FS_REMOVE: "projects:fs-remove",
 
   // Main→Renderer events
   AUTH_CALLBACK: "auth:callback",
@@ -141,7 +146,19 @@ export type MainRequestMap = {
   };
   [MAIN_CHANNELS.PROJECTS_WATCH]: { request: { dir: string }; response: void };
   [MAIN_CHANNELS.PROJECTS_UNWATCH]: { request: { dir: string }; response: void };
+  // The asset manifest (`assets.yml`) as plain data; null when there is none.
+  [MAIN_CHANNELS.PROJECTS_MANIFEST_READ]: { request: { dir: string }; response: unknown };
+  [MAIN_CHANNELS.PROJECTS_MANIFEST_WRITE]: { request: { dir: string; manifest: unknown }; response: void };
+  // Project file system, for the asset library. `source` is project-relative
+  // or absolute; `path` is always project-relative. Writes stream through the
+  // FILE_WRITE_* channels (which create parent directories).
+  [MAIN_CHANNELS.PROJECTS_FS_LIST]: { request: { dir: string; source: string }; response: FsEntry[] };
+  [MAIN_CHANNELS.PROJECTS_FS_STAT]: { request: { dir: string; source: string }; response: FsStat | null };
+  [MAIN_CHANNELS.PROJECTS_FS_REMOVE]: { request: { dir: string; path: string }; response: void };
 };
+
+export type FsEntry = { name: string; kind: "file" | "directory"; size: number; mtime: number };
+export type FsStat = { size: number; mtime: number };
 export type MainRequestChannel = keyof MainRequestMap;
 
 export type MainEventMap = {

@@ -56,7 +56,7 @@ How the surface is divided:
 ## Shared types
 
 ```ts
-Asset = { id: string; name: string; type: string }  // asset ids are opaque strings (sqids)
+Asset = { id: string; path: string; type: string }  // asset ids are content hashes; `path` is the library path
 Time  = number | `${number}f` | "MM:SS"              // seconds, frames at 30 fps ("45f"), or a clock string; see jsx/timing.md
 ```
 

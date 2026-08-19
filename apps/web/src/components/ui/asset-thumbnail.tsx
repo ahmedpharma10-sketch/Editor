@@ -5,12 +5,29 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { Show, For, createResource } from 'solid-js';
 import { cx } from '@/lib/cva';
-import { getAudioPeaksAsync } from '@/components/engine/decoders/audio-peaks';
-import { useEngine } from '@/context/engine';
-import { assetsVersion, getAssetFile } from '@/components/engine';
+import { getAssetFile, getAudioPeaksAsync } from '@diffusionstudio/runtime';
 
-import type { AudioAsset, ImageAsset, VideoAsset } from '@/components/engine/db';
-import type { Asset } from '@/components/engine/db';
+import type { AudioAsset, VideoAsset } from '@diffusionstudio/assets';
+
+/**
+ * What a thumbnail needs of an asset: the runtime's `Asset` and the legacy
+ * engine's both qualify.
+ */
+export type ThumbnailAsset = {
+  id: string;
+  type: string;
+  mimeType: string;
+  handle: { getFile(): Promise<File> };
+  width?: number;
+  height?: number;
+  stat?: { mtime: number };
+  lastModified?: number;
+};
+
+type Asset = ThumbnailAsset;
+
+/** Re-renders a thumbnail when the asset, or the file behind it, changes. */
+const keyOf = (asset: Asset): string => `${asset.id}:${asset.stat?.mtime ?? asset.lastModified ?? ''}`;
 
 const DEFAULT_THUMBNAIL_SIZE = {
   width: 300,
@@ -23,9 +40,8 @@ type ThumbnailSize = {
 };
 
 function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
-  const engine = useEngine();
   const [url] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
+    () => keyOf(props.asset),
     async () => {
       const objectUrl = URL.createObjectURL(await getAssetFile(props.asset));
       try {
@@ -41,9 +57,8 @@ function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
         canvas.height = props.size.height;
         const ctx = canvas.getContext('2d')!;
 
-        const asset = props.asset as ImageAsset;
-        const imgW = image.naturalWidth || asset.width;
-        const imgH = image.naturalHeight || asset.height;
+        const imgW = image.naturalWidth || props.asset.width || props.size.width;
+        const imgH = image.naturalHeight || props.asset.height || props.size.height;
         const scale = Math.max(props.size.width / imgW, props.size.height / imgH);
         const scaledW = imgW * scale;
         const scaledH = imgH * scale;
@@ -69,7 +84,8 @@ function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
     <Show when={url()}>
       <img
         src={url()!}
-        alt={props.asset.name}
+        alt=""
+
         class="w-full h-full object-cover select-none"
       />
     </Show>
@@ -77,9 +93,8 @@ function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
 }
 
 function VideoThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
-  const engine = useEngine();
   const [src] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
+    () => keyOf(props.asset),
     async () => {
       try {
         const file = await getAssetFile(props.asset);
@@ -120,7 +135,8 @@ function VideoThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
     <Show when={src()}>
       <img
         src={src()!}
-        alt={props.asset.name}
+        alt=""
+
         class="w-full h-full object-cover select-none"
       />
     </Show>
@@ -144,10 +160,9 @@ function TranscriptThumbnail() {
 }
 
 function AudioThumbnail(props: { asset: Asset }) {
-  const engine = useEngine();
   const [bins] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
-    () => getAudioPeaksAsync(props.asset as AudioAsset | VideoAsset),
+    () => keyOf(props.asset),
+    () => getAudioPeaksAsync(props.asset as unknown as AudioAsset | VideoAsset),
   );
 
   return (

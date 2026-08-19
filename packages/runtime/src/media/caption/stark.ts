@@ -12,7 +12,7 @@ import { createEntity } from '../../actions/entities';
 import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
-import type { Asset } from '../../assets/types';
+import type { Asset } from '@diffusionstudio/assets';
 import type { CaptionDecoder } from './types';
 
 const WIDTH = 700;

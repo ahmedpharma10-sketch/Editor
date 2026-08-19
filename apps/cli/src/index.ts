@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
@@ -122,19 +122,20 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
   }
 }
 
+/**
+ * An asset id, a local file (or frames folder) that exists, or otherwise a
+ * library path (`b-roll/clip.mp4`) for the app to look up.
+ */
 function resolveAssetRef(ref: string): AssetRef {
   if (/^[A-Za-z0-9]+$/.test(ref)) return { id: ref };
 
   const absPath = isAbsolute(ref) ? ref : resolve(process.cwd(), ref);
-  if (!existsSync(absPath)) {
+  if (existsSync(absPath)) return { path: absPath };
+  if (isAbsolute(ref)) {
     console.error(`File not found: ${absPath}`);
     process.exit(1);
   }
-  if (!statSync(absPath).isFile()) {
-    console.error(`Not a file: ${absPath}`);
-    process.exit(1);
-  }
-  return { path: absPath };
+  return { id: ref };
 }
 
 async function mediaProbe(ref: string): Promise<void> {

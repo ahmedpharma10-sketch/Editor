@@ -4,6 +4,7 @@
 
 import { createEffect, createContext, useContext, onCleanup, onMount, createResource } from "solid-js";
 import { useEngine } from '@/context/engine';
+import { useWorld } from '@diffusionstudio/koota-solid';
 import { useProjectId } from '@/hooks/use-project-id';
 import { useAuth } from '@/context/auth';
 import { t, q, q0 } from "@/lib/cli-rpc";
@@ -22,6 +23,7 @@ import { handleGetFullscreenState, handleWindowFullscreenChange, handleWindowScr
 import type { JSX, Accessor } from 'solid-js';
 import type { User } from '@supabase/supabase-js';
 import type { Engine } from '@/components/engine';
+import type { World } from 'koota';
 
 type EditorApiProviderProps = {
   children: JSX.Element;
@@ -52,6 +54,7 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   };
 
   const getEngine = () => engine;
+  const world = useWorld();
 
   createEffect(() => {
     document.documentElement.dataset.fullscreen = String(isFullscreen());
@@ -66,7 +69,7 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
     if (!window.desktop || !engine.initialized() || projectId() !== engine.world.projectId) return;
 
 
-    const router = createAppRouter({ getEngine, getUser, requireAuth });
+    const router = createAppRouter({ getEngine, world, getUser, requireAuth });
     onCleanup(cliBridge.register(createRouterCaller(router)));
   });
 
@@ -85,11 +88,12 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
 
 type AppRouterDeps = {
   getEngine: () => Engine;
+  world: World;
   getUser: () => User;
   requireAuth: <I, O>(fn: (data: I) => Promise<O>) => (data: I) => Promise<O>;
 };
 
-function createAppRouter({ getEngine, getUser, requireAuth }: AppRouterDeps) {
+function createAppRouter({ getEngine, world, getUser, requireAuth }: AppRouterDeps) {
   return t.router({
     ping: t.procedure.query(() => {}),
     whoami: t.procedure.query(() => getUser()),
@@ -100,12 +104,12 @@ function createAppRouter({ getEngine, getUser, requireAuth }: AppRouterDeps) {
     screenshot: q0(handleWindowScreenshot()),
     voices: q0(handleVoices()),
     media: t.router({
-      probe: q(handleMediaProbe(getEngine)),
-      frame: q(handleMediaFrame(getEngine)),
-      transcribe: q(handleMediaTranscribe(getEngine)),
-      filmstrip: q(handleMediaFilmstrip(getEngine)),
-      waveform: q(handleMediaWaveform(getEngine)),
-      listen: q(requireAuth(handleMediaListen(getEngine))),
+      probe: q(handleMediaProbe(world)),
+      frame: q(handleMediaFrame(world)),
+      transcribe: q(handleMediaTranscribe(world)),
+      filmstrip: q(handleMediaFilmstrip(world)),
+      waveform: q(handleMediaWaveform(world)),
+      listen: q(requireAuth(handleMediaListen(world))),
     }),
   });
 }

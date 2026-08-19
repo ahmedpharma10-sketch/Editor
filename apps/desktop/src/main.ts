@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { app, BrowserWindow, nativeImage, session, shell } from "electron";
-import { join } from "node:path";
-import { open, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { mkdir, open, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
 import { updateElectronApp } from "update-electron-app";
@@ -23,8 +23,14 @@ import {
   pickRoot,
   renameProject,
   unwatchAll,
+  listEntries,
+  markSelfWriteAbsolute,
+  readManifest,
+  removeEntry,
+  statEntry,
   unwatchProject,
   watchProject,
+  writeManifest,
   writeProject,
 } from "./projects";
 import type { DeepLinkChannel } from "./main-channels";
@@ -275,11 +281,18 @@ if (app.requestSingleInstanceLock()) {
     watchProject(BrowserWindow.fromWebContents(event.sender), dir),
   );
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_UNWATCH, ({ dir }) => unwatchProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_MANIFEST_READ, ({ dir }) => readManifest(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_MANIFEST_WRITE, ({ dir, manifest }) => writeManifest(dir, manifest));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_LIST, ({ dir, source }) => listEntries(dir, source));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_STAT, ({ dir, source }) => statEntry(dir, source));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_REMOVE, ({ dir, path }) => removeEntry(dir, path));
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>
     setFileInputFiles(selector, absolutePath),
   );
 
   mainBridge.handle(MAIN_CHANNELS.FILE_WRITE_OPEN, async ({ path, exclusive }) => {
+    await mkdir(dirname(path), { recursive: true });
+    markSelfWriteAbsolute(path);
     const handle = await open(path, exclusive ? "wx" : "w");
     const id = randomUUID();
     openWrites.set(id, { handle, path });
@@ -289,6 +302,7 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.FILE_WRITE_CHUNK, async ({ id, data, position }) => {
     const entry = openWrites.get(id);
     if (!entry) throw new Error(`No open file for write id ${id}`);
+    markSelfWriteAbsolute(entry.path);
     await entry.handle.write(data, 0, data.byteLength, position);
   });
 
@@ -296,6 +310,7 @@ if (app.requestSingleInstanceLock()) {
     const entry = openWrites.get(id);
     if (!entry) return;
     openWrites.delete(id);
+    markSelfWriteAbsolute(entry.path);
     await entry.handle.close();
   });
 

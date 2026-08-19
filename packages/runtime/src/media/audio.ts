@@ -4,14 +4,14 @@
 
 import { Input, ALL_FORMATS, BlobSource, AudioBufferSink, type WrappedAudioBuffer, type InputAudioTrack } from 'mediabunny';
 
-import { AssetId, AudioDecoderHandle, Assets } from '../traits';
+import { AssetId, AudioDecoderHandle } from '../traits';
 import { AsyncMutex } from '../utils/async';
 import { assert } from '../utils/assert';
-import { getAssetFile } from '../actions/assets';
+import { getAsset, getAssetFile } from '../actions/assets';
 import { TimeStretcher } from './time-stretcher';
 
 import type { Entity, World } from 'koota';
-import type { AudioAsset, VideoAsset } from '../assets/types';
+import type { AudioAsset, VideoAsset } from '@diffusionstudio/assets';
 import type { AudioBus } from './audio-bus';
 
 const audioTrackCache = new Map<string, Promise<InputAudioTrack | null>>();
@@ -263,7 +263,7 @@ export function resolveAudioDecoder(world: World, entity: Entity): ResolvedAudio
 	// Asset changed: reset old decoder and create a new one.
 	if (existing) existing.reset();
 
-	const asset = world.get(Assets)?.get(assetId);
+	const asset = getAsset(world, assetId);
 	if (!asset || (asset.type !== 'AUDIO' && asset.type !== 'VIDEO')) return null;
 	if (asset.type === 'VIDEO' && !asset.channels) return null;
 

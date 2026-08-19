@@ -5,7 +5,7 @@
 import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
 import { toast } from "somoto";
 
-import { downloadAsset } from "@/components/assets/actions";
+import { saveAssetAs } from "@/engine/asset-actions";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -248,9 +248,11 @@ function AssetCard(props: AssetCardProps) {
     toast("Replace media", { description: props.asset.name });
   };
 
-  const handleDownload = async () => {
-    await downloadAsset(props.asset);
-  };
+  const handleSaveAs = () => saveAssetAs({
+    handle: props.asset.handle,
+    mimeType: props.asset.mimeType,
+    path: props.asset.name
+  });
 
   const handleDelete = async () => {
     try {
@@ -307,20 +309,20 @@ function AssetCard(props: AssetCardProps) {
 
           <ContextMenuSeparator />
 
-          <ContextMenuItem onSelect={() => void handleRename()}>
+          <ContextMenuItem onSelect={handleRename}>
             <MenuItemLabel>Rename</MenuItemLabel>
             <ContextMenuShortcut>⌘R</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuItem onSelect={handleReplace}>
             <MenuItemLabel>Replace</MenuItemLabel>
           </ContextMenuItem>
-          <ContextMenuItem onSelect={() => void handleDownload()}>
-            <MenuItemLabel>Download</MenuItemLabel>
+          <ContextMenuItem onSelect={handleSaveAs}>
+            <MenuItemLabel>Save as…</MenuItemLabel>
           </ContextMenuItem>
 
           <ContextMenuSeparator />
 
-          <ContextMenuItem onSelect={() => void handleDelete()}>
+          <ContextMenuItem onSelect={handleDelete}>
             <MenuItemLabel>Delete</MenuItemLabel>
             <ContextMenuShortcut>⌫</ContextMenuShortcut>
           </ContextMenuItem>

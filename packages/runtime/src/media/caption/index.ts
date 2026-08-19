@@ -3,7 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { CaptionType } from '../../constants';
-import { AssetId, Caption, TextStyle, CaptionDecoderHandle, Assets } from '../../traits';
+import { AssetId, Caption, TextStyle, CaptionDecoderHandle } from '../../traits';
+import { getAsset } from '../../actions/assets';
 import { ClassicCaptionDecoder } from './classic';
 import { CascadeCaptionDecoder } from './cascade';
 import { SpotlightCaptionDecoder } from './spotlight';
@@ -13,7 +14,7 @@ import { GuineaCaptionDecoder } from './guinea';
 import { StarkCaptionDecoder } from './stark';
 
 import type { Entity, World } from 'koota';
-import type { Asset } from '../../assets/types';
+import type { Asset } from '@diffusionstudio/assets';
 import type { CaptionDecoder } from './types';
 
 export type { CaptionDecoder } from './types';
@@ -66,7 +67,7 @@ export function resolveCaptionDecoder(world: World, entity: Entity): CaptionDeco
 	const typeChanged = existing != null;
 	existing?.dispose();
 
-	const asset = world.get(Assets)?.get(assetId);
+	const asset = getAsset(world, assetId);
 	if (!asset) return null;
 
 	const decoder = createCaptionDecoder(captionType, asset);

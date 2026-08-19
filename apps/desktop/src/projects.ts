@@ -15,9 +15,10 @@
 
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import { watch, type FSWatcher } from "node:fs";
-import { cp, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { TransformOptions } from "@babel/core";
 import type { BuildOptions, Plugin } from "esbuild";
@@ -26,7 +27,7 @@ import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
 import { applyEdits, stampProject } from "./edit";
 import { sourcePlugin } from "./source";
-import type { CompileResult, ProjectInfo, SourceEdit, WriteResult } from "./main-channels";
+import type { CompileResult, FsEntry, FsStat, ProjectInfo, SourceEdit, WriteResult } from "./main-channels";
 import type { SourceContext } from "./edit";
 
 /** Entry points looked up in a project folder, in order of preference. */
@@ -373,6 +374,89 @@ export async function writeProject(dir: string, edits: SourceEdit[]): Promise<Wr
 }
 
 // ---------------------------------------------------------------------------
+// Assets
+
+/** The asset manifest's file name. */
+export const MANIFEST_FILE = "assets.yml";
+
+/**
+ * A `source` of the asset library as an absolute path: absolute already, or
+ * relative to the project. Refuses to leave the project for a relative one.
+ */
+function sourcePath(dir: string, source: string): string {
+  if (isAbsolute(source)) return source;
+  const path = resolve(dir, source);
+  if (relative(dir, path).startsWith("..")) throw new Error(`Path leaves the project: ${source}`);
+  return path;
+}
+
+/** The manifest as plain data, or null when the project has none. */
+export async function readManifest(dir: string): Promise<unknown> {
+  let text: string;
+  try {
+    text = await readFile(join(dir, MANIFEST_FILE), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  return parseYaml(text) ?? null;
+}
+
+/**
+ * Writes the manifest as YAML. Atomic (temp file + rename), so a crash
+ * mid-write leaves the old manifest, and marked as ours so the watcher does
+ * not hand it back as a change.
+ */
+export async function writeManifest(dir: string, manifest: unknown): Promise<void> {
+  const path = join(dir, MANIFEST_FILE);
+  const temp = join(dir, `.${MANIFEST_FILE}.tmp`);
+  const text = stringifyYaml(manifest, { lineWidth: 0 });
+  markSelfWrite(dir, MANIFEST_FILE);
+  markSelfWrite(dir, `.${MANIFEST_FILE}.tmp`);
+  await writeFile(temp, `# Diffusion Studio asset library. Edited by the app; hand edits are read on the next load.
+${text}`, "utf8");
+  await rename(temp, path);
+}
+
+/** Entries of a directory; [] when it is missing or not a directory. */
+export async function listEntries(dir: string, source: string): Promise<FsEntry[]> {
+  const path = sourcePath(dir, source);
+  let names: import("node:fs").Dirent[];
+  try {
+    names = await readdir(path, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const entries = await Promise.all(names.map(async (entry): Promise<FsEntry | null> => {
+    if (!entry.isFile() && !entry.isDirectory()) return null;
+    try {
+      const info = await stat(join(path, entry.name));
+      return { name: entry.name, kind: entry.isDirectory() ? "directory" : "file", size: info.size, mtime: info.mtimeMs };
+    } catch {
+      return null;
+    }
+  }));
+  return entries.filter((entry): entry is FsEntry => entry !== null);
+}
+
+/** Size and mtime of a file, or null when it does not exist. */
+export async function statEntry(dir: string, source: string): Promise<FsStat | null> {
+  try {
+    const info = await stat(sourcePath(dir, source));
+    return { size: info.size, mtime: info.mtimeMs };
+  } catch {
+    return null;
+  }
+}
+
+/** Removes a file or directory inside the project; missing is fine. */
+export async function removeEntry(dir: string, path: string): Promise<void> {
+  if (isAbsolute(path)) throw new Error("Only project files can be removed");
+  markSelfWrite(dir, path.split(sep).join("/"));
+  await rm(sourcePath(dir, path), { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
 // Watch
 
 const watchers = new Map<string, FSWatcher>();
@@ -393,6 +477,16 @@ const writeKey = (dir: string, path: string): string => `${dir}\n${path}`;
 
 export function markSelfWrite(dir: string, path: string): void {
   selfWrites.set(writeKey(dir, path), Date.now());
+}
+
+/** `markSelfWrite` for an absolute path, against whichever watched project holds it. */
+export function markSelfWriteAbsolute(path: string): void {
+  for (const dir of watchers.keys()) {
+    const rel = relative(dir, path);
+    if (rel && !rel.startsWith("..") && !isAbsolute(rel)) {
+      markSelfWrite(dir, rel.split(sep).join("/"));
+    }
+  }
 }
 
 function isSelfWrite(dir: string, path: string): boolean {

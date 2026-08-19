@@ -2,46 +2,43 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+// `generate.*` declarations in a project's JSX, made real: the asset
+// library's generator (see `attachLibrary`). A declaration resolves to an
+// asset by content — the same spec is the same asset, in this session and
+// the next, since the finished file lands in the library under
+// `generated/` with the spec's key in the manifest.
+
 import { getAssetSpec, isAssetRef } from "@diffusionstudio/jsx";
-import { loadAsset, uploadAsset } from "@/components/engine";
+import { getAssetFile } from "@diffusionstudio/runtime";
+import { GENERATED_DIR } from "@diffusionstudio/assets";
 import {
   PROMPT_INPUT_AUDIO_MODEL_OPTIONS,
   PROMPT_INPUT_IMAGE_MODEL_OPTIONS,
   PROMPT_INPUT_VIDEO_MODEL_OPTIONS,
   PROMPT_INPUT_VOICE_OPTIONS,
 } from "@/components/genai/config";
-import { ensureGenerationFolder } from "@/utils/genai";
 import { assert } from "@/utils";
-import { ElectronFileHandle } from "@/lib/electron-file-handle";
+import { uploadBlob } from "@/components/engine";
 import { trpc } from "@/lib/trpc";
 
 import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
-import type { EngineWorld } from "@/components/engine";
-import type { Asset } from "@/components/engine/db";
+import type { Asset, AssetLibrary } from "@diffusionstudio/assets";
 
-const URL_RE = /^https?:\/\//;
+const memo: GenerationMemo = new Map();
+const inflight: Inflight = new Map();
 
 /**
- * Resolves a plain `src` — a remote URL, a global filesystem path, or an existing asset id.
+ * A library's `generate` option for the project `projectId` (which prefixes
+ * upload keys). Identical concurrent declarations collapse to one request.
  */
-export async function resolveAsset(world: EngineWorld, src: string): Promise<Asset> {
-  const value = src.trim();
+export function generateAsset(ref: object, library: AssetLibrary, projectId: string): Promise<Asset> {
+  assert(isAssetRef(ref), "Not a generate.* declaration");
 
-  if (URL_RE.test(value)) {
-    return await loadAsset(world, value);
-  }
-
-  // A global filesystem path (absolute or containing a separator).
-  if (value.startsWith("/") || value.includes("/") || value.includes("\\")) {
-    return await loadAsset(world, new ElectronFileHandle(value));
-  }
-
-  // Otherwise treat it as an existing asset id.
-  const existing = world.assets.get(value);
-  assert(existing, `Could not resolve media src: ${src}`);
-
-  return existing;
+  return resolveGeneratedAsset({ library, projectId, memo, inflight }, ref);
 }
+
+/** What one generation run has to hand: the library it fills and its caches. */
+type Generation = { library: AssetLibrary; projectId: string; memo: GenerationMemo; inflight: Inflight };
 
 // The UI offers a fixed set of voices on a fixed model (see prompt-input.tsx).
 const VOICE_MODEL = "elevenlabs-v3";
@@ -57,61 +54,52 @@ type ResolvedSpec =
   | { type: "audio"; model: string; prompt: string; duration?: number };
 
 /**
- * In-flight generations per world, keyed by `generationKey`, so identical
- * concurrent declarations collapse to one request. Entries are removed once
- * settled; finished generations are found via `asset.generationKey`.
+ * Declarations already resolved, keyed by ref identity — a ref consumed by
+ * several elements resolves (and validates) once. A failed one is forgotten,
+ * so a remount tries again.
  */
-const inflight = new WeakMap<EngineWorld, Map<string, Promise<Asset>>>();
+type GenerationMemo = Map<AssetRef, Promise<Asset>>;
 
-/**
- * Declarations already resolved within one `generateAssets` run, keyed by ref
- * identity — a ref consumed by several elements resolves (and validates) once.
- */
-export type GenerationMemo = Map<AssetRef, Promise<Asset>>;
+/** In-flight generations keyed by `generationKey`. */
+type Inflight = Map<string, Promise<Asset>>;
 
-/** Resolves a `generate.*` declaration to a finished, imported asset. */
-export function resolveGeneratedAsset(world: EngineWorld, ref: AssetRef, memo: GenerationMemo): Promise<Asset> {
-  let promise = memo.get(ref);
+function resolveGeneratedAsset(gen: Generation, ref: AssetRef): Promise<Asset> {
+  let promise = gen.memo.get(ref);
   if (!promise) {
-    promise = generateFromRef(world, ref, memo);
-    memo.set(ref, promise);
+    promise = generateFromRef(gen, ref);
+    promise.catch(() => gen.memo.delete(ref));
+    gen.memo.set(ref, promise);
   }
   return promise;
 }
 
-function resolveInput(world: EngineWorld, input: AssetInput, memo: GenerationMemo): Promise<Asset> {
-  return isAssetRef(input) ? resolveGeneratedAsset(world, input, memo) : resolveAsset(world, input);
+function resolveInput(gen: Generation, input: AssetInput): Promise<Asset> {
+  return isAssetRef(input) ? resolveGeneratedAsset(gen, input) : gen.library.resolve(input);
 }
 
-async function generateFromRef(world: EngineWorld, ref: AssetRef, memo: GenerationMemo): Promise<Asset> {
-  const resolved = await resolveSpec(world, getAssetSpec(ref), memo);
+async function generateFromRef(gen: Generation, ref: AssetRef): Promise<Asset> {
+  const resolved = await resolveSpec(gen, getAssetSpec(ref));
   const generationKey = JSON.stringify(resolved);
 
-  const cached = Array.from(world.assets.values()).find((asset) => asset.generationKey === generationKey);
+  const cached = gen.library.list().find((asset) => asset.generation?.key === generationKey);
   if (cached) return cached;
 
-  let pending = inflight.get(world);
-  if (!pending) {
-    pending = new Map();
-    inflight.set(world, pending);
-  }
-
-  const running = pending.get(generationKey);
+  const running = gen.inflight.get(generationKey);
   if (running) return await running;
 
-  const promise = runGeneration(world, resolved, generationKey);
-  pending.set(generationKey, promise);
+  const promise = runGeneration(gen, resolved, generationKey);
+  gen.inflight.set(generationKey, promise);
   try {
     return await promise;
   } finally {
-    pending.delete(generationKey);
+    gen.inflight.delete(generationKey);
   }
 }
 
-async function resolveSpec(world: EngineWorld, spec: AssetSpecInput, memo: GenerationMemo): Promise<ResolvedSpec> {
+async function resolveSpec(gen: Generation, spec: AssetSpecInput): Promise<ResolvedSpec> {
   switch (spec.type) {
     case "image": {
-      const refs = await Promise.all((spec.refs ?? []).map((ref) => resolveInput(world, ref, memo)));
+      const refs = await Promise.all((spec.refs ?? []).map((ref) => resolveInput(gen, ref)));
       return {
         type: "image",
         model: spec.model ?? PROMPT_INPUT_IMAGE_MODEL_OPTIONS[0].id,
@@ -123,8 +111,8 @@ async function resolveSpec(world: EngineWorld, spec: AssetSpecInput, memo: Gener
     }
     case "video": {
       const [startFrame, endFrame] = await Promise.all([
-        spec.startFrame !== undefined ? resolveInput(world, spec.startFrame, memo) : undefined,
-        spec.endFrame !== undefined ? resolveInput(world, spec.endFrame, memo) : undefined,
+        spec.startFrame !== undefined ? resolveInput(gen, spec.startFrame) : undefined,
+        spec.endFrame !== undefined ? resolveInput(gen, spec.endFrame) : undefined,
       ]);
       const resolved = {
         type: "video",
@@ -172,20 +160,27 @@ function checkVideoConstraints(spec: Extract<ResolvedSpec, { type: "video" }>): 
   assert(spec.endFrameId === undefined || model.features.includes("end-frame"), `${spec.model} does not support an end frame`);
 }
 
-async function runGeneration(world: EngineWorld, spec: ResolvedSpec, generationKey: string): Promise<Asset> {
-  const { name, results, generationId } = await requestGeneration(world, spec);
+/** Runs a generation and stores its first result under `generated/`. */
+async function runGeneration(gen: Generation, spec: ResolvedSpec, generationKey: string): Promise<Asset> {
+  const { name, results, generationId } = await requestGeneration(gen, spec);
   assert(results.length > 0, "No results returned from the model");
 
-  const folderId = await ensureGenerationFolder(world, name, 1);
-  return await loadAsset(world, results[0].url, { name, generationId, generationKey, folderId });
+  const url = results[0].url;
+  const response = await fetch(url);
+  assert(response.ok, `Failed to fetch the generated asset: ${response.status}`);
+  const blob = await response.blob();
+  const extension = url.split(/[?#]/)[0].split(".").pop();
+  const fileName = extension && extension.length <= 5 ? `${name}.${extension}` : name;
+
+  return gen.library.store(blob, { name: fileName, folder: GENERATED_DIR, generation: { key: generationKey, id: generationId } });
 }
 
-function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
+function requestGeneration(gen: Generation, spec: ResolvedSpec) {
   switch (spec.type) {
     case "image": {
       return (async () => {
         const images = spec.refIds.length > 0
-          ? await Promise.all(spec.refIds.map((id) => uploadInput(world, id)))
+          ? await Promise.all(spec.refIds.map((id) => uploadInput(gen, id)))
           : undefined;
 
         return await trpc.generateImage.mutate({
@@ -201,8 +196,8 @@ function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
     case "video": {
       return (async () => {
         const [startFrame, endFrame] = await Promise.all([
-          spec.startFrameId ? uploadInput(world, spec.startFrameId) : undefined,
-          spec.endFrameId ? uploadInput(world, spec.endFrameId) : undefined,
+          spec.startFrameId ? uploadInput(gen, spec.startFrameId) : undefined,
+          spec.endFrameId ? uploadInput(gen, spec.endFrameId) : undefined,
         ]);
 
         return await trpc.generateVideo.mutate({
@@ -234,8 +229,11 @@ function requestGeneration(world: EngineWorld, spec: ResolvedSpec) {
   }
 }
 
-async function uploadInput(world: EngineWorld, assetId: string) {
-  const uploaded = await uploadAsset(world, assetId);
+/** Uploads a referenced asset for the model to read; the bucket key is project-unique. */
+async function uploadInput(gen: Generation, assetId: string) {
+  const asset = gen.library.get(assetId);
+  assert(asset, `Referenced asset ${assetId} not found`);
+  const uploaded = await uploadBlob(await getAssetFile(asset), `${gen.projectId}-${assetId}`);
   assert(uploaded, `Failed to upload referenced asset ${assetId}`);
   return uploaded;
 }

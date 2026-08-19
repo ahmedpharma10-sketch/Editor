@@ -4,7 +4,7 @@
 
 import type { Entity, World } from 'koota';
 import type { CaptionType } from '../../constants';
-import type { WordGroup } from '../../assets/types';
+import type { WordGroup } from '@diffusionstudio/assets';
 
 export interface CaptionDecoder {
 	readonly type: CaptionType;

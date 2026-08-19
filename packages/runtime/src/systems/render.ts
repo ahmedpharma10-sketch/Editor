@@ -22,10 +22,11 @@ import {
 	BlendMode, Effect, AssetId, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
-	Mode, Time, FrameRate, Camera, Background, RenderSurface, Assets,
+	Mode, Time, FrameRate, Camera, Background, RenderSurface,
 	HitRegions,
 	Root,
 } from '../traits';
+import { getAsset } from '../actions/assets';
 import { getParentNode } from '../queries/hierarchy';
 import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
@@ -622,7 +623,7 @@ function renderWaveform(world: World, entity: Entity, fill: Entity): void {
 	const assetId = store(world, AssetId).value[fill.id()];
 	if (!assetId) return;
 
-	const asset = world.get(Assets)?.get(assetId);
+	const asset = getAsset(world, assetId);
 	// Both AUDIO and VIDEO assets carry pre-computed peaks (video has audio).
 	if (asset?.type !== 'AUDIO' && asset?.type !== 'VIDEO') return;
 
