@@ -24,7 +24,7 @@ import {
 	Opacity, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
 	ColorStop, StrokeStyle, Size, Computed, Active, Stage, IsMask,
 	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
-	AudioDecoderHandle, CaptionDecoderHandle,
+	AudioDecoderHandle, CaptionDecoderHandle, WaveformHandle,
 	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
 } from '../traits';
 import { getParentEntity } from '../queries/hierarchy';
@@ -77,6 +77,7 @@ export function observeWorld(world: World): () => void {
 	subs.push(world.onRemove(SequenceDecoderHandle, (e) => e.get(SequenceDecoderHandle)?.dispose()));
 	subs.push(world.onRemove(AudioDecoderHandle, (e) => e.get(AudioDecoderHandle)?.reset()));
 	subs.push(world.onRemove(CaptionDecoderHandle, (e) => e.get(CaptionDecoderHandle)?.dispose()));
+	subs.push(world.onRemove(WaveformHandle, (e) => e.get(WaveformHandle)?.dispose()));
 	subs.push(world.onRemove(HtmlHostHandle, (e) => e.get(HtmlHostHandle)?.dispose()));
 	subs.push(world.onRemove(SurfaceHostHandle, (e) => e.get(SurfaceHostHandle)?.dispose()));
 	subs.push(world.onRemove(ShaderHostHandle, (e) => e.get(ShaderHostHandle)?.dispose()));

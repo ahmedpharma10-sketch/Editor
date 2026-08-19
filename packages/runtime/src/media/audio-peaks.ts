@@ -2,128 +2,68 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { AudioSampleSink } from 'mediabunny';
+import { derivePeaks } from '@diffusionstudio/assets';
 
-import { getAudioTrack } from './audio';
+import { Library, WaveformHandle, AssetId } from '../traits';
+import { getAsset, getAssetFile } from '../actions/assets';
 
-import type { AudioAsset, VideoAsset } from '@diffusionstudio/assets';
+import type { Entity, World } from 'koota';
+import type { AssetCache, AudioAsset, VideoAsset } from '@diffusionstudio/assets';
 
-const peakCache = new Map<string, Uint8ClampedArray>();
-const inflight = new Map<string, Promise<Uint8ClampedArray | null>>();
+/**
+ * What a waveform paint's entity holds while it is on screen: the peaks of
+ * its asset once they have loaded. Released on cull like the decoders.
+ */
+export class Waveform {
+	public readonly asset: AudioAsset | VideoAsset;
+	public readonly cache?: AssetCache;
+	public peaks: Uint8ClampedArray | null = null;
+	public initialized: Promise<void> | undefined;
 
-const TARGET_BARS = 128;
+	private disposed = false;
 
-export function clearAudioPeaksCache() {
-	peakCache.clear();
-	inflight.clear();
+	public constructor(asset: AudioAsset | VideoAsset, cache?: AssetCache) {
+		this.asset = asset;
+		this.cache = cache;
+		this.initialized = this.initialize();
+	}
+
+	private async initialize(): Promise<void> {
+		const file = await getAssetFile(this.asset);
+		const peaks = await derivePeaks(file);
+		if (!this.disposed) {
+			this.peaks = peaks;
+		}
+	}
+
+	public dispose(): void {
+		this.disposed = true;
+		this.peaks = null;
+	}
 }
 
 /**
- * Synchronous, allocation-free peak lookup for hot paths (render loop).
- * Returns cached peaks or `null`. Kicks off a build on first call.
+ * The peaks for a waveform paint, synchronously for the render loop: what the
+ * paint entity holds, or null while they load (the load is started here).
  */
-export function getAudioPeaks(
-	asset: AudioAsset | VideoAsset,
-): Uint8ClampedArray | null {
-	const key = asset.id;
+export function resolveWaveformPeaks(world: World, fill: Entity): Uint8ClampedArray | null {
+	const assetId = fill.get(AssetId)?.value;
+	if (!assetId) return null;
 
-	const cached = peakCache.get(key);
-	if (cached) return cached;
+	const existing = fill.get(WaveformHandle);
 
-	if (!inflight.has(key)) {
-		inflight.set(key, buildPeaks(key, asset));
+	if (existing && existing.asset.id === assetId) {
+		return existing.peaks;
 	}
 
-	return null;
-}
+	existing?.dispose();
 
-/**
- * Async peak lookup for UI components that can await.
- * Returns peaks from cache or waits for the build to finish.
- */
-export async function getAudioPeaksAsync(
-	asset: AudioAsset | VideoAsset,
-): Promise<Uint8ClampedArray | null> {
-	const key = asset.id;
+	const asset = getAsset(world, assetId);
+	// Both AUDIO and VIDEO assets carry peaks (video has audio).
+	if (asset?.type !== 'AUDIO' && asset?.type !== 'VIDEO') return null;
 
-	const cached = peakCache.get(key);
-	if (cached) return cached;
-
-	let promise = inflight.get(key);
-	if (!promise) {
-		promise = buildPeaks(key, asset);
-		inflight.set(key, promise);
-	}
-
-	return promise;
-}
-
-async function buildPeaks(
-	key: string,
-	asset: AudioAsset | VideoAsset,
-): Promise<Uint8ClampedArray | null> {
-	try {
-		const track = await getAudioTrack(asset);
-		if (!track) return null;
-
-		const sink = new AudioSampleSink(track);
-		const chunks: Uint8ClampedArray[] = [];
-
-		for await (const sample of sink.samples()) {
-			let floats: Float32Array;
-			let numChannels: number;
-			let numFrames: number;
-			try {
-				const size = sample.allocationSize({ format: 'f32', planeIndex: 0 });
-				floats = new Float32Array(size / Float32Array.BYTES_PER_ELEMENT);
-				sample.copyTo(floats, { format: 'f32', planeIndex: 0 });
-
-				numChannels = sample.numberOfChannels;
-				numFrames = floats.length / numChannels;
-			} finally {
-				sample.close();
-			}
-
-			const framePeaks = new Uint8ClampedArray(numFrames);
-			for (let f = 0; f < numFrames; f++) {
-				let max = 0;
-				for (let ch = 0; ch < numChannels; ch++) {
-					max = Math.max(max, Math.pow(Math.abs(floats[f * numChannels + ch]), 0.8));
-				}
-				framePeaks[f] = Math.floor(max * 255);
-			}
-			chunks.push(framePeaks);
-		}
-
-		if (chunks.length === 0) return null;
-
-		const totalFrames = chunks.reduce((s, c) => s + c.length, 0);
-		const merged = new Uint8ClampedArray(totalFrames);
-		let offset = 0;
-		for (const chunk of chunks) {
-			merged.set(chunk, offset);
-			offset += chunk.length;
-		}
-
-		const peaks = new Uint8ClampedArray(TARGET_BARS);
-		const ratio = totalFrames / TARGET_BARS;
-
-		for (let i = 0; i < TARGET_BARS; i++) {
-			const start = Math.floor(i * ratio);
-			const end = Math.floor((i + 1) * ratio);
-			let max = 0;
-			for (let j = start; j < end && j < totalFrames; j++) {
-				max = Math.max(max, merged[j]);
-			}
-			peaks[i] = max;
-		}
-
-		peakCache.set(key, peaks);
-		return peaks;
-	} catch (e) {
-		console.error('Failed to build audio peaks', e);
-		return null;
-	} finally {
-		inflight.delete(key);
-	}
+	const waveform = new Waveform(asset, world.get(Library)?.cache);
+	fill.add(WaveformHandle);
+	fill.set(WaveformHandle, waveform);
+	return waveform.peaks;
 }

@@ -10,7 +10,7 @@
 import {
 	ChildOf,
 	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
-	AudioDecoderHandle, CaptionDecoderHandle, AudioBusHandle,
+	AudioDecoderHandle, CaptionDecoderHandle, WaveformHandle, AudioBusHandle,
 } from '../traits';
 
 import type { Entity, World } from 'koota';
@@ -35,6 +35,10 @@ export function disposeDecoders(world: World, entity: Entity): void {
 	if (entity.has(CaptionDecoderHandle)) {
 		entity.get(CaptionDecoderHandle)?.dispose();
 		entity.set(CaptionDecoderHandle, null);
+	}
+	if (entity.has(WaveformHandle)) {
+		entity.get(WaveformHandle)?.dispose();
+		entity.set(WaveformHandle, null);
 	}
 
 	for (const child of world.query(ChildOf(entity))) {

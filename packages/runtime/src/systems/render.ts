@@ -19,14 +19,13 @@ import {
 import {
 	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
-	BlendMode, Effect, AssetId, Transition, MixedCornerRadius,
+	BlendMode, Effect, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
 	Mode, Time, FrameRate, Camera, Background, RenderSurface,
 	HitRegions,
 	Root,
 } from '../traits';
-import { getAsset } from '../actions/assets';
 import { getParentNode } from '../queries/hierarchy';
 import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
@@ -37,7 +36,7 @@ import { getIntrinsicPaint } from '../utils/time';
 import { createLinearGradient, createRadialGradient } from './gradients';
 import {
 	resolveImageDecoder, resolveVideoDecoder, resolveSequenceDecoder,
-	resolveCaptionDecoder, resolveShaderHost, getAudioPeaks,
+	resolveCaptionDecoder, resolveShaderHost, resolveWaveformPeaks,
 } from '../media';
 
 import type { Entity, World } from 'koota';
@@ -620,14 +619,7 @@ function renderWaveform(world: World, entity: Entity, fill: Entity): void {
 	const ctx = getCtx(world);
 	const computed = store(world, Computed);
 
-	const assetId = store(world, AssetId).value[fill.id()];
-	if (!assetId) return;
-
-	const asset = getAsset(world, assetId);
-	// Both AUDIO and VIDEO assets carry pre-computed peaks (video has audio).
-	if (asset?.type !== 'AUDIO' && asset?.type !== 'VIDEO') return;
-
-	const peaks = getAudioPeaks(asset);
+	const peaks = resolveWaveformPeaks(world, fill);
 	if (!peaks || peaks.length === 0) return;
 
 	const w = computed.width[entity.id()]!;

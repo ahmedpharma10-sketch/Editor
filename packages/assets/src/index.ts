@@ -9,3 +9,6 @@ export * from './hash';
 export * from './probe';
 export * from './library';
 export * from './browser';
+export * from './cache';
+export * from './derive/peaks';
+export * from './derive/thumbnail';

@@ -8,7 +8,8 @@
 // imports stay where they are (the manifest links to them by absolute path);
 // only bytes the app itself produces are written into the project's
 // `assets/` directory, and anything found there that the manifest does not
-// know is taken into the library.
+// know is taken into the library. What is derived from assets and worth
+// keeping (thumbnails, waveforms) is the `cache`'s, under `cache/`.
 //
 // Knows nothing of the host: files come and go through a `ProjectFS`, and
 // what it cannot do itself (generate an asset, follow a rename into whatever
@@ -18,6 +19,7 @@
 
 import { createSignal, type Accessor } from 'solid-js';
 
+import { AssetCache } from './cache';
 import { hashBlob, hashSequence } from './hash';
 import {
 	ASSETS_DIR, isAbsoluteSource, isProjectSource, isUrlSource, normalizeManifest, toRecord,
@@ -71,6 +73,8 @@ export type AssetGenerator = (ref: object, library: AssetLibrary) => Promise<Ass
 
 export class AssetLibrary {
 	public readonly fs: ProjectFS;
+	/** Thumbnails, rough waveforms: what is derived from assets and kept in `cache/`. */
+	public readonly cache: AssetCache;
 	/** Library assets, newest first; transient ones excluded. Reactive. */
 	public readonly assets: Accessor<Asset[]>;
 	/** Every folder: declared ones, those implied by asset paths, and their ancestors. Reactive. */
@@ -93,6 +97,7 @@ export class AssetLibrary {
 
 	public constructor(fs: ProjectFS, options: LibraryOptions = {}) {
 		this.fs = fs;
+		this.cache = new AssetCache(fs);
 		this.generator = options.generate;
 		this.onRename = options.onRename;
 		this.onRelink = options.onRelink;
@@ -189,11 +194,14 @@ export class AssetLibrary {
 			if (asset.transient && !next.has(id)) next.set(id, asset);
 		}
 		this.map.clear();
-		for (const [id, asset] of next) this.map.set(id, asset);
+		for (const [id, asset] of next) {
+			this.map.set(id, asset);
+		}
 
 		this.publish();
 		await this.scanAssetsDir();
 		this.publish();
+		this.cache.prune(this.map.keys());
 	}
 
 	/** Attaches handles to a record; re-examines it when its source changed. */
@@ -224,7 +232,7 @@ export class AssetLibrary {
 		const walk = async (dir: string): Promise<void> => {
 			const entries = await this.fs.list(dir);
 			if (dir !== ASSETS_DIR && isSequenceListing(entries.map((entry) => entry.name))) {
-				if (!known.has(dir)) await this.link(dir, { folder: dirname(dir.slice(ASSETS_DIR.length + 1)) }).catch(() => {});
+				if (!known.has(dir)) await this.link(dir, { folder: dirname(dir.slice(ASSETS_DIR.length + 1)) }).catch(() => { });
 				return;
 			}
 			for (const entry of entries) {
@@ -233,7 +241,7 @@ export class AssetLibrary {
 				if (entry.kind === 'directory') {
 					await walk(source);
 				} else if (!known.has(source)) {
-					await this.link(source, { folder: dirname(source.slice(ASSETS_DIR.length + 1)) }).catch(() => {});
+					await this.link(source, { folder: dirname(source.slice(ASSETS_DIR.length + 1)) }).catch(() => { });
 				}
 			}
 		};
@@ -417,6 +425,7 @@ export class AssetLibrary {
 		this.map.delete(from);
 		this.reorder(next);
 		this.changed();
+		this.cache.remove(from);
 		this.onRelink?.(next, from);
 		return next;
 	}
@@ -451,8 +460,9 @@ export class AssetLibrary {
 		for (const asset of assets) {
 			this.map.delete(asset.id);
 			if (isProjectSource(asset.source) && asset.source.startsWith(`${ASSETS_DIR}/`)) {
-				await this.fs.remove(asset.source).catch(() => {});
+				await this.fs.remove(asset.source).catch(() => { });
 			}
+			this.cache.remove(asset);
 		}
 		this.changed();
 	}

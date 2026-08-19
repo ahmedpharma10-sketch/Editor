@@ -14,6 +14,7 @@ import type { VideoDecoderInstance } from '../media/video';
 import type { SequenceDecoder } from '../media/sequence';
 import type { AudioDecoder } from '../media/audio';
 import type { CaptionDecoder } from '../media/caption/types';
+import type { Waveform } from '../media/audio-peaks';
 import type { AudioBus } from '../media/audio-bus';
 
 // Renderer-runtime state on mounted entities (never serialized).
@@ -40,6 +41,8 @@ export const VideoDecoderHandle = trait(() => null as VideoDecoderInstance | nul
 export const SequenceDecoderHandle = trait(() => null as SequenceDecoder | null);
 
 export const AudioDecoderHandle = trait(() => null as AudioDecoder | null);
+
+export const WaveformHandle = trait(() => null as Waveform | null);
 
 export const CaptionDecoderHandle = trait(() => null as CaptionDecoder | null);
 

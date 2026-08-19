@@ -188,6 +188,11 @@ const TSCONFIG = `{
 }
 `;
 
+/** What a project folder produces but should not check in: installs, and derived data (thumbnails, waveforms). */
+const GITIGNORE = `node_modules/
+cache/
+`;
+
 const STARTER = `export default function Project() {
   return (
     <stage background="#161616">
@@ -232,6 +237,7 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
   }
   await ensurePackage(dir, name, displayName, entry);
   await writeIfMissing(dir, "tsconfig.json", TSCONFIG);
+  await writeIfMissing(dir, ".gitignore", GITIGNORE);
 }
 
 /** Creates a fresh project folder under `root`. Fails if the folder exists. */

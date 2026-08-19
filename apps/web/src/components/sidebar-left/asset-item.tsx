@@ -130,7 +130,7 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
           class="relative aspect-video w-full overflow-clip rounded bg-muted after:pointer-events-none after:absolute after:inset-0 after:rounded after:opacity-0 after:ring-2 after:ring-inset after:ring-ring after:z-10 data-[selected=true]:after:opacity-100"
         >
           <Show when={isVisible()}>
-            <AssetThumbnail asset={props.asset} class="h-full w-full" />
+            <AssetThumbnail asset={props.asset} class="h-full w-full" cache={library()?.cache} />
           </Show>
           <Show when={assetDuration()}>
             {(duration) => (

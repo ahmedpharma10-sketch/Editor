@@ -16,6 +16,7 @@ import { useWorld } from '@diffusionstudio/koota-solid';
 import { mount } from '@diffusionstudio/reconciler';
 import { getDocumentEditor } from '@/engine/editor';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
+import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
 import { compileProject, watchProject, projectDir } from '@/projects/host';
 import { useProjectId } from "@/hooks/use-project-id";
@@ -84,7 +85,8 @@ export function EditorPage() {
     loadProject();
   
     const unwatch = watchProject(dir, (path) => {
-      if (isLibraryFile(path)) {
+      if (isCacheFile(path)) return;
+      if (isLibraryFile(path)) {
         library.load();
       } else {
         loadProject();
