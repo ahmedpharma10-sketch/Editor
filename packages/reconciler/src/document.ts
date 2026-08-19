@@ -593,6 +593,29 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		return !isSceneNode(node);
 	}
 
+	/**
+	 * Replaces everything a `<text>` says. Its children rather than a prop, so
+	 * an editor changing it comes here instead of through `setProperty`. The
+	 * text nodes the reconciler holds keep their identity — the first says all
+	 * of it and the rest say nothing — so a render that later updates one of
+	 * them still lands where it did. An entity holding none (a text drawn on
+	 * the canvas, whose element is not written yet) gets `Chars` alone.
+	 */
+	public setText(entity: Entity, text: string): void {
+		const parts = textParts(entity);
+
+		if (parts.length === 0) {
+			entity.add(Chars);
+			entity.set(Chars, { value: text });
+			return;
+		}
+
+		for (const [index, part] of parts.entries()) {
+			part.text = index === 0 ? text : '';
+		}
+		syncChars(entity);
+	}
+
 	public setProperty(node: HostNode, name: string, value: unknown): void {
 		if (!isSceneNode(node)) return;
 		const { entity } = node;
@@ -792,7 +815,16 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 					if (name === 'width') entity.set(StrokeStyle, { width: size ?? 1 });
 					return;
 				}
-				if (size === undefined) return;
+				if (size === undefined) {
+					// A text is the one element whose box is optional: with
+					// neither bound authored it sizes itself to its glyphs
+					// again. Size holds both, so it only goes when both are.
+					const other = name === 'width' ? 'height' : 'width';
+					if (isText(entity) && toNumber(entity.get(Authored)?.props[other]) === undefined) {
+						entity.remove(Size);
+					}
+					return;
+				}
 				resizeEntity(this.world, entity, { [name]: size });
 				syncSurfaceSize(this.world, entity);
 				return;

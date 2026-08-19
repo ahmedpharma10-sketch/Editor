@@ -35,6 +35,17 @@ export interface PropEdit {
 }
 
 /**
+ * What a `<text>` says, changed. Its content is its children rather than a
+ * prop, so it travels as an edit of its own; `value` is the literal the file
+ * gets between the tags.
+ */
+export interface TextEdit {
+	kind: 'text';
+	source: string;
+	value: string;
+}
+
+/**
  * An element the editor added. The entity already exists in the world when
  * this is reported, stamped with the pending `source`; whoever writes it to
  * disk answers with the real one and re-stamps (see `isPendingSource`).
@@ -101,7 +112,7 @@ export interface UnrollEdit {
 	iterations: LoopIteration[];
 }
 
-export type EntityEdit = PropEdit | InsertEdit | MoveEdit | RemoveEdit | UnrollEdit;
+export type EntityEdit = PropEdit | TextEdit | InsertEdit | MoveEdit | RemoveEdit | UnrollEdit;
 
 /**
  * Sources of elements the editor created that no write has named yet. Shaped
@@ -165,6 +176,21 @@ export class DocumentEditor {
 	public editProperty(entity: Entity, name: string, value: PropValue): void {
 		this.document.setProperty({ entity }, name, value);
 		this.reportEdit(entity, name, value);
+	}
+
+	/**
+	 * Writes what a `<text>` says to the document and reports it. Settled
+	 * first for the same reason a prop is: one iteration of a loop cannot say
+	 * something the others do not.
+	 */
+	public editText(entity: Entity, text: string): void {
+		this.document.setText(entity, text);
+		this.settle(entity);
+		const source = entity.get(Source)?.value;
+
+		if (source) {
+			this.sink?.({ kind: 'text', source, value: text });
+		}
 	}
 
 	/**

@@ -33,11 +33,17 @@ export interface SourceContext {
   onWrite?: (file: string) => void;
 }
 
-/** Overwrites props of the element named by `source` (a `SOURCE_ATTR` value). */
+/**
+ * Overwrites props of the element named by `source` (a `SOURCE_ATTR` value),
+ * and — for a `<text>` — what it says. `text` is its literal content, which is
+ * its children rather than a prop and so arrives on its own; an element that
+ * only says something new comes with no props at all.
+ */
 export interface SourceSet {
   kind: "set";
   source: string;
   props: Record<string, PropValue>;
+  text?: string;
 }
 
 /**
@@ -269,6 +275,24 @@ function setProp(tag: JsxTag, name: string, value: PropValue): void {
  */
 function jsxText(text: string): string {
   return /^[^\s{}<>&][^\n{}<>&]*[^\s{}<>&]$|^[^\s{}<>&]$/.test(text) ? text : `{${JSON.stringify(text)}}`;
+}
+
+/**
+ * Replaces what an element says between its tags; a self-closing one is opened
+ * up around the new text. Everything outside the body keeps its bytes, so an
+ * element that says something else is otherwise the element it was.
+ */
+function setText(sourceFile: SourceFile, tag: JsxTag, text: string): void {
+  const element = elementOf(tag);
+  const content = text ? jsxText(text) : "";
+
+  if (element.isKind(SyntaxKind.JsxSelfClosingElement)) {
+    const opening = element.getText().replace(/\s*\/>$/, ">");
+    sourceFile.replaceText([element.getStart(), element.getEnd()], `${opening}${content}</${tagName(tag)}>`);
+    return;
+  }
+
+  sourceFile.replaceText([element.getOpeningElement().getEnd(), element.getClosingElement().getStart()], content);
 }
 
 // ---------------------------------------------------------------------------
@@ -794,6 +818,19 @@ class SourceWriter {
 
           setProp(tag, name, value);
           wrote = true;
+        }
+
+        // What the element says, after its props: same rules as a prop, and
+        // only a `<text>` has anything to say.
+        if (edit.text !== undefined) {
+          const tag = findTag(sourceFile, locator);
+          if (!tag) skipped.push(edit.source);
+          else if (inLoop(tag)) skipped.push(`${edit.source} (loop)`);
+          else if (!isTextTag(tag)) skipped.push(`${edit.source} (text)`);
+          else {
+            setText(sourceFile, tag, edit.text);
+            wrote = true;
+          }
         }
 
         // Named only once something was written: failing to write to an

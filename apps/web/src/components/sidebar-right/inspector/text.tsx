@@ -16,19 +16,45 @@ import {
   SelectPortal,
 } from '@/components/ui/select';
 import { ControlledTextField } from '@/components/ui/text-field';
-import { getLocalFonts, getWebFonts, loadWebFont, WebFonts, FONT_WEIGHTS } from '../../engine/font';
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuGroupLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuTrigger } from '../../ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuGroupLabel,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import { cx } from '@/lib/cva';
-import { Button } from '../../ui/button';
 import { toast } from 'somoto';
 import { usePermissionState } from '@/hooks/use-permission';
-import { useEntityState, TextAlign, TextBaseline, useEntityTag, isText, isCaption, ToolType, addComponent, removeComponent, setComponent } from '@/components/engine';
-import { useEngine } from '@/context/engine';
-import { useECS } from '@/context/ecs';
+import { useHas, useTrait, useWorld } from '@diffusionstudio/koota-solid';
+import {
+  Chars,
+  Computed,
+  FONT_WEIGHTS,
+  Size,
+  TextAlign,
+  TextBaseline,
+  TextStyle,
+  Tool,
+  ToolType,
+  WebFonts,
+  getWebFonts,
+  isCaption,
+  isText,
+  loadWebFont,
+} from '@diffusionstudio/runtime';
+import { getLocalFonts } from '@/engine/fonts';
+import { useDerived, useEditor, useTool } from '@/engine/hooks';
+import { removeKeyframeTrack, syncKeyframe } from '@/engine/keyframes';
 
+import type { Entity } from 'koota';
 
 type TextPanelProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
 const RESIZE_MODE_ITEMS = [
@@ -44,40 +70,47 @@ const RESIZE_MODE_ITEMS = [
   },
 ] as const;
 
+/**
+ * Typography: what a `<text>` says and how its glyphs are set. Every value is
+ * a prop of the element (`fontFamily`, `fontSize`, `fontWeight`, `leading`,
+ * `letterSpacing`, `textAlign`, `textBaseline`) except the content itself,
+ * which is the element's children and goes through `editor.editText`.
+ *
+ * Which font a text is set in is written out plainly; the modifiers around it
+ * (leading, spacing, alignment) are unset at their default, so a file says
+ * only what its text does differently. Hovering a family or a weight previews
+ * it on the trait alone, which the picker undoes on close: a preview is not
+ * an edit, and nothing about it belongs in the file.
+ *
+ * A text with no box sizes itself to its glyphs, so "Grow" is `width`/`height`
+ * being authored at all rather than a prop of its own.
+ */
 export function TextPanel(props: TextPanelProps) {
-  const { world } = useEngine();
-  const { selectedTool } = useECS();
-  const c = world.components;
-  const eid = () => props.selection.values().next().value!;
+  const world = useWorld();
+  const editor = useEditor();
+  const tool = useTool();
+  const entity = () => props.selection[0]!;
 
-  const [fontWeight, setFontWeight] = createSignal(c.TextStyle.fontWeight[eid()] ?? '400');
-  const [fontFamily, setFontFamily] = createSignal(c.TextStyle.fontFamily[eid()] ?? 'Inter');
+  const style = useTrait(entity, TextStyle);
+  const chars = useTrait(entity, Chars);
+  const hasSize = useHas(entity, Size);
+
+  const fontFamily = () => style()?.fontFamily ?? 'Inter';
+  const fontWeight = () => style()?.fontWeight ?? '400';
+  const fontSize = () => style()?.fontSize ?? 16;
+  const leading = () => style()?.leading ?? 1;
+  const letterSpacing = () => style()?.letterSpacing ?? 0;
+  const textAlign = () => style()?.textAlign ?? TextAlign.LEFT;
+  const textBaseline = () => style()?.textBaseline ?? TextBaseline.TOP;
+
+  // The box a switch to "fixed" pins, which the glyphs are sizing right now.
+  const width = useDerived(() => entity().get(Computed)?.width ?? 0);
+  const height = useDerived(() => entity().get(Computed)?.height ?? 0);
+
   const [availableWeights, setAvailableWeights] = createSignal<string[]>([]);
 
-  const textContent = useEntityState(c.Chars, eid, 'Text');
-  const fontSize = useEntityState(c.TextStyle.fontSize, eid, 16);
-  const leading = useEntityState(c.TextStyle.leading, eid, 1);
-  const textAlign = useEntityState(c.TextStyle.textAlign, eid, TextAlign.LEFT);
-  const textBaseline = useEntityState(c.TextStyle.textBaseline, eid, TextBaseline.TOP);
-  const letterSpacing = useEntityState(c.TextStyle.letterSpacing, eid, 0);
-  const sizeTag = useEntityTag(c.Size, eid);
-
-  const resizeMode = createMemo(() => sizeTag() ? 'fixed' : 'auto');
-  const textSelected = createMemo(() => isText(world, eid()) && !isCaption(world, eid()));
-
-  const handleFontFamilyChange = (family: string) => {
-    setComponent(world, eid(), c.TextStyle, { fontFamily: family });
-    setFontFamily(c.TextStyle.fontFamily[eid()] ?? 'Inter');
-
-    if (family in WebFonts) {
-      loadWebFont(world, family as keyof typeof WebFonts);
-    }
-  };
-
-  const handleFontWeightChange = (weight: string) => {
-    setComponent(world, eid(), c.TextStyle, { fontWeight: weight });
-    setFontWeight(c.TextStyle.fontWeight[eid()] ?? '400');
-  };
+  const resizeMode = createMemo(() => (hasSize() ? 'fixed' : 'auto'));
+  const textSelected = createMemo(() => isText(entity()) && !isCaption(entity()));
 
   const weightOptions = createMemo(() => {
     const weights = availableWeights();
@@ -85,9 +118,42 @@ export function TextPanel(props: TextPanelProps) {
     return ALL_FONT_WEIGHTS.filter(w => weights.includes(w.value));
   });
 
+  /** Writes a family or weight to the trait alone, for the picker to show. */
+  const previewFont = (params: { fontFamily?: string; fontWeight?: string }) => {
+    entity().add(TextStyle);
+    entity().set(TextStyle, params);
+  };
+
+  const handleFontFamilyChange = (family: string) => {
+    editor.editProperty(entity(), 'fontFamily', family);
+
+    if (family in WebFonts) {
+      void loadWebFont(world, family as keyof typeof WebFonts);
+    }
+  };
+
+  const handleFontWeightChange = (weight: string) => {
+    // Authored as a CSS number, which is the only spelling the prop takes
+    // besides the "normal"/"bold" keywords the panel does not offer.
+    editor.editProperty(entity(), 'fontWeight', Number(weight));
+  };
+
   const handleResizeModeChange = (mode: 'auto' | 'fixed') => {
-    if (mode === 'fixed') addComponent(world, eid(), c.Size);
-    else removeComponent(world, eid(), c.Size);
+    if (mode === 'fixed') {
+      // Pinned at what the glyphs came to, so the switch changes nothing yet.
+      const [w, h] = [Math.round(width()), Math.round(height())];
+      syncKeyframe(world, editor, entity(), 'width', w);
+      editor.editProperty(entity(), 'width', w);
+      syncKeyframe(world, editor, entity(), 'height', h);
+      editor.editProperty(entity(), 'height', h);
+      return;
+    }
+
+    // A box the glyphs decide is no box to keyframe.
+    removeKeyframeTrack(world, editor, entity(), 'width');
+    removeKeyframeTrack(world, editor, entity(), 'height');
+    editor.editProperty(entity(), 'width', false);
+    editor.editProperty(entity(), 'height', false);
   };
 
   return (
@@ -95,20 +161,20 @@ export function TextPanel(props: TextPanelProps) {
       <Show when={textSelected()}>
         <ControlRow label="Content" contentClass="flex flex-col">
           <GrowingTextArea
-            value={textContent()}
+            value={chars()?.value ?? ''}
             maxRows={8}
-            onInput={(v) => setComponent(world, eid(), c.Chars, v)}
-            focused={selectedTool() === ToolType.TEXT_EDIT}
-            onFocus={() => (world.selection.tool = ToolType.TEXT_EDIT)}
-            onBlur={() => (world.selection.tool = ToolType.MOVE)}
+            onInput={(v) => editor.editText(entity(), v)}
+            focused={tool() === ToolType.TEXT_EDIT}
+            onFocus={() => world.set(Tool, { value: ToolType.TEXT_EDIT })}
+            onBlur={() => world.set(Tool, { value: ToolType.MOVE })}
           />
         </ControlRow>
       </Show>
 
       <ControlRow label="Font">
         <FontDropdown
-          eid={eid()}
           family={fontFamily()}
+          onPreview={(family) => previewFont({ fontFamily: family })}
           onFamilyChange={handleFontFamilyChange}
           onWeightsChange={setAvailableWeights}
         />
@@ -123,7 +189,7 @@ export function TextPanel(props: TextPanelProps) {
           itemComponent={itemProps => (
             <SelectItem
               item={itemProps.item}
-              onPointerEnter={() => (c.TextStyle.fontWeight[eid()] = itemProps.item.rawValue)}
+              onPointerEnter={() => previewFont({ fontWeight: itemProps.item.rawValue })}
             >
               {weightOptions().find(w => w.value === itemProps.item.rawValue)?.label}
             </SelectItem>
@@ -135,14 +201,14 @@ export function TextPanel(props: TextPanelProps) {
             </SelectValue>
           </SelectTrigger>
           <SelectPortal>
-            <SelectContent onCloseAutoFocus={() => (c.TextStyle.fontWeight[eid()] = fontWeight())} />
+            <SelectContent onCloseAutoFocus={() => previewFont({ fontWeight: fontWeight() })} />
           </SelectPortal>
         </Select>
 
         <ControlledTextField
           class="flex-1"
           value={fontSize()}
-          onNumber={(v) => setComponent(world, eid(), c.TextStyle, { fontSize: v })}
+          onNumber={(v) => editor.editProperty(entity(), 'fontSize', v)}
           step={1}
           min={1}
           autoSelect
@@ -158,7 +224,7 @@ export function TextPanel(props: TextPanelProps) {
         <ControlledTextField
           icon={<Icon name="text.line-height" />}
           value={Math.round(leading() * 100)}
-          onNumber={(v) => setComponent(world, eid(), c.TextStyle, { leading: v / 100 })}
+          onNumber={(v) => editor.editProperty(entity(), 'leading', v === 100 ? false : v / 100)}
           unit="%"
           step={1}
           min={0}
@@ -169,9 +235,9 @@ export function TextPanel(props: TextPanelProps) {
         />
         <ControlledTextField
           icon={<Icon name="text.letter-spacing" />}
-          value={Math.round(letterSpacing() * 100)}
-          onNumber={(v) => setComponent(world, eid(), c.TextStyle, { letterSpacing: v / 100 })}
-          unit="%"
+          value={letterSpacing()}
+          onNumber={(v) => editor.editProperty(entity(), 'letterSpacing', v === 0 ? false : v)}
+          unit="px"
           step={1}
           min={-1200}
           max={1200}
@@ -192,14 +258,14 @@ export function TextPanel(props: TextPanelProps) {
       <ControlRow label="Align" contentClass="flex gap-2">
         <SegmentedIconTabs
           class="flex-1"
-          value={() => HORIZONTAL_ALIGN_TABS[textAlign() ?? TextAlign.LEFT]?.value ?? 'left'}
-          onChange={(v) => setComponent(world, eid(), c.TextStyle, { textAlign: HORIZONTAL_ALIGN_MAP[v as any] })}
+          value={() => HORIZONTAL_ALIGNS[textAlign()] ?? 'left'}
+          onChange={(v) => editor.editProperty(entity(), 'textAlign', v === 'left' ? false : v)}
           items={HORIZONTAL_ALIGN_TABS}
         />
         <SegmentedIconTabs
           class="flex-1"
-          value={() => VERTICAL_ALIGN_TABS[textBaseline() ?? TextBaseline.TOP]?.value ?? 'top'}
-          onChange={(v) => setComponent(world, eid(), c.TextStyle, { textBaseline: VERTICAL_ALIGN_MAP[v as any] })}
+          value={() => VERTICAL_ALIGNS[textBaseline()] ?? 'top'}
+          onChange={(v) => editor.editProperty(entity(), 'textBaseline', v === 'top' ? false : v)}
           items={VERTICAL_ALIGN_TABS}
         />
       </ControlRow>
@@ -208,16 +274,13 @@ export function TextPanel(props: TextPanelProps) {
 }
 
 type FontDropdownProps = {
-  eid: number;
   family: string;
+  onPreview(family: string): void;
   onFamilyChange(family: string): void;
   onWeightsChange(weights: string[]): void;
 };
 
 function FontDropdown(props: FontDropdownProps) {
-  const { world } = useEngine();
-  const c = world.components;
-
   const [webfonts] = createSignal(getWebFonts());
   const [fontQuery, setFontQuery] = createSignal('');
   const fontsPermission = usePermissionState('local-fonts');
@@ -265,18 +328,10 @@ function FontDropdown(props: FontDropdownProps) {
     return fonts.filter((f) => f.family.toLowerCase().includes(q));
   });
 
-  const handlePointerEnter = (family: string) => {
-    setComponent(world, props.eid, c.TextStyle, { fontFamily: family });
-  };
-
-  const handleSelect = (family: string) => {
-    props.onFamilyChange(family);
-  };
-
   const handleOpenChange = () => {
     setFontQuery('');
-
-    setComponent(world, props.eid, c.TextStyle, { fontFamily: props.family });
+    // Whatever was hovered last goes; the selection is the only edit.
+    props.onPreview(props.family);
   };
 
   const handleGrantAccess = async () => {
@@ -331,8 +386,8 @@ function FontDropdown(props: FontDropdownProps) {
                   <LazyFontItem
                     family={font.family}
                     checked={props.family === font.family}
-                    onPointerEnter={handlePointerEnter}
-                    onSelect={handleSelect}
+                    onPointerEnter={props.onPreview}
+                    onSelect={props.onFamilyChange}
                   >
                     {font.family}
                   </LazyFontItem>
@@ -359,8 +414,8 @@ function FontDropdown(props: FontDropdownProps) {
                     <LazyFontItem
                       family={font.family}
                       checked={props.family === font.family}
-                      onPointerEnter={handlePointerEnter}
-                      onSelect={handleSelect}
+                      onPointerEnter={props.onPreview}
+                      onSelect={props.onFamilyChange}
                     >
                       {font.family}
                     </LazyFontItem>
@@ -488,20 +543,23 @@ const HORIZONTAL_ALIGN_TABS = [
   { value: 'right', label: 'Align right', icon: 'text.align-right' },
 ] as const;
 
-const HORIZONTAL_ALIGN_MAP: Record<string, TextAlign> = {
-  left: TextAlign.LEFT,
-  center: TextAlign.CENTER,
-  right: TextAlign.RIGHT,
-};
-
 const VERTICAL_ALIGN_TABS = [
   { value: 'top', label: 'Align top', icon: 'text.align-top' },
   { value: 'middle', label: 'Align middle', icon: 'text.align-middle' },
   { value: 'bottom', label: 'Align bottom', icon: 'text.align-bottom' },
 ] as const;
 
-const VERTICAL_ALIGN_MAP: Record<string, TextBaseline> = {
-  top: TextBaseline.TOP,
-  middle: TextBaseline.MIDDLE,
-  bottom: TextBaseline.BOTTOM,
+// The trait's enum in the prop's vocabulary, which is what a tab is worth.
+const HORIZONTAL_ALIGNS: Record<TextAlign, string> = {
+  [TextAlign.LEFT]: 'left',
+  [TextAlign.CENTER]: 'center',
+  [TextAlign.RIGHT]: 'right',
+};
+
+const VERTICAL_ALIGNS: Record<TextBaseline, string> = {
+  [TextBaseline.TOP]: 'top',
+  [TextBaseline.MIDDLE]: 'middle',
+  [TextBaseline.BOTTOM]: 'bottom',
+  // No tab offers a first-line baseline; it reads as the top one.
+  [TextBaseline.ALPHABETIC]: 'top',
 };

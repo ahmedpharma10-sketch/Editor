@@ -35,6 +35,10 @@ class EditWriter {
 	private inserts = new Map<string, InsertEdit>();
 	private moves = new Map<string, MoveEdit>();
 	private pending = new Map<string, InsertEdit['props']>();
+	// What a `<text>` says, by element. Its own map rather than a prop: the
+	// file spells it between the tags, and the last value is the only one
+	// worth writing, same as a prop's.
+	private texts = new Map<string, string>();
 	private removes = new Set<string>();
 	// Pending sources a write is out for: edits to them wait for the answer.
 	private inflight = new Set<string>();
@@ -73,6 +77,12 @@ class EditWriter {
 			} else {
 				this.moves.set(edit.source, edit);
 			}
+		} else if (edit.kind === 'text') {
+			// What an element still waiting to be inserted says is part of how
+			// it is inserted, the way a prop of it is.
+			const insert = this.inserts.get(edit.source);
+			if (insert) insert.text = edit.value;
+			else this.texts.set(edit.source, edit.value);
 		} else {
 			// A prop of an element still waiting to be inserted is part of how
 			// it is inserted.
@@ -120,6 +130,7 @@ class EditWriter {
 		for (const source of doomed) {
 			this.inserts.delete(source);
 			this.pending.delete(source);
+			this.texts.delete(source);
 			this.moves.delete(source);
 		}
 
@@ -147,7 +158,7 @@ class EditWriter {
 
 	private flush(): void {
 		this.timer = undefined;
-		if (!this.unrolls.size && !this.inserts.size && !this.moves.size && !this.pending.size && !this.removes.size) return;
+		if (!this.unrolls.size && !this.inserts.size && !this.moves.size && !this.pending.size && !this.texts.size && !this.removes.size) return;
 
 		// Anything addressed through an element whose insert is still out
 		// waits for its name: edits to it, and inserts or moves under or
@@ -156,6 +167,7 @@ class EditWriter {
 		const heldInserts = new Map([...this.inserts].filter(([, insert]) => waits(insert.parent) || waits(insert.before)));
 		const heldMoves = new Map([...this.moves].filter(([source, move]) => waits(source) || waits(move.parent) || waits(move.before)));
 		const held = new Map([...this.pending].filter(([source]) => waits(source)));
+		const heldTexts = new Map([...this.texts].filter(([source]) => waits(source)));
 		const heldRemoves = new Set([...this.removes].filter(waits));
 		const edits: SourceEdit[] = [
 			// First: the copies an unroll makes are what the rest is addressed to.
@@ -181,9 +193,15 @@ class EditWriter {
 					parent,
 					...(before === undefined ? {} : { before }),
 				})),
-			...[...this.pending]
-				.filter(([source]) => !held.has(source))
-				.map(([source, props]): SourceEdit => ({ kind: 'set', source, props })),
+			// One `set` per element, whatever it changed: a prop, its text, or both.
+			...[...new Set([...this.pending.keys(), ...this.texts.keys()])]
+				.filter((source) => !held.has(source) && !heldTexts.has(source))
+				.map((source): SourceEdit => ({
+					kind: 'set',
+					source,
+					props: this.pending.get(source) ?? {},
+					...(this.texts.has(source) ? { text: this.texts.get(source)! } : {}),
+				})),
 			// Last: cutting an unnamed element moves the positions of everything
 			// after it, and nothing above is addressed to what is being removed.
 			...[...this.removes]
@@ -202,6 +220,7 @@ class EditWriter {
 		this.inserts = heldInserts;
 		this.moves = heldMoves;
 		this.pending = held;
+		this.texts = heldTexts;
 		this.removes = heldRemoves;
 
 		writeProject(this.dir, edits)
@@ -243,6 +262,13 @@ class EditWriter {
 			this.pending.delete(source);
 			if (next) this.pending.set(next, { ...this.pending.get(next), ...props });
 		}
+		for (const source of [...this.texts.keys()]) {
+			const next = rename(source);
+			if (next === source) continue;
+			const text = this.texts.get(source)!;
+			this.texts.delete(source);
+			if (next) this.texts.set(next, text);
+		}
 		for (const [source, insert] of [...this.inserts]) {
 			const parent = rename(insert.parent);
 			if (parent === undefined) {
@@ -282,7 +308,7 @@ class EditWriter {
 		this.inflight = new Set();
 
 		// What was held back has its names now.
-		if (this.inserts.size || this.moves.size || this.pending.size || this.removes.size) this.schedule();
+		if (this.inserts.size || this.moves.size || this.pending.size || this.texts.size || this.removes.size) this.schedule();
 	}
 }
 

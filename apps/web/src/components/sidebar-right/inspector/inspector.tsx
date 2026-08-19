@@ -29,7 +29,7 @@ import { ExportPanel } from "./export";
 import { LayoutPanel } from "./layout";
 // import { TransformSettings } from "./transform";
 // import { CaptionSettings } from "./caption-settings";
-// import { TextPanel } from "./text";
+import { TextPanel } from "./text";
 // import { FillsSettings } from "./fills";
 // import { StrokesSettings } from "./strokes";
 // import { ShadowsSettings } from "./shadows";
@@ -145,9 +145,9 @@ export function Inspector() {
             <CaptionSettings selection={nodes()} />
           </Show> */}
 
-          {/* <Show when={includesTarget("text", "caption")}>
+          <Show when={includesTarget("text", "caption")}>
             <TextPanel selection={nodes()} />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("shape", "text", "scene", "caption")}>
             <FillsSettings selection={nodes()} />

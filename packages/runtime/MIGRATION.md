@@ -75,7 +75,8 @@ Done:
 | Draw tools + toolbar (armed tool is the `Tool` world trait) | `components/canvas/draw-overlay.tsx` |
 | Input, HUD, camera, alignment | `engine/input/`, `engine/hud/`, `engine/align.ts` |
 | Project config (per-scene export settings in package.json) | `engine/project-config.ts` |
-| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout | `components/sidebar-right/inspector/` |
+| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text | `components/sidebar-right/inspector/` |
+| Local font families (web fonts and loading are the runtime's) | `engine/fonts.ts` (`getLocalFonts`) |
 
 Hosted JSX surface is `COMPOSITION_TAGS` (`packages/jsx/src/source.ts`): the structural tags, the media tags, `<captions>`, the paint family, `<stroke>`, `<shadow>`, `<effect>`, `<animation>`, `<keyframeTrack>`/`<keyframe>`, `<html>`/`<surface>`. `mask` is a `<rect>` prop, not a tag.
 
@@ -86,8 +87,12 @@ Conventions worth repeating when migrating the next panel:
 - `syncKeyframe` after a prop write keeps an existing track in step, since the motion system would otherwise overwrite the edit next tick. **Exception:** `width`/`height` sync *before* the write, because the document's handler is `resizeEntity`, which syncs the track itself and would mint an unsourced keyframe first. The canvas resize in `engine/input/interactions.ts` has the same gap, unfixed.
 - State with no JSX spelling (`KeepAspectRatio`, `ClipsContent`, `Skew`) is written to the trait alone and does not survive a recompile. Giving any of them a prop is a separate decision; a lock snapshot would then have to come from the authored size, not from whatever `Size` holds at mount.
 - Panels still on bitecs import the diamond from `components/ui/keyframe-bitecs.tsx` until they move.
+- What a `<text>` says is its children, not a prop, so it travels as its own edit end to end: `editor.editText` -> `TextEdit` -> the writer's `SourceSet.text` -> `RuntimeDocument.setText`. The document keeps the reconciler's text nodes: the first says all of it and the rest say nothing, so a project that later re-renders one of them still lands.
+- A text is the one element whose box is optional (`Size` absent = sized to its glyphs), so the text panel's "Grow" toggle is `width`/`height` being authored at all. Unsetting a bound drops `Size` only once neither is left, which is why the toggle writes `width` before `height`.
 
-Still on bitecs: transform, caption-settings, text, fills, strokes, shadows, effects, animations, transition, masks, audio, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
+Still on bitecs: transform, caption-settings, fills, strokes, shadows, effects, animations, transition, masks, audio, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
+
+Two deliberate departures from the old text panel: `letterSpacing` is shown in px (the trait's unit and the prop's; the bitecs panel showed the same number as a percentage), and the font a text is set in — family, weight, size — is written out plainly rather than unset at its default, since a font is what a text *is* and not a modifier of it. `<captions>` has no host yet, so the caption half of the panel is unreachable and was carried over as it stood.
 
 **Left stale on purpose** (deferred to a docs/examples pass): the eight `examples/*.tsx` still open with `<rect scene="...">` and no `<stage>`, so `tsc -p examples --noEmit` fails on them, and `reference/jsx/*` still describes the pre-`<stage>` model and `key` as the `syncTo` target. `reference/jsx` is stale as a whole; patching rows piecemeal would hide that.
 

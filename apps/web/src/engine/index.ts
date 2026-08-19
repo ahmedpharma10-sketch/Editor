@@ -11,6 +11,7 @@ export * from './editor';
 export * from './traits';
 export * from './input';
 export * from './hud';
+export * from './fonts';
 export * from './library';
 export * from './asset-actions';
 export * from './keyframes';
