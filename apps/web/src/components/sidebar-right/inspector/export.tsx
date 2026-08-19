@@ -65,12 +65,11 @@ function templateSettings(id: string): ProjectExportConfig | null {
 }
 
 /**
- * How the project is exported. Project configuration rather than part of
- * the composition: read from and written through the project config
- * (package.json, see `@/engine/project-config`). Shown on the scene since
- * that is what gets exported; per-scene settings would come as a per-scene
- * accessor on the config, falling back to the project's. The row and the
- * floating inspector both read the same accessor, so they never disagree.
+ * How the selected scene is exported. Project configuration rather than
+ * part of the composition: read from and written through the project config
+ * (package.json `diffusion.export.<scene id>`, see
+ * `@/engine/project-config`). The row and the floating inspector both read
+ * the same accessor, so they never disagree.
  */
 export function ExportPanel(props: ExportPanelProps) {
   const world = useWorld();
@@ -79,7 +78,7 @@ export function ExportPanel(props: ExportPanelProps) {
 
   const [isInspectorOpen, setIsInspectorOpen] = createSignal(false);
 
-  const settings = () => config()?.export() ?? undefined;
+  const settings = () => config()?.exportOf(entity()) ?? undefined;
   const frameRate = useTrait(world, FrameRate);
   const duration = useDerived(() => entity().get(Computed)?.duration ?? 0);
   const durationInSeconds = createMemo(() => duration() / (frameRate()?.value ?? 30));
@@ -101,7 +100,7 @@ export function ExportPanel(props: ExportPanelProps) {
   });
 
   const write = (value: ProjectExportConfig | null) => {
-    void config()?.setExport(value);
+    void config()?.setExport(entity(), value);
   };
 
   // Replaces the settings with a preset's, wholesale.

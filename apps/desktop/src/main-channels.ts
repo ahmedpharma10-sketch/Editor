@@ -153,7 +153,7 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.PROJECTS_MANIFEST_WRITE]: { request: { dir: string; manifest: unknown }; response: void };
   // The project's config: the `diffusion` field of its package.json, as
   // parsed (null when absent). The renderer owns its shape; see
-  // `projects/config` in the web app.
+  // `engine/project-config` in the web app.
   [MAIN_CHANNELS.PROJECTS_CONFIG_READ]: { request: { dir: string }; response: unknown };
   [MAIN_CHANNELS.PROJECTS_CONFIG_WRITE]: { request: { dir: string; config: unknown }; response: void };
   // Project file system, for the asset library. `source` is project-relative
