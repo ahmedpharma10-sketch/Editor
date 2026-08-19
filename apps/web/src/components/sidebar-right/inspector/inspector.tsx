@@ -24,7 +24,7 @@ import { SceneTemplatePanel } from "./scene-template";
 import { AssetInfoPanel } from "./asset-info";
 import { TimeSettings } from "./time";
 import { AppearanceSettings } from "./appearance";
-// import { Alignment } from "./alignment";
+import { Alignment } from "./alignment";
 // import { ExportPanel } from "./export";
 // import { TransformSettings } from "./transform";
 // import { LayoutPanel } from "./layout";
@@ -113,9 +113,9 @@ export function Inspector() {
             <SceneTemplatePanel />
           </Show>
 
-          {/* <Show when={nodes().length > 1}>
+          <Show when={nodes().length > 1}>
             <Alignment />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("scene") && !isNested()}>
             <ExportPanel selection={nodes()} />
