@@ -60,7 +60,7 @@ export function ShadowsSettings(props: ShadowsSettingsProps) {
   const shadows = useDerived(() => entity().get(Cache)?.shadows ?? NO_SHADOWS);
 
   const handleAppendShadow = () => {
-    editor.insertElement(entity(), () => (
+    const [shadow] = editor.insertElement(entity(), () => (
       <ShadowElement
         color={DEFAULT_SHADOW.color}
         opacity={DEFAULT_SHADOW.opacity}
@@ -68,6 +68,7 @@ export function ShadowsSettings(props: ShadowsSettingsProps) {
         offsetY={DEFAULT_SHADOW.offsetY}
       />
     ));
+    if (shadow) setPicked(shadow);
   };
 
   // Read back off the list, so removing a shadow closes the inspector on it.
@@ -162,7 +163,7 @@ function ShadowRow(props: ShadowRowProps) {
       <ContextMenuTrigger>
         <ItemRow
           label="Shadow"
-          value={colorToHex(color()).replace("#", "")}
+          value={colorToHex(color())}
           icon={<Icon name="color-grade" />}
           onClick={props.onSelect}
           disabled={hidden()}

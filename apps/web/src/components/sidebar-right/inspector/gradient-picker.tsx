@@ -148,7 +148,7 @@ export function GradientFillPicker(props: GradientPickerProps) {
 
     if (first) editOffset(first.entity, adjustedFirstPosition);
     const stop = insertStop(0, first?.color ?? 0xFFFFFF, first?.opacity ?? DEFAULT_OPACITY);
-    if (stop) setSelectedStop(stop);
+    if (stop) spawnColorPicker(stop);
   };
 
   const removeStop = (stop: Entity) => {

@@ -109,6 +109,11 @@ export function ExportPanel(props: ExportPanelProps) {
     if (next) write(next);
   };
 
+  const addSettings = () => {
+    applyTemplate(DEFAULT_EXPORT_TEMPLATE_ID);
+    setIsInspectorOpen(true);
+  };
+
   // Changes some fields, keeping the rest (and the preset label) as they are.
   const patchSettings = (patch: ExportConfig) => {
     const current = settings();
@@ -151,7 +156,7 @@ export function ExportPanel(props: ExportPanelProps) {
               size="icon"
               variant="ghost"
               class="text-muted-foreground"
-              onClick={() => applyTemplate(DEFAULT_EXPORT_TEMPLATE_ID)}
+              onClick={addSettings}
             >
               <Icon name="plus-add" />
             </TooltipTrigger>

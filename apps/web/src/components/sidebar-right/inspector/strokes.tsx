@@ -81,7 +81,10 @@ export function StrokesSettings(props: StrokesSettingsProps) {
   const strokes = useDerived(() => entity().get(Cache)?.strokes ?? NO_STROKES);
 
   const handleAppendStroke = () => {
-    editor.insertElement(entity(), () => <StrokeElement color={DEFAULT_COLOR} />);
+    const [stroke] = editor.insertElement(entity(), () => (
+      <StrokeElement color={DEFAULT_COLOR} />
+    ));
+    if (stroke) setPicked(stroke);
   };
 
   // Read back off the list, so the picker closes with the stroke it edits.

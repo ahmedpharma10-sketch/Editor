@@ -51,7 +51,10 @@ export function FillsSettings(props: FillsSettingsProps) {
   );
 
   const handleAppendFill = () => {
-    editor.insertElement(entity(), () => <SolidPaint color={DEFAULT_FILL_COLOR} />);
+    const [fill] = editor.insertElement(entity(), () => (
+      <SolidPaint color={DEFAULT_FILL_COLOR} />
+    ));
+    if (fill) setPicked(fill);
   };
 
   // Read back off the list, so removing a fill closes the picker on it.
