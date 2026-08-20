@@ -249,7 +249,7 @@ const EASINGS: Record<string, string> = {
 	strong: 'spring(0.65,400)',
 };
 
-const ANIMATION_TYPES: Record<string, AnimationType> = {
+export const ANIMATION_TYPES: Record<string, AnimationType> = {
 	fade: AnimationType.FADE,
 	gain: AnimationType.GAIN,
 	grow: AnimationType.GROW,
