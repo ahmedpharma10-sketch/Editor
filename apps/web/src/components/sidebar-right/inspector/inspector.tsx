@@ -92,8 +92,7 @@ export function Inspector() {
     return "stage";
   });
 
-  // Remounts the panels when the selection changes, so per-panel local state
-  // (open pickers, text fields mid-edit) never carries over to another entity.
+  // Remounts the panels when the selection changes
   const selectionHash = createMemo(() => {
     return [...nodes(), ...keyframes(), asset()?.id ?? ""].join(",") + selectionTarget();
   });
@@ -106,7 +105,7 @@ export function Inspector() {
     <div class="h-full min-h-0 flex flex-col" data-right-sidebar>
       <InspectorHeader />
       <Show when={selectionHash()} keyed>
-        <ControlScrollArea class="flex-1 min-h-0">
+        <ControlScrollArea class="flex-1 min-h-0" scrollKey={selectionHash()}>
           <Show when={includesTarget("scene-tool")}>
             <SceneTemplatePanel />
           </Show>
