@@ -37,7 +37,7 @@ import { EffectsSettings } from "./effects";
 import { AnimationsSettings } from "./animations";
 import { TransitionSettings } from "./transition";
 import { MasksSettings } from "./masks";
-// import { AudioSettings } from "./audio";
+import { AudioSettings } from "./audio";
 // import { InterpolationSettings } from "./interpolation";
 
 import type { Entity } from "koota";
@@ -177,9 +177,9 @@ export function Inspector() {
             <MasksSettings selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("shape", "audio", "group")}>
+          <Show when={includesTarget("shape", "audio", "group")}>
             <AudioSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           <Show when={includesTarget("asset")}>
             <AssetInfoPanel />

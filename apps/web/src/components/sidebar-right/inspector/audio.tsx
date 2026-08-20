@@ -7,15 +7,15 @@ import { ControlRow } from "@/components/ui/control-group";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ControlledTextField } from "@/components/ui/text-field";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
+import { Keyframe } from "@/components/ui/keyframe";
 import { useVolumeMeter, type ChannelLevels } from "@/hooks/use-volume-meter";
 import { cx } from "@/lib/cva";
+import { useHas, useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { AudioBusHandle, Computed, Muted, Soloed } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
 
-import { useEntityState, useEntityTag } from "../../engine/hooks";
-import { addComponent, removeComponent, setComponent } from "../../engine";
-import { useEngine } from "@/context/engine";
-import { hasComponent } from 'bitecs';
-
+import type { Entity } from "koota";
 
 const MIN_DB = -60;
 const MAX_DB = 12;
@@ -242,35 +242,37 @@ function VolumeKnob(props: VolumeKnobProps) {
 }
 
 type AudioSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
+/**
+ * The node's audio: its gain in decibels, mute and solo, and the live level
+ * of its bus. `volume` and `muted` are props (0 dB is unity, so a volume
+ * left there is unset); solo is the runtime's own tag with no JSX spelling,
+ * written to the trait alone and gone on the next recompile, which is what a
+ * monitoring toggle should be.
+ */
 export function AudioSettings(props: AudioSettingsProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
   const meter = useVolumeMeter();
+  const entity = () => props.selection[0]!;
 
-  const eid = () => props.selection.values().next().value!;
-
-  const volume = useEntityState(c.Computed.volume, eid, 0);
-  const muted = useEntityTag(c.Muted, eid);
-  const soloed = useEntityTag(c.Soloed, eid);
-  const audioBus = useEntityState(c.AudioBus, eid);
+  // Computed is written by the systems without change events.
+  const volume = useDerived(() => entity().get(Computed)?.volume ?? 0);
+  const muted = useHas(entity, Muted);
+  const soloed = useHas(entity, Soloed);
+  // The bus is spun up by the playback system once the node has audio, and
+  // set back to null when its decoders are released.
+  const audioBus = useTrait(entity, AudioBusHandle);
 
   const toggleMuted = () => {
-    if (hasComponent(world, eid(), c.Muted)) {
-      removeComponent(world, eid(), c.Muted);
-    } else {
-      addComponent(world, eid(), c.Muted);
-    }
+    editor.editProperty(entity(), "muted", !muted());
   };
 
   const toggleSoloed = () => {
-    if (hasComponent(world, eid(), c.Soloed)) {
-      removeComponent(world, eid(), c.Soloed);
-    } else {
-      addComponent(world, eid(), c.Soloed);
-    }
+    if (soloed()) entity().remove(Soloed);
+    else entity().add(Soloed);
   };
 
   createEffect(() => {
@@ -286,7 +288,11 @@ export function AudioSettings(props: AudioSettingsProps) {
 
   const handleVolumeChange = (value: number | undefined) => {
     if (value === undefined) return;
-    setComponent(world, eid(), c.Volume, normalizeDb(value));
+    // Whole decibels: the field and the knob both show the value rounded,
+    // and a dragged knob would otherwise write a new fraction per frame.
+    const next = Math.round(normalizeDb(value));
+    editor.editProperty(entity(), "volume", next === 0 ? false : next);
+    syncKeyframe(world, editor, entity(), "volume", next);
   };
 
   return (
@@ -308,7 +314,7 @@ export function AudioSettings(props: AudioSettingsProps) {
               unit="dB"
               showSign
               autoSelect
-              keyframe={<Keyframe target={eid()} property="volume" />}
+              keyframe={<Keyframe target={entity()} property="volume" />}
             />
 
             <div class="h-7 flex gap-px rounded-md overflow-hidden shrink-0">
