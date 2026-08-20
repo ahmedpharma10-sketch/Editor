@@ -22,8 +22,51 @@
           if (stored) apply(stored);
           else localStorage.setItem("kb-color-mode", apply("dark"));
         } catch (e) {}
+
+        if (window.desktop) {
+          document.documentElement.dataset.platform = window.desktop.platform;
+          if (window.desktop.platform === "darwin") {
+            document.documentElement.dataset.boot = "1";
+            // Failsafe: never strand the mark on screen if the app never mounts.
+            setTimeout(function () {
+              var el = document.getElementById("boot-splash");
+              if (el) el.remove();
+            }, 15000);
+          }
+        }
       })();
     </script>
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+
+      html[data-boot="1"] #boot-splash {
+        display: flex;
+      }
+
+      #boot-splash svg {
+        width: 72px;
+        height: auto;
+        animation: boot-splash-breathe 1.8s ease-in-out infinite;
+      }
+
+      @keyframes boot-splash-breathe {
+        0%,
+        100% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 0.8;
+        }
+      }
+    </style>
     <link href="/src/index.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Diffusion Studio</title>
@@ -40,6 +83,11 @@
     <meta name="twitter:image" content="/og-default.png" />
   </head>
   <body>
+    <div id="boot-splash" aria-hidden="true">
+      <svg viewBox="0 0 331 353" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M118.548 12.4799C147.369 -4.15995 182.878 -4.15995 211.699 12.4799L283.672 54.0333C312.493 70.6731 330.248 101.425 330.248 134.705V217.812C330.248 251.091 312.493 281.843 283.672 298.483L211.699 340.036C182.878 356.676 147.369 356.676 118.548 340.036L46.5756 298.483C17.7545 281.843 0 251.091 0 217.812V134.705C2.67104e-05 101.425 17.7545 70.6731 46.5756 54.0333L118.548 12.4799ZM188.897 64.0464C174.486 55.7265 156.732 55.7265 142.321 64.0464L79.6548 100.227C65.2443 108.547 56.367 123.923 56.367 140.563V212.924C56.367 229.564 65.2442 244.94 79.6548 253.26L142.321 289.44C156.732 297.76 174.486 297.76 188.897 289.44L251.563 253.26C265.974 244.94 274.851 229.564 274.851 212.924V140.563C274.851 123.923 265.974 108.547 251.563 100.227L188.897 64.0464Z" fill="white"/>
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>

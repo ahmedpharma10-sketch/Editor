@@ -4,7 +4,7 @@
 
 import { Router, HashRouter, Route, useLocation } from '@solidjs/router';
 import { ColorModeProvider } from '@kobalte/core';
-import { Show, type JSX } from 'solid-js';
+import { Show, createEffect, type JSX } from 'solid-js';
 import { Toaster } from "@/components/ui/sonner";
 import { AppContextMenu } from "@/components/app-context-menu";
 
@@ -35,6 +35,17 @@ function AuthGate(props: { children: JSX.Element }) {
   );
 }
 
+function BootSplash() {
+  const auth = useAuth();
+
+  createEffect(() => {
+    if (auth.isLoading()) return;
+    document.getElementById('boot-splash')?.remove();
+  });
+
+  return null;
+}
+
 function EnvironmentOverlays() {
   const location = useLocation();
   const onCheckoutPage = () => location.pathname.startsWith('/checkout');
@@ -56,6 +67,7 @@ function App() {
           <AppContextMenu>
             <AuthProvider>
               {props.children}
+              <BootSplash />
               <UpgradeDialog />
               <PurchaseSuccess />
             </AuthProvider>
