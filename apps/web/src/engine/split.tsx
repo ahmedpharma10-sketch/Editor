@@ -21,6 +21,7 @@ import {
 	getActiveEntity,
 	getNextName,
 	getParentEntity,
+	handOffDecoders,
 	isGroup,
 	isSequence,
 	store,
@@ -103,6 +104,7 @@ export function splitAtPlayhead(world: World): Entity[] {
 	for (const { original, copy } of pairs) {
 		trimOut(world, original, frame);
 		trimIn(world, copy, frame);
+		handOffDecoders(world, original, copy);
 	}
 
 	// Two clips side by side under a scene are two layers of the timeline,

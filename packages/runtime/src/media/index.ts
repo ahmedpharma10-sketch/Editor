@@ -9,6 +9,7 @@ export * from './audio-sync';
 export * from './caption';
 export * from './dispose';
 export * from './frame-cache';
+export * from './handoff';
 export * from './html';
 export * from './image';
 export * from './keyframe-index';

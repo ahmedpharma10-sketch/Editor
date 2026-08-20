@@ -164,15 +164,24 @@ class EditWriter {
 		// waits for its name: edits to it, and inserts or moves under or
 		// beside it.
 		const waits = (source: string | undefined): boolean => source !== undefined && this.inflight.has(source);
-		const heldInserts = new Map([...this.inserts].filter(([, insert]) => waits(insert.parent) || waits(insert.before)));
-		const heldMoves = new Map([...this.moves].filter(([source, move]) => waits(source) || waits(move.parent) || waits(move.before)));
+		// An insert waits for one it is going under, or in front of, that is
+		// waiting itself: it has no name to be addressed by yet either. The
+		// inserts come in dependency order, so the one being waited for has
+		// been seen by the time the one waiting is.
+		const ordered = this.orderedInserts();
+		const heldInserts = new Map<string, InsertEdit>();
+		const unnamed = (source: string | undefined): boolean => source !== undefined && (waits(source) || heldInserts.has(source));
+		for (const insert of ordered) {
+			if (unnamed(insert.parent) || unnamed(insert.before)) heldInserts.set(insert.source, insert);
+		}
+		const heldMoves = new Map([...this.moves].filter(([source, move]) => waits(source) || unnamed(move.parent) || unnamed(move.before)));
 		const held = new Map([...this.pending].filter(([source]) => waits(source)));
 		const heldTexts = new Map([...this.texts].filter(([source]) => waits(source)));
 		const heldRemoves = new Set([...this.removes].filter(waits));
 		const edits: SourceEdit[] = [
 			// First: the copies an unroll makes are what the rest is addressed to.
 			...[...this.unrolls.values()].map(({ kind, source, iterations }): SourceEdit => ({ kind, source, iterations })),
-			...[...this.inserts.values()]
+			...ordered
 				.filter((insert) => !heldInserts.has(insert.source))
 				.map(({ kind, source, parent, tag, props, before, text }): SourceEdit => ({
 					kind,
@@ -228,6 +237,41 @@ class EditWriter {
 			.catch((error: unknown) => {
 				toast.error('Could not write to the project', { description: message(error) });
 			});
+	}
+
+	/**
+	 * The inserts in an order a write can take them in: an element after the
+	 * one it goes under and after the sibling it is placed in front of, since
+	 * neither can be addressed until it has a name. The order they were made
+	 * in says that already for a tree built downwards, but not for an element
+	 * moved into one made after it — a split's copy into the sequence that
+	 * wraps the two halves — where the move is folded into an insert that is
+	 * still waiting.
+	 */
+	private orderedInserts(): InsertEdit[] {
+		const ordered: InsertEdit[] = [];
+		const placed = new Set<string>();
+		const waiting = [...this.inserts.values()];
+		const owed = (source: string | undefined): boolean => source !== undefined && this.inserts.has(source) && !placed.has(source);
+
+		// A pass that places nothing is the end of it: what is left waits on
+		// itself, and goes last rather than being dropped.
+		for (let moved = true; moved && waiting.length; ) {
+			moved = false;
+			for (let index = 0; index < waiting.length; ) {
+				const insert = waiting[index]!;
+				if (owed(insert.parent) || owed(insert.before)) {
+					index++;
+					continue;
+				}
+				ordered.push(insert);
+				placed.add(insert.source);
+				waiting.splice(index, 1);
+				moved = true;
+			}
+		}
+
+		return [...ordered, ...waiting];
 	}
 
 	private report(result: WriteResult): void {

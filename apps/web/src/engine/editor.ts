@@ -544,7 +544,15 @@ export class DocumentEditor {
 		const [wrapper] = this.insertElement(parent, element, members[0]);
 		if (!wrapper) return null;
 
-		const moved = members.filter((member) => this.reparent(member, wrapper));
+		// Moved back to front, each in front of the one after it: the last has
+		// nothing to go in front of, and every other one is placed against a
+		// member that is in there already. Appending them in order reads the
+		// same on the canvas, but not in the file, where an element still
+		// waiting to be inserted lands before a move of one the file has.
+		const moved: Entity[] = [];
+		for (const member of [...members].reverse()) {
+			if (this.reparent(member, wrapper, moved[0])) moved.unshift(member);
+		}
 		if (moved.length === 0) {
 			this.remove(wrapper);
 			return null;
