@@ -2,90 +2,96 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ControlRow } from "@/components/ui/control-group";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   FloatingInspector,
   FloatingInspectorContent,
   FloatingInspectorHeader,
   FloatingInspectorSeparator,
-  FloatingInspectorTitle,
 } from "@/components/ui/floating-inspector";
 import { Icon } from "@/components/ui/icon";
 import { ItemRow } from "@/components/ui/item-row";
 import { PanelSection } from "@/components/ui/panel-section";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectPortal,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SliderInput } from "@/components/ui/slider-input";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { useHas, useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { FrameRate, Transition, framesToSeconds } from "@diffusionstudio/runtime";
+import { useEditor } from "@/engine/hooks";
+import {
+  DEFAULT_TRANSITION,
+  DEFAULT_TRANSITION_DURATION,
+  TRANSITION_OPTIONS,
+  transitionOption,
+} from "./transition-types";
 
-import { useEntityState, useEntityTag, TransitionType, removeComponent, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { secondsToFrames } from "@/components/engine/utils/time";
-
+import type { TransitionOption } from "./transition-types";
+import type { Entity } from "koota";
 
 type TransitionSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
-const TRANSITION_OPTIONS = Object.values(TransitionType).filter(
-  (v): v is TransitionType => typeof v === "number",
-);
-
-const TRANSITION_LABELS: Record<TransitionType, string> = {
-  [TransitionType.DISSOLVE]: "Dissolve",
-  [TransitionType.SLIDE_FROM_RIGHT]: "Slide From Right",
-  [TransitionType.SLIDE_FROM_LEFT]: "Slide From Left",
-  [TransitionType.FADE_TO_BLACK]: "Fade To Black",
-  [TransitionType.FADE_TO_WHITE]: "Fade To White",
-};
-
+/**
+ * The clip's `transition`: how it comes in from the one before it, rendered
+ * centered on the cut. A prop rather than a child element, and one per clip,
+ * so the panel is a single row and its plus goes once a transition is there.
+ *
+ * The prop is written whole, both fields every time. The document merges a
+ * partial into the transition already set while the file would spell only
+ * what it was handed, so a partial write would leave the two saying
+ * different things; a transition is two settings and the panel shows both.
+ */
 export function TransitionSettings(props: TransitionSettingsProps) {
-  const { world } = useEngine();
-  const [isInspectorOpen, setIsInspectorOpen] = createSignal(false);
+  const world = useWorld();
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-  const c = world.components;
-  let anchorRef: HTMLDivElement | undefined;
+  let anchorRef!: HTMLDivElement;
 
-  const eid = () => props.selection.values().next().value!;
+  const [open, setOpen] = createSignal(false);
 
-  const hasTransition = useEntityTag(c.Transition, eid);
-  const transitionType = useEntityState(c.Transition.type, eid, TransitionType.DISSOLVE);
-  const transitionDuration = useEntityState(c.Transition.duration, eid, world.frameRate);
-  const transitionDurationInSeconds = createMemo(() => transitionDuration() / world.frameRate);
+  const transition = useTrait(entity, Transition);
+  const has = useHas(entity, Transition);
+  const frameRate = useTrait(world, FrameRate);
 
-  const transitionLabel = createMemo(() => {
-    if (!hasTransition()) return "";
-    return TRANSITION_LABELS[transitionType() as TransitionType] ?? "Dissolve";
-  });
+  const option = createMemo(() => transitionOption(transition()?.type));
+  const duration = createMemo(() =>
+    framesToSeconds(transition()?.duration ?? 0, frameRate()?.value ?? 30),
+  );
 
-  const handleSetTransition = (type: TransitionType) => {
-    setComponent(world, eid(), c.Transition, {
-      duration: world.frameRate,
-      type,
-    });
+  const write = (type: TransitionOption, seconds: number) => {
+    editor.editProperty(entity(), "transition", { type: type.name, duration: seconds });
+  };
+
+  const handleAddTransition = () => {
+    write(DEFAULT_TRANSITION, DEFAULT_TRANSITION_DURATION);
+    setOpen(true);
   };
 
   const handleRemoveTransition = () => {
-    removeComponent(world, eid(), c.Transition);
-    setIsInspectorOpen(false);
+    // `false` is what the writer spells as the attribute's absence; the
+    // document reads anything but an object as "no transition".
+    editor.editProperty(entity(), "transition", false);
+    setOpen(false);
   };
 
-  const handleSetDuration = (durationSec: number) => {
-    setComponent(world, eid(), c.Transition, { 
-      duration: secondsToFrames(durationSec),
-    });
+  const handleTypeChange = (next: TransitionOption | null) => {
+    if (next === null || next.name === option().name) return;
+    write(next, duration());
   };
 
-  const openInspector = () => {
-    if (!hasTransition()) return;
-    setIsInspectorOpen(true);
+  const handleDurationChange = (seconds: number) => {
+    write(option(), Math.round(seconds * 10) / 10);
   };
 
   return (
@@ -94,48 +100,28 @@ export function TransitionSettings(props: TransitionSettingsProps) {
         title="Transition"
         ref={anchorRef}
         actions={
-          <DropdownMenu placement="bottom-end">
+          <Show when={!has()}>
             <Tooltip>
-              <TooltipTrigger<typeof DropdownMenuTrigger>
-                as={(triggerProps: object) => (
-                  <DropdownMenuTrigger<typeof Button>
-                    {...triggerProps}
-                    as={(buttonProps) => (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        class="text-muted-foreground"
-                        disabled={!eid()}
-                        {...buttonProps}
-                      >
-                        <Icon name="plus-add" />
-                      </Button>
-                    )}
-                  />
-                )}
-              />
+              <TooltipTrigger
+                as={Button}
+                size="icon"
+                variant="ghost"
+                class="text-muted-foreground"
+                onClick={handleAddTransition}
+              >
+                <Icon name="plus-add" />
+              </TooltipTrigger>
               <TooltipContent>Add transition</TooltipContent>
             </Tooltip>
-            <DropdownMenuPortal>
-              <DropdownMenuContent class="w-44">
-                <For each={TRANSITION_OPTIONS}>
-                  {(type) => (
-                    <DropdownMenuItem onSelect={() => handleSetTransition(type)}>
-                      {TRANSITION_LABELS[type]}
-                    </DropdownMenuItem>
-                  )}
-                </For>
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenu>
+          </Show>
         }
       >
-        <Show when={hasTransition()}>
+        <Show when={has()}>
           <ItemRow
             label="Type"
-            value={transitionLabel()}
+            value={option().label}
             icon={<Icon name="video-transition" />}
-            onClick={() => openInspector()}
+            onClick={() => setOpen(true)}
           >
             <Tooltip>
               <TooltipTrigger
@@ -153,17 +139,35 @@ export function TransitionSettings(props: TransitionSettingsProps) {
         </Show>
       </PanelSection>
 
-      <Show when={isInspectorOpen() && hasTransition()}>
-        <FloatingInspector open={true} anchorRef={() => anchorRef} width={248}>
-          <FloatingInspectorHeader class="items-center justify-between">
-            <FloatingInspectorTitle>{transitionLabel()}</FloatingInspectorTitle>
+      <Show when={open() && has()}>
+        <FloatingInspector open anchorRef={anchorRef} width={248}>
+          <FloatingInspectorHeader class="items-center justify-between px-2">
+            <Select<TransitionOption>
+              value={option()}
+              onChange={handleTypeChange}
+              options={TRANSITION_OPTIONS}
+              optionValue="name"
+              optionTextValue="label"
+              itemComponent={(itemProps) => (
+                <SelectItem item={itemProps.item}>{itemProps.item.rawValue.label}</SelectItem>
+              )}
+            >
+              <SelectTrigger>
+                <SelectValue<TransitionOption>>
+                  {(state) => state.selectedOption()?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="w-44" />
+              </SelectPortal>
+            </Select>
             <Tooltip>
               <TooltipTrigger
                 as={Button}
                 size="icon"
                 variant="ghost"
                 class="text-muted-foreground"
-                onClick={() => setIsInspectorOpen(false)}
+                onClick={() => setOpen(false)}
               >
                 <Icon name="close-remove" />
               </TooltipTrigger>
@@ -174,14 +178,12 @@ export function TransitionSettings(props: TransitionSettingsProps) {
           <FloatingInspectorContent class="p-4">
             <ControlRow label="Duration">
               <SliderInput
-                value={transitionDurationInSeconds()}
+                value={duration()}
+                onChange={handleDurationChange}
                 min={0.1}
                 max={10}
                 step={0.1}
-                format={(v) => `${v.toFixed(1)}s`}
-                onDragStart={() => world.history.startTransaction("Edit transition duration")}
-                onDragEnd={() => world.history.commitTransaction()}
-                onChange={handleSetDuration}
+                format={(value) => `${value.toFixed(1)}s`}
               />
             </ControlRow>
           </FloatingInspectorContent>

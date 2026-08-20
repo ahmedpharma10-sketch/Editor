@@ -35,7 +35,7 @@ import { StrokesSettings } from "./strokes";
 import { ShadowsSettings } from "./shadows";
 import { EffectsSettings } from "./effects";
 import { AnimationsSettings } from "./animations";
-// import { TransitionSettings } from "./transition";
+import { TransitionSettings } from "./transition";
 // import { MasksSettings } from "./masks";
 // import { AudioSettings } from "./audio";
 // import { InterpolationSettings } from "./interpolation";
@@ -80,10 +80,10 @@ export function Inspector() {
   // For ExportPanel (root scenes only) and TransitionSettings (sequence items).
   const parent = createMemo(() => getParentNode(first()));
   const isNested = createMemo(() => parent() !== null);
-  // const isSequenceChild = createMemo(() => {
-  //   const entity = parent();
-  //   return entity !== null && isSequence(entity);
-  // });
+  const isSequenceChild = createMemo(() => {
+    const entity = parent();
+    return entity !== null && isSequence(entity);
+  });
 
   const selectionTarget = createMemo<SelectionTarget>(() => {
     if (tool() === ToolType.SCENE) return "scene-tool";
@@ -169,9 +169,9 @@ export function Inspector() {
             <AnimationsSettings selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("shape") && isSequenceChild()}>
+          <Show when={includesTarget("shape") && isSequenceChild()}>
             <TransitionSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("shape", "text", "caption", "group")}>
             <MasksSettings selection={nodes()} />

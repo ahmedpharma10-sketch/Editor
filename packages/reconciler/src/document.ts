@@ -163,7 +163,7 @@ const PAINT_TYPES: Record<string, PaintType> = {
 	surfacePaint: PaintType.SURFACE,
 };
 
-const TRANSITION_TYPES: Record<string, TransitionType> = {
+export const TRANSITION_TYPES: Record<string, TransitionType> = {
 	dissolve: TransitionType.DISSOLVE,
 	slideFromRight: TransitionType.SLIDE_FROM_RIGHT,
 	slideFromLeft: TransitionType.SLIDE_FROM_LEFT,
