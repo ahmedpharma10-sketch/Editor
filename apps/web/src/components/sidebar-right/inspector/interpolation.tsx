@@ -17,24 +17,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SegmentedIconTabs } from "@/components/ui/segmented-icon-tabs";
-import { useEngine } from "@/context/engine";
-import { useECS } from "@/context/ecs";
+import { useTrait } from "@diffusionstudio/koota-solid";
+import { Keyframe } from "@diffusionstudio/runtime";
+import { useEditor } from "@/engine/hooks";
+import {
+  DEFAULT_SPRING,
+  EASE_PRESETS,
+  LINEAR,
+  SPRING_PRESETS,
+  easingPreset,
+} from "./easing-types";
 
+import type { EasingPreset } from "./easing-types";
+import type { Entity } from "koota";
 
-import { setComponent } from '@/components/engine';
-type InterpolationType = "hold" | "ease" | "spring";
-
-type EasePreset = {
-  label: string;
-  value: string;
+type InterpolationSettingsProps = {
+  selection: Entity[];
 };
 
-const EASE_PRESETS: EasePreset[] = [
-  { label: "Linear", value: "" },
-  { label: "Ease In", value: "cubicBezier(0.42,0,1,1)" },
-  { label: "Ease Out", value: "cubicBezier(0,0,0.58,1)" },
-  { label: "Ease In & Out", value: "cubicBezier(0.42,0,0.58,1)" },
-];
+type InterpolationType = "hold" | "ease" | "spring";
 
 function getEasingType(easing: string): InterpolationType {
   if (easing.startsWith("steps(")) return "hold";
@@ -68,79 +69,76 @@ function parseSpring(easing: string): { bounce: number; duration: number } {
   return { bounce: parseFloat(match[1]), duration: parseFloat(match[2]) };
 }
 
-type SpringPreset = {
-  label: string;
-  value: { bounce: number; duration: number };
-};
-
-const SPRING_PRESETS: SpringPreset[] = [
-  { label: "Gentle", value: { bounce: 0.5, duration: 628 } },
-  { label: "Snappy", value: { bounce: 0.15, duration: 300 } },
-  { label: "Bouncy", value: { bounce: 0.4, duration: 500 } },
-  { label: "Strong", value: { bounce: 0.65, duration: 400 } },
-];
-
 function springToString(bounce: number, duration: number): string {
   return `spring(${bounce},${duration})`;
 }
 
-function findSpringPreset(
-  bounce: number,
-  duration: number,
-): SpringPreset | undefined {
-  return SPRING_PRESETS.find(
-    (p) => p.value.bounce === bounce && p.value.duration === duration,
-  );
+function bezierToString(points: [number, number, number, number]): string {
+  const [x1, y1, x2, y2] = points;
+  const isLinear = x1 === 0 && y1 === 0 && x2 === 1 && y2 === 1;
+  return isLinear ? LINEAR.descriptor : `cubicBezier(${x1},${y1},${x2},${y2})`;
 }
 
 function formatBezier(points: [number, number, number, number]): string {
   return points.map((p) => p.toFixed(2)).join(", ");
 }
 
-function findPreset(easing: string): EasePreset | undefined {
-  return EASE_PRESETS.find((p) => p.value === easing);
-}
+/**
+ * The easing of the selected keyframes: which segment shape they use and its
+ * parameters. What a `<keyframe>` says is one `easing` prop, either a named
+ * preset or the descriptor spelled out, so a curve dragged by hand travels as
+ * `cubicBezier(...)` while the four ease and four spring presets travel as
+ * their names. Linear is `<keyframe>`'s default and so is unset rather than
+ * written.
+ *
+ * The panel shows the first selected keyframe and writes to all of them, the
+ * way it always has: a multi-selection is being set to one easing, not being
+ * asked what each of them says.
+ */
+export function InterpolationSettings(props: InterpolationSettingsProps) {
+  const editor = useEditor();
 
-export function InterpolationSettings() {
-  const { world } = useEngine();
-  const { selectedKeyframes } = useECS();
-  const c = world.components;
-
-  // Bump to force currentEasing memo to re-read ECS after local mutations
-  const [easingVersion, setEasingVersion] = createSignal(0);
-
-  const currentEasing = createMemo(() => {
-    easingVersion(); // reactive dependency on local mutations
-    const set = selectedKeyframes();
-    const kid = set.values().next().value;
-    return world.components.Keyframe.easing[kid ?? -1] ?? "";
-  });
+  const keyframe = useTrait(() => props.selection[0], Keyframe);
+  const currentEasing = () => keyframe()?.easing ?? LINEAR.descriptor;
 
   const activeTab = createMemo(() => getEasingType(currentEasing()));
   const bezierPoints = createMemo(() => parseBezier(currentEasing()));
   const stepsCount = createMemo(() => parseSteps(currentEasing()));
-  const currentPreset = createMemo(() => findPreset(currentEasing()) ?? null);
+  const currentPreset = createMemo(
+    () => EASE_PRESETS.find((p) => p.descriptor === currentEasing()) ?? null,
+  );
 
   const springParams = createMemo(() => parseSpring(currentEasing()));
-  const currentSpringPreset = createMemo(
-    () => findSpringPreset(springParams().bounce, springParams().duration) ?? null,
-  );
+  // Matched on the numbers rather than on the descriptor, so a file spelling
+  // one of them as `spring(0.50,628)` still reads as the preset it is.
+  const currentSpringPreset = createMemo(() => {
+    const { bounce, duration } = springParams();
+    return SPRING_PRESETS.find((p) => {
+      const preset = parseSpring(p.descriptor);
+      return preset.bounce === bounce && preset.duration === duration;
+    }) ?? null;
+  });
+
+  /**
+   * Writes `descriptor` to every selected keyframe, named where the JSX has a
+   * word for it. Linear is the prop's default, so it unsets instead.
+   */
+  const setEasingForAll = (descriptor: string) => {
+    const named = easingPreset(descriptor);
+    const value = named === LINEAR ? false : (named?.name ?? descriptor);
+    for (const entity of props.selection) {
+      editor.editProperty(entity, "easing", value);
+    }
+  };
 
   const setSpringBounce = (bounce: number) =>
     setEasingForAll(springToString(Math.max(BOUNCE_MIN, Math.min(BOUNCE_MAX, Math.round(bounce * 100) / 100)), springParams().duration));
   const setSpringDuration = (duration: number) =>
     setEasingForAll(springToString(springParams().bounce, Math.max(DURATION_MIN, Math.min(DURATION_MAX, Math.round(duration)))));
 
-  const handleSpringPresetChange = (preset: SpringPreset | null) => {
+  const handlePresetChange = (preset: EasingPreset | null) => {
     if (!preset) return;
-    setEasingForAll(springToString(preset.value.bounce, preset.value.duration));
-  };
-
-  const setEasingForAll = (easing: string) => {
-    for (const kid of selectedKeyframes()) {
-      setComponent(world, kid, c.Keyframe, { easing });
-    }
-    setEasingVersion((v) => v + 1);
+    setEasingForAll(preset.descriptor);
   };
 
   const handleTabChange = (tab: InterpolationType) => {
@@ -150,41 +148,22 @@ export function InterpolationSettings() {
         setEasingForAll("steps(1)");
         break;
       case "ease":
-        setEasingForAll("");
+        setEasingForAll(LINEAR.descriptor);
         break;
       case "spring":
-        setEasingForAll("spring(0.5,628)");
+        setEasingForAll(DEFAULT_SPRING.descriptor);
         break;
     }
-  };
-
-  const handlePresetChange = (preset: EasePreset | null) => {
-    if (!preset) return;
-    setEasingForAll(preset.value);
   };
 
   const setBezierPoints = (points: [number, number, number, number]) => {
-    const [x1, y1, x2, y2] = points;
-    const isLinear = x1 === 0 && y1 === 0 && x2 === 1 && y2 === 1;
-    const easing = isLinear ? "" : `cubicBezier(${x1},${y1},${x2},${y2})`;
-    for (const kid of selectedKeyframes()) {
-      setComponent(world, kid, c.Keyframe, { easing });
-    }
-    setEasingVersion((v) => v + 1);
+    setEasingForAll(bezierToString(points));
   };
 
   const handleBezierInput = (raw: string) => {
-    const parts = raw
-      .split(",")
-      .map((s) => parseFloat(s.trim()));
+    const parts = raw.split(",").map((s) => parseFloat(s.trim()));
     if (parts.length !== 4 || parts.some((p) => isNaN(p))) return;
-    const [x1, y1, x2, y2] = parts;
-    const isLinear =
-      x1 === 0 && y1 === 0 && x2 === 1 && y2 === 1;
-    const easing = isLinear
-      ? ""
-      : `cubicBezier(${x1},${y1},${x2},${y2})`;
-    setEasingForAll(easing);
+    setBezierPoints(parts as [number, number, number, number]);
   };
 
   const TAB_ITEMS = [
@@ -248,11 +227,11 @@ export function InterpolationSettings() {
 
         <div class="flex flex-col gap-2 pt-1">
           <ControlRow label="Ease">
-            <Select<EasePreset>
+            <Select<EasingPreset>
               value={currentPreset()}
               onChange={handlePresetChange}
               options={EASE_PRESETS}
-              optionValue="value"
+              optionValue="name"
               optionTextValue="label"
               placeholder="Custom"
               itemComponent={(itemProps) => (
@@ -262,7 +241,7 @@ export function InterpolationSettings() {
               )}
             >
               <SelectTrigger>
-                <SelectValue<EasePreset> class="text-xs">
+                <SelectValue<EasingPreset> class="text-xs">
                   {(state) => state.selectedOption()?.label ?? "Custom"}
                 </SelectValue>
               </SelectTrigger>
@@ -302,11 +281,11 @@ export function InterpolationSettings() {
 
         <div class="flex flex-col gap-2 pt-1">
           <ControlRow label="Spring">
-            <Select<SpringPreset>
+            <Select<EasingPreset>
               value={currentSpringPreset()}
-              onChange={handleSpringPresetChange}
+              onChange={handlePresetChange}
               options={SPRING_PRESETS}
-              optionValue="label"
+              optionValue="name"
               optionTextValue="label"
               placeholder="Custom"
               itemComponent={(itemProps) => (
@@ -316,7 +295,7 @@ export function InterpolationSettings() {
               )}
             >
               <SelectTrigger>
-                <SelectValue<SpringPreset> class="text-xs">
+                <SelectValue<EasingPreset> class="text-xs">
                   {(state) => state.selectedOption()?.label ?? "Custom"}
                 </SelectValue>
               </SelectTrigger>

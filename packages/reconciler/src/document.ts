@@ -240,7 +240,7 @@ const CORNER_PROPS = ['cornerRadiusTopLeft', 'cornerRadiusTopRight', 'cornerRadi
  * interpolation inspector) speak; the descriptor forms pass through with
  * their whitespace dropped, linear is the empty string.
  */
-const EASINGS: Record<string, string> = {
+export const EASINGS: Record<string, string> = {
 	linear: '',
 	easeIn: 'cubicBezier(0.42,0,1,1)',
 	easeOut: 'cubicBezier(0,0,0.58,1)',

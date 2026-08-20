@@ -38,7 +38,7 @@ import { AnimationsSettings } from "./animations";
 import { TransitionSettings } from "./transition";
 import { MasksSettings } from "./masks";
 import { AudioSettings } from "./audio";
-// import { InterpolationSettings } from "./interpolation";
+import { InterpolationSettings } from "./interpolation";
 
 import type { Entity } from "koota";
 
@@ -70,8 +70,6 @@ function classifyNode(entity: Entity): SelectionTarget {
   return "stage";
 }
 
-// Panels still on the bitecs world are commented out below; each comes back
-// in place as it moves onto the koota world.
 export function Inspector() {
   const tool = useTool();
   const { nodes, keyframes, first } = useSelection();
@@ -185,9 +183,9 @@ export function Inspector() {
             <AssetInfoPanel />
           </Show>
 
-          {/* <Show when={includesTarget("keyframe")}>
-            <InterpolationSettings />
-          </Show> */}
+          <Show when={includesTarget("keyframe")}>
+            <InterpolationSettings selection={keyframes()} />
+          </Show>
         </ControlScrollArea>
       </Show>
     </div>
