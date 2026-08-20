@@ -88,7 +88,8 @@ function applyAnimation(world: World, entity: Entity, anim: Entity, progress: nu
 			const phase = animation.phase[aid];
 			const func = cubicBezier(0.4, 0.095, 0.546, 0.875);
 			const eased = clamp01(func(progress));
-			computed.volume[eid] = phase === AnimationPhase.OUT ? 1 - eased : eased;
+			const amplitude = phase === AnimationPhase.OUT ? 1 - eased : eased;
+			computed.volume[eid] = (computed.volume[eid] ?? 0) + amplitudeToDecibels(amplitude);
 			break;
 		}
 		case AnimationType.GROW: {
@@ -491,6 +492,15 @@ function lerpColor(from: number, to: number, progress: number): number {
 
 function clamp01(value: number): number {
 	return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * An amplitude multiplier (0-1) as the decibels to add to a volume. Silence
+ * is -Infinity, which is what the audio bus reads as a gain of zero; every
+ * other value is negative, so a ramp only ever attenuates.
+ */
+function amplitudeToDecibels(amplitude: number): number {
+	return amplitude <= 0 ? -Infinity : 20 * Math.log10(amplitude);
 }
 
 function lerp(from: number, to: number, progress: number): number {
