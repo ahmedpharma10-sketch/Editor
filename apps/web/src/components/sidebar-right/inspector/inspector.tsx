@@ -28,7 +28,7 @@ import { Alignment } from "./alignment";
 import { ExportPanel } from "./export";
 import { LayoutPanel } from "./layout";
 import { TransformSettings } from "./transform";
-// import { CaptionSettings } from "./caption-settings";
+import { CaptionSettings } from "./caption-settings";
 import { TextPanel } from "./text";
 import { FillsSettings } from "./fills";
 import { StrokesSettings } from "./strokes";
@@ -141,9 +141,9 @@ export function Inspector() {
             <AppearanceSettings selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("caption")}>
+          <Show when={includesTarget("caption")}>
             <CaptionSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           <Show when={includesTarget("text", "caption")}>
             <TextPanel selection={nodes()} />

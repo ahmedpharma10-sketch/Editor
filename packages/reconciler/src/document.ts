@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Chars, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
@@ -268,6 +268,22 @@ export const ANIMATION_TYPES: Record<string, AnimationType> = {
 	scramble: AnimationType.SCRAMBLE,
 };
 
+export const CAPTION_PRESETS: Record<string, CaptionType> = {
+	classic: CaptionType.CLASSIC,
+	cascade: CaptionType.CASCADE,
+	spotlight: CaptionType.SPOTLIGHT,
+	whisper: CaptionType.WHISPER,
+	paper: CaptionType.PAPER,
+	guinea: CaptionType.GUINEA,
+	stark: CaptionType.STARK,
+};
+
+export const CAPTION_ALIGNS: Record<string, CaptionAlign> = {
+	top: CaptionAlign.TOP,
+	center: CaptionAlign.CENTER,
+	bottom: CaptionAlign.BOTTOM,
+};
+
 export const EFFECT_TYPES: Record<string, EffectType> = {
 	blur: EffectType.LAYER_BLUR,
 	brightness: EffectType.BRIGHTNESS,
@@ -414,10 +430,18 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				break;
 			}
 			case 'sequence': {
-				// Sequential's observer adds Group and keeps spatial traits off:
-				// a sequence sits at its parent's origin and mirrors its frame.
 				entity = createEntity(this.world);
 				entity.add(Sequential);
+				break;
+			}
+			case 'captions': {
+				entity = createEntity(this.world);
+				entity.add(Geometry);
+				entity.set(Geometry, { value: GeometryType.TEXT });
+				entity.add(Position);
+				entity.set(Position, { x: 0, y: 0 });
+				entity.add(Chars);
+				entity.add(Caption);
 				break;
 			}
 			case 'rect': {
@@ -558,7 +582,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <textRange>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <imagePaint>, <videoPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <captions>, <rect>, <text>, <textRange>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <imagePaint>, <videoPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
 				);
 		}
 
@@ -1054,6 +1078,33 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				const leading = toNumber(value);
 				entity.add(TextStyle);
 				entity.set(TextStyle, { leading: leading !== undefined && leading > 0 ? leading : undefined });
+				return;
+			}
+			case 'preset': {
+				if (!entity.has(Caption)) return;
+				const preset = typeof value === 'string' ? CAPTION_PRESETS[value] : undefined;
+				entity.set(Caption, { type: preset ?? CaptionType.CLASSIC });
+				return;
+			}
+			case 'colors': {
+				if (!entity.has(Caption)) return;
+				const colors: number[] = [];
+				if (Array.isArray(value)) {
+					value.forEach((entry, index) => {
+						const color = parseColor(entry);
+						if (color !== null) colors[index] = color;
+					});
+				}
+				entity.set(Caption, { colors });
+				return;
+			}
+			case 'verticalAlign': {
+				if (!entity.has(Caption)) return;
+				entity.set(Caption, {
+					verticalAlign: typeof value === 'string'
+						? CAPTION_ALIGNS[value]
+						: undefined,
+				});
 				return;
 			}
 			case 'background': {

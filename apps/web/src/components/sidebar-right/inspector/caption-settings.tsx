@@ -15,6 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   FloatingInspector,
   FloatingInspectorContent,
   FloatingInspectorHeader,
@@ -22,125 +28,103 @@ import {
 } from "@/components/ui/floating-inspector";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SegmentedIconTabs } from "@/components/ui/segmented-icon-tabs";
 import { ColorOpacityRow } from "@/components/ui/color-opacity-row";
 import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
-import { CaptionType, useEntityState, ChildOf, deleteEntity, type EngineWorld, setComponent } from "../../engine";
-import { useEngine } from "@/context/engine";
-import { query } from 'bitecs';
+import { useTrait } from "@diffusionstudio/koota-solid";
+import { Caption, CaptionAlign, colorToHex } from "@diffusionstudio/runtime";
+import { useEditor } from "@/engine/hooks";
+import {
+  CAPTION_PRESET_OPTIONS,
+  DEFAULT_CAPTION_PRESET,
+  captionPresetOption,
+} from "./caption-types";
+
+import type { CaptionPresetOption } from "./caption-types";
+import type { Entity } from "koota";
 
 type CaptionSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
-type CaptionColorSlot = {
-  label: string;
-  defaultColor: number;
-};
-
-type CaptionPreset = {
-  value: CaptionType;
-  label: string;
-  slots: CaptionColorSlot[];
-};
-
-const CAPTION_PRESETS: CaptionPreset[] = [
-  {
-    value: CaptionType.CLASSIC,
-    label: "Classic",
-    slots: [],
-  },
-  {
-    value: CaptionType.CASCADE,
-    label: "Cascade",
-    slots: [],
-  },
-  {
-    value: CaptionType.SPOTLIGHT,
-    label: "Spotlight",
-    slots: [
-      { label: 'Highlight', defaultColor: 0x24D5FF }
-    ],
-  },
-  {
-    value: CaptionType.WHISPER,
-    label: "Whisper",
-    slots: [],
-  },
-  {
-    value: CaptionType.PAPER,
-    label: "Paper",
-    slots: []
-  },
-  {
-    value: CaptionType.GUINEA,
-    label: "Guinea",
-    slots: [
-      { label: 'Color 1', defaultColor: 0xF55353 },
-      { label: 'Color 2', defaultColor: 0xFEB139 },
-      { label: 'Color 3', defaultColor: 0xF6F54D },
-    ],
-  },
-  {
-    value: CaptionType.STARK,
-    label: "Stark",
-    slots: [],
-  },
+const VERTICAL_ALIGN_TABS = [
+  { value: 'top', label: 'Align top', icon: 'vertical-align-top' },
+  { value: 'center', label: 'Align center', icon: 'vertical-align-center' },
+  { value: 'bottom', label: 'Align bottom', icon: 'vertical-align-bottom' },
 ];
 
-export function CaptionSettings(props: CaptionSettingsProps) {
-  const { world } = useEngine();
-  const c = world.components;
+/** The prop's spelling for a `CaptionAlign`, for the tabs to compare against. */
+const ALIGN_NAMES: Record<CaptionAlign, string> = {
+  [CaptionAlign.TOP]: 'top',
+  [CaptionAlign.CENTER]: 'center',
+  [CaptionAlign.BOTTOM]: 'bottom',
+};
 
-  const eid = () => props.selection.values().next().value!;
-  const type = useEntityState<CaptionType>(c.Caption.type, eid, CaptionType.CLASSIC);
-  const colors = useEntityState<number[]>(c.Caption.colors, eid, []);
+/**
+ * What a `<captions>` element says for itself: which preset draws it
+ * (`preset`), the colors filling that preset's slots (`colors`) and where the
+ * block sits (`verticalAlign`). Everything else about a caption's look — the
+ * font, the box, the paints and shadows it is drawn with — is the preset's,
+ * authored onto the entity by its decoder and not in the file at all, which
+ * is why this panel is as short as it is.
+ */
+export function CaptionSettings(props: CaptionSettingsProps) {
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
   let anchorRef!: HTMLDivElement;
 
-  const currentPreset = createMemo(
-    () => CAPTION_PRESETS.find((p) => p.value === type()) ?? CAPTION_PRESETS[0]
-  );
-
-  const slots = createMemo(
-    () => CAPTION_PRESETS.find((p) => p.value === type())?.slots ?? []
-  );
+  const caption = useTrait(entity, Caption);
+  const preset = createMemo(() => captionPresetOption(caption()?.type));
+  const slots = () => preset().slots;
+  const colors = () => caption()?.colors ?? [];
+  const align = () => caption()?.verticalAlign;
+  // No tab is active while the placement is the preset's own, which is not one
+  // of the three the prop can say.
+  const alignName = () => {
+    const current = align();
+    return current === undefined ? '' : ALIGN_NAMES[current];
+  };
 
   const [openSlot, setOpenSlot] = createSignal<number | null>(null);
 
-  const handlePresetChange = (preset: CaptionPreset | null) => {
-    if (!preset) return;
+  const handlePresetChange = (next: CaptionPresetOption | null) => {
+    if (!next || next === preset()) return;
 
-    clearText(world, eid());
     setOpenSlot(null);
-    setComponent(world, eid(), c.Caption, { type: preset.value });
+    // The slots belong to the preset, so the colors filling them go with it.
+    editor.editProperty(entity(), "colors", false);
+    editor.editProperty(
+      entity(),
+      "preset",
+      next === DEFAULT_CAPTION_PRESET ? false : next.name,
+    );
   };
 
-  const getSlotColor = (index: number | null) => {
-    const current = colors();
-    const slot = slots()[index ?? 0];
-    return current[index ?? 0] ?? slot.defaultColor;
+  /** A slot the file has not filled shows what the preset's decoder falls back to. */
+  const slotColor = (index: number) => colors()[index] ?? slots()[index]?.defaultColor ?? 0;
+
+  /**
+   * `colors` is positional, so setting one slot spells every slot the preset
+   * has: a sparse write would read back as the ones before it.
+   */
+  const setSlotColor = (index: number, next: number) => {
+    const values = slots().map((_, i) => colorToHex(i === index ? next : slotColor(i)));
+    editor.editProperty(entity(), "colors", values);
   };
 
-  const setSlotColor = (index: number | null, next: number) => {
-    if (index === null) return;
-    const max = slots().length;
-    const current = colors();
-    const nextColors = new Array<number>(max);
-    for (let i = 0; i < max; i++) {
-      nextColors[i] = current[i] ?? slots()[i].defaultColor;
-    }
-    nextColors[index] = next;
-    setComponent(world, eid(), c.Caption, { colors: nextColors });
+  const handleAlignChange = (name: string) => {
+    editor.editProperty(entity(), "verticalAlign", name);
   };
 
   return (
     <PanelSection title="Caption" ref={anchorRef}>
       <ControlRow label="Preset">
-        <Select<CaptionPreset>
-          value={currentPreset()}
+        <Select<CaptionPresetOption>
+          value={preset()}
           onChange={handlePresetChange}
-          options={CAPTION_PRESETS}
-          optionValue="value"
+          options={CAPTION_PRESET_OPTIONS}
+          optionValue="name"
           optionTextValue="label"
           itemComponent={(itemProps) => (
             <SelectItem item={itemProps.item}>
@@ -152,7 +136,7 @@ export function CaptionSettings(props: CaptionSettingsProps) {
             <div class="text-foreground size-5 rounded-sm flex items-center justify-center bg-primary overflow-clip shrink-0">
               <Icon name="captions" class="text-foreground" />
             </div>
-            <SelectValue<CaptionPreset> class="text-xs">
+            <SelectValue<CaptionPresetOption> class="text-xs">
               {(state) => state.selectedOption()?.label}
             </SelectValue>
           </SelectTrigger>
@@ -162,28 +146,41 @@ export function CaptionSettings(props: CaptionSettingsProps) {
         </Select>
       </ControlRow>
 
+      <ContextMenu>
+        <ContextMenuTrigger<typeof ControlRow> as={ControlRow} label="Align">
+          <SegmentedIconTabs
+            value={alignName}
+            onChange={handleAlignChange}
+            items={VERTICAL_ALIGN_TABS}
+          />
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            disabled={align() === undefined}
+            onSelect={() => editor.editProperty(entity(), "verticalAlign", false)}
+          >
+            Reset to Default
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
       <For each={slots()}>
         {(slot, index) => (
           <ControlRow label={slot.label}>
             <ColorOpacityRow
-              color={getSlotColor(index())}
+              color={slotColor(index())}
               onChangeColor={(next) => setSlotColor(index(), next)}
-              onClick={() =>
-                setOpenSlot(openSlot() === index() ? null : index())
-              }
+              onClick={() => setOpenSlot(openSlot() === index() ? null : index())}
             />
           </ControlRow>
         )}
       </For>
 
       <Show when={openSlot() !== null}>
-        <FloatingInspector
-          open={() => openSlot() !== null}
-          anchorRef={anchorRef}
-        >
+        <FloatingInspector open anchorRef={anchorRef}>
           <FloatingInspectorHeader>
             <FloatingInspectorTitle>
-              {slots()[openSlot() as number]?.label ?? "Color"}
+              {slots()[openSlot()!]?.label ?? "Color"}
             </FloatingInspectorTitle>
             <div class="ml-auto">
               <Tooltip>
@@ -202,11 +199,9 @@ export function CaptionSettings(props: CaptionSettingsProps) {
           </FloatingInspectorHeader>
           <FloatingInspectorContent class="p-0">
             <ColorOpacityPicker
-              color={getSlotColor(openSlot())}
+              color={slotColor(openSlot()!)}
               opacity={1}
-              onColorChange={(next) => setSlotColor(openSlot(), next)}
-              onBeginChange={(label) => world.history.startTransaction(label)}
-              onEndChange={() => world.history.commitTransaction()}
+              onColorChange={(next) => setSlotColor(openSlot()!, next)}
               withoutOpacity
             />
           </FloatingInspectorContent>
@@ -214,15 +209,4 @@ export function CaptionSettings(props: CaptionSettingsProps) {
       </Show>
     </PanelSection>
   );
-}
-
-export function clearText(world: EngineWorld, parentEid: number) {
-  const c = world.components;
-
-  for (const rid of query(world, [ChildOf(parentEid)])) {
-    deleteEntity(world, rid);
-  }
-
-  c.Cache.textRanges[parentEid] = [];
-  c.Caption.colors[parentEid] = [];
 }

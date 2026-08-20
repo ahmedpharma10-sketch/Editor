@@ -3,8 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { CaptionType } from '../../constants';
-import { AssetId, Caption, TextStyle, CaptionDecoderHandle } from '../../traits';
+import { AssetId, Caption, ChildOf, Paint, Shadow, TextRange, TextStyle, CaptionDecoderHandle } from '../../traits';
 import { getAsset } from '../../actions/assets';
+import { deleteEntity } from '../../actions/entities';
 import { ClassicCaptionDecoder } from './classic';
 import { CascadeCaptionDecoder } from './cascade';
 import { SpotlightCaptionDecoder } from './spotlight';
@@ -51,6 +52,22 @@ function createCaptionDecoder(type: CaptionType, asset: Asset): CaptionDecoder {
 }
 
 /**
+ * Drops what the last preset authored onto the entity: the paints and shadows
+ * it draws with, whatever text ranges it left behind, and its TextStyle. The
+ * look of a caption is the preset's, so the next one starts from a bare node
+ * instead of stacking on it. Animations and keyframe tracks are the file's and
+ * stay.
+ */
+function clearPresetStyling(world: World, entity: Entity): void {
+	for (const child of world.query(ChildOf(entity))) {
+		if (child.has(Paint) || child.has(Shadow) || child.has(TextRange)) {
+			deleteEntity(world, child);
+		}
+	}
+	entity.remove(TextStyle);
+}
+
+/**
  * Lazily resolve (or create) a caption decoder for a caption entity.
  * Recreates the decoder when the caption type changes.
  * Returns null if the transcript asset isn't available yet.
@@ -74,6 +91,7 @@ export function resolveCaptionDecoder(world: World, entity: Entity): CaptionDeco
 	entity.add(CaptionDecoderHandle);
 	entity.set(CaptionDecoderHandle, decoder);
 
+	if (typeChanged) clearPresetStyling(world, entity);
 	if (typeChanged || !entity.has(TextStyle)) {
 		decoder.applyStyles(world, entity);
 	}

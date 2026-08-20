@@ -636,7 +636,7 @@ export type SequenceProps = Pick<IdentityProps, "name"> & {
   children?: SolidJSX.Element;
 };
 
-export type CaptionsProps = TimingProps & OffsetProps & Partial<MediaProps> & {
+export type CaptionsProps = IdentityProps & TimingProps & OffsetProps & Partial<MediaProps> & {
   /** Caption style preset. Default "classic". */
   preset?: CaptionPreset;
   /** Fills the caption preset's color slots in order; any CSS color, alpha is ignored. */
