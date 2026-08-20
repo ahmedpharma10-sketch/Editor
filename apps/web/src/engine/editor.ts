@@ -514,6 +514,46 @@ export class DocumentEditor {
 	}
 
 	/**
+	 * Puts `entities` inside a new element of their own: `element` is rendered
+	 * where the first of them stood and they all move into it, in the order
+	 * they were already in. Only the ones sharing that first one's parent take
+	 * part — a wrap has one place to put things.
+	 *
+	 * Nothing is rewritten on the way in, which is what a `<sequence>` wants:
+	 * it has no space or time of its own, so its children keep the position
+	 * and the start they had. A wrapper that does sit somewhere would need its
+	 * children's positions rewritten into it, and this does not do that.
+	 *
+	 * The selection is left alone. Returns the wrapper, or null when there is
+	 * nothing to wrap, nowhere to write it, or nothing that would go in — an
+	 * empty element is not worth putting in the file.
+	 */
+	public wrap(entities: Entity | Entity[], element: () => unknown): Entity | null {
+		const roots = new Set(this.subtreeRoots(entities));
+		const first = [...roots][0];
+		if (!first) return null;
+
+		const parent = getParentEntity(first);
+		if (!parent) return null;
+
+		const members = getEntityChildren(this.world, parent).filter((entity) => roots.has(entity));
+		if (members.length === 0) return null;
+
+		// In front of the first member, so the wrapper takes their place among
+		// the siblings rather than landing at the end of them.
+		const [wrapper] = this.insertElement(parent, element, members[0]);
+		if (!wrapper) return null;
+
+		const moved = members.filter((member) => this.reparent(member, wrapper));
+		if (moved.length === 0) {
+			this.remove(wrapper);
+			return null;
+		}
+
+		return wrapper;
+	}
+
+	/**
 	 * Takes a copy of `entities` (the tops of their subtrees, as `duplicate`
 	 * would) for `paste`. Nothing is reported: the file only changes when the
 	 * copy lands. Leaves the clipboard alone when there is nothing to copy.

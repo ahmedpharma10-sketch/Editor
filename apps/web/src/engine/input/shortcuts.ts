@@ -12,6 +12,7 @@
 import { getActiveEntity, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../editor';
+import { splitAtPlayhead } from '../split';
 import { Keys } from '../traits';
 
 import type { World } from 'koota';
@@ -103,6 +104,7 @@ const SHORTCUTS: readonly Shortcut[] = [
 	{ key: 'backspace', action: deleteSelection },
 	{ key: 'delete', action: deleteSelection },
 	{ key: 'd', mod: true, action: duplicateSelection },
+	{ key: 'b', mod: true, action: splitAtPlayhead },
 	{ key: 'c', mod: true, action: copySelection },
 	{ key: 'v', mod: true, action: pasteSelection },
 	{ key: 'arrowleft', action: nudge(-NUDGE, 0) },
