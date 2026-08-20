@@ -57,6 +57,7 @@ export type {
   ImageProps,
   KeyframeProps,
   KeyframeTrackProps,
+  MediaPaintProps,
   RectProps,
   SceneProps,
   SequenceProps,

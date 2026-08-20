@@ -31,6 +31,7 @@ import type {
   ImageProps,
   KeyframeProps,
   KeyframeTrackProps,
+  MediaPaintProps,
   RectProps,
   SceneProps,
   SequenceProps,
@@ -95,6 +96,8 @@ export const Captions = hostElement<CaptionsProps>("Captions");
 export const SolidPaint = hostElement<SolidPaintProps>("SolidPaint");
 export const LinearGradientPaint = hostElement<GradientPaintProps>("LinearGradientPaint");
 export const RadialGradientPaint = hostElement<GradientPaintProps>("RadialGradientPaint");
+export const ImagePaint = hostElement<MediaPaintProps>("ImagePaint");
+export const VideoPaint = hostElement<MediaPaintProps>("VideoPaint");
 export const ColorStop = hostElement<ColorStopProps>("ColorStop");
 export const Stroke = hostElement<StrokeProps>("Stroke");
 export const Shadow = hostElement<ShadowProps>("Shadow");

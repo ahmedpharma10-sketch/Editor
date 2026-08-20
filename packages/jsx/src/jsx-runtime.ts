@@ -27,6 +27,7 @@ import type {
   ColorStopProps,
   EffectProps,
   GradientPaintProps,
+  MediaPaintProps,
   GroupProps,
   HtmlPaintProps,
   HtmlProps,
@@ -89,6 +90,8 @@ export declare namespace JSX {
     solidPaint: SolidPaintProps & SourceProps;
     linearGradientPaint: GradientPaintProps & SourceProps;
     radialGradientPaint: GradientPaintProps & SourceProps;
+    imagePaint: MediaPaintProps & SourceProps;
+    videoPaint: MediaPaintProps & SourceProps;
     colorStop: ColorStopProps & SourceProps;
     stroke: StrokeProps & SourceProps;
     shadow: ShadowProps & SourceProps;

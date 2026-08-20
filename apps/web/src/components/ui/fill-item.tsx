@@ -5,25 +5,35 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
 import { Icon } from "@/components/ui/icon";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
+import { Keyframe } from "@/components/ui/keyframe";
 import { OpacitySwatch } from "@/components/ui/opacity-swatch";
-import { useEngine } from "@/context/engine";
+import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { AssetId, Computed, Paint, PaintType, colorToHex, parseColor } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { useLibrary } from "@/engine/library";
+import { syncKeyframe } from "@/engine/keyframes";
+import { readGradientStops, sameGradientStops, type GradientStop } from "@/components/sidebar-right/inspector/gradient-stops";
+import { assetName } from "@diffusionstudio/assets";
 import { mergeColorWithOpacity } from "@/utils";
-import { colorToHex, parseColor } from "@/utils/color";
-import { ChildOf, PaintType, useEntityState, useEntityStates, useQuery, setComponent } from "../engine";
-import { Not } from 'bitecs';
+
+import type { Entity } from "koota";
 
 const DRAG_THRESHOLD_PX = 3;
 
 type FillItemProps = {
-  nodeEid: number;
-  fillEid: number;
+  fill: Entity;
   onClick?(event: MouseEvent): void;
 };
 
+/**
+ * One paint, as the fills panel shows it: a swatch of what it paints, its
+ * color (a solid) or its name (everything else), and an opacity that doubles
+ * as a slider across the row. Both values are props of the paint element, so
+ * they are written through the editor and keyframed after.
+ */
 export function FillItem(props: FillItemProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
 
   const [isDraggingSlider, setIsDraggingSlider] = createSignal(false);
 
@@ -40,21 +50,23 @@ export function FillItem(props: FillItemProps) {
   let cancelColorCommit = false;
   let cancelOpacityCommit = false;
 
-  const color = useEntityState(c.Computed.color, props.fillEid, 0xE0E0E0);
-  const opacity = useEntityState(c.Computed.opacity, props.fillEid, 1);
+  const color = useDerived(() => props.fill.get(Computed)?.color ?? 0xE0E0E0);
+  const opacity = useDerived(() => props.fill.get(Computed)?.opacity ?? 1);
 
-  const updateColor = (color: number) => {
-    setComponent(world, props.fillEid, c.Color, color);
+  const updateColor = (next: number) => {
+    const hex = colorToHex(next);
+    editor.editProperty(props.fill, "color", hex);
+    syncKeyframe(world, editor, props.fill, "color", hex);
   };
 
-  const updateOpacity = (opacity: number) => {
-    setComponent(world, props.fillEid, c.Appearance, {
-      opacity: Math.round(opacity * 100) / 100,
-    });
+  const updateOpacity = (next: number) => {
+    const value = Math.round(next * 100) / 100;
+    editor.editProperty(props.fill, "opacity", value === 1 ? false : value);
+    syncKeyframe(world, editor, props.fill, "opacity", value);
   };
 
-  const fillType = useEntityState(c.Paint, props.fillEid, PaintType.SOLID);
-  const isSolidFill = createMemo(() => fillType() === PaintType.SOLID);
+  const paint = useTrait(() => props.fill, Paint);
+  const isSolidFill = createMemo(() => (paint()?.value ?? PaintType.SOLID) === PaintType.SOLID);
 
   const colorText = createMemo(() => colorToHex(color()).replace("#", ""));
 
@@ -130,7 +142,6 @@ export function FillItem(props: FillItemProps) {
       if (active instanceof HTMLElement && rootRef?.contains(active)) {
         active.blur();
       }
-      world.history.startTransaction("Edit paint opacity");
     }
 
     if (dragStarted) {
@@ -147,7 +158,6 @@ export function FillItem(props: FillItemProps) {
     removeWindowListeners();
 
     if (wasDragging) {
-      world.history.commitTransaction();
       setIsDraggingSlider(false);
       resetPointerState();
       pointerStartTarget = null;
@@ -202,7 +212,6 @@ export function FillItem(props: FillItemProps) {
   };
 
   onCleanup(() => {
-    if (dragStarted) world.history.commitTransaction();
     removeWindowListeners();
     setIsDraggingSlider(false);
     resetPointerState();
@@ -310,7 +319,7 @@ export function FillItem(props: FillItemProps) {
             onFocusIn={(e) => e.stopPropagation()}
             onClick={props.onClick}
           >
-            <PaintItemIcon fill={props.fillEid} />
+            <PaintItemIcon fill={props.fill} />
           </button>
 
           <Show when={isSolidFill()}>
@@ -327,7 +336,7 @@ export function FillItem(props: FillItemProps) {
           </Show>
 
           <Show when={!isSolidFill()}>
-            <FillLabel fill={props.fillEid} />
+            <FillLabel fill={props.fill} />
           </Show>
 
         </div>
@@ -348,7 +357,7 @@ export function FillItem(props: FillItemProps) {
             class="z-20 min-w-2"
             onFocusIn={(e) => e.stopPropagation()}
           >
-            <Keyframe property="opacity" target={props.fillEid} />
+            <Keyframe property="opacity" target={props.fill} />
           </div>
         </div>
       </div>
@@ -357,34 +366,21 @@ export function FillItem(props: FillItemProps) {
 }
 
 type PaintItemIconProps = {
-  fill: number;
+  fill: Entity;
 };
 
 function PaintItemIcon(props: PaintItemIconProps) {
-  const { world } = useEngine();
-  const c = world.components;
-  const assets = world.assets;
+  const world = useWorld();
+  const library = useLibrary();
 
-  const assetId = useEntityState(c.AssetId, props.fill);
-  const stopEids = useQuery([c.ColorStop, ChildOf(props.fill), Not(c.Deleted)]);
-  const color = useEntityState(c.Computed.color, props.fill);
-  const opacity = useEntityState(c.Computed.opacity, props.fill, 1);
-  const type = useEntityState(c.Paint, props.fill, PaintType.SOLID);
+  const assetId = useTrait(() => props.fill, AssetId);
+  const paint = useTrait(() => props.fill, Paint);
+  const color = useDerived(() => props.fill.get(Computed)?.color ?? 0xE0E0E0);
+  const opacity = useDerived(() => props.fill.get(Computed)?.opacity ?? 1);
+  const stops = useDerived(() => readGradientStops(world, props.fill), sameGradientStops);
 
-  const offsets = useEntityStates(c.Computed.stopOffset, stopEids, 0);
-  const colors = useEntityStates(c.Computed.stopColor, stopEids, 0xFFFFFF);
-  const opacities = useEntityStates(c.Computed.stopOpacity, stopEids, 1);
-
-  const sortedStops = createMemo(() => stopEids()
-    .map((_, idx) => ({
-      offset: offsets()[idx],
-      color: colors()[idx],
-      opacity: opacities()[idx],
-    }))
-    .toSorted((a, b) => a.offset - b.offset)
-  );
-
-  const asset = createMemo(() => assets.get(assetId() ?? ""));
+  const type = () => paint()?.value ?? PaintType.SOLID;
+  const asset = createMemo(() => library()?.get(assetId()?.value ?? ""));
 
   return (
     <>
@@ -393,18 +389,19 @@ function PaintItemIcon(props: PaintItemIconProps) {
           asset={asset()!}
           class="size-full"
           size={{ width: 50, height: 50 }}
+          cache={library()?.cache}
         />
       </Show>
 
       <Show when={type() === PaintType.LINEAR_GRADIENT || type() === PaintType.RADIAL_GRADIENT}>
         <div
           class="size-full"
-          style={{ "background-image": getGradientBackground(sortedStops(), type()) }}
+          style={{ "background-image": getGradientBackground(stops(), type()) }}
         />
       </Show>
 
-      <Show when={color() !== undefined && type() === PaintType.SOLID}>
-        <OpacitySwatch color={color()!} opacity={opacity()} />
+      <Show when={type() === PaintType.SOLID}>
+        <OpacitySwatch color={color()} opacity={opacity()} />
       </Show>
 
       <Show when={type() === PaintType.HTML || type() === PaintType.SURFACE || type() === PaintType.SHADER}>
@@ -416,17 +413,18 @@ function PaintItemIcon(props: PaintItemIconProps) {
   );
 }
 
+
 type FillLabelProps = {
-  fill: number;
+  fill: Entity;
 };
 
 function FillLabel(props: FillLabelProps) {
-  const { world } = useEngine();
-  const c = world.components;
-  const assets = world.assets;
+  const library = useLibrary();
 
-  const type = useEntityState(c.Paint, props.fill, PaintType.SOLID);
-  const assetId = useEntityState(c.AssetId, props.fill);
+  const paint = useTrait(() => props.fill, Paint);
+  const assetId = useTrait(() => props.fill, AssetId);
+
+  const type = () => paint()?.value ?? PaintType.SOLID;
 
   const label = createMemo(() => {
     if (type() === PaintType.SOLID) {
@@ -442,8 +440,8 @@ function FillLabel(props: FillLabelProps) {
     } else if (type() === PaintType.SHADER) {
       return "Shader";
     } else {
-      const asset = assets.get(assetId() ?? "");
-      return asset?.name ?? "Unknown";
+      const asset = library()?.get(assetId()?.value ?? "");
+      return asset ? assetName(asset) : "Unknown";
     }
   })
 
@@ -454,16 +452,10 @@ function FillLabel(props: FillLabelProps) {
   )
 }
 
-type GradientStop = {
-  offset: number;
-  color: number;
-  opacity: number;
-};
-
 function getGradientBackground(stops: GradientStop[], style: PaintType) {
   const parts: string[] = [];
   for (let i = 0; i < stops.length; i++) {
-    const color = mergeColorWithOpacity(stops[i].color, stops[i].opacity);
+    const color = mergeColorWithOpacity(stops[i]!.color, stops[i]!.opacity);
     const offset = (i / (stops.length - 1)) * 100;
     parts.push(`${color} ${offset}%`);
   }

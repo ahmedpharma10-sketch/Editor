@@ -161,6 +161,8 @@ const PAINT_TYPES: Record<string, PaintType> = {
 	radialGradientPaint: PaintType.RADIAL_GRADIENT,
 	shaderPaint: PaintType.SHADER,
 	surfacePaint: PaintType.SURFACE,
+	imagePaint: PaintType.IMAGE,
+	videoPaint: PaintType.VIDEO,
 };
 
 export const TRANSITION_TYPES: Record<string, TransitionType> = {
@@ -483,7 +485,9 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'linearGradientPaint':
 			case 'radialGradientPaint':
 			case 'shaderPaint':
-			case 'surfacePaint': {
+			case 'surfacePaint':
+			case 'imagePaint':
+			case 'videoPaint': {
 				entity = createEntity(this.world);
 				entity.add(Paint);
 				entity.set(Paint, { value: PAINT_TYPES[name]! });
@@ -554,7 +558,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			}
 			default:
 				throw new Error(
-					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <textRange>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
+					`<${tag}> is not supported yet (only <stage>, <scene>, <group>, <sequence>, <rect>, <text>, <textRange>, <video>, <image>, <audio>, <surface>, <solidPaint>, <linearGradientPaint>, <radialGradientPaint>, <shaderPaint>, <surfacePaint>, <imagePaint>, <videoPaint>, <colorStop>, <stroke>, <shadow>, <effect>, <animation>, <keyframeTrack> and <keyframe>).`,
 				);
 		}
 

@@ -12,46 +12,43 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { PaintType, useEntityState, useEntityTag, addComponent, removeComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { hasComponent } from 'bitecs';
+import { useHas, useTrait } from "@diffusionstudio/koota-solid";
+import { Hidden, Paint, PaintType } from "@diffusionstudio/runtime";
+import { useEditor } from "@/engine/hooks";
+
+import type { Entity } from "koota";
 
 type FillRowProps = {
-  nodeEid: number;
-  fillEid: number;
+  fill: Entity;
   onSelect(): void;
   onRemove(): void;
-  onMoveUp?(): void;
-  onMoveDown?(): void;
+  onMoveUp(): void;
+  onMoveDown(): void;
 };
 
 const FILL_TYPE_LABELS: Record<PaintType, string> = {
-  [PaintType.SOLID]: 'Solid',
-  [PaintType.IMAGE]: 'Image',
-  [PaintType.VIDEO]: 'Video',
-  [PaintType.SEQUENCE]: 'Sequence',
-  [PaintType.LINEAR_GRADIENT]: 'Gradient',
-  [PaintType.RADIAL_GRADIENT]: 'Gradient',
-  [PaintType.WAVEFORM]: 'Waveform',
-  [PaintType.HTML]: 'Html',
-  [PaintType.SURFACE]: 'Surface',
-  [PaintType.SHADER]: 'Shader',
+  [PaintType.SOLID]: "Solid",
+  [PaintType.IMAGE]: "Image",
+  [PaintType.VIDEO]: "Video",
+  [PaintType.SEQUENCE]: "Sequence",
+  [PaintType.LINEAR_GRADIENT]: "Gradient",
+  [PaintType.RADIAL_GRADIENT]: "Gradient",
+  [PaintType.WAVEFORM]: "Waveform",
+  [PaintType.HTML]: "Html",
+  [PaintType.SURFACE]: "Surface",
+  [PaintType.SHADER]: "Shader",
 };
 
 export function FillRow(props: FillRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const editor = useEditor();
 
-  const fillType = useEntityState(c.Paint, props.fillEid, PaintType.SOLID);
-  const hidden = useEntityTag(c.Hidden, () => props.fillEid);
+  const paint = useTrait(() => props.fill, Paint);
+  const hidden = useHas(() => props.fill, Hidden);
 
-  const label = createMemo(() => (FILL_TYPE_LABELS[fillType() as PaintType] ?? 'Solid'));
+  const label = createMemo(() => FILL_TYPE_LABELS[paint()?.value ?? PaintType.SOLID] ?? "Solid");
+
   const toggleHidden = () => {
-    if (hasComponent(world, props.fillEid, c.Hidden)) {
-      removeComponent(world, props.fillEid, c.Hidden);
-    } else {
-      addComponent(world, props.fillEid, c.Hidden);
-    }
+    editor.editProperty(props.fill, "hidden", !hidden());
   };
 
   return (
@@ -61,28 +58,18 @@ export function FillRow(props: FillRowProps) {
         label={label()}
         class={hidden() ? "opacity-50" : undefined}
       >
-        <FillItem
-          nodeEid={props.nodeEid}
-          fillEid={props.fillEid}
-          onClick={props.onSelect}
-        />
+        <FillItem fill={props.fill} onClick={props.onSelect} />
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={props.onMoveUp}>
-          Move Up
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={props.onMoveDown}>
-          Move Down
-        </ContextMenuItem>
+        <ContextMenuItem onSelect={props.onMoveUp}>Move Up</ContextMenuItem>
+        <ContextMenuItem onSelect={props.onMoveDown}>Move Down</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={toggleHidden}>
           {hidden() ? "Unhide" : "Hide"}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={props.onRemove}>
-          Remove
-        </ContextMenuItem>
+        <ContextMenuItem onSelect={props.onRemove}>Remove</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
+  );
 }

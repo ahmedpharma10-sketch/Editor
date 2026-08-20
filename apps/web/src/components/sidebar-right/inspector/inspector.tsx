@@ -30,7 +30,7 @@ import { LayoutPanel } from "./layout";
 // import { TransformSettings } from "./transform";
 // import { CaptionSettings } from "./caption-settings";
 import { TextPanel } from "./text";
-// import { FillsSettings } from "./fills";
+import { FillsSettings } from "./fills";
 import { StrokesSettings } from "./strokes";
 import { ShadowsSettings } from "./shadows";
 import { EffectsSettings } from "./effects";
@@ -149,9 +149,9 @@ export function Inspector() {
             <TextPanel selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("shape", "text", "scene", "caption")}>
+          <Show when={includesTarget("shape", "text", "scene", "caption")}>
             <FillsSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           <Show when={includesTarget("shape", "text", "scene", "caption")}>
             <StrokesSettings selection={nodes()} />

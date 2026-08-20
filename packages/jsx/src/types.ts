@@ -513,6 +513,17 @@ export type ColorStopProps = ColorProps & OpacityProps & TrackChildren & {
   offset: number;
 };
 
+/**
+ * `<imagePaint>` / `<videoPaint>` — an asset painted into the parent
+ * geometry's box, a paint child like a solid or a gradient (several stack in
+ * document order). The node tags `<image>` / `<video>` are the same media as
+ * an element of its own; these fill something else with it, so a rect or a
+ * text can be filled with a picture. Which tag it is says what the source is
+ * played as, exactly as on the node tags: a frames directory plays as a
+ * sequence under either.
+ */
+export type MediaPaintProps = PaintProps & MediaProps & FitProps & TrackChildren;
+
 export type VideoProps = CommonProps & MediaProps & FitProps & AudioTrackProps & {
   /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>`, `<Effect>`, `<Animation>` and `<KeyframeTrack>` children. */
     children?: SolidJSX.Element;
