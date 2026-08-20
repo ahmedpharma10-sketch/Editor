@@ -27,7 +27,7 @@ import { AppearanceSettings } from "./appearance";
 import { Alignment } from "./alignment";
 import { ExportPanel } from "./export";
 import { LayoutPanel } from "./layout";
-// import { TransformSettings } from "./transform";
+import { TransformSettings } from "./transform";
 // import { CaptionSettings } from "./caption-settings";
 import { TextPanel } from "./text";
 import { FillsSettings } from "./fills";
@@ -129,9 +129,9 @@ export function Inspector() {
             <TimeSettings selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "group", "mask", "adjustment")}>
+          <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "group", "mask", "adjustment")}>
             <TransformSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "mask")}>
             <LayoutPanel selection={nodes()} />

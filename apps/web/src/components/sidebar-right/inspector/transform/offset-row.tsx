@@ -12,38 +12,37 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "@/components/ui/context-menu";
-import { useEngine } from "@/context/engine";
-import { useEntityState, addComponent, setComponent } from "@/components/engine";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
+import { Keyframe } from "@/components/ui/keyframe";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Computed } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
 
+import type { Entity } from "koota";
 
 export type OffsetRowProps = {
-  nodeEid: number;
+  node: Entity;
   onRemoveAddon(): void;
 };
 
+/** `offsetX`/`offsetY`: the render-time translation the slide animations drive, unset at 0. */
 export function OffsetRow(props: OffsetRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
 
-  const offsetX = useEntityState(c.Computed.offsetX, props.nodeEid, 0);
-  const offsetY = useEntityState(c.Computed.offsetY, props.nodeEid, 0);
+  const offsetX = useDerived(() => props.node.get(Computed)?.offsetX ?? 0);
+  const offsetY = useDerived(() => props.node.get(Computed)?.offsetY ?? 0);
 
-  const isDefault = createMemo(() => (offsetX() === 0 && offsetY() === 0));
+  const isDefault = createMemo(() => offsetX() === 0 && offsetY() === 0);
 
   const updateOffsetX = (x: number) => {
-    addComponent(world, props.nodeEid, c.Offset);
-    setComponent(world, props.nodeEid, c.Offset, { x });
+    editor.editProperty(props.node, 'offsetX', x === 0 ? false : x);
+    syncKeyframe(world, editor, props.node, 'offsetX', x);
   };
 
   const updateOffsetY = (y: number) => {
-    addComponent(world, props.nodeEid, c.Offset);
-    setComponent(world, props.nodeEid, c.Offset, { y });
-  };
-
-  const handleResetToDefault = () => {
-    updateOffsetX(0);
-    updateOffsetY(0);
+    editor.editProperty(props.node, 'offsetY', y === 0 ? false : y);
+    syncKeyframe(world, editor, props.node, 'offsetY', y);
   };
 
   return (
@@ -60,7 +59,7 @@ export function OffsetRow(props: OffsetRowProps) {
           step={1}
           autoSelect
           sliderEnabled
-          keyframe={<Keyframe target={props.nodeEid} property="offset.x" />}
+          keyframe={<Keyframe target={props.node} property="offsetX" />}
         />
         <ControlledTextField
           icon={<Icon name="prop-y-position" />}
@@ -69,13 +68,16 @@ export function OffsetRow(props: OffsetRowProps) {
           step={1}
           autoSelect
           sliderEnabled
-          keyframe={<Keyframe target={props.nodeEid} property="offset.y" />}
+          keyframe={<Keyframe target={props.node} property="offsetY" />}
         />
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem
           disabled={isDefault()}
-          onSelect={handleResetToDefault}
+          onSelect={() => {
+            updateOffsetX(0);
+            updateOffsetY(0);
+          }}
         >
           Reset to Default
         </ContextMenuItem>

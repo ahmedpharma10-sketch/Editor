@@ -230,6 +230,7 @@ export function motionSystem(world: World): void {
 		}
 
 		// 2: Keyframe tracks
+		let uniformScale = entity.has(UniformScale);
 		for (const track of keyframeTracks) {
 			const tid = track.id();
 			const property = keyframeTrack.property[tid] as PropertyPath;
@@ -238,10 +239,13 @@ export function motionSystem(world: World): void {
 			const result = sampleTrack(world, keyframes, localFrame, property);
 			if (result === null || target == null) continue;
 			worldProps[property].computed[target.id()] = result;
+			// A 'scale' track is the uniform scale whether or not the node also
+			// authors the prop, so it scales both axes like UniformScale does.
+			if (property === 'scale' && target === entity) uniformScale = true;
 		}
 
 		// Uniform scale is authored/animated as scaleX only; mirror it onto scaleY.
-		if (entity.has(UniformScale)) {
+		if (uniformScale) {
 			computed.scaleY[eid] = computed.scaleX[eid];
 		}
 	}

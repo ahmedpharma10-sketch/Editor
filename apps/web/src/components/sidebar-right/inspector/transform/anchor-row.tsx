@@ -12,30 +12,36 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "@/components/ui/context-menu";
+import { useTrait } from "@diffusionstudio/koota-solid";
+import { Anchor } from "@diffusionstudio/runtime";
 import { AnchorPointPicker } from "./anchor-picker";
-import { useEngine } from "@/context/engine";
-import { useEntityState, setComponent } from "@/components/engine";
 
+import type { Entity } from "koota";
 
 export type AnchorRowProps = {
-  nodeEid: number;
+  node: Entity;
   onRemoveAddon(): void;
 };
 
+/**
+ * The pivot rotation, scale and skew turn about, as a fraction of the box.
+ * `Anchor` has no JSX spelling, so this writes the trait alone. Both axes go
+ * out on every write: the trait's own defaults are (0, 0) while a node
+ * without one pivots about its centre (the transform system reads an absent
+ * slot as 0.5), so adding it one axis at a time would jump the pivot to the
+ * corner.
+ */
 export function AnchorRow(props: AnchorRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const anchor = useTrait(() => props.node, Anchor);
+  const anchorX = () => anchor()?.x ?? 0.5;
+  const anchorY = () => anchor()?.y ?? 0.5;
 
-  const anchorX = useEntityState(c.Anchor.x, props.nodeEid, 0.5);
-  const anchorY = useEntityState(c.Anchor.y, props.nodeEid, 0.5);
+  const isDefault = createMemo(() => anchorX() === 0.5 && anchorY() === 0.5);
 
-  const isDefault = createMemo(() => (anchorX() === 0.5 && anchorY() === 0.5));
-
-  const assignAnchor = (x: number | undefined, y: number | undefined) => {
-    setComponent(world, props.nodeEid, c.Anchor, { x, y });
+  const assignAnchor = (x: number, y: number) => {
+    props.node.add(Anchor);
+    props.node.set(Anchor, { x, y });
   };
-
-  const handleResetToDefault = () => assignAnchor(0.5, 0.5);
 
   return (
     <ContextMenu>
@@ -50,7 +56,7 @@ export function AnchorRow(props: AnchorRowProps) {
           <ControlledTextField
             icon={<Icon name="prop-x-position" />}
             value={Math.round(anchorX() * 100)}
-            onNumber={(value) => assignAnchor(value / 100, undefined)}
+            onNumber={(value) => assignAnchor(value / 100, anchorY())}
             step={1}
             unit="%"
             autoSelect
@@ -59,20 +65,17 @@ export function AnchorRow(props: AnchorRowProps) {
           <ControlledTextField
             icon={<Icon name="prop-y-position" />}
             value={Math.round(anchorY() * 100)}
-            onNumber={(value) => assignAnchor(undefined, value / 100)}
+            onNumber={(value) => assignAnchor(anchorX(), value / 100)}
             step={1}
             unit="%"
             autoSelect
             sliderEnabled
           />
         </div>
-        <AnchorPointPicker nodeEid={props.nodeEid} />
+        <AnchorPointPicker x={anchorX()} y={anchorY()} onPick={assignAnchor} />
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem
-          disabled={isDefault()}
-          onSelect={handleResetToDefault}
-        >
+        <ContextMenuItem disabled={isDefault()} onSelect={() => assignAnchor(0.5, 0.5)}>
           Reset to Default
         </ContextMenuItem>
         <ContextMenuItem onSelect={props.onRemoveAddon}>

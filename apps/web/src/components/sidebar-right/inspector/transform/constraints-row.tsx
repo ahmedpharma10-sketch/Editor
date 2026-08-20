@@ -12,36 +12,44 @@ import {
   SelectPortal,
 } from "@/components/ui/select";
 import { horizontalConstraints, verticalConstraints } from "./constants";
-import { useEngine } from "@/context/engine";
-import { ConstraintType, useEntityState, setComponent } from "@/components/engine";
+import { useTrait } from "@diffusionstudio/koota-solid";
+import { Constraint, ConstraintType } from "@diffusionstudio/runtime";
 
+import type { Entity } from "koota";
 
 type ConstraintsRowProps = {
-  nodeEid: number;
+  node: Entity;
 };
 
+/**
+ * How the node follows its scene's frame when that frame resizes. `Constraint`
+ * has no JSX spelling, so this writes the trait alone; the runtime seeds the
+ * cache it resolves against the first time it sees the node with one, so a
+ * constraint set here does not move anything until the frame changes.
+ */
 export function ConstraintsRow(props: ConstraintsRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const constraint = useTrait(() => props.node, Constraint);
+  const horizontal = () => constraint()?.horizontal ?? ConstraintType.MIN;
+  const vertical = () => constraint()?.vertical ?? ConstraintType.MIN;
 
-  const h = useEntityState(c.Constraint.horizontal, props.nodeEid, 0);
-  const w = useEntityState(c.Constraint.vertical, props.nodeEid, 0);
+  const assign = (value: Partial<{ horizontal: ConstraintType; vertical: ConstraintType }>) => {
+    props.node.add(Constraint);
+    props.node.set(Constraint, value);
+  };
 
-  const assignHorizontalConstraint = (value: ConstraintType | null) => {
+  const assignHorizontal = (value: ConstraintType | null) => {
     if (value == null) return;
-    setComponent(world, props.nodeEid, c.Constraint, { horizontal: value });
-  };
-  const assignVerticalConstraint = (value: ConstraintType | null) => {
-    if (value == null) return;
-    setComponent(world, props.nodeEid, c.Constraint, { vertical: value });
-  };
-  const assignCenterConstraints = () => {
-    setComponent(world, props.nodeEid, c.Constraint, {
-      horizontal: ConstraintType.CENTER,
-      vertical: ConstraintType.CENTER,
-    });
+    assign({ horizontal: value });
   };
 
+  const assignVertical = (value: ConstraintType | null) => {
+    if (value == null) return;
+    assign({ vertical: value });
+  };
+
+  const assignCenter = () => {
+    assign({ horizontal: ConstraintType.CENTER, vertical: ConstraintType.CENTER });
+  };
 
   return (
     <ControlRow
@@ -52,8 +60,8 @@ export function ConstraintsRow(props: ConstraintsRowProps) {
     >
       <div class="flex flex-col gap-2 min-w-0">
         <Select<ConstraintType>
-          value={h()}
-          onChange={(value) => assignHorizontalConstraint(value)}
+          value={horizontal()}
+          onChange={(value) => assignHorizontal(value)}
           options={horizontalConstraints.map((c) => c.key)}
           itemComponent={(itemProps) => (
             <SelectItem item={itemProps.item}>
@@ -75,8 +83,8 @@ export function ConstraintsRow(props: ConstraintsRowProps) {
         </Select>
 
         <Select<ConstraintType>
-          value={w()}
-          onChange={(value) => assignVerticalConstraint(value)}
+          value={vertical()}
+          onChange={(value) => assignVertical(value)}
           options={verticalConstraints.map((c) => c.key)}
           itemComponent={(itemProps) => (
             <SelectItem item={itemProps.item}>
@@ -107,73 +115,73 @@ export function ConstraintsRow(props: ConstraintsRowProps) {
 
         <div
           class="group absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 -ml-[23px] cursor-pointer py-1"
-          onClick={() => assignHorizontalConstraint(ConstraintType.MIN)}
+          onClick={() => assignHorizontal(ConstraintType.MIN)}
         >
           <div
             class="w-2.5 h-0.5 rounded-sm"
             classList={{
-              "bg-primary": h() === ConstraintType.MIN || h() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": h() !== ConstraintType.MIN && h() !== ConstraintType.STRETCH
+              "bg-primary": horizontal() === ConstraintType.MIN || horizontal() === ConstraintType.STRETCH,
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": horizontal() !== ConstraintType.MIN && horizontal() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
           class="group absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 ml-[23px] cursor-pointer py-1"
-          onClick={() => assignHorizontalConstraint(ConstraintType.MAX)}
+          onClick={() => assignHorizontal(ConstraintType.MAX)}
         >
           <div
             class="w-2.5 h-0.5 rounded-sm"
             classList={{
-              "bg-primary": h() === ConstraintType.MAX || h() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": h() !== ConstraintType.MAX && h() !== ConstraintType.STRETCH
+              "bg-primary": horizontal() === ConstraintType.MAX || horizontal() === ConstraintType.STRETCH,
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": horizontal() !== ConstraintType.MAX && horizontal() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
           class="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -mt-[23px] cursor-pointer px-1"
-          onClick={() => assignVerticalConstraint(ConstraintType.MIN)}
+          onClick={() => assignVertical(ConstraintType.MIN)}
         >
           <div
             class="w-0.5 h-2.5 rounded-sm"
             classList={{
-              "bg-primary": w() === ConstraintType.MIN || w() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": w() !== ConstraintType.MIN && w() !== ConstraintType.STRETCH
+              "bg-primary": vertical() === ConstraintType.MIN || vertical() === ConstraintType.STRETCH,
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": vertical() !== ConstraintType.MIN && vertical() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
           class="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 mt-[23px] cursor-pointer px-1"
-          onClick={() => assignVerticalConstraint(ConstraintType.MAX)}
+          onClick={() => assignVertical(ConstraintType.MAX)}
         >
           <div
             class="w-0.5 h-2.5 rounded-sm"
             classList={{
-              "bg-primary": w() === ConstraintType.MAX || w() === ConstraintType.STRETCH,
-              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": w() !== ConstraintType.MAX && w() !== ConstraintType.STRETCH
+              "bg-primary": vertical() === ConstraintType.MAX || vertical() === ConstraintType.STRETCH,
+              "bg-muted-foreground/40 group-hover:bg-muted-foreground/70": vertical() !== ConstraintType.MAX && vertical() !== ConstraintType.STRETCH
             }}
           />
         </div>
 
         <div
           class="group absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer p-1"
-          onClick={assignCenterConstraints}
+          onClick={assignCenter}
         >
           <div class="relative size-2.5">
             <div
               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-0.5 rounded-sm"
               classList={{
-                "bg-primary": h() === ConstraintType.CENTER,
-                "bg-transparent group-hover:bg-muted-foreground/40": h() !== ConstraintType.CENTER
+                "bg-primary": horizontal() === ConstraintType.CENTER,
+                "bg-transparent group-hover:bg-muted-foreground/40": horizontal() !== ConstraintType.CENTER
               }}
             />
             <div
               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-2.5 rounded-sm"
               classList={{
-                "bg-primary": w() === ConstraintType.CENTER,
-                "bg-transparent group-hover:bg-muted-foreground/40": w() !== ConstraintType.CENTER
+                "bg-primary": vertical() === ConstraintType.CENTER,
+                "bg-transparent group-hover:bg-muted-foreground/40": vertical() !== ConstraintType.CENTER
               }}
             />
           </div>

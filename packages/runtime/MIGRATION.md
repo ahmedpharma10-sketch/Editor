@@ -76,7 +76,7 @@ Done:
 | Draw tools + toolbar (armed tool is the `Tool` world trait) | `components/canvas/draw-overlay.tsx` |
 | Input, HUD, camera, alignment | `engine/input/`, `engine/hud/`, `engine/align.ts` |
 | Project config (per-scene export settings in package.json) | `engine/project-config.ts` |
-| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text, strokes, shadows, effects, animations, transition, masks, audio, fills | `components/sidebar-right/inspector/` |
+| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text, strokes, shadows, effects, animations, transition, masks, audio, fills, transform | `components/sidebar-right/inspector/` |
 | Local font families (web fonts and loading are the runtime's) | `engine/fonts.ts` (`getLocalFonts`) |
 
 Hosted JSX surface is `COMPOSITION_TAGS` (`packages/jsx/src/source.ts`): the structural tags, the media tags, `<captions>`, the paint family, `<stroke>`, `<shadow>`, `<effect>`, `<animation>`, `<keyframeTrack>`/`<keyframe>`, `<html>`/`<surface>`. `mask` is a `<rect>` prop, not a tag.
@@ -95,7 +95,7 @@ Conventions worth repeating when migrating the next panel:
 - Reordering siblings is a swap through `editor.reparent`, not an index write: `ItemIndex` is the document's to assign (`insertNode` renumbers the whole sibling list), and a move needs an anchor, since `reparent` appends without one and refuses an append into the parent the element already has. So "move later" moves the *next* sibling in front of this one.
 - A shared control that knows *which* prop it edits keyframes it itself, off an `Entity` (`ColorOpacityPicker`'s `keyframeTarget`, now koota's); only a control that cannot know takes the diamond as a slot (`ControlledTextField`, `ColorOpacityRow`). Moving one of these moves it whole: the bitecs panels still calling it lose their diamonds until they migrate, and its recent-colors palette now queries the koota world for them too (both providers are mounted).
 
-Still on bitecs: transform, caption-settings, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
+Still on bitecs: caption-settings and interpolation panels; the timeline's keyframe layer; the whole timeline UI.
 
 The stroke panel moved with the model: `StrokeStyle` is the stroke's, not the node's (as `<stroke width join cap miterLimit>` always was), so Weight/Join/Miter sit under each stroke's row instead of once per node. `<stroke>` is a solid paint that takes no paint children, so its picker is the color one alone, with no gradient or asset tab and no `FillPicker` behind it. `cap` still has no control (it shows only on open paths, and there are no icons for it).
 
@@ -120,6 +120,16 @@ Two details worth keeping: gradient stops have no `Cache` list of their own (`re
 The shadow panel kept the shape it had: a row per `<shadow>` opening a floating inspector, since nothing in the shadow model moved the way the stroke's line style did. The one thing it says that the file does not is what "Add shadow" authors (`opacity` 0.25, `blur` 4, `offsetY` 4): `<shadow>`'s own defaults are all zero, which casts the silhouette back onto itself, so a shadow added from the panel has to spell out where it sits. Every control unsets at the prop's default (0 for the offsets and the blur, 1 for opacity); `color` is required and always written.
 
 Two deliberate departures from the old text panel: `letterSpacing` is shown in px (the trait's unit and the prop's; the bitecs panel showed the same number as a percentage), and the font a text is set in — family, weight, size — is written out plainly rather than unset at its default, since a font is what a text *is* and not a modifier of it. `<captions>` has no host yet, so the caption half of the panel is unreachable and was carried over as it stood.
+
+The transform panel is where the props run out: position, rotation, offset and scale are props like any other, but **anchor, flip, skew and constraints have no JSX spelling**, so those four rows write their traits alone and are gone on the next recompile, the way `KeepAspectRatio` and `ClipsContent` are. Two things follow from that. The skew row lost its keyframe diamonds: `skew.x`/`skew.y` are runtime property paths (the motion system does animate them), but `TRACK_PROPERTIES` maps no prop name onto them, so no `<keyframeTrack>` can name a skew and a diamond there would have toggled nothing. And `Anchor`'s trait defaults are (0, 0) while a node *without* the trait pivots about its centre (`computeLocalMatrix` reads an absent slot as 0.5), so the row writes both axes on every edit: adding the trait one axis at a time would move the pivot to the corner. The picker went presentational (it takes the anchor and an `onPick`) so that fallback is spelled once.
+
+`x`/`y` are written out even at 0, as the canvas writes them on a drag: where a node sits is what it is, the way a size is. Everything else in the panel unsets at its default, `rotation` included, so the row's "Reset to Default" removes the attribute where the canvas's rotate handle would write `rotation={0}`.
+
+Uniform versus per-axis scale is the corner-radius pattern again: uniform is `scale`, separate is `scaleX`/`scaleY`, `scale` wins wherever both are set (the motion system's rule), and a mode switch drops the other mode's props *and* its tracks. Uniform unsets at 1; the axes are written out even at 1, since that is what says the node is on separate scale at all. The `world.history.transaction` that wrapped the switch went with the history layer the koota side does not have.
+
+Fixed while the panel moved: the motion system mirrored an animated uniform scale onto `scaleY` only for a node that also had `UniformScale`, but the panel unsets `scale` at 1, so keyframing uniform scale at 100% (the ordinary case) minted a `scale` track on a node with no `UniformScale` and squashed it horizontally as the track played. A `scale` track *is* the uniform scale, whether or not the prop is authored alongside it, so the mirror now follows the track too.
+
+The constraints row behaves as it did, but its "does this node take constraints at all" test now mirrors `resolveConstraintOffsets`: a sequence is not a spatial parent, so look above it, and the answer is yes only against a scene's frame. Setting one moves nothing until that frame changes, because the runtime seeds `ConstraintCache` the first time it sees the node with a `Constraint`.
 
 **Left stale on purpose** (deferred to a docs/examples pass): the eight `examples/*.tsx` still open with `<rect scene="...">` and no `<stage>`, so `tsc -p examples --noEmit` fails on them, and `reference/jsx/*` still describes the pre-`<stage>` model and `key` as the `syncTo` target. `reference/jsx` is stale as a whole; patching rows piecemeal would hide that.
 
