@@ -13,8 +13,9 @@
 // Keyframe auto-sync on authored edits deliberately did not move here: koota
 // change events don't say which field changed, and syncing every field of a
 // trait would mint spurious keyframes on untouched properties. Editing
-// surfaces call syncKeyframeTrack for the property they changed (resizeEntity
-// already does for width/height).
+// surfaces keep the track of the property they changed in step themselves —
+// in an app, through whatever owns the document, since a keyframe minted in
+// the world alone would never reach the project it was authored in.
 
 import { store } from './store';
 import {

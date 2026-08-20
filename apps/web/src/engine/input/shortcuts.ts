@@ -9,12 +9,14 @@
  * pressed, matches what is held against the table below and runs the action.
  */
 
-import { getActiveEntity, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected } from '@diffusionstudio/runtime';
+import { Computed, getActiveEntity, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected, store } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../editor';
 import { splitAtPlayhead } from '../split';
 import { Keys } from '../traits';
+import { editTransform } from './interactions';
 
+import type { TransformWrite } from './interactions';
 import type { World } from 'koota';
 
 interface Shortcut {
@@ -85,16 +87,23 @@ const NUDGE_FAST = 10;
 /**
  * Moves every selected node by `dx`, `dy` in its own parent's space, the same
  * `x`/`y` a drag writes, so a nudge is a drag of a known distance without the
- * snapping.
+ * snapping. Measured from where the node is drawn rather than from the prop,
+ * and written to the position track as well as the prop, so nudging an
+ * animated node moves it from where its keyframes put it (a drag does the
+ * same; see `editTransform`).
  */
 export function nudgeSelection(world: World, dx: number, dy: number): void {
 	const editor = getDocumentEditor(world);
+	const computed = store(world, Computed);
 
 	for (const entity of getSelection(world)) {
-		const position = entity.get(Position);
-		if (!position) continue;
-		if (dx) editor.editProperty(entity, 'x', position.x + dx);
-		if (dy) editor.editProperty(entity, 'y', position.y + dy);
+		if (!entity.has(Position)) continue;
+		const eid = entity.id();
+
+		const writes: TransformWrite[] = [];
+		if (dx) writes.push(['x', Math.round((computed.positionX[eid] ?? 0) + dx)]);
+		if (dy) writes.push(['y', Math.round((computed.positionY[eid] ?? 0) + dy)]);
+		editTransform(world, editor, entity, writes);
 	}
 }
 

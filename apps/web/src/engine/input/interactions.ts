@@ -30,6 +30,7 @@ import {
 import { Not, Or } from 'koota';
 
 import { getDocumentEditor } from '../editor';
+import { syncKeyframe } from '../keyframes';
 import { AssetSelection, Hud, Keys, Pointer, SnapLines } from '../traits';
 import { updateCursor, type CursorType } from './cursor';
 import { mountNameInput } from '../hud/name-input';
@@ -40,6 +41,7 @@ import {
 	snapshotSnapCandidates,
 } from './snapping';
 
+import type { DocumentEditor } from '../editor';
 import type { Entity, World } from 'koota';
 import type { DispatchedPointerEvent, Mat2D, Point, Quad } from '@diffusionstudio/runtime';
 
@@ -70,6 +72,68 @@ const HANDLE_CURSOR: Record<Handle, CursorType> = {
 };
 
 const isHandle = (id: string): id is Handle => id in HANDLE_FACTOR;
+
+/** The transform props a gesture writes, as the JSX names them. */
+type TransformProp = 'x' | 'y' | 'rotation' | 'width' | 'height';
+
+/**
+ * What the node shows for `name` right now, rounded the way a gesture writes
+ * it: the animated value when it is keyframed, the authored one otherwise.
+ */
+function shownTransform(world: World, entity: Entity, name: TransformProp): number {
+	const computed = store(world, Computed);
+	const eid = entity.id();
+
+	switch (name) {
+		case 'x': return Math.round(computed.positionX[eid] ?? 0);
+		case 'y': return Math.round(computed.positionY[eid] ?? 0);
+		case 'rotation': return Math.round((computed.rotation[eid] ?? 0) * 100) / 100;
+		case 'width': return Math.round(computed.width[eid] ?? 0);
+		case 'height': return Math.round(computed.height[eid] ?? 0);
+	}
+}
+
+/** One prop of a gesture's write, in the order the props are written. */
+export type TransformWrite = [name: TransformProp, value: number];
+
+/**
+ * The transform props a gesture writes, as the gesture means them: the props
+ * themselves, and the keyframes at the playhead for the ones that are
+ * keyframed. An animated prop belongs to the motion system, which writes it
+ * from the track on every tick, so a gesture that only wrote the prop would
+ * be undone before the next frame is drawn — the node would sit where its
+ * keyframes put it however far the pointer went (see `syncKeyframe`). Nothing
+ * is keyframed by this: without a track already there, these are the plain
+ * edits they look like.
+ *
+ * Only what the gesture actually changed reaches a track. A gesture writes
+ * its whole set every frame, most of it the value already shown, and
+ * keyframing those would leave a keyframe at the playhead for a drag that
+ * never touched them — resizing by the bottom-right corner, say, which leaves
+ * the position where it was.
+ *
+ * Hence the two passes. What is shown is read before anything is written,
+ * because a prop reaches Computed with the rest of its trait: writing `x`
+ * mirrors the authored `y` over the animated one, and `width` does the same
+ * to `height` through the Size observer, so a value read after its sibling's
+ * write is the wrong one to compare against. The keyframes then go before the
+ * props, as in the inspector's rows: `width` and `height` reach the traits
+ * through `resizeEntity`, which keeps their tracks in step itself and would
+ * mint a keyframe of its own — one the document never made, and so cannot
+ * write to the file — if it found none at the playhead. With the editor's
+ * there already, all it does is set the value again.
+ */
+export function editTransform(
+	world: World,
+	editor: DocumentEditor,
+	entity: Entity,
+	writes: readonly TransformWrite[],
+): void {
+	const changed = writes.filter(([name, value]) => value !== shownTransform(world, entity, name));
+
+	for (const [name, value] of changed) syncKeyframe(world, editor, entity, name, value);
+	for (const [name, value] of writes) editor.editProperty(entity, name, value);
+}
 
 const keys = (world: World): Set<string> => world.get(Keys)?.held ?? new Set<string>();
 
@@ -427,13 +491,16 @@ function resizeNode(world: World, entity: Entity, oldTr: Mat2D, localScale: Mat2
 	const height = snapshot.height * (decomposed.scaleY / snapshot.scaleY);
 	const offset = entityOffset(world, entity);
 
-	editor.editProperty(entity, 'width', Math.round(width));
-	editor.editProperty(entity, 'height', Math.round(height));
-	editor.editProperty(entity, 'x', Math.round(decomposed.x - width * anchor.x - offset.x));
-	editor.editProperty(entity, 'y', Math.round(decomposed.y - height * anchor.y - offset.y));
+	const writes: TransformWrite[] = [
+		['width', Math.round(width)],
+		['height', Math.round(height)],
+		['x', Math.round(decomposed.x - width * anchor.x - offset.x)],
+		['y', Math.round(decomposed.y - height * anchor.y - offset.y)],
+	];
+	if (writeAngles) writes.push(['rotation', Math.round(decomposed.rotation * 100) / 100]);
+	editTransform(world, editor, entity, writes);
 
 	if (writeAngles) {
-		editor.editProperty(entity, 'rotation', Math.round(decomposed.rotation * 100) / 100);
 		// Skew has no JSX spelling, so it is written to the trait alone and
 		// lasts until the project is rendered again.
 		entity.add(Skew);
@@ -474,8 +541,10 @@ function keepGroupPlaced(world: World, group: Entity): void {
 	const offset = entityOffset(world, group);
 	const editor = getDocumentEditor(world);
 
-	editor.editProperty(group, 'x', Math.round(position.e - offset.x));
-	editor.editProperty(group, 'y', Math.round(position.f - offset.y));
+	editTransform(world, editor, group, [
+		['x', Math.round(position.e - offset.x)],
+		['y', Math.round(position.f - offset.y)],
+	]);
 	computeLocalMatrix(world, group);
 }
 
@@ -537,9 +606,11 @@ export function handleRotateInteraction(world: World, event: DispatchedPointerEv
 			}
 
 			const offset = entityOffset(world, entity);
-			editor.editProperty(entity, 'x', Math.round(decomposed.x - anchorX - offset.x));
-			editor.editProperty(entity, 'y', Math.round(decomposed.y - anchorY - offset.y));
-			editor.editProperty(entity, 'rotation', Math.round(decomposed.rotation * 100) / 100);
+			editTransform(world, editor, entity, [
+				['x', Math.round(decomposed.x - anchorX - offset.x)],
+				['y', Math.round(decomposed.y - anchorY - offset.y)],
+				['rotation', Math.round(decomposed.rotation * 100) / 100],
+			]);
 		}
 
 		updateRotationCursor(world);
@@ -637,8 +708,10 @@ export function handleMaskInteraction(world: World, event: DispatchedPointerEven
 			const decomposed = decompose2D(moved);
 			const offset = entityOffset(world, entity);
 
-			editor.editProperty(entity, 'x', Math.round(decomposed.x - anchorX - offset.x));
-			editor.editProperty(entity, 'y', Math.round(decomposed.y - anchorY - offset.y));
+			editTransform(world, editor, entity, [
+				['x', Math.round(decomposed.x - anchorX - offset.x)],
+				['y', Math.round(decomposed.y - anchorY - offset.y)],
+			]);
 		}
 	}
 

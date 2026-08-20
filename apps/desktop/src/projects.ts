@@ -160,12 +160,39 @@ function packageName(name: string): string {
 const JSX_VERSION = "^0.1.0";
 const SOLID_VERSION = "^1.9.10";
 
+/**
+ * The dapi surface as npm scripts: the CLI is how a project is inspected and
+ * cut, so its commands belong in the record of the project they act on —
+ * `npm run` prints the menu, `npm run <name> -- <args>` runs one. Named after
+ * the command rather than its path (`grab`, not `media:grab`): the `media`
+ * subcommands have no top-level namesakes to collide with.
+ */
+const SCRIPTS: Record<string, string> = {
+  context: "dapi context",
+  capture: "dapi capture",
+  probe: "dapi media probe",
+  transcribe: "dapi media transcribe",
+  grab: "dapi media grab",
+  filmstrip: "dapi media filmstrip",
+  waveform: "dapi media waveform",
+  listen: "dapi media listen",
+  models: "dapi models",
+  voices: "dapi voices",
+  fonts: "dapi fonts",
+  whoami: "dapi whoami",
+  logs: "dapi logs",
+  screenshot: "dapi screenshot",
+  report: "dapi report",
+  fetch: "dapi fetch",
+};
+
 const packageJson = (name: string, displayName: string): PackageJson => ({
   name: packageName(name),
   displayName,
   private: true,
   type: "module",
   main: "index.tsx",
+  scripts: { ...SCRIPTS },
   devDependencies: {
     "@diffusionstudio/jsx": JSX_VERSION,
     "solid-js": SOLID_VERSION,
@@ -201,6 +228,111 @@ const STARTER = `export default function Project() {
 }
 `;
 
+/**
+ * The project's own README: what the folder holds, how the composition is
+ * written, and what can be run against it. Written once like the rest of the
+ * scaffold, so from then on it is the author's file to say what this project
+ * is.
+ */
+const readme = (displayName: string): string => `# ${displayName}
+
+A Diffusion Studio project: a video composition authored as code. The folder is
+a plain npm package whose entry file is a [Solid](https://www.solidjs.com)
+component; the app compiles it and renders every element into an editable node
+on the canvas.
+
+## Structure
+
+| Path | What it is |
+| ---- | ---------- |
+| \`index.tsx\` | The entry. Its default export renders the composition. |
+| \`package.json\` | The project record: \`displayName\` (the name shown in the app), \`main\` (the entry), \`diffusion\` (how each scene is exported), and the dapi commands as scripts. |
+| \`tsconfig.json\` | Types for the composition tags, through \`jsxImportSource\`. |
+| \`assets.yml\` | The asset library: for every asset its library path, where its bytes are, and what it was found to be. Written by the app; hand edits are read on the next load. |
+| \`assets/\` | Files the app produced itself, generations under \`assets/generated/\`. Media imported from elsewhere on disk is linked where it lies, never copied. |
+| \`cache/\` | Derived data (thumbnails, waveforms). Disposable, and not checked in. |
+
+## Authoring
+
+The source is the document, in both directions. Saving recompiles the project
+and remounts it — scenes rebuild in place, the way reloading a page does, and a
+compile error leaves the last good render on the canvas. Edits made in the app
+come back the other way: a dragged rect, a trimmed clip or a retyped line lands
+as a prop on the element it was authored as.
+
+\`\`\`tsx
+export default function Project() {
+  return (
+    <stage background="#161616">
+      <scene name="Intro" width={1920} height={1080} fill="black">
+        <video src="b-roll/drone.mp4" start={0} end={6} width={1920} height={1080} />
+        <text y={860} width={1920} textAlign="center" fontFamily="Inter" fontSize={96} start={1} end={5}>
+          Hello
+          <animation type="fade" duration={0.5} />
+          <animation type="fade" phase="out" duration={0.5} />
+        </text>
+      </scene>
+    </stage>
+  )
+}
+\`\`\`
+
+- \`<stage>\` is the root, and holds one \`<scene>\` per frame you cut in. A scene
+  owns the timeline its children sit on; nothing outside a scene has a clock to
+  be placed against.
+- Position and size are explicit, in pixels. There is no layout pass and no CSS.
+- \`start\` / \`end\` place a clip on that timeline, \`sourceIn\` / \`sourceOut\` choose
+  the part of the media that plays. Times are seconds (\`1.5\`), frames (\`45f\`) or
+  \`"MM:SS"\`.
+- Style and motion are children: \`<animation>\` for a preset in or out,
+  \`<keyframeTrack>\` with \`<keyframe>\` children for one property, \`<solidPaint>\`
+  and the gradient paints, \`<stroke>\`, \`<shadow>\`, \`<effect>\`.
+- \`src\` takes a library path (\`"b-roll/drone.mp4"\` — the portable form, it
+  survives the file being relinked), an asset id, a URL, or an absolute path.
+- Generated assets are declared rather than fetched: \`src={generate.image({ prompt })}\`,
+  and \`generate.video\`, \`generate.voice\`, \`generate.audio\`. They are produced on
+  mount, in dependency order.
+- Solid is fully available while mounting: \`<For>\`, \`<Show>\`, \`createMemo\`, and
+  \`useTicker()\` for values that follow the playhead.
+- Any npm package can be imported without installing it: bare specifiers resolve
+  from a CDN at runtime. Add one as a dev dependency (\`npm i -D three\`) only to
+  get its types.
+
+Types are stripped at compile time and never checked, so typecheck the project
+yourself with \`npx tsc --noEmit\`.
+
+## Commands
+
+Every dapi command is a script here: \`npm run\` lists them, and
+\`npm run <name> -- <args>\` runs one (\`npm run grab -- b-roll/drone.mp4 -c 6\`).
+All of them talk to the running app, except \`fonts\` and \`fetch\`.
+
+| Script | Command | What it does |
+| ------ | ------- | ------------ |
+| \`context\` | \`dapi context\` | What is open: scenes, active scene, playhead, work area, selection. |
+| \`capture\` | \`dapi capture <id>\` | Render one node in isolation to labelled PNG contact sheets. |
+| \`probe\` | \`dapi media probe <id\\|path>\` | Container and per-track metadata, without decoding. |
+| \`transcribe\` | \`dapi media transcribe <id\\|path>\` | Timed speech transcript, word by word. |
+| \`grab\` | \`dapi media grab <id\\|path>\` | Decode frames of a video to labelled PNG contact sheets. |
+| \`filmstrip\` | \`dapi media filmstrip <id\\|path>\` | Thumbnail grid across a window of a video. |
+| \`waveform\` | \`dapi media waveform <id\\|path>\` | Loudness over time, with the silences marked. |
+| \`listen\` | \`dapi media listen <id\\|path>\` | Ask a multimodal model what is in an audio track. |
+| \`models\` | \`dapi models [type]\` | Generation models and their per-model constraints. |
+| \`voices\` | \`dapi voices\` | Speech voices for \`generate.voice\`. |
+| \`fonts\` | \`dapi fonts\` | Local font families, valid as \`fontFamily\`. |
+| \`whoami\` | \`dapi whoami\` | The signed-in account. |
+| \`logs\` | \`dapi logs\` | Recent console output from the app. |
+| \`screenshot\` | \`dapi screenshot\` | The whole app window as a PNG. |
+| \`report\` | \`dapi report <title>\` | File a bug against the editor, with diagnostics attached. |
+| \`fetch\` | \`dapi fetch <url>\` | Download a video with yt-dlp (installed separately). |
+
+## Reference
+
+- [JSX reference](https://github.com/diffusionstudio/editor/blob/main/reference/jsx/README.md): elements, timing, paints, generation, captions
+- [CLI reference](https://github.com/diffusionstudio/editor/blob/main/reference/README.md): every command, its options and its output
+- [Examples](https://github.com/diffusionstudio/editor/tree/main/examples): runnable compositions to read
+`;
+
 async function writeIfMissing(dir: string, name: string, content: string): Promise<void> {
   const path = join(dir, name);
   if (await exists(path)) return;
@@ -217,7 +349,12 @@ async function ensurePackage(dir: string, name: string, displayName: string, ent
   const next = { ...pkg };
   if (typeof next.displayName !== "string") next.displayName = displayName;
   if (typeof next.main !== "string") next.main = entry;
-  if (next.displayName !== pkg.displayName || next.main !== pkg.main) await writePackage(dir, next);
+  // The commands are a menu rather than a record: a project that keeps its own
+  // scripts is left with them, one with none is given the dapi surface.
+  if (typeof next.scripts !== "object" || next.scripts === null) next.scripts = { ...SCRIPTS };
+  if (next.displayName !== pkg.displayName || next.main !== pkg.main || next.scripts !== pkg.scripts) {
+    await writePackage(dir, next);
+  }
 }
 
 /**
@@ -238,6 +375,7 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
   await ensurePackage(dir, name, displayName, entry);
   await writeIfMissing(dir, "tsconfig.json", TSCONFIG);
   await writeIfMissing(dir, ".gitignore", GITIGNORE);
+  await writeIfMissing(dir, "README.md", readme(displayName));
 }
 
 /** Creates a fresh project folder under `root`. Fails if the folder exists. */

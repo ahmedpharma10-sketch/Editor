@@ -11,7 +11,6 @@ import {
 	KeepAspectRatio, Sequential, Computed,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
-import { syncKeyframeTrack } from './keyframe';
 
 import type { Entity, World } from 'koota';
 
@@ -19,9 +18,17 @@ type ResizeParams = { width?: number; height?: number };
 
 /**
  * Resize an entity. Enforces aspect ratio, writes the final Size, propagates
- * Computed size down the subtree, reapplies sibling constraints, and syncs
- * the width/height keyframe tracks. Group/Sequential entities don't own a Size
- * so calling this on one strips the trait instead.
+ * Computed size down the subtree and reapplies sibling constraints.
+ * Group/Sequential entities don't own a Size so calling this on one strips
+ * the trait instead.
+ *
+ * Keyframes are not this function's business, for all that `width` and
+ * `height` can carry a track: a keyframe belongs to the document that spelled
+ * the track, and one minted here would exist only in the world — never
+ * written back to the project. The editing surfaces that resize (the canvas
+ * gesture, the inspector's layout rows) write the keyframe themselves, before
+ * the size, and everything else that resizes — a reframe, a caption preset —
+ * means the size alone.
  */
 export function resizeEntity(world: World, entity: Entity, params: ResizeParams): void {
 	if (entity.has(Group)) {
@@ -52,13 +59,6 @@ export function resizeEntity(world: World, entity: Entity, params: ResizeParams)
 	});
 	// The Size observer propagates Computed sizes; constraints resolve here.
 	resolveConstraintOffsets(world, entity);
-
-	if (width !== undefined) {
-		syncKeyframeTrack(world, entity, 'width');
-	}
-	if (height !== undefined) {
-		syncKeyframeTrack(world, entity, 'height');
-	}
 }
 
 export function propagateSize(world: World, entity: Entity) {
