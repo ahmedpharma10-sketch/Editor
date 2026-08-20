@@ -36,7 +36,8 @@ export function ensureTimelineView(world: World, scene: Entity): void {
 	view.resolution[eid] = DEFAULT_TIMELINE_RESOLUTION;
 	view.scrollX[eid] = -TIMELINE_PADDING_LEFT / DEFAULT_TIMELINE_RESOLUTION;
 	view.scrollY[eid] = 0;
-	view.transform[eid] = new DOMMatrix();
+
+	updateTimelineTransform(world, scene);
 }
 
 /** Pixels per frame. Never 0, which would collapse the whole timeline onto one column. */
