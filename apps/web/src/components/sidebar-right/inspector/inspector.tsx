@@ -36,7 +36,7 @@ import { ShadowsSettings } from "./shadows";
 import { EffectsSettings } from "./effects";
 import { AnimationsSettings } from "./animations";
 import { TransitionSettings } from "./transition";
-// import { MasksSettings } from "./masks";
+import { MasksSettings } from "./masks";
 // import { AudioSettings } from "./audio";
 // import { InterpolationSettings } from "./interpolation";
 
@@ -173,9 +173,9 @@ export function Inspector() {
             <TransitionSettings selection={nodes()} />
           </Show>
 
-          {/* <Show when={includesTarget("shape", "text", "caption", "group")}>
+          <Show when={includesTarget("shape", "text", "caption", "group")}>
             <MasksSettings selection={nodes()} />
-          </Show> */}
+          </Show>
 
           {/* <Show when={includesTarget("shape", "audio", "group")}>
             <AudioSettings selection={nodes()} />
