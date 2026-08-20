@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
@@ -701,6 +701,25 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 					entity.add(Active);
 				} else {
 					entity.remove(Active);
+				}
+				return;
+			}
+			case 'clipHeight': {
+				const height = toNumber(value);
+				if (height === undefined) {
+					entity.remove(ClipHeight);
+					return;
+				}
+
+				entity.add(ClipHeight);
+				entity.set(ClipHeight, { value: height });
+				return;
+			}
+			case 'expanded': {
+				if (value === true) {
+					entity.add(Expanded);
+				} else {
+					entity.remove(Expanded);
 				}
 				return;
 			}

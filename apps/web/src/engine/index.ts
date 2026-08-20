@@ -10,6 +10,7 @@ export * from './hooks';
 export * from './editor';
 export * from './timing';
 export * from './split';
+export * from './overlap';
 export * from './traits';
 export * from './input';
 export * from './hud';

@@ -175,6 +175,19 @@ type IdentityProps = {
    * selected; the editor writes the bare attribute and removes it again.
    */
   selected?: boolean;
+  /**
+   * Height of the element's row in the timeline, px. Editor state, here for
+   * the same reason `selected` is: the timeline is where a row is resized and
+   * the document is the only place that can remember it. Absent means the
+   * common row height.
+   */
+  clipHeight?: number;
+  /**
+   * Whether the timeline shows this element's keyframe rows below its clip.
+   * Editor state, as `clipHeight` is. Absent means collapsed; the editor
+   * writes the bare attribute and removes it again.
+   */
+  expanded?: boolean;
 };
 
 type PositionProps = {
