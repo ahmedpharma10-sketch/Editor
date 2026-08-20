@@ -76,7 +76,7 @@ Done:
 | Draw tools + toolbar (armed tool is the `Tool` world trait) | `components/canvas/draw-overlay.tsx` |
 | Input, HUD, camera, alignment | `engine/input/`, `engine/hud/`, `engine/align.ts` |
 | Project config (per-scene export settings in package.json) | `engine/project-config.ts` |
-| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text, strokes, shadows | `components/sidebar-right/inspector/` |
+| Panels: header, background, scene template, asset info, time, appearance, alignment, export, layout, text, strokes, shadows, effects | `components/sidebar-right/inspector/` |
 | Local font families (web fonts and loading are the runtime's) | `engine/fonts.ts` (`getLocalFonts`) |
 
 Hosted JSX surface is `COMPOSITION_TAGS` (`packages/jsx/src/source.ts`): the structural tags, the media tags, `<captions>`, the paint family, `<stroke>`, `<shadow>`, `<effect>`, `<animation>`, `<keyframeTrack>`/`<keyframe>`, `<html>`/`<surface>`. `mask` is a `<rect>` prop, not a tag.
@@ -95,9 +95,11 @@ Conventions worth repeating when migrating the next panel:
 - Reordering siblings is a swap through `editor.reparent`, not an index write: `ItemIndex` is the document's to assign (`insertNode` renumbers the whole sibling list), and a move needs an anchor, since `reparent` appends without one and refuses an append into the parent the element already has. So "move later" moves the *next* sibling in front of this one.
 - A shared control that knows *which* prop it edits keyframes it itself, off an `Entity` (`ColorOpacityPicker`'s `keyframeTarget`, now koota's); only a control that cannot know takes the diamond as a slot (`ControlledTextField`, `ColorOpacityRow`). Moving one of these moves it whole: the bitecs panels still calling it lose their diamonds until they migrate, and its recent-colors palette now queries the koota world for them too (both providers are mounted).
 
-Still on bitecs: transform, caption-settings, fills, effects, animations, transition, masks, audio, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
+Still on bitecs: transform, caption-settings, fills, animations, transition, masks, audio, interpolation panels; the timeline's keyframe layer; the whole timeline UI.
 
 The stroke panel moved with the model: `StrokeStyle` is the stroke's, not the node's (as `<stroke width join cap miterLimit>` always was), so Weight/Join/Miter sit under each stroke's row instead of once per node. `<stroke>` is a solid paint that takes no paint children, so its picker is the color one alone, with no gradient or asset tab and no `FillPicker` behind it. `cap` still has no control (it shows only on open paths, and there are no icons for it).
+
+The effects panel dropped its add menu: the plus authors an `<effect type="blur" value={8}>` outright and opens the inspector on it, where a select in the header (standing where a title would, as the export inspector's does) changes which filter it is. Every effect is the same one number under a different name, so the type is a control like any other rather than a question asked before the element exists. What that select has to answer for is the unit: `value` is px for `blur`, degrees for `hueRotate` and a 0-1 amount for the six others (`effect-types.ts` carries the table), so a switch within a unit keeps the value while one across it takes the new type's default and drops the `value` track, whose numbers meant the old unit. `type` and `value` are both required props and so are always written, never unset. `<effect>` gained `hidden` (`Pick<CompositeProps, "hidden">`, as `<shadow>` has it): the renderer already skipped a hidden effect, and the panel's row menu had no way to say so.
 
 The shadow panel kept the shape it had: a row per `<shadow>` opening a floating inspector, since nothing in the shadow model moved the way the stroke's line style did. The one thing it says that the file does not is what "Add shadow" authors (`opacity` 0.25, `blur` 4, `offsetY` 4): `<shadow>`'s own defaults are all zero, which casts the silhouette back onto itself, so a shadow added from the panel has to spell out where it sits. Every control unsets at the prop's default (0 for the offsets and the blur, 1 for opacity); `color` is required and always written.
 

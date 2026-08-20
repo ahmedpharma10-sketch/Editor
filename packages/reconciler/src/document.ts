@@ -266,7 +266,7 @@ const ANIMATION_TYPES: Record<string, AnimationType> = {
 	scramble: AnimationType.SCRAMBLE,
 };
 
-const EFFECT_TYPES: Record<string, EffectType> = {
+export const EFFECT_TYPES: Record<string, EffectType> = {
 	blur: EffectType.LAYER_BLUR,
 	brightness: EffectType.BRIGHTNESS,
 	contrast: EffectType.CONTRAST,

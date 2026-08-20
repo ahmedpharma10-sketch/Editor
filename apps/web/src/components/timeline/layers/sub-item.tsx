@@ -7,11 +7,24 @@ import { hasComponent } from 'bitecs';
 import { Icon } from '@/components/ui/icon';
 import { useEngine } from '@/context/engine';
 import { addComponent, clearComponent, removeComponent, useEntityTag, EffectType, PaintType } from '@/components/engine';
-import { EFFECT_DEFAULTS } from '@/components/sidebar-right/inspector/effects-inspector';
 import { NESTED_INDENT_PX } from './config';
 
 import type { TimelineNode } from '@/components/engine/api/timeline-index';
 import { KEYFRAME_TRACK_HEIGHT } from '@/components/engine/timeline/config';
+
+// The bitecs world's effect labels. The koota panel keeps its own
+// ("../sidebar-right/inspector/effect-types"), keyed by the runtime's enum;
+// this row goes with the rest of the bitecs timeline.
+const EFFECT_LABELS: Partial<Record<EffectType, string>> = {
+  [EffectType.LAYER_BLUR]: 'Layer Blur',
+  [EffectType.BRIGHTNESS]: 'Brightness',
+  [EffectType.CONTRAST]: 'Contrast',
+  [EffectType.GRAYSCALE]: 'Grayscale',
+  [EffectType.HUE_ROTATION]: 'Hue Rotation',
+  [EffectType.INVERT]: 'Invert',
+  [EffectType.SATURATE]: 'Saturate',
+  [EffectType.SEPIA]: 'Sepia',
+};
 
 type SubItemLayerProps = {
   layer: TimelineNode;
@@ -50,8 +63,8 @@ export function SubItemLayer(props: SubItemLayerProps) {
     }
     if (hasComponent(world, eid(), c.ColorStop)) return 'Stop';
     if (hasComponent(world, eid(), c.Effect)) {
-      const type = c.Effect.type[eid()] as Exclude<EffectType, EffectType.DROP_SHADOW>;
-      return EFFECT_DEFAULTS[type]?.label ?? `Sub-item ${eid()}`;
+      const type = c.Effect.type[eid()] as EffectType;
+      return EFFECT_LABELS[type] ?? `Sub-item ${eid()}`;
     }
     return `Sub-item ${eid()}`;
   });

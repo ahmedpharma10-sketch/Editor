@@ -2,18 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Icon } from "@/components/ui/icon";
-import { ItemRow } from "@/components/ui/item-row";
-import { PanelSection } from "@/components/ui/panel-section";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -21,51 +12,140 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { For, Show, createMemo, createSignal } from "solid-js";
-import { EFFECT_DEFAULTS, EffectsInspector } from "./effects-inspector";
-import { useEntityState, useEntityTag, EffectType, createEntity, deleteEntity, getSiblingEntities, addComponent, appendChild, removeComponent, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { hasComponent } from 'bitecs';
+import { Icon } from "@/components/ui/icon";
+import { ItemRow } from "@/components/ui/item-row";
+import { PanelSection } from "@/components/ui/panel-section";
+import { useHas, useTrait } from "@diffusionstudio/koota-solid";
+import { Effect as EffectElement } from "@diffusionstudio/reconciler";
+import { Cache, Effect, Hidden } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { DEFAULT_EFFECT, effectOption } from "./effect-types";
+import { EffectsInspector } from "./effects-inspector";
+
+import type { Entity } from "koota";
+
+// Stable identity, so a node without effects does not resample every tick.
+const NO_EFFECTS: Entity[] = [];
 
 type EffectsSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
-type Effects = Exclude<EffectType, EffectType.DROP_SHADOW>;
+/**
+ * The `<effect>` children of the selected node, in filter order (the list is
+ * shown topmost first, so the last element in the file is the first row).
+ * A row opens the effect's own inspector, where its type and its amount live.
+ * The plus authors an effect outright rather than asking which one first:
+ * every type takes the same one number, so switching is a control in the
+ * inspector like any other, and adding one is a single click.
+ */
+export function EffectsSettings(props: EffectsSettingsProps) {
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-const EFFECT_TYPE_BUNDLES: Record<Effects, number> = {
-  [EffectType.LAYER_BLUR]: EffectType.LAYER_BLUR,
-  [EffectType.BRIGHTNESS]: EffectType.BRIGHTNESS,
-  [EffectType.CONTRAST]: EffectType.CONTRAST,
-  [EffectType.GRAYSCALE]: EffectType.GRAYSCALE,
-  [EffectType.HUE_ROTATION]: EffectType.HUE_ROTATION,
-  [EffectType.INVERT]: EffectType.INVERT,
-  [EffectType.SATURATE]: EffectType.SATURATE,
-  [EffectType.SEPIA]: EffectType.SEPIA,
-};
+  let anchorRef!: HTMLDivElement;
+
+  const [picked, setPicked] = createSignal<Entity>();
+
+  // Cache is derived state, written without change events.
+  const effects = useDerived(() => entity().get(Cache)?.effects ?? NO_EFFECTS);
+
+  const handleAppendEffect = () => {
+    const [effect] = editor.insertElement(entity(), () => (
+      <EffectElement type={DEFAULT_EFFECT.name} value={DEFAULT_EFFECT.value} />
+    ));
+    // Which filter it is, is the one thing the default cannot answer, so the
+    // inspector opens on the new effect for it to be said.
+    if (effect) setPicked(effect);
+  };
+
+  // Read back off the list, so removing an effect closes the inspector on it.
+  const editing = createMemo(() => {
+    const effect = picked();
+    return effect !== undefined && effects().includes(effect) ? effect : undefined;
+  });
+
+  /**
+   * Swaps `effect` with its neighbour, later in the file (`direction` 1, on
+   * top) or earlier. Written as a swap because a move needs an anchor:
+   * `reparent` appends without one, and refuses an append into the parent the
+   * element already has.
+   */
+  const handleReorderEffect = (effect: Entity, direction: number) => {
+    const siblings = effects();
+    const index = siblings.indexOf(effect);
+    const target = index + direction;
+    if (index === -1 || target < 0 || target >= siblings.length) return;
+
+    if (direction > 0) {
+      editor.reparent(siblings[target]!, entity(), effect);
+    } else {
+      editor.reparent(effect, entity(), siblings[target]!);
+    }
+  };
+
+  return (
+    <>
+      <PanelSection
+        title="Effects"
+        ref={anchorRef}
+        actions={
+          <Tooltip>
+            <TooltipTrigger
+              as={Button}
+              size="icon"
+              variant="ghost"
+              class="text-muted-foreground"
+              onClick={handleAppendEffect}
+            >
+              <Icon name="plus-add" />
+            </TooltipTrigger>
+            <TooltipContent>Add effect</TooltipContent>
+          </Tooltip>
+        }
+      >
+        <For each={effects().toReversed()}>
+          {(effect) => (
+            <EffectRow
+              effect={effect}
+              onSelect={() => setPicked(effect)}
+              onRemove={() => editor.remove(effect)}
+              onMoveUp={() => handleReorderEffect(effect, 1)}
+              onMoveDown={() => handleReorderEffect(effect, -1)}
+            />
+          )}
+        </For>
+      </PanelSection>
+
+      <Show when={editing() !== undefined}>
+        <EffectsInspector
+          effect={editing()!}
+          anchorRef={anchorRef}
+          onClose={() => setPicked(undefined)}
+        />
+      </Show>
+    </>
+  );
+}
 
 type EffectRowProps = {
-  effectEid: number;
-  onInspect(): void;
+  effect: Entity;
+  onSelect(): void;
   onRemove(): void;
   onMoveUp(): void;
   onMoveDown(): void;
-}
+};
 
 function EffectRow(props: EffectRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
-  const type = useEntityState(c.Effect.type, props.effectEid, EffectType.BRIGHTNESS);
-  const hidden = useEntityTag(c.Hidden, () => props.effectEid);
+  const editor = useEditor();
 
-  const label = createMemo(() => (EFFECT_DEFAULTS[type() as Effects]?.label ?? ""));
+  const effect = useTrait(() => props.effect, Effect);
+  const hidden = useHas(() => props.effect, Hidden);
+
+  const label = createMemo(() => effectOption(effect()?.type).label);
 
   const toggleHidden = () => {
-    if (hasComponent(world, props.effectEid, c.Hidden)) {
-      removeComponent(world, props.effectEid, c.Hidden);
-    } else {
-      addComponent(world, props.effectEid, c.Hidden);
-    }
+    editor.editProperty(props.effect, "hidden", !hidden());
   };
 
   return (
@@ -75,7 +155,7 @@ function EffectRow(props: EffectRowProps) {
           label="FX"
           value={label()}
           icon={<Icon name="fx" />}
-          onClick={props.onInspect}
+          onClick={props.onSelect}
           disabled={hidden()}
         >
           <Tooltip>
@@ -93,124 +173,15 @@ function EffectRow(props: EffectRowProps) {
         </ItemRow>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={props.onMoveUp}>
-          Move Up
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={props.onMoveDown}>
-          Move Down
-        </ContextMenuItem>
+        <ContextMenuItem onSelect={props.onMoveUp}>Move Up</ContextMenuItem>
+        <ContextMenuItem onSelect={props.onMoveDown}>Move Down</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={toggleHidden}>
           {hidden() ? "Unhide" : "Hide"}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={props.onRemove}>
-          Remove
-        </ContextMenuItem>
+        <ContextMenuItem onSelect={props.onRemove}>Remove</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  );
-}
-
-export function EffectsSettings(props: EffectsSettingsProps) {
-  const { world } = useEngine();
-  const [inspectingEffect, setInspectingEffect] = createSignal<number>();
-  const c = world.components;
-
-  let anchorRef: HTMLDivElement | undefined;
-
-  const eid = () => props.selection.values().next().value!;
-  const effectEids = useEntityState(world.components.Cache.effects, eid, []);
-
-  const handleAddEffect = (typeName: Effects) => {
-    const defaults = EFFECT_DEFAULTS[typeName];
-
-    world.history.transaction('Add effect', () => {
-      const effectEid = createEntity(world);
-      setComponent(world, effectEid, c.Effect, {
-        type: EFFECT_TYPE_BUNDLES[typeName],
-        value: defaults.value,
-      });
-      appendChild(world, effectEid, eid())
-    });
-  };
-
-  const handleRemoveEffect = (effectEid: number) => deleteEntity(world, effectEid);
-  const openInspector = (effectEid: number) => setInspectingEffect(effectEid);
-  const handleReorderEffect = (effectEid: number, direction: number) => {
-    const effects = getSiblingEntities(world, effectEid, c.Effect);
-    const index = effects.indexOf(effectEid);
-    const newIndex = index + direction;
-    if (newIndex >= 0 && newIndex < effects.length) {
-      effects.splice(newIndex, 0, effects.splice(index, 1)[0]);
-      for (const [idx, eid] of effects.entries()) {
-        setComponent(world, eid, c.ItemIndex, idx);
-      }
-    }
-  };
-
-  return (
-    <>
-      <PanelSection
-        title="Effects"
-        ref={anchorRef}
-        actions={
-          <DropdownMenu placement="bottom-end">
-            <Tooltip>
-              <TooltipTrigger<typeof DropdownMenuTrigger>
-                as={(triggerProps: object) => (
-                  <DropdownMenuTrigger<typeof Button>
-                    {...triggerProps}
-                    as={(buttonProps) => (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        class="text-muted-foreground"
-                        {...buttonProps}
-                      >
-                        <Icon name="plus-add" />
-                      </Button>
-                    )}
-                  />
-                )}
-              />
-              <TooltipContent>Add effect</TooltipContent>
-            </Tooltip>
-            <DropdownMenuPortal>
-              <DropdownMenuContent class="w-44">
-                <For each={Object.values(EffectType).filter((v): v is Effects => typeof v === 'number' && v !== EffectType.DROP_SHADOW)}>
-                  {(t) => (
-                    <DropdownMenuItem onSelect={() => handleAddEffect(t)}>
-                      {EFFECT_DEFAULTS[t].label}
-                    </DropdownMenuItem>
-                  )}
-                </For>
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenu>
-        }
-      >
-        <For each={effectEids().toReversed()}>
-          {(effectEid) => (
-            <EffectRow
-              effectEid={effectEid}
-              onInspect={() => openInspector(effectEid)}
-              onRemove={() => handleRemoveEffect(effectEid)}
-              onMoveUp={() => handleReorderEffect(effectEid, 1)}
-              onMoveDown={() => handleReorderEffect(effectEid, -1)}
-            />
-          )}
-        </For>
-      </PanelSection>
-
-      <Show when={inspectingEffect()}>
-        <EffectsInspector
-          onClose={() => setInspectingEffect(undefined)}
-          anchorRef={anchorRef!}
-          effectEid={inspectingEffect()!}
-          nodeEid={eid()}
-        />
-      </Show>
-    </>
   );
 }

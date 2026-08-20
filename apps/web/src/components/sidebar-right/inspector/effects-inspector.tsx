@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { Show, createMemo } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ControlRow } from "@/components/ui/control-group";
@@ -10,77 +11,107 @@ import {
   FloatingInspectorContent,
   FloatingInspectorHeader,
   FloatingInspectorSeparator,
-  FloatingInspectorTitle,
 } from "@/components/ui/floating-inspector";
 import { Icon } from "@/components/ui/icon";
 import { IncrementDecrementControl } from "@/components/ui/increment-decrement-control";
-import { Keyframe } from "@/components/ui/keyframe-bitecs";
+import { Keyframe } from "@/components/ui/keyframe";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectPortal,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SliderInput } from "@/components/ui/slider-input";
 import { ControlledTextField } from "@/components/ui/text-field";
-import { useEngine } from "@/context/engine";
-import { useEntityState, useEntityTag, EffectType, addComponent, removeComponent, setComponent } from "@/components/engine";
-import { hasComponent } from 'bitecs';
+import { useHas, useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { Computed, Effect, Hidden } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { removeKeyframeTrack, syncKeyframe } from "@/engine/keyframes";
+import { EFFECT_OPTIONS, effectOption } from "./effect-types";
 
-type EffectsInspectorProps = {
-  anchorRef: HTMLElement;
-  onClose(): void;
-  effectEid: number;
-  nodeEid: number;
-};
-
-type Effects = Exclude<EffectType, EffectType.DROP_SHADOW>;
-
-export const EFFECT_DEFAULTS: Record<Effects, { label: string; value: number }> = {
-  [EffectType.LAYER_BLUR]: { label: "Layer Blur", value: 8 },
-  [EffectType.BRIGHTNESS]: { label: "Brightness", value: 0.8 },
-  [EffectType.CONTRAST]: { label: "Contrast", value: 0.8 },
-  [EffectType.GRAYSCALE]: { label: "Grayscale", value: 0.5 },
-  [EffectType.HUE_ROTATION]: { label: "Hue Rotation", value: 100 },
-  [EffectType.INVERT]: { label: "Invert", value: 0.5 },
-  [EffectType.SATURATE]: { label: "Saturate", value: 0.8 },
-  [EffectType.SEPIA]: { label: "Sepia", value: 0.5 },
-};
+import type { EffectOption } from "./effect-types";
+import type { Entity } from "koota";
 
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
 
-const AMOUNT_EFFECTS: Effects[] = [
-  EffectType.BRIGHTNESS,
-  EffectType.CONTRAST,
-  EffectType.GRAYSCALE,
-  EffectType.INVERT,
-  EffectType.SATURATE,
-  EffectType.SEPIA,
-];
+type EffectsInspectorProps = {
+  effect: Entity;
+  anchorRef: HTMLElement;
+  onClose(): void;
+};
 
+/**
+ * One `<effect>`: which filter it is and how much of it. Both are required
+ * props, so neither is ever unset — an effect that says nothing is not an
+ * effect. The type select stands where the title would (the export
+ * inspector's shape): it names the effect *and* changes it, so a separate
+ * heading would only say the same word twice. `value` is one number in three
+ * units (px, degrees, a 0-1 amount), which is why the control below the type
+ * changes with it.
+ */
 export function EffectsInspector(props: EffectsInspectorProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
 
-  const effectValue = useEntityState(c.Computed.value, props.effectEid, 0);
-  const hidden = useEntityTag(c.Hidden, props.effectEid);
-  const type = useEntityState(c.Effect.type, props.effectEid, EffectType.BRIGHTNESS);
+  const effect = useTrait(() => props.effect, Effect);
+  const hidden = useHas(() => props.effect, Hidden);
 
-  const updateValue = (v: number) => {
-    setComponent(world, props.effectEid, c.Effect, { value: v });
+  const option = createMemo(() => effectOption(effect()?.type));
+  const value = useDerived(() => props.effect.get(Computed)?.value ?? 0);
+
+  const editValue = (next: number) => {
+    editor.editProperty(props.effect, "value", next);
+    syncKeyframe(world, editor, props.effect, "value", next);
   };
 
-  const toggleVisible = () => {
-    if (hasComponent(world, props.effectEid, c.Hidden)) {
-      removeComponent(world, props.effectEid, c.Hidden);
-    } else {
-      addComponent(world, props.effectEid, c.Hidden);
+  /**
+   * Switches the filter. A value only means the same thing across types of
+   * the same unit; crossing one (a 4px blur becoming 4 turns of sepia) takes
+   * the new type's default, and the track goes with the numbers it held.
+   */
+  const handleTypeChange = (next: EffectOption | null) => {
+    const previous = option();
+    if (next === null || next.name === previous.name) return;
+
+    if (next.unit !== previous.unit) {
+      removeKeyframeTrack(world, editor, props.effect, "value");
+    }
+    editor.editProperty(props.effect, "type", next.name);
+    if (next.unit !== previous.unit) {
+      editor.editProperty(props.effect, "value", next.value);
     }
   };
 
-  const isAmountEffect = () => AMOUNT_EFFECTS.includes(type() ?? EffectType.BRIGHTNESS);
-  const isBlurEffect = () => type() === EffectType.LAYER_BLUR;
-  const isHueRotationEffect = () => type() === EffectType.HUE_ROTATION;
-  const label = () => EFFECT_DEFAULTS[type() as Effects]?.label ?? "";
+  const toggleHidden = () => {
+    editor.editProperty(props.effect, "hidden", !hidden());
+  };
 
   return (
-    <FloatingInspector open={true} anchorRef={props.anchorRef} width={248}>
-      <FloatingInspectorHeader class="items-center justify-between">
-        <FloatingInspectorTitle>{label()}</FloatingInspectorTitle>
+    <FloatingInspector open anchorRef={props.anchorRef} width={248}>
+      <FloatingInspectorHeader class="items-center justify-between px-2">
+        <Select<EffectOption>
+          value={option()}
+          onChange={handleTypeChange}
+          options={EFFECT_OPTIONS}
+          optionValue="name"
+          optionTextValue="label"
+          itemComponent={(itemProps) => (
+            <SelectItem item={itemProps.item}>
+              {itemProps.item.rawValue.label}
+            </SelectItem>
+          )}
+        >
+          <SelectTrigger>
+            <SelectValue<EffectOption>>
+              {(state) => state.selectedOption()?.label}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPortal>
+            <SelectContent />
+          </SelectPortal>
+        </Select>
         <div class="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger
@@ -88,9 +119,11 @@ export function EffectsInspector(props: EffectsInspectorProps) {
               size="icon"
               variant="ghost"
               class="text-muted-foreground"
-              onClick={toggleVisible}
+              onClick={toggleHidden}
             >
-              {!hidden() ? <Icon name="eye-on" /> : <Icon name="eye-off" />}
+              <Show when={!hidden()} fallback={<Icon name="eye-off" />}>
+                <Icon name="eye-on" />
+              </Show>
             </TooltipTrigger>
             <TooltipContent>{hidden() ? "Show effect" : "Hide effect"}</TooltipContent>
           </Tooltip>
@@ -110,58 +143,54 @@ export function EffectsInspector(props: EffectsInspectorProps) {
       </FloatingInspectorHeader>
       <FloatingInspectorSeparator />
       <FloatingInspectorContent class="flex flex-col gap-2 p-4">
-        {isAmountEffect() && (
+        <Show when={option().unit === "amount"}>
           <ControlRow label="Amount">
             <SliderInput
-              value={Math.round(clampUnit(effectValue()) * 100)}
+              value={Math.round(clampUnit(value()) * 100)}
               min={0}
               max={100}
-              onChange={(v) => updateValue(clampUnit(v / 100))}
-              onDragStart={() => world.history.startTransaction("Edit effect amount")}
-              onDragEnd={() => world.history.commitTransaction()}
-              format={(v) => `${v}%`}
-              keyframe={<Keyframe target={props.effectEid} property="effect.value" />}
+              onChange={(next) => editValue(clampUnit(next / 100))}
+              format={(next) => `${next}%`}
+              keyframe={<Keyframe target={props.effect} property="value" />}
             />
           </ControlRow>
-        )}
+        </Show>
 
-        {isBlurEffect() && (
-          <ControlRow label="Radius">
-            <div class="grid grid-cols-2 gap-2">
-              <ControlledTextField
-                value={effectValue()}
-                onNumber={(v) => updateValue(Math.max(0, v))}
-                min={0}
-                autoSelect
-                sliderEnabled
-                limitEvents
-                keyframe={<Keyframe target={props.effectEid} property="effect.value" />}
-              />
-              <IncrementDecrementControl
-                onDecrement={() => updateValue(Math.max(0, (effectValue() ?? 0) - 1))}
-                onIncrement={() => updateValue((effectValue() ?? 0) + 1)}
-                decrementLabel="Decrease blur radius"
-                incrementLabel="Increase blur radius"
-              />
-            </div>
+        <Show when={option().unit === "px"}>
+          <ControlRow label="Radius" contentClass="grid grid-cols-2 gap-2">
+            <ControlledTextField
+              value={value()}
+              onNumber={(next) => editValue(Math.max(0, next))}
+              min={0}
+              autoSelect
+              sliderEnabled
+              limitEvents
+              keyframe={<Keyframe target={props.effect} property="value" />}
+            />
+            <IncrementDecrementControl
+              onDecrement={() => editValue(Math.max(0, value() - 1))}
+              onIncrement={() => editValue(value() + 1)}
+              decrementLabel="Decrease blur radius"
+              incrementLabel="Increase blur radius"
+            />
           </ControlRow>
-        )}
+        </Show>
 
-        {isHueRotationEffect() && (
+        <Show when={option().unit === "deg"}>
           <ControlRow label="Angle">
             <ControlledTextField
               icon={<Icon name="rotate-angle" class="size-6" />}
-              value={effectValue()}
-              onNumber={(v) => updateValue(v)}
+              value={value()}
+              onNumber={editValue}
               unit="deg"
               step={1}
               autoSelect
               sliderEnabled
               limitEvents
-              keyframe={<Keyframe target={props.effectEid} property="effect.value" />}
+              keyframe={<Keyframe target={props.effect} property="value" />}
             />
           </ControlRow>
-        )}
+        </Show>
       </FloatingInspectorContent>
     </FloatingInspector>
   );

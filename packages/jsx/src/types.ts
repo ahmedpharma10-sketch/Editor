@@ -448,7 +448,7 @@ export type ShadowProps = ColorProps & OpacityProps & Pick<CompositeProps, "hidd
  * and children together), a sub-entity like a paint. Several stack in
  * document order.
  */
-export type EffectProps = TrackChildren & {
+export type EffectProps = Pick<CompositeProps, "hidden"> & TrackChildren & {
   /** Which filter to apply. */
   type: EffectType;
   /** The amount: px for "blur", degrees for "hueRotate", 0–1 otherwise. */
