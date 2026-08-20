@@ -408,6 +408,31 @@ export type GroupProps = CommonProps & FillProps & {
   children?: SolidJSX.Element;
 };
 
+/**
+ * `<adjustmentLayer>` — a layer that draws nothing of its own and transforms
+ * the clip below it: while the layer's own clip lasts, its transform composes
+ * onto that of the sibling directly beneath it in the stack. A punch-in, a
+ * drift or a keyframed zoom is therefore authored once, in a row of its own,
+ * and trimmed and slid along the timeline without the clip it acts on being
+ * touched. In a `<sequence>` the layer acts on what sits below the sequence,
+ * not below the layer inside it.
+ *
+ * `width`/`height` are never drawn: they are the box the transform pivots
+ * around, so `rotation` and `scale` turn about the middle of a frame that
+ * size. Default 1920x1080 — set them to the scene's own size on a frame
+ * shaped otherwise.
+ */
+export type AdjustmentLayerProps =
+  & IdentityProps
+  & Omit<TransformProps, "opacity" | "cornerRadius" | "cornerRadiusTopLeft" | "cornerRadiusTopRight" | "cornerRadiusBottomRight" | "cornerRadiusBottomLeft">
+  & Pick<CompositeProps, "hidden">
+  & TimingProps
+  & SequenceItemProps
+  & {
+    /** `<Animation>` and `<KeyframeTrack>` children — what the layer's transform is animated with. */
+    children?: SolidJSX.Element;
+  };
+
 export type RectProps = CommonProps & FillProps & {
   /**
    * Makes the rect a mask of its parent: it clips the parent (its fills,

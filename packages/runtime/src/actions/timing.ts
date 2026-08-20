@@ -9,7 +9,7 @@
 import { store } from '../world/store';
 import { DEFAULT_DURATION_FRAMES } from '../constants';
 import {
-	Geometry, Group, Paint, Caption, Cache, Computed, AssetId, IsMask,
+	Geometry, Group, AdjustmentLayer, Paint, Caption, Cache, Computed, AssetId, IsMask,
 	Start, End, SourceIn, SourceOut, PlaybackRate, CaptionDecoderHandle,
 } from '../traits';
 import { isGroupLike } from '../queries/predicates';
@@ -280,7 +280,7 @@ export function reactToGeometryDurationChange(world: World, entity: Entity) {
 }
 
 export function reactToChildAttached(world: World, child: Entity) {
-	if (child.has(Geometry) || child.has(Group)) {
+	if (child.has(Geometry) || child.has(Group) || child.has(AdjustmentLayer)) {
 		propagateTimeRangeDown(world, child);
 		bubbleTimeRangeUp(world, child);
 		return;
@@ -298,7 +298,7 @@ export function reactToChildAttached(world: World, child: Entity) {
  * source and needs its current span pinned.
  */
 export function reactToChildDetached(world: World, child: Entity) {
-	if (child.has(Geometry) || child.has(Group)) {
+	if (child.has(Geometry) || child.has(Group) || child.has(AdjustmentLayer)) {
 		bubbleTimeRangeUp(world, child);
 		return;
 	}

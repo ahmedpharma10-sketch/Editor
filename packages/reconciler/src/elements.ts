@@ -19,6 +19,7 @@ import { createElement, createTextNode, insertNode, setProp, spread, use } from 
 import type { JSX as SolidJSX } from "solid-js";
 import type { AuthoredTree } from "./document";
 import type {
+  AdjustmentLayerProps,
   AnimationProps,
   AudioProps,
   CaptionsProps,
@@ -93,6 +94,7 @@ export const Text = hostElement<TextProps>("Text");
 export const TextRange = hostElement<TextRangeProps>("TextRange");
 export const Sequence = hostElement<SequenceProps>("Sequence");
 export const Captions = hostElement<CaptionsProps>("Captions");
+export const AdjustmentLayer = hostElement<AdjustmentLayerProps>("AdjustmentLayer");
 export const SolidPaint = hostElement<SolidPaintProps>("SolidPaint");
 export const LinearGradientPaint = hostElement<GradientPaintProps>("LinearGradientPaint");
 export const RadialGradientPaint = hostElement<GradientPaintProps>("RadialGradientPaint");

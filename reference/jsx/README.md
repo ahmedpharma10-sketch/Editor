@@ -27,6 +27,7 @@ The markup is **pseudo-SVG**: elements like `<rect>`, `<text>`, `<linearGradient
 | [animations.md](./animations.md) | The `animations` prop: preset in/out animations |
 | [transitions.md](./transitions.md) | The `transition` prop on sequence clips |
 | [sequences.md](./sequences.md) | `<sequence>` sequential placement |
+| [adjustment-layer.md](./adjustment-layer.md) | `<adjustmentLayer>`: a transform over the clip below it |
 | [audio-sync.md](./audio-sync.md) | `syncTo` audio alignment |
 | [captions.md](./captions.md) | `<captions>` and style presets |
 | [generate.md](./generate.md) | Declarative AI asset generation (`generate.*`) |

@@ -13,6 +13,7 @@ camelCase composition elements map 1:1 onto internal node types. Lowercase DOM v
 | [`<textRange>`](./text.md#textrange) | **Text range sub-entity** | Style override over a run of the parent `<text>`'s glyphs, by character index. |
 | [`<sequence>`](./sequences.md) | **Sequential group** | Track container for back-to-back clips; positions are explicit. |
 | [`<captions>`](./captions.md) | **Caption node** | Transcribes the enclosing scene's audio. |
+| [`<adjustmentLayer>`](./adjustment-layer.md) | **Adjustment layer** | Draws nothing; its transform composes onto the clip directly below it, for as long as its own clip lasts. |
 | [`<solidPaint>`](./paints.md) | **Solid paint** | Paint child. |
 | [`<linearGradientPaint>` / `<radialGradientPaint>`](./paints.md) | **Gradient paint** | Paint child; takes `<colorStop>` children. |
 | [`<colorStop>`](./paints.md) | **Gradient color stop** | Valid only inside gradient paints. |
