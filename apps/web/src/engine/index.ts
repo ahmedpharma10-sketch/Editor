@@ -8,6 +8,7 @@ export * from './canvas';
 export * from './camera-controller';
 export * from './hooks';
 export * from './editor';
+export * from './timing';
 export * from './traits';
 export * from './input';
 export * from './hud';

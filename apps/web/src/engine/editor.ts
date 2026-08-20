@@ -479,6 +479,41 @@ export class DocumentEditor {
 	}
 
 	/**
+	 * Copies `entities` where they stand: each copy goes in the parent its
+	 * original is in, directly after it, rather than out of the sequence
+	 * around it the way `duplicate` places one. Two clips at the same time do
+	 * conflict in a sequence, so this is for a caller that is about to move
+	 * the two apart — a split, whose halves end up adjacent rather than on
+	 * top of each other — and not for one that leaves them where they land.
+	 *
+	 * The original is settled first (see `settle`): the copy is placed
+	 * against it, so the file has to be able to name that one clip and not
+	 * just the loop body it was rendered from. The selection is left alone,
+	 * since what a copy in place means is the caller's to say. Returns the
+	 * pairs it made, in the order of the originals.
+	 */
+	public duplicateInPlace(entities: Entity | Entity[]): { original: Entity; copy: Entity }[] {
+		const pairs: { original: Entity; copy: Entity }[] = [];
+
+		for (const original of this.subtreeRoots(entities)) {
+			const parent = getParentEntity(original);
+			if (!parent) continue;
+
+			this.settle(original);
+			const tree = this.spell(original);
+			if (!tree) continue;
+
+			const siblings = getEntityChildren(this.world, parent);
+			const anchor = siblings[siblings.indexOf(original) + 1];
+
+			const [copy] = this.insertElement(parent, () => renderAuthored(tree), anchor);
+			if (copy) pairs.push({ original, copy });
+		}
+
+		return pairs;
+	}
+
+	/**
 	 * Takes a copy of `entities` (the tops of their subtrees, as `duplicate`
 	 * would) for `paste`. Nothing is reported: the file only changes when the
 	 * copy lands. Leaves the clipboard alone when there is nothing to copy.

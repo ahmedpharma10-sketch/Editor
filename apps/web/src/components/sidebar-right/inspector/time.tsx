@@ -37,21 +37,17 @@ import {
   FrameRate,
   Geometry,
   PlaybackRate,
-  SourceOut,
   findGeometryAsset,
-  framesToSeconds,
-  getSourceFrameAt,
-  getTimelineOrigin,
   isGroupLike,
   isScene,
   secondsToFrames,
 } from "@diffusionstudio/runtime";
 import { useDerived, useEditor } from "@/engine/hooks";
+import { editTime, trimIn, trimOut } from "@/engine/timing";
 import { useLibrary } from "@/engine/library";
 import { setSequenceFrameRate } from "@/engine/asset-actions";
 
-import type { DocumentEditor } from "@/engine/editor";
-import type { Entity, World } from "koota";
+import type { Entity } from "koota";
 
 type TimeAddon = "inOut" | "playbackRate";
 type TimeAddons = Partial<Record<TimeAddon, boolean>>;
@@ -93,51 +89,6 @@ function parseTimeInput(value: string) {
 
   const [hours, minutes, seconds] = numbers;
   return hours * 3600 + minutes * 60 + seconds;
-}
-
-type TimeProp = 'start' | 'end' | 'sourceIn' | 'sourceOut';
-
-/**
- * Writes a time prop from a frame count of this project; the file spells
- * times in seconds. `null` unsets it: the document drops the trait, and the
- * writer spells it as the attribute's absence (`false` is the one PropValue
- * it removes for). A `start` or `sourceIn` of 0 is unset too, since absence
- * is what 0 reads as on those.
- */
-function editTime(world: World, editor: DocumentEditor, entity: Entity, name: TimeProp, frames: number | null) {
-  const unset = frames === null || (frames === 0 && (name === 'start' || name === 'sourceIn'));
-  const fps = world.get(FrameRate)?.value ?? 30;
-  editor.editProperty(entity, name, unset ? false : framesToSeconds(frames, fps));
-}
-
-/**
- * Moves the node's in point to scene frame `frame`, keeping the rest of the
- * clip where it is: the runtime's `trimEntityIn`, as edits. The out point is
- * only implied while the node authors no End, so it is pinned first, or the
- * tail would follow the head; then Start moves and SourceIn rolls forward by
- * as much as the head lost.
- */
-function trimIn(world: World, editor: DocumentEditor, entity: Entity, frame: number) {
-  if (!entity.has(End)) {
-    editTime(world, editor, entity, 'end', (entity.get(Computed)?.end ?? 0) - getTimelineOrigin(entity));
-  }
-  // Both read the origin, which the Start write moves.
-  const start = frame - getTimelineOrigin(entity);
-  const source = getSourceFrameAt(entity, frame);
-  editTime(world, editor, entity, 'start', start);
-  editTime(world, editor, entity, 'sourceIn', source);
-}
-
-/**
- * Moves the node's out point to scene frame `frame` (the runtime's
- * `trimEntityOut`, as edits). The source window follows only when the node
- * authors one; otherwise End alone says where the clip runs out.
- */
-function trimOut(world: World, editor: DocumentEditor, entity: Entity, frame: number) {
-  if (entity.has(SourceOut)) {
-    editTime(world, editor, entity, 'sourceOut', getSourceFrameAt(entity, frame));
-  }
-  editTime(world, editor, entity, 'end', frame - getTimelineOrigin(entity));
 }
 
 type TimeSettingsProps = {
@@ -200,24 +151,24 @@ export function TimeSettings(props: TimeSettingsProps) {
   const handleInChange = (event: Event & { currentTarget: HTMLInputElement }) => {
     const parsed = parseTimeInput(event.currentTarget.value);
     if (parsed === null) return;
-    trimIn(world, editor, entity(), secondsToFrames(parsed, fps()));
+    trimIn(world, entity(), secondsToFrames(parsed, fps()));
   };
 
   const handleOutChange = (event: Event & { currentTarget: HTMLInputElement }) => {
     const parsed = parseTimeInput(event.currentTarget.value);
     if (parsed === null) return;
-    trimOut(world, editor, entity(), secondsToFrames(parsed, fps()));
+    trimOut(world, entity(), secondsToFrames(parsed, fps()));
   };
 
   const handleLengthChange = (durationSec: number) => {
-    trimOut(world, editor, entity(), start() + secondsToFrames(durationSec, fps()));
+    trimOut(world, entity(), start() + secondsToFrames(durationSec, fps()));
   };
 
   const toggleTrim = (checked: boolean) => {
     if (checked) {
-      trimIn(world, editor, entity(), start());
+      trimIn(world, entity(), start());
     } else {
-      editTime(world, editor, entity(), 'end', null);
+      editTime(world, entity(), 'end', null);
     }
   };
 
