@@ -633,7 +633,13 @@ export class DocumentEditor {
 	 */
 	public reparent(entity: Entity, parent: Entity, anchor?: Entity): boolean {
 		if (!entity.get(Source)?.value || !parent.get(Source)?.value) return false;
-		if (getParentEntity(entity) === parent && anchor === undefined) return false;
+		// Appending where it already is, last, is the one move that changes
+		// nothing. Appending from anywhere else in the same parent is a real
+		// move — it is how a node is sent to the end of its siblings.
+		if (getParentEntity(entity) === parent && anchor === undefined) {
+			const siblings = getEntityChildren(this.world, parent);
+			if (siblings[siblings.length - 1] === entity) return false;
+		}
 		// Checked here rather than left to the document: a move into itself is
 		// a no-op there (nothing to report), and one into its own subtree is
 		// caught only after the node has already left the parent it had.

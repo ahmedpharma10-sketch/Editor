@@ -27,11 +27,20 @@ export const Timeline = trait({
 	transform: () => new DOMMatrix(),
 });
 
-// Snapshot of a clip's timing at the moment a drag started.
-export const ClipDragOrigin = trait({ delay: 0, start: 0, end: 0 });
+// What a clip's timing was when a drag of it began, so every frame of the
+// drag places it at origin + delta rather than nudging it by the last
+// frame's movement — a slow drag and a fast one over the same distance then
+// land in the same place, and nothing accumulates.
+//
+// `authored` is the Start the clip was written with, which is what the drag
+// rewrites. `start`/`end` are the absolute bounds it had, which a group needs
+// separately: a group's edges come from its children, not from its own Start,
+// so they cannot be worked out from `authored` alone.
+export const ClipDragOrigin = trait({ authored: 0, start: 0, end: 0 });
 
+// What a keyframe's time was when a drag of it began. Same reason.
 export const KeyframeDragOrigin = trait({ time: 0 });
 
-// Snapshot of the clip's start/end frames at the moment a trim interaction
-// began. Tagged on the single clip being trimmed; removed on release.
+// What a clip's bounds were when a trim of it began; the edge not being
+// dragged is what the other one is measured against.
 export const TrimDragOrigin = trait({ start: 0, end: 0 });

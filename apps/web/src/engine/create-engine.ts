@@ -7,6 +7,7 @@ import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
 import { AssetSelection, Hud, Keys, Pointer, PointerEvents, ProjectConfig, SnapLines } from './traits';
 import { inputSystem } from './input/input-system';
+import { timelineSystem, TimelineSurface } from './timeline';
 import { shortcutSystem } from './input/shortcuts';
 
 import type { RuntimeWorld } from '@diffusionstudio/runtime';
@@ -47,7 +48,7 @@ class Engine {
 
 	public constructor(projectId: string, options: EngineOptions = {}) {
 		this.world = createRuntimeWorld(projectId);
-		this.world.add(Pointer, Keys, SnapLines, Hud, PointerEvents, AssetSelection, ProjectConfig);
+		this.world.add(Pointer, Keys, SnapLines, Hud, PointerEvents, AssetSelection, ProjectConfig, TimelineSurface);
 
 		this.unsubscribe.push(
 			this.world.onAdd(ChildOf('*'), () => (this.interactiveDirty = true)),
@@ -185,6 +186,7 @@ class Engine {
 		transformSystem(this.world);
 		renderSystem(this.world);
 		hudSystem(this.world);
+		timelineSystem(this.world);
 	}
 
 	public start(): void {

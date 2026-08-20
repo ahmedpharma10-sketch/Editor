@@ -3,15 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createContext, useContext, type JSX } from 'solid-js';
+import { useWorld } from '@diffusionstudio/koota-solid';
 import { assert } from '@/utils';
-import { createTimeline } from '@/components/engine/timeline';
+import { createTimelineController } from '@/engine/timeline';
 
-type TimelineContextValue = ReturnType<typeof createTimeline>;
+type TimelineContextValue = ReturnType<typeof createTimelineController>;
 
 const TimelineContext = createContext<TimelineContextValue>();
 
 export function TimelineProvider(props: { children: JSX.Element }) {
-  const timeline = createTimeline();
+  const timeline = createTimelineController(useWorld());
 
   return (
     <TimelineContext.Provider value={timeline}>

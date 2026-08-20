@@ -9,8 +9,8 @@
  * cursor goes through here (the camera controller included), so the last
  * writer always wins and no one has to know who wrote it before.
  *
- * The timeline keeps its own copy in `components/engine/utils/cursor.ts`
- * (trim cursors, the old world's canvas); this one is the stage's.
+ * This one is the stage's; the timeline sets the cursor on its own canvas
+ * through `@/hooks/use-cursor`, which is where the trim cursors live.
  */
 
 import { RenderSurface } from '@diffusionstudio/runtime';

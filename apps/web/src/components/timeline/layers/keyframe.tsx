@@ -3,97 +3,81 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createMemo, Show } from 'solid-js';
+import { useTag, useTrait, useWorld } from '@diffusionstudio/koota-solid';
+import {
+  Cache,
+  Computed,
+  Hovering,
+  Keyframe as KeyframeTrait,
+  KeyframeTrack,
+  Selected,
+  findClosestParentGeometry,
+  getActiveEntity,
+  setPlayhead,
+} from '@diffusionstudio/runtime';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { Keyframe } from '@/components/ui/keyframe';
 import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from '@/components/ui/tooltip';
-import { Keyframe } from '@/components/ui/keyframe-bitecs';
-import { useEngine } from '@/context/engine';
-import { useECS } from '@/context/ecs';
-import { KEYFRAME_TRACK_HEIGHT } from '@/components/engine/timeline/config';
+import { useDerived } from '@/engine/hooks';
+import { KEYFRAME_TRACK_HEIGHT } from '@/engine/timeline';
 import { NESTED_INDENT_PX } from './config';
+import { setRowHover } from './hover';
 
-import { addComponent, removeComponent, useEntityTag, getParentEntity, type PropertyPath, type TimelineNode } from '@/components/engine';
-import { findClosestParentGeometry } from '@/components/engine/api/utils';
+import type { AnimatableProperty } from '@diffusionstudio/jsx';
+import type { Entity } from 'koota';
+import type { LayerRowProps } from './layer';
 
-type KeyframeLayerProps = {
-  depth: number;
-  layer: TimelineNode;
-  ancestorSelected: boolean;
-}
+/**
+ * A row for one animated property, with a way to step between its keyframes
+ * and to put one where the playhead is.
+ */
+export function KeyframeLayer(props: LayerRowProps) {
+  const world = useWorld();
 
-export function KeyframeLayer(props: KeyframeLayerProps) {
-  const { world } = useEngine();
-  const { now } = useECS();
-  const c = world.components;
+  const entity = () => props.layer.entity;
 
-  const eid = () => props.layer.eid;
+  const track = useTrait(entity, KeyframeTrack);
+  const property = () => (track()?.property ?? '') as AnimatableProperty;
+  const target = () => track()?.target ?? null;
 
-  const property = createMemo(() => c.KeyframeTrack.property[eid()]);
-  const targetEid = createMemo(() => getParentEntity(world, eid()));
-  const clipEid = createMemo(() => findClosestParentGeometry(world, eid()));
-  const hovering = useEntityTag(c.Hovering, eid);
-  const selected = useEntityTag(c.Selected, eid);
+  const hovering = useTag(entity, Hovering);
+  const selected = useTag(entity, Selected);
 
-  const hasPrev = createMemo(() => {
-    const cid = clipEid();
-    if (cid === null) return false;
-    const delay = c.Computed.delay[cid];
-    const localNowFrame = now() - delay;
-    return (c.Cache.keyframes[props.layer.eid] ?? []).some(kf => c.Keyframe.time[kf] < localNowFrame);
+  /**
+   * The track's keyframes as scene frames, in order. They are authored in the
+   * clip's own time — which is what makes them move with it, and run at its
+   * speed — so each is put back on the scene's the way `getNodeLocalFrame`
+   * takes them off it.
+   */
+  const frames = useDerived(
+    () => {
+      const clip = findClosestParentGeometry(entity());
+      const computed = clip?.get(Computed);
+      if (!computed) return [];
+
+      const rate = computed.playbackRate || 1;
+
+      return (entity().get(Cache)?.keyframes ?? [])
+        .map((keyframe) => computed.origin + (keyframe.get(KeyframeTrait)?.time ?? 0) / rate)
+        .sort((a, b) => a - b);
+    },
+    (prev, next) => prev.length === next.length && prev.every((frame, i) => frame === next[i]),
+  );
+
+  const now = useDerived(() => {
+    const scene = getActiveEntity(world);
+    return scene === null ? 0 : (scene.get(Computed)?.localTime ?? 0);
   });
 
-  const handlePrev = () => {
-    const sceneEid = world.selection.scene;
-    const fps = world.frameRate;
-    const cid = clipEid();
-    if (sceneEid === null || cid === null) return;
-    const delay = c.Computed.delay[cid];
-    const nowFrame = c.Computed.localTime[sceneEid];
-    const frames = (c.Cache.keyframes[props.layer.eid] ?? [])
-      .map(kf => c.Keyframe.time[kf])
-      .sort((a: number, b: number) => b - a);
+  const previous = createMemo(() => [...frames()].reverse().find((frame) => frame < now()));
+  const next = createMemo(() => frames().find((frame) => frame > now()));
 
-    for (const frame of frames) {
-      const absoluteFrame = delay + frame;
-      if (absoluteFrame < nowFrame) {
-        c.Computed.localTimeInSeconds[sceneEid] = absoluteFrame / fps;
-        c.Computed.localTime[sceneEid] = absoluteFrame;
-        break;
-      }
-    }
-  }
-
-  const hasNext = createMemo(() => {
-    const cid = clipEid();
-    if (cid === null) return false;
-    const delay = c.Computed.delay[cid];
-    const localNowFrame = now() - delay;
-    return (c.Cache.keyframes[props.layer.eid] ?? []).some(kf => c.Keyframe.time[kf] > localNowFrame);
-  });
-
-  const handleNext = () => {
-    const sceneEid = world.selection.scene;
-    const fps = world.frameRate;
-    const cid = clipEid();
-    if (sceneEid === null || cid === null) return;
-    const delay = c.Computed.delay[cid];
-    const nowFrame = c.Computed.localTime[sceneEid];
-    const frames = (c.Cache.keyframes[props.layer.eid] ?? [])
-      .map(kf => c.Keyframe.time[kf])
-      .sort((a: number, b: number) => a - b);
-
-    for (const frame of frames) {
-      const absoluteFrame = delay + frame;
-      if (absoluteFrame > nowFrame) {
-        c.Computed.localTimeInSeconds[sceneEid] = absoluteFrame / fps;
-        c.Computed.localTime[sceneEid] = absoluteFrame;
-        break;
-      }
-    }
-  }
-
-  const handlePointerEnter = () => addComponent(world, props.layer.eid, c.Hovering, false);
-  const handlePointerLeave = () => removeComponent(world, props.layer.eid, c.Hovering, false);
+  const goTo = (frame: number | undefined) => {
+    const scene = getActiveEntity(world);
+    if (scene === null || frame === undefined) return;
+    setPlayhead(world, scene, frame);
+  };
 
   return (
     <div
@@ -103,8 +87,8 @@ export function KeyframeLayer(props: KeyframeLayerProps) {
         'bg-accent/70': !selected() && hovering(),
         'bg-accent/40': !selected() && !hovering() && props.ancestorSelected,
       }}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
+      onPointerEnter={() => setRowHover(world, entity())}
+      onPointerLeave={() => setRowHover(world, null)}
       style={{ height: KEYFRAME_TRACK_HEIGHT + 'px' }}
     >
       <div data-layer-label class="flex-1 min-w-0 overflow-hidden">
@@ -119,24 +103,36 @@ export function KeyframeLayer(props: KeyframeLayerProps) {
             <Icon name="keyframe-indicator-default" class="size-6" />
           </div>
           <span class="text-xs px-0.5 shrink-0 whitespace-nowrap text-foreground">
-            {formatProperty(c.KeyframeTrack.property[props.layer.eid])}
+            {formatProperty(property())}
           </span>
         </div>
       </div>
       <div class="flex items-center gap-0.5 shrink-0">
         <Tooltip placement="top">
-          <TooltipTrigger as={Button} variant="ghost" size="icon" disabled={!hasPrev()} onClick={handlePrev}>
+          <TooltipTrigger
+            as={Button}
+            variant="ghost"
+            size="icon"
+            disabled={previous() === undefined}
+            onClick={() => goTo(previous())}
+          >
             <Icon name="caret-left" class="size-6" />
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent>Previous keyframe</TooltipContent>
           </TooltipPortal>
         </Tooltip>
-        <Show when={targetEid()}>
-          {(target) => <Keyframe property={property() as PropertyPath} target={target()} />}
+        <Show when={target()}>
+          {(entity) => <Keyframe property={property()} target={entity() as Entity} />}
         </Show>
         <Tooltip placement="top">
-          <TooltipTrigger as={Button} variant="ghost" size="icon" disabled={!hasNext()} onClick={handleNext}>
+          <TooltipTrigger
+            as={Button}
+            variant="ghost"
+            size="icon"
+            disabled={next() === undefined}
+            onClick={() => goTo(next())}
+          >
             <Icon name="caret-right" class="size-6" />
           </TooltipTrigger>
           <TooltipPortal>
@@ -148,39 +144,16 @@ export function KeyframeLayer(props: KeyframeLayerProps) {
   )
 }
 
-const PATH_NAMES: Record<PropertyPath, string> = {
-  'position.x': 'Position X',
-  'position.y': 'Position Y',
-  'offset.x': 'Offset X',
-  'offset.y': 'Offset Y',
-  'scale.x': 'Scale X',
-  'scale.y': 'Scale Y',
-  'scale': 'Scale',
-  'rotation': 'Rotation',
-  'skew.x': 'Skew X',
-  'skew.y': 'Skew Y',
-  'opacity': 'Opacity',
-  'color': 'Color',
-  'blur': 'Blur',
-  'volume': 'Volume',
-  'effect.value': 'Value',
-  'width': 'Width',
-  'height': 'Height',
-  'stroke.width': 'Stroke Width',
-  'vertexRadius': 'Radius',
-  'mixedVertexRadius.topLeft': 'Radius TL',
-  'mixedVertexRadius.topRight': 'Radius TR',
-  'mixedVertexRadius.bottomRight': 'Radius BR',
-  'mixedVertexRadius.bottomLeft': 'Radius BL',
-  'stop.offset': 'Offset',
-  'stop.color': 'Color',
-  'stop.opacity': 'Opacity',
-  'chars': 'Text',
-};
-
+/**
+ * A property's name as the row shows it. The file spells properties the way
+ * JSX does (`offsetX`, `cornerRadiusTopLeft`); this is the same name with the
+ * words separated, so the row and the inspector agree on what to call it.
+ */
 export function formatProperty(property: string): string {
-  return PATH_NAMES[property as PropertyPath]
-    ?.split('.')
-    ?.map(s => s.charAt(0).toUpperCase() + s.slice(1))
-    ?.join(' ') ?? '';
+  if (!property) return '';
+
+  return property
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (first) => first.toUpperCase())
+    .trim();
 }

@@ -2,14 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createEffect, createMemo, createSignal, Index, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, Index, onCleanup, onMount, Show } from 'solid-js';
+import { useTrait, useWorld } from '@diffusionstudio/koota-solid';
+import {
+  ClipHeight,
+  Computed,
+  FrameRate,
+  Playback,
+  togglePlayback,
+} from '@diffusionstudio/runtime';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -20,88 +27,92 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from '@/components/ui/tooltip';
-import { DEFAULT_CLIP_HEIGHT, RULER_HEIGHT } from '@/components/engine/timeline/config';
+import { DEFAULT_CLIP_HEIGHT, RULER_HEIGHT } from '@/engine/timeline';
+import { splitAtPlayhead } from '@/engine/split';
+import { useDerived, useEditor, useTimelineIndex } from '@/engine/hooks';
 import { useTimeline } from '@/context/timeline';
-import { useEngine } from '@/context/engine';
 import { useLayout } from '@/context/layout';
-import { togglePlayback, splitAtPlayhead, setComponent, clearComponent } from '@/components/engine';
-import { useECS } from '@/context/ecs';
 import { store } from '@/init';
 import { createStoredSignal } from '@/lib/store';
 import { Layer } from './layer';
 import { LayerContextProvider } from './context';
 import { formatFrames, TIME_FORMAT_OPTIONS, type TimeFormat } from '../time-format';
-import { createEntity, addComponent, getNextName, appendChild, resizeEntity, reorderEntity } from '@/components/engine';
-import { DEFAULT_DURATION_FRAMES } from '@/components/engine/constants';
 
-import type { EngineWorld } from '@/components/engine';
-import type { TimelineNode } from '@/components/engine';
+import type { TimelineNode } from '@diffusionstudio/runtime';
+import type { Entity } from 'koota';
+
+/** The row heights the height menu offers, tightest first. */
+const HEIGHT_PRESETS = [
+  { label: 'Tight', height: 28 },
+  { label: 'Snug', height: 32 },
+  { label: 'Normal', height: 40 },
+  { label: 'Relaxed', height: 64 },
+  { label: 'Loose', height: 116 },
+];
 
 export function Layers() {
+  const world = useWorld();
+  const editor = useEditor();
   const timeline = useTimeline();
-  const { world } = useEngine();
-  const { now, playing, looping } = useECS();
+  const index = useTimelineIndex();
   const { timelineMinimized, toggleTimeline } = useLayout();
 
-  const c = world.components;
-  const timelineIndex = world.timelineIndex;
+  const layers = createMemo(() => index().layers);
+  const scene = createMemo(() => index().root);
 
-  const layers = createMemo(() => timelineIndex().layers);
-  const [commonLayerHeight, setCommonLayerHeight] = createSignal(DEFAULT_CLIP_HEIGHT);
+  const frameRate = useTrait(world, FrameRate);
+  const playback = useTrait(scene, Playback);
+  const now = useDerived(() => scene()?.get(Computed)?.localTime ?? 0);
+
   const [timeFormat, setTimeFormat] = createStoredSignal(
     store.define<TimeFormat>('timeline.timeFormat', 'standard'),
   );
 
-  const clock = createMemo(() => formatFrames(now(), world.frameRate, timeFormat()));
+  const clock = createMemo(() => formatFrames(now(), frameRate()?.value ?? 30, timeFormat()));
 
-  createEffect(() => {
-    let sum = 0;
-    let count = 0;
+  // What the height menu ticks: the height the rows share, or none of them if
+  // they differ.
+  const commonHeight = useDerived(() => {
+    let common: number | null = null;
 
-    forEachGeometryLayer(layers(), (eid) => {
-      sum += (c.ClipHeight[eid] ?? DEFAULT_CLIP_HEIGHT);
-      count++;
-    });
+    for (const entity of geometryEntities(layers())) {
+      const height = entity.get(ClipHeight)?.value ?? DEFAULT_CLIP_HEIGHT;
+      if (common === null) common = height;
+      else if (common !== height) return null;
+    }
 
-    if (count === 0) return;
-
-    setCommonLayerHeight(sum / count);
+    return common;
   });
 
-  const handleCommonClipHeightChange = (height: number) => {
-    world.history.transaction('Set layer height', () => {
-      forEachGeometryLayer(layers(), (eid) => {
-        setComponent(world, eid, c.ClipHeight, height);
-      });
-    });
-
-    setCommonLayerHeight(height);
-  }
-
-  const addAdjustmentLayer = () => createAdjustmentLayer(world);
+  const setCommonHeight = (height: number) => {
+    for (const entity of geometryEntities(layers())) {
+      editor.editProperty(entity, 'clipHeight', height);
+    }
+  };
 
   const toggleLooping = () => {
-    const sceneEid = timelineIndex().root;
-    if (sceneEid === null) return;
+    const entity = scene();
+    if (!entity) return;
+    entity.set(Playback, { loop: !playback()?.loop });
+  };
 
-    // Will toggle between 0 and 1
-    const currentLoop = c.Playback.loop[sceneEid] ?? 0;
-    setComponent(world, sceneEid, c.Playback, { loop: 1 - currentLoop }, false);
-  }
+  const handlePlay = () => {
+    const entity = scene();
+    if (entity) togglePlayback(world, entity);
+  };
 
+  // A press on the empty space below the rows, not on one of them.
   const handlePointerDown = (e: PointerEvent) => {
     if (e.button !== 0 || e.target !== e.currentTarget) return;
-    clearComponent(world, c.Selected, false);
-  }
+    editor.clearSelection();
+  };
 
   const handleHeaderDoubleClick = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
     toggleTimeline();
-  }
+  };
 
-  createEffect(() => {
-    timeline.setMinimized(timelineMinimized());
-  });
+  createEffect(() => timeline.setMinimized(timelineMinimized()));
 
   onMount(timeline.mount);
   onCleanup(timeline.unmount);
@@ -121,8 +132,8 @@ export function Layers() {
           <Tooltip placement="top">
             <TooltipTrigger<typeof Button>
               as={(triggerProps) => (
-                <Button {...triggerProps} variant="ghost" size="icon" onClick={() => togglePlayback(world)}>
-                  <Show when={playing()} fallback={<Icon name="play" class="size-6" />}>
+                <Button {...triggerProps} variant="ghost" size="icon" onClick={handlePlay}>
+                  <Show when={playback()?.playing} fallback={<Icon name="play" class="size-6" />}>
                     <Icon name="pause" class="size-6" />
                   </Show>
                 </Button>
@@ -130,7 +141,7 @@ export function Layers() {
             />
             <TooltipPortal>
               <TooltipContent shortcut="Space">
-                {playing() ? 'Pause' : 'Play'}
+                {playback()?.playing ? 'Pause' : 'Play'}
               </TooltipContent>
             </TooltipPortal>
           </Tooltip>
@@ -138,7 +149,7 @@ export function Layers() {
             <TooltipTrigger<typeof Button>
               as={(triggerProps) => (
                 <Button {...triggerProps} variant="ghost" size="icon" onClick={toggleLooping}>
-                  <Show when={looping() === 1} fallback={<Icon name="controls-no-loop" />}>
+                  <Show when={playback()?.loop} fallback={<Icon name="controls-no-loop" />}>
                     <Icon name="controls-loop" />
                   </Show>
                 </Button>
@@ -146,7 +157,7 @@ export function Layers() {
             />
             <TooltipPortal>
               <TooltipContent>
-                {looping() === 1 ? 'Disable loop' : 'Enable loop'}
+                {playback()?.loop ? 'Disable loop' : 'Enable loop'}
               </TooltipContent>
             </TooltipPortal>
           </Tooltip>
@@ -187,41 +198,17 @@ export function Layers() {
                     <DropdownMenuSubTrigger>Layer height</DropdownMenuSubTrigger>
                     <DropdownMenuPortal>
                       <DropdownMenuSubContent class="w-[140px]">
-                        <DropdownMenuCheckboxItem
-                          onSelect={() => handleCommonClipHeightChange(28)}
-                          checked={commonLayerHeight() === 28}
-                        >
-                          Tight
-                          <span class="text-xxs text-muted-foreground ml-auto">28</span>
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          onSelect={() => handleCommonClipHeightChange(32)}
-                          checked={commonLayerHeight() === 32}
-                        >
-                          Snug
-                          <span class="text-xxs text-muted-foreground ml-auto">32</span>
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          onSelect={() => handleCommonClipHeightChange(40)}
-                          checked={commonLayerHeight() === 40}
-                        >
-                          Normal
-                          <span class="text-xxs text-muted-foreground ml-auto">40</span>
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          onSelect={() => handleCommonClipHeightChange(64)}
-                          checked={commonLayerHeight() === 64}
-                        >
-                          Relaxed
-                          <span class="text-xxs text-muted-foreground ml-auto">64</span>
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          onSelect={() => handleCommonClipHeightChange(116)}
-                          checked={commonLayerHeight() === 116}
-                        >
-                          Loose
-                          <span class="text-xxs text-muted-foreground ml-auto">116</span>
-                        </DropdownMenuCheckboxItem>
+                        <Index each={HEIGHT_PRESETS}>
+                          {(preset) => (
+                            <DropdownMenuCheckboxItem
+                              onSelect={() => setCommonHeight(preset().height)}
+                              checked={commonHeight() === preset().height}
+                            >
+                              {preset().label}
+                              <span class="text-xxs text-muted-foreground ml-auto">{preset().height}</span>
+                            </DropdownMenuCheckboxItem>
+                          )}
+                        </Index>
                       </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                   </DropdownMenuSub>
@@ -248,10 +235,6 @@ export function Layers() {
                       </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                   </DropdownMenuSub>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={addAdjustmentLayer}>
-                    Add adjustment layer
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenuPortal>
             </DropdownMenu>
@@ -278,38 +261,10 @@ export function Layers() {
   );
 }
 
-function forEachGeometryLayer(nodes: TimelineNode[], fn: (eid: number) => void) {
+/** Every clip row of the tree, expanded ones included. */
+function* geometryEntities(nodes: TimelineNode[]): Generator<Entity> {
   for (const node of nodes) {
-    if (node.kind === 'geometry') {
-      fn(node.eid);
-    }
-    forEachGeometryLayer(node.children, fn);
+    if (node.kind === 'geometry') yield node.entity;
+    yield* geometryEntities(node.children);
   }
-};
-
-function createAdjustmentLayer(world: EngineWorld): number | null {
-  const c = world.components;
-  const sceneEid = world.selection.scene;
-  if (sceneEid === null) return null;
-
-  const width = Math.max(1, Math.round(c.Computed.width[sceneEid] ?? 0));
-  const height = Math.max(1, Math.round(c.Computed.height[sceneEid] ?? 0));
-
-  return world.history.transaction('Add adjustment layer', () => {
-    const eid = createEntity(world);
-    addComponent(world, eid, c.AdjustmentLayer);
-    setComponent(world, eid, c.Name, getNextName(world, 'Adjustment Layer'));
-    setComponent(world, eid, c.Position, { x: 0, y: 0 });
-
-    setComponent(world, eid, c.Trim, { start: 0, end: DEFAULT_DURATION_FRAMES });
-    appendChild(world, eid, sceneEid);
-    resizeEntity(world, eid, { width, height });
-
-    reorderEntity(world, eid, 'front');
-
-    clearComponent(world, c.Selected, false);
-    addComponent(world, eid, c.Selected, false);
-
-    return eid;
-  });
 }

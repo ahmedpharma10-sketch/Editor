@@ -4,26 +4,32 @@
 
 import { createContext, createSignal, useContext, type JSX, type Signal } from "solid-js";
 
+import { assert } from "@/utils";
+
+import type { Entity } from "koota";
+
 export type DropPosition = 'above' | 'below' | 'inside';
 
 export type LayerDragState = {
-  targetEid: number | null;
-  position: DropPosition | null;
+  target: Entity;
+  position: DropPosition;
 };
 
 type LayerContextValue = {
-  resizedId: Signal<number | null>;
+  /** The row whose height is being dragged, if any. */
+  resized: Signal<Entity | null>;
+  /** Where the rows being dragged would land, if they were dropped now. */
   dragState: Signal<LayerDragState | null>;
 }
 
 const LayerContext = createContext<LayerContextValue>();
 
 export function LayerContextProvider(props: { children: JSX.Element }) {
-  const resizedId = createSignal<number | null>(null);
+  const resized = createSignal<Entity | null>(null);
   const dragState = createSignal<LayerDragState | null>(null);
 
   return (
-    <LayerContext.Provider value={{ resizedId, dragState }}>
+    <LayerContext.Provider value={{ resized, dragState }}>
       {props.children}
     </LayerContext.Provider>
   );
@@ -31,8 +37,6 @@ export function LayerContextProvider(props: { children: JSX.Element }) {
 
 export function useLayerContext() {
   const context = useContext(LayerContext);
-  if (!context) {
-    throw new Error('useLayerContext must be used within a LayerContextProvider');
-  }
+  assert(context, 'useLayerContext must be used within a LayerContextProvider');
   return context;
 }

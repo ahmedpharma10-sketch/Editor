@@ -16,6 +16,7 @@ import {
 	End,
 	FrameRate,
 	SourceOut,
+	Start,
 	framesToSeconds,
 	getSourceFrameAt,
 	getTimelineOrigin,
@@ -69,4 +70,30 @@ export function trimOut(world: World, entity: Entity, frame: number): void {
 		editTime(world, entity, 'sourceOut', getSourceFrameAt(entity, frame));
 	}
 	editTime(world, entity, 'end', frame - getTimelineOrigin(entity));
+}
+
+/**
+ * Moves the node so it starts at scene frame `frame`, keeping everything else
+ * about it: the same stretch of its source plays, for the same length, only
+ * later or earlier.
+ *
+ * Start and End are both parent-relative — a node's length is `end - start` —
+ * so a move is both of them by the same amount. Writing only the start would
+ * leave the end where it was and stretch the clip, which is a trim.
+ *
+ * A container that takes its bounds from its children authors no End, and so
+ * only its start moves: its children are placed against its origin, and they
+ * all travel with it.
+ */
+export function moveEntityTo(world: World, entity: Entity, frame: number): void {
+	const start = frame - getTimelineOrigin(entity);
+	const delta = start - (entity.get(Start)?.value ?? 0);
+	if (delta === 0) return;
+
+	// Before the start, which moves the origin the end would then be read
+	// against — both are worked out from what the node says now.
+	const end = entity.get(End)?.value;
+	if (end !== undefined) editTime(world, entity, 'end', end + delta);
+
+	editTime(world, entity, 'start', start);
 }

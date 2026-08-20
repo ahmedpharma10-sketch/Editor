@@ -9,3 +9,4 @@ export * from './use-tool';
 export * from './use-selection';
 export * from './use-asset-selection';
 export * from './use-derived';
+export * from './use-timeline-index';

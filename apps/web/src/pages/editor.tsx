@@ -9,7 +9,7 @@ import { Soundboard, Inspector } from "@/components/sidebar-right";
 import { FloatingProjectHeader, SidebarLeft } from "@/components/sidebar-left";
 import { useLayout, MIN_TIMELINE_HEIGHT } from "@/context/layout";
 import { useEditorApi } from "@/context/dapi";
-import { RULER_HEIGHT } from "@/components/engine/timeline/config";
+import { RULER_HEIGHT } from "@/engine/timeline";
 import { createEffect, onCleanup } from 'solid-js';
 import { toast } from 'somoto';
 import { useWorld } from '@diffusionstudio/koota-solid';

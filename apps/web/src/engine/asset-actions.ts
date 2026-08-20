@@ -9,6 +9,7 @@ import { toast } from "somoto";
 import { importFiles as importFilesInto, pickFiles, saveAssetAs as saveAs } from "@diffusionstudio/assets";
 import { AssetId, reactToAssetChange } from "@diffusionstudio/runtime";
 import { insertAsset } from "./insert-asset";
+import { forgetPoster } from "./timeline/media";
 
 import type { SequenceAsset } from "@diffusionstudio/assets";
 import type { World } from "koota";
@@ -55,7 +56,10 @@ export async function replaceAssetSource(library: AssetLibrary, asset: Asset): P
   const path = file ? library.fs.pathOf?.(file) : null;
   if (!path) return null;
   try {
-    return await library.relink(asset, path);
+    const relinked = await library.relink(asset, path);
+    // The picture the timeline is showing is of the file it used to be.
+    forgetPoster(asset.id);
+    return relinked;
   } catch (error) {
     toast.error("Failed to replace", { description: (error as Error).message });
     return null;
