@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createEffect, createContext, useContext, onCleanup, onMount, createResource } from "solid-js";
+import { createEffect, createContext, useContext, onCleanup } from "solid-js";
 import { useEngine } from '@/context/engine';
 import { useWorld } from '@diffusionstudio/koota-solid';
 import { useProjectId } from '@/hooks/use-project-id';
@@ -14,11 +14,11 @@ import { handleCapture } from "./capture";
 import { handleLogs } from "./logs";
 import { handleModels } from "./models";
 import { handleVoices } from "./voices";
-import { cliBridge, mainBridge } from '@/lib/ipc';
+import { cliBridge } from '@/lib/ipc';
 import { createRouterCaller } from '@/lib/cli-rpc';
-import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { assert } from "@/utils/common";
-import { handleGetFullscreenState, handleWindowFullscreenChange, handleWindowScreenshot } from "./window";
+import { handleWindowScreenshot } from "./window";
+import { useFullscreenState } from "@/hooks/use-fullscreen-state";
 
 import type { JSX, Accessor } from 'solid-js';
 import type { User } from '@supabase/supabase-js';
@@ -40,7 +40,7 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   const projectId = useProjectId();
   const engine = useEngine();
   const auth = useAuth();
-  const [isFullscreen, { mutate }] = createResource(handleGetFullscreenState, { initialValue: false });
+  const isFullscreen = useFullscreenState();
 
   const requireAuth = <I, O>(fn: (data: I) => Promise<O>) => (data: I) => {
     assert(auth.isAuthenticated(), "Sign in required: AI generation needs a Diffusion Studio account.");
@@ -55,15 +55,6 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
 
   const getEngine = () => engine;
   const world = useWorld();
-
-  createEffect(() => {
-    document.documentElement.dataset.fullscreen = String(isFullscreen());
-  });
-
-  onMount(() => {
-    if (!window.desktop) return;
-    onCleanup(mainBridge.handle(MAIN_CHANNELS.WINDOW_FULLSCREEN_CHANGE, handleWindowFullscreenChange(mutate)));
-  });
 
   createEffect(() => {
     if (!window.desktop || !engine.initialized() || projectId() !== engine.world.projectId) return;

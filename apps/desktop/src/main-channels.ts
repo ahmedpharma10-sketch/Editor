@@ -28,6 +28,7 @@ export type MainWireChannel = (typeof MAIN_WIRE)[keyof typeof MAIN_WIRE];
 export const MAIN_CHANNELS = {
   // Renderer→Main requests
   APP_OPEN_EXTERNAL: "app:open-external",
+  APP_SHOW_IN_FOLDER: "app:show-in-folder",
   AUTH_GET_PENDING_CALLBACK: "auth:get-pending-callback",
   CHECKOUT_GET_PENDING_CALLBACK: "checkout:get-pending-callback",
   WINDOW_IS_FULLSCREEN: "window:is-fullscreen",
@@ -126,6 +127,8 @@ export type MainRequestMap = {
     request: { id: string };
     response: void;
   };
+  // Reveals a file or folder in the OS file manager (Finder on macOS).
+  [MAIN_CHANNELS.APP_SHOW_IN_FOLDER]: { request: { path: string }; response: void };
   [MAIN_CHANNELS.HEADLESS_GET_MODE]: { request: void; response: boolean };
   [MAIN_CHANNELS.LOGS_GET]: { request: void; response: LogEntry[] };
   [MAIN_CHANNELS.PROJECTS_PICK_ROOT]: { request: void; response: string | null };

@@ -88,8 +88,8 @@ type DashboardScrollViewProps = {
 
 export function DashboardScrollView(props: DashboardScrollViewProps) {
   return (
-    <div class={cx("min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4", props.class)}>
-      <div class="flex flex-col gap-6">{props.children}</div>
+    <div class={cx("min-h-0 flex-1 overflow-y-auto px-6 py-12", props.class)}>
+      <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">{props.children}</div>
     </div>
   );
 }
@@ -417,7 +417,7 @@ export function DashboardCardButton(props: DashboardCardButtonProps) {
       onClick={props.onClick}
       onKeyDown={handleKeyDown}
       class={cx(
-        "flex w-62 shrink-0 flex-col gap-3 rounded-xl p-2 text-left outline-none transition-colors hover:bg-accent/50 focus-ring group",
+        "flex w-62 shrink-0 flex-col gap-3 rounded-xl px-2 pt-2 pb-3 text-left outline-none transition-colors hover:bg-accent/50 focus-ring group",
         props.active && "bg-muted hover:bg-muted ring-1 ring-inset ring-ring",
         props.class,
       )}
@@ -436,7 +436,7 @@ export function DashboardCardPreview(props: DashboardCardPreviewProps) {
   return (
     <div
       class={cx(
-        "bg-canvas relative aspect-video w-full overflow-hidden rounded-md border border-border-strong",
+        "bg-canvas relative aspect-video w-full overflow-hidden rounded-md border border-border",
         props.class,
       )}
     >
@@ -478,9 +478,9 @@ type DashboardViewSectionProps = {
 
 export function DashboardViewSection(props: DashboardViewSectionProps) {
   return (
-    <div class={cx("flex min-h-0 flex-1 flex-col gap-4 pt-4", props.class)}>
-      <div class="flex h-10 items-end gap-6 px-6">
-        <h1 class="min-w-0 flex-1 text-lg leading-7  font-450 text-foreground">
+    <div class={cx("flex min-h-0 flex-1 flex-col gap-3 pt-4", props.class)}>
+      <div class="flex items-end gap-6 px-6">
+        <h1 class="min-w-0 flex-1 text-2xl leading-6 font-450 text-foreground">
           {props.title}
         </h1>
         {props.controls}

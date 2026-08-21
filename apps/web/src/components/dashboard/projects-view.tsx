@@ -11,7 +11,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Button } from "@/components/ui/button";
 import { TextField, TextFieldInput } from "@/components/ui/text-field";
 import { toast } from "somoto";
 import { For, Show, batch, createMemo, createResource, createSignal, onCleanup } from "solid-js";
@@ -32,6 +31,7 @@ import {
   DashboardViewSection,
 } from "./shared";
 import { DashboardSearchPanel } from "./search-bar";
+import { DashboardProjectsFolderBar } from "./projects-folder-bar";
 import { projectRoute } from "@/hooks/use-project-id";
 import { Icon } from "../ui/icon";
 import { track } from "@/lib/analytics";
@@ -220,10 +220,6 @@ export function DashboardProjectsView() {
         title="Recent projects"
         controls={
           <>
-            <Button variant="ghost" onClick={handleChooseRoot} title={projectsRoot() ?? undefined}>
-              <Icon name="navigation.folder" class="mr-1 size-4" />
-              {projectsRoot() ? folderLabel(projectsRoot()!) : "Choose projects folder"}
-            </Button>
             <Select<(typeof SORT_OPTIONS)[number]>
               options={SORT_OPTIONS}
               value={selectedSortOption()}
@@ -249,7 +245,7 @@ export function DashboardProjectsView() {
         }
       >
         <DashboardCardButton onClick={handleCreateProject}>
-          <DashboardCardPreview class="bg-accent/50 group-hover:bg-accent group-hover:border-input">
+          <DashboardCardPreview class="bg-overlay-soft group-hover:bg-overlay">
             <Icon
               name="plus-add"
               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground"
@@ -330,6 +326,7 @@ export function DashboardProjectsView() {
           )}
         </For>
       </DashboardViewSection>
+      <DashboardProjectsFolderBar />
     </DashboardSearchPanel>
   );
 }
@@ -373,10 +370,6 @@ function folderName(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[-.]+|[-.]+$/g, "") || "project";
-}
-
-function folderLabel(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
 function parseTimestamp(value: string): number {

@@ -158,7 +158,7 @@
   --ring: hsla(207, 100%, 50%, 1);
   --canvas: hsla(0, 0%, 91%, 1);
   --overlay: hsla(0, 0%, 4%, 0.8);
-  --overlay-soft: hsla(0, 0%, 9%, 0.4);
+  --overlay-soft: hsla(0, 0%, 4%, 0.4);
   --overlay-strong: hsla(0, 0%, 4%, 0.93);
   --selection: hsla(207, 100%, 50%, 1);
   --selection-foreground: hsla(207, 100%, 90%, 1);
@@ -212,7 +212,7 @@
   --ring: hsla(207, 100%, 50%, 1);
   --canvas: hsla(0, 0%, 9%, 1);
   --overlay: hsla(0, 0%, 4%, 0.8);
-  --overlay-soft: hsla(0, 0%, 9%, 0.4);
+  --overlay-soft: hsla(0, 0%, 4%, 0.4);
   --overlay-strong: hsla(0, 0%, 4%, 0.95);
   --selection: hsla(207, 99%, 22%, 1);
   --selection-foreground: hsla(207, 100%, 90%, 1);
