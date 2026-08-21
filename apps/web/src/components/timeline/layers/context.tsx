@@ -8,28 +8,18 @@ import { assert } from "@/utils";
 
 import type { Entity } from "koota";
 
-export type DropPosition = 'above' | 'below' | 'inside';
-
-export type LayerDragState = {
-  target: Entity;
-  position: DropPosition;
-};
-
 type LayerContextValue = {
   /** The row whose height is being dragged, if any. */
   resized: Signal<Entity | null>;
-  /** Where the rows being dragged would land, if they were dropped now. */
-  dragState: Signal<LayerDragState | null>;
 }
 
 const LayerContext = createContext<LayerContextValue>();
 
 export function LayerContextProvider(props: { children: JSX.Element }) {
   const resized = createSignal<Entity | null>(null);
-  const dragState = createSignal<LayerDragState | null>(null);
 
   return (
-    <LayerContext.Provider value={{ resized, dragState }}>
+    <LayerContext.Provider value={{ resized }}>
       {props.children}
     </LayerContext.Provider>
   );

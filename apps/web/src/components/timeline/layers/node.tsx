@@ -40,15 +40,11 @@ import { useEditor } from '@/engine/hooks';
 import { DEFAULT_CLIP_HEIGHT, MAX_CLIP_HEIGHT, MIN_CLIP_HEIGHT } from '@/engine/timeline';
 import { NESTED_INDENT_PX } from './config';
 import { useLayerContext } from './context';
-import { dropSelection, findDropTarget } from './reparent';
 import { setRowHover } from './hover';
 
-import type { Entity, World } from 'koota';
+import type { World } from 'koota';
 import type { TimelineNode } from '@diffusionstudio/runtime';
 import type { LayerRowProps } from './layer';
-
-/** How far the pointer must move before a press on a row becomes a drag. */
-const DRAG_THRESHOLD_PX = 4;
 
 export function NodeLayer(props: LayerRowProps) {
   const world = useWorld();
@@ -67,7 +63,6 @@ export function NodeLayer(props: LayerRowProps) {
   const controlsVisible = createMemo(() => hovering() || muted() || soloed() || hidden());
 
   const [resized, setResized] = useLayerContext().resized;
-  const [dragState, setDragState] = useLayerContext().dragState;
 
   const [editing, setEditing] = createSignal(false);
   let originalName = '';
@@ -75,11 +70,6 @@ export function NodeLayer(props: LayerRowProps) {
   const nameTrait = useTrait(entity, Name);
   const name = createMemo(() => nameTrait()?.value ?? 'Layer');
   const icon = createMemo(() => getLayerIcon(world, props.layer));
-
-  const dropPosition = createMemo(() => {
-    const state = dragState();
-    return state?.target === entity() ? state.position : null;
-  });
 
   const toggleMuted = (e?: Event) => {
     e?.stopPropagation();
@@ -109,40 +99,12 @@ export function NodeLayer(props: LayerRowProps) {
     if (!wasSoloed) entity().add(Soloed);
   };
 
-  /**
-   * A press selects, and becomes a drag if it travels far enough. Selecting
-   * first means the drag carries whatever the press selected, so dragging an
-   * unselected row moves that row and dragging a selected one moves the whole
-   * selection.
-   */
+  /** A press on a row selects it, shift-clicking to extend the selection. */
   const handleRowPointerDown = (e: PointerEvent) => {
     if (e.button !== 0 || resized() !== null) return;
     if ((e.target as HTMLElement | null)?.closest('button')) return;
 
     editor.select(entity(), { extend: e.shiftKey });
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let dragging = false;
-
-    const onMove = (event: PointerEvent) => {
-      dragging ||= Math.abs(event.clientX - startX) > DRAG_THRESHOLD_PX
-        || Math.abs(event.clientY - startY) > DRAG_THRESHOLD_PX;
-
-      if (dragging) setDragState(findDropTarget(event));
-    };
-
-    const onUp = (event: PointerEvent) => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      if (!dragging) return;
-
-      dropSelection(world, findDropTarget(event));
-      setDragState(null);
-    };
-
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
   };
 
   let resizeStartY = 0;
@@ -236,11 +198,7 @@ export function NodeLayer(props: LayerRowProps) {
         }}
         style={{ height: height() + 'px' }}
       >
-        <div
-          data-layer-row
-          ref={(el) => registerRow(el, entity())}
-          class="w-full pl-0.5 pr-2 flex items-center justify-between h-full"
-        >
+        <div class="w-full pl-0.5 pr-2 flex items-center justify-between h-full">
           <div
             data-layer-label
             class="flex-1 min-w-0 overflow-hidden"
@@ -352,7 +310,6 @@ export function NodeLayer(props: LayerRowProps) {
         {/* Drag the bottom edge to make the row taller. */}
         <div
           class="absolute bottom-0 left-0 right-0 h-[3px] cursor-ns-resize translate-y-0.5 z-20 group/resize"
-          classList={{ 'hidden': dragState() !== null }}
           onPointerDown={handleResizeStart}
         >
           <div
@@ -360,17 +317,6 @@ export function NodeLayer(props: LayerRowProps) {
             classList={{ 'bg-primary': resized() === entity() }}
           />
         </div>
-
-        {/* Where a drop would land. */}
-        <Show when={dropPosition() === 'above'}>
-          <div class="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-primary z-30" />
-        </Show>
-        <Show when={dropPosition() === 'below'}>
-          <div class="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-primary z-30" />
-        </Show>
-        <Show when={dropPosition() === 'inside'}>
-          <div class="pointer-events-none absolute inset-0 ring-2 ring-inset ring-primary z-30" />
-        </Show>
       </ContextMenuTrigger>
       <ContextMenuPortal>
         <ContextMenuContent class="w-[160px]">
@@ -392,25 +338,6 @@ export function NodeLayer(props: LayerRowProps) {
       </ContextMenuPortal>
     </ContextMenu>
   )
-}
-
-/**
- * Which entity a row's element stands for. A drop is found by hit-testing the
- * DOM (`elementFromPoint`), which hands back an element and nothing else, so
- * the entity is kept beside it — an id in a data attribute would have to be
- * turned back into an entity, and koota hands out ids again once they are
- * free. Marked on the row's own content rather than the context-menu trigger
- * around it, so this does not rest on that forwarding a ref; the two have the
- * same box either way.
- */
-const ROW_ENTITIES = new WeakMap<HTMLElement, Entity>();
-
-function registerRow(element: HTMLElement, entity: Entity): void {
-  ROW_ENTITIES.set(element, entity);
-}
-
-export function getRowEntity(element: HTMLElement): Entity | undefined {
-  return ROW_ENTITIES.get(element);
 }
 
 function getLayerIcon(world: World, layer: TimelineNode) {
