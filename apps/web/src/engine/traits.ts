@@ -19,7 +19,9 @@ export type PointerPhase = 'pressed' | 'lifted';
 /**
  * The pointer in canvas device pixels, as of the last event the input system
  * drained. `dragStart*` is where the current press began, which is what a
- * gesture measures its delta from.
+ * gesture measures its delta from. `over` is whether the pointer is on the
+ * stage at all, which is what tells a key press whether it could be the
+ * start of a canvas gesture (see the space shortcut).
  */
 export const Pointer = trait({
 	phase: 'lifted' as PointerPhase,
@@ -28,21 +30,23 @@ export const Pointer = trait({
 	clientY: 0,
 	dragStartX: 0,
 	dragStartY: 0,
+	over: false,
 });
 
 /**
  * The keyboard, lowercased, with 'mod' standing in for meta/control so a
  * shortcut does not have to know which platform it is on. `held` is what is
- * down right now (what a gesture reads its modifiers from, mutated in
- * place); `justPressed` and `justLifted` say whether a key went down or up
- * since the last frame, for whatever acts on a press rather than a hold —
- * which key it was is what `held` holds by then. Both flags are reset by the
- * shortcut system, so anything reading them runs before it.
+ * down right now (what a gesture reads its modifiers from); `pressed` and
+ * `lifted` are the keys that went down and up since the last frame, for
+ * whatever acts on a press or a release rather than on a hold. All three
+ * are mutated in place, and the frame loop empties `pressed` and `lifted`
+ * once the systems have run, so a key movement is there for exactly the one
+ * frame that follows it.
  */
 export const Keys = trait({
 	held: () => new Set<string>(),
-	justPressed: false,
-	justLifted: false,
+	pressed: () => new Set<string>(),
+	lifted: () => new Set<string>(),
 });
 
 export type SnapLine = { from: Point; to: Point };

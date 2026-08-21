@@ -7,26 +7,24 @@
  * held keys that modify a gesture. The DOM listener only records (see
  * `Keys`); the shortcut system runs once a frame and, when a key was just
  * pressed, matches what is held against the table below and runs the action.
+ * Space is the exception the table cannot hold — it is also the pan
+ * modifier, so what it does depends on where the pointer is and on whether
+ * the camera moved while it was down; see `playbackShortcut`.
  */
 
-import { Computed, getActiveEntity, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected, store } from '@diffusionstudio/runtime';
+import { Computed, getActiveEntity, getCameraMatrix, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected, store, togglePlayback } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../editor';
 import { splitAtPlayhead } from '../split';
-import { Keys } from '../traits';
+import { Keys, Pointer } from '../traits';
 import { editTransform } from './interactions';
 
 import type { TransformWrite } from './interactions';
+import type { CameraMatrix } from '@diffusionstudio/runtime';
 import type { World } from 'koota';
 
-interface Shortcut {
-	/**
-	 * Keys to hold down for the shortcut to trigger. Joined with '+' to form a set of keys.
-	 */
-	key: string;
-	mod?: boolean;
-	shift?: boolean;
-	alt?: boolean;
+type Shortcut = {
+	keys: string[];
 	action: (world: World) => void;
 }
 
@@ -109,39 +107,89 @@ export function nudgeSelection(world: World, dx: number, dy: number): void {
 
 const nudge = (dx: number, dy: number) => (world: World): void => nudgeSelection(world, dx, dy);
 
-const SHORTCUTS: readonly Shortcut[] = [
-	{ key: 'backspace', action: deleteSelection },
-	{ key: 'delete', action: deleteSelection },
-	{ key: 'd', mod: true, action: duplicateSelection },
-	{ key: 'b', mod: true, action: splitAtPlayhead },
-	{ key: 'c', mod: true, action: copySelection },
-	{ key: 'v', mod: true, action: pasteSelection },
-	{ key: 'arrowleft', action: nudge(-NUDGE, 0) },
-	{ key: 'arrowright', action: nudge(NUDGE, 0) },
-	{ key: 'arrowup', action: nudge(0, -NUDGE) },
-	{ key: 'arrowdown', action: nudge(0, NUDGE) },
-	{ key: 'arrowleft', shift: true, action: nudge(-NUDGE_FAST, 0) },
-	{ key: 'arrowright', shift: true, action: nudge(NUDGE_FAST, 0) },
-	{ key: 'arrowup', shift: true, action: nudge(0, -NUDGE_FAST) },
-	{ key: 'arrowdown', shift: true, action: nudge(0, NUDGE_FAST) },
+/**
+ * The camera as it stood when space went down over the stage; null when
+ * space is up, or when the press was one that cannot turn into a pan.
+ */
+let spaceCamera: CameraMatrix | null = null;
+
+function toggleActivePlayback(world: World): void {
+	const scene = getActiveEntity(world);
+	if (scene) togglePlayback(world, scene);
+}
+
+function onSpacePressed(world: World): void {
+	if (world.get(Pointer)?.over) {
+		spaceCamera = getCameraMatrix(world);
+	} else {
+		spaceCamera = null;
+		toggleActivePlayback(world);
+	}
+}
+
+function onSpaceLifted(world: World): void {
+	const camera = getCameraMatrix(world);
+	if (spaceCamera?.every((value, index) => value === camera[index])) {
+		toggleActivePlayback(world);
+	}
+	spaceCamera = null;
+}
+
+const PRESSED_SHORTCUTS: readonly Shortcut[] = [
+	{ keys: ['backspace'], action: deleteSelection },
+	{ keys: ['delete'], action: deleteSelection },
+	{ keys: ['d', 'mod'], action: duplicateSelection },
+	{ keys: ['b', 'mod'], action: splitAtPlayhead },
+	{ keys: ['c', 'mod'], action: copySelection },
+	{ keys: ['v', 'mod'], action: pasteSelection },
+	{ keys: ['arrowleft', '!shift'], action: nudge(-NUDGE, 0) },
+	{ keys: ['arrowright', '!shift'], action: nudge(NUDGE, 0) },
+	{ keys: ['arrowup', '!shift'], action: nudge(0, -NUDGE) },
+	{ keys: ['arrowdown', '!shift'], action: nudge(0, NUDGE) },
+	{ keys: ['arrowleft', 'shift'], action: nudge(-NUDGE_FAST, 0) },
+	{ keys: ['arrowright', 'shift'], action: nudge(NUDGE_FAST, 0) },
+	{ keys: ['arrowup', 'shift'], action: nudge(0, -NUDGE_FAST) },
+	{ keys: ['arrowdown', 'shift'], action: nudge(0, NUDGE_FAST) },
+	{ keys: [' '], action: onSpacePressed },
+];
+
+const LIFTED_SHORTCUTS: readonly Shortcut[] = [
+	{ keys: [' '], action: onSpaceLifted },
 ];
 
 /**
- * On a frame with a fresh press, runs the shortcut the held keys spell, then
- * resets the frame's press and lift flags: it is the last reader of them.
+ * Whether `moved` — the keys that went down, or up, this frame — spells the
+ * shortcut: one of its keys has to be the one that moved, the rest have to
+ * be held, and a '!' key has to be up. The key that moved is matched
+ * against `moved` rather than `held` because a lift takes it out of `held`,
+ * and a tap shorter than a frame is over before the frame runs.
  */
+function matches(shortcut: Shortcut, moved: Set<string>, held: Set<string>): boolean {
+	let triggered = false;
+
+	for (const key of shortcut.keys) {
+		if (key.startsWith('!')) {
+			if (held.has(key.slice(1))) return false;
+		} else if (moved.has(key)) {
+			triggered = true;
+		} else if (!held.has(key)) {
+			return false;
+		}
+	}
+
+	return triggered;
+}
+
+/** On a frame with a fresh press or release, runs the shortcut it spells. */
 export function shortcutSystem(world: World): void {
 	const keys = world.get(Keys);
-	if (!keys?.justPressed) return;
+	if (!keys) return;
 
+	if (keys.pressed.size) {
+		PRESSED_SHORTCUTS.find(shortcut => matches(shortcut, keys.pressed, keys.held))?.action(world);
+	}
 
-	const shortcut = SHORTCUTS.find(
-		(shortcut) =>
-			shortcut.key.split('+').every(key => keys.held.has(key)) &&
-			keys.held.has('mod') === !!shortcut.mod &&
-			keys.held.has('shift') === !!shortcut.shift &&
-			keys.held.has('alt') === !!shortcut.alt,
-	);
-
-	shortcut?.action(world);
+	if (keys.lifted.size) {
+		LIFTED_SHORTCUTS.find(shortcut => matches(shortcut, keys.lifted, keys.held))?.action(world);
+	}
 }

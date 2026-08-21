@@ -83,6 +83,18 @@ class Engine {
 		this.addEvent('pointerup', event)
 	}
 
+	/**
+	 * Whether the pointer is on the stage, which a shortcut reads to tell a
+	 * press that could start a canvas gesture from one that could not.
+	 */
+	private readonly onPointerEnter = () => {
+		this.world.set(Pointer, { over: true });
+	}
+
+	private readonly onPointerLeave = () => {
+		this.world.set(Pointer, { over: false });
+	}
+
 	private readonly onBlur = () => {
 		// Key-up never arrives when focus leaves mid-hold (⌘-tab, devtools).
 		this.world.get(Keys)!.held.clear();
@@ -107,7 +119,10 @@ class Engine {
 
 		keys.held.add(key);
 		if (isMod) keys.held.add('mod');
-		if (!event.repeat) this.world.set(Keys, { justPressed: true });
+		if (!event.repeat) {
+			keys.pressed.add(key);
+			if (isMod) keys.pressed.add('mod');
+		}
 
 		event.preventDefault();
 	}
@@ -118,8 +133,11 @@ class Engine {
 		const isMod = event.key === 'Meta' || event.key === 'Control';
 
 		keys.held.delete(key);
-		if (isMod) keys.held.delete('mod');
-		this.world.set(Keys, { justLifted: true });
+		keys.lifted.add(key);
+		if (isMod) {
+			keys.held.delete('mod');
+			keys.lifted.add('mod');
+		}
 	};
 
 	private readonly loop = (timestamp: number): void => {
@@ -136,9 +154,8 @@ class Engine {
 		this.setFrame((count) => count + 1);
 
 		const keys = this.world.get(Keys);
-		if (keys?.justPressed || keys?.justLifted) {
-			this.world.set(Keys, { justPressed: false, justLifted: false });
-		}
+		keys?.pressed.clear();
+		keys?.lifted.clear();
 
 		this.rafId = requestAnimationFrame(this.loop);
 	}
@@ -214,6 +231,8 @@ class Engine {
 		canvas.addEventListener('dblclick', this.onDoubleClick);
 		canvas.addEventListener('pointerdown', this.onPointerDown);
 		canvas.addEventListener('pointermove', this.onPointerMove);
+		canvas.addEventListener('pointerenter', this.onPointerEnter);
+		canvas.addEventListener('pointerleave', this.onPointerLeave);
 		window.addEventListener('pointerup', this.onPointerUp);
 		window.addEventListener('pointercancel', this.onPointerUp);
 		window.addEventListener('keydown', this.onKeyDown);
@@ -258,6 +277,8 @@ class Engine {
 		this.canvas?.removeEventListener('dblclick', this.onDoubleClick);
 		this.canvas?.removeEventListener('pointerdown', this.onPointerDown);
 		this.canvas?.removeEventListener('pointermove', this.onPointerMove);
+		this.canvas?.removeEventListener('pointerenter', this.onPointerEnter);
+		this.canvas?.removeEventListener('pointerleave', this.onPointerLeave);
 		window.removeEventListener('pointerup', this.onPointerUp);
 		window.removeEventListener('pointercancel', this.onPointerUp);
 		window.removeEventListener('keydown', this.onKeyDown);
