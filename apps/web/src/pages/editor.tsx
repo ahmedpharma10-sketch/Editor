@@ -19,8 +19,8 @@ import { attachLibrary, isLibraryFile } from '@/engine/library';
 import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
 import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
-import { compileProject, watchProject, projectDir } from '@/projects/host';
-import { useProjectId } from "@/hooks/use-project-id";
+import { compileProject, watchProject } from '@/projects/host';
+import { useProject } from "@/context/project";
 
 import type { Mount } from '@diffusionstudio/reconciler';
 import type { EditWriter } from '@/projects/edits';
@@ -31,11 +31,14 @@ export function EditorPage() {
   const { uiVisible, timelineMinimized, timelineHeight, setTimelineHeight } = useLayout();
   const { isDesktop, isFullscreen } = useEditorApi();
   const [resizing, setResizing] = createSignal(false);
-  const name = useProjectId();
+  const project = useProject();
   const world = useWorld();
 
+  // Keyed on the folder, not the project: a rename moves it, and everything
+  // below holds a path — the watcher, the library, the writer — so all of it
+  // is torn down and re-attached where the project now is.
   createEffect(() => {
-    const dir = projectDir(name());
+    const dir = project.dir();
     if (!dir) return;
 
     let mounted: Mount | undefined;
@@ -92,10 +95,13 @@ export function EditorPage() {
       if (isLibraryFile(path)) {
         library.load();
       } else {
-        // package.json is the config and the record (`main`) in one, so a
-        // hand edit to it reloads both; the app's own config writes never
-        // reach here (main keeps them from the watcher).
-        if (isProjectConfigFile(path)) config.load();
+        // package.json is the config and the record (`main`, `displayName`)
+        // in one, so a hand edit to it reloads both; the app's own config
+        // writes never reach here (main keeps them from the watcher).
+        if (isProjectConfigFile(path)) {
+          config.load();
+          void project.refresh();
+        }
         loadProject();
       }
     });

@@ -24,7 +24,8 @@ import { assetName } from "@diffusionstudio/assets";
 import { useWorld } from "@diffusionstudio/koota-solid";
 import { useLibrary } from "@/engine/library";
 import { pickAndImport } from "@/engine/asset-actions";
-import { projectRoute, useProjectId } from "@/hooks/use-project-id";
+import { projectRoute } from "@/hooks/use-project-route";
+import { useProject } from "@/context/project";
 import { useEngine } from "@/context/engine";
 import { useExport } from "@/context/export";
 import { getDefaultExportTemplate } from "@/components/sidebar-right/inspector/export-templates";
@@ -32,15 +33,14 @@ import { mimeTypeToExtension } from "@/utils";
 
 export function FileMenu() {
   const navigate = useNavigate();
-  const projectId = useProjectId();
+  const project = useProject();
   const library = useLibrary();
 
   const handleNewProject = async () => {
     try {
       if (!projectsRoot() && !(await pickProjectsRoot())) return;
-      const displayName = generateProjectName();
-      const project = await createProject(folderName(displayName), displayName);
-      navigate(projectRoute(project.name));
+      const created = await createProject(generateProjectName());
+      navigate(projectRoute(created.id));
     } catch (e) {
       toast.error("Failed to create project", {
         description: (e as Error).message,
@@ -50,8 +50,8 @@ export function FileMenu() {
 
   const handleDuplicateProject = async () => {
     try {
-      const copy = await duplicateProject(projectId());
-      navigate(projectRoute(copy.name));
+      const copy = await duplicateProject(project.dir());
+      navigate(projectRoute(copy.id));
     } catch (e) {
       toast.error("Failed to duplicate project", { description: (e as Error).message });
     }
@@ -59,7 +59,7 @@ export function FileMenu() {
 
   const handleDeleteProject = async () => {
     try {
-      await deleteProject(projectId());
+      await deleteProject(project.dir());
       navigate("/?dashboard=projects");
     } catch (e) {
       toast.error("Failed to delete project", { description: (e as Error).message });
@@ -309,12 +309,4 @@ export function FileExportSpecificSceneMenu() {
       </Show>
     </DropdownMenuGroup>
   );
-}
-
-/** Folder-safe project name: "Golden River 15 Aug" -> "golden-river-15-aug". */
-function folderName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "") || "project";
 }

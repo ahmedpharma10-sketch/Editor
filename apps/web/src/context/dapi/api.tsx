@@ -5,7 +5,7 @@
 import { createEffect, createContext, useContext, onCleanup } from "solid-js";
 import { useEngine } from '@/context/engine';
 import { useWorld } from '@diffusionstudio/koota-solid';
-import { useProjectId } from '@/hooks/use-project-id';
+import { useProject } from '@/context/project';
 import { useAuth } from '@/context/auth';
 import { t, q, q0 } from "@/lib/cli-rpc";
 import { handleContextGet } from "./context";
@@ -37,7 +37,7 @@ type EditorApiContextValue = {
 const EditorApiContext = createContext<EditorApiContextValue>();
 
 export function EditorApiProvider(props: EditorApiProviderProps) {
-  const projectId = useProjectId();
+  const project = useProject();
   const engine = useEngine();
   const auth = useAuth();
   const isFullscreen = useFullscreenState();
@@ -57,7 +57,7 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   const world = useWorld();
 
   createEffect(() => {
-    if (!window.desktop || !engine.initialized() || projectId() !== engine.world.projectId) return;
+    if (!window.desktop || !engine.initialized() || project.id() !== engine.world.projectId) return;
 
 
     const router = createAppRouter({ getEngine, world, getUser, requireAuth });

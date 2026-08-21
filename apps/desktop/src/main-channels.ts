@@ -43,6 +43,7 @@ export const MAIN_CHANNELS = {
   PROJECTS_PICK_ROOT: "projects:pick-root",
   PROJECTS_LIST: "projects:list",
   PROJECTS_GET: "projects:get",
+  PROJECTS_RESOLVE: "projects:resolve",
   PROJECTS_CREATE: "projects:create",
   PROJECTS_RENAME: "projects:rename",
   PROJECTS_DUPLICATE: "projects:duplicate",
@@ -69,11 +70,17 @@ export const MAIN_CHANNELS = {
 
 /**
  * A project folder under the projects root: a real npm package with a JSX
- * entry. Its package.json is the project record: `displayName` is the human
- * name, `main` the entry file.
+ * entry. Its package.json is the project record: `projectId` is what the
+ * project is, `displayName` the human name, `main` the entry file.
  */
 export type ProjectInfo = {
-  /** Folder name, doubles as the project id. */
+  /**
+   * package.json `projectId`: the project's identity, and the segment its URL
+   * carries. Empty for a folder that predates ids and has not been opened
+   * since — `PROJECTS_RESOLVE` is what gives one out.
+   */
+  id: string;
+  /** Folder name. Renaming the project moves it, so it is not the identity. */
   name: string;
   /** Human name from package.json `displayName` (falls back to the folder name). */
   displayName: string;
@@ -134,10 +141,15 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.PROJECTS_PICK_ROOT]: { request: void; response: string | null };
   [MAIN_CHANNELS.PROJECTS_LIST]: { request: { root: string }; response: ProjectInfo[] };
   [MAIN_CHANNELS.PROJECTS_GET]: { request: { dir: string }; response: ProjectInfo | null };
+  [MAIN_CHANNELS.PROJECTS_RESOLVE]: {
+    request: { root: string; ref: string };
+    response: ProjectInfo | null;
+  };
   [MAIN_CHANNELS.PROJECTS_CREATE]: {
-    request: { root: string; name: string; displayName: string };
+    request: { root: string; displayName: string };
     response: ProjectInfo;
   };
+  // Renames the project: `displayName` in the record, and the folder with it.
   [MAIN_CHANNELS.PROJECTS_RENAME]: {
     request: { dir: string; displayName: string };
     response: ProjectInfo;

@@ -12,7 +12,7 @@ One JSON object:
 
 ```ts
 {
-  projectId:      string;
+  projectId:      string;        // package.json `projectId`, stable across renames
   entityCount:    number;
   scenes:         number[];        // ids of the top-level scenes
   activeSceneId:  number | null;   // null if no scene is active

@@ -41,7 +41,7 @@ import {
 } from "./shared";
 import { DashboardSearchPanel } from "./search-bar";
 import { DashboardProjectsFolderBar } from "./projects-folder-bar";
-import { projectRoute } from "@/hooks/use-project-id";
+import { projectRoute } from "@/hooks/use-project-route";
 import { Icon } from "../ui/icon";
 import { track } from "@/lib/analytics";
 import {
@@ -51,6 +51,7 @@ import {
   isDesktop,
   listProjects,
   pickProjectsRoot,
+  projectKey,
   projectsRoot,
   renameProject,
   type ProjectInfo,
@@ -61,7 +62,7 @@ import type { ProjectSortOption } from "./types";
 // Projects live on disk under a user-picked root (see @/projects); their
 // package.json is the record. Thumbnails have no on-disk backing yet: the UI
 // stays, the lookup is a no-op until the desktop host grows it.
-async function getProjectThumbnail(_name: string): Promise<Blob | undefined> {
+async function getProjectThumbnail(_id: string): Promise<Blob | undefined> {
   return undefined;
 }
 
@@ -109,24 +110,24 @@ export function DashboardProjectsView() {
   });
 
   const openProject = (project: ProjectInfo) => {
-    if (renamingProject() === project.name) return;
+    if (renamingProject() === project.dir) return;
 
     track('project_opened');
-    navigate(projectRoute(project.name));
+    navigate(projectRoute(projectKey(project)));
   };
 
   const startRenaming = (project: ProjectInfo) => {
     batch(() => {
       setRenameDraft(project.displayName);
-      setRenamingProject(project.name);
+      setRenamingProject(project.dir);
     });
   };
 
   const handleDelete = async (project: ProjectInfo) => {
     try {
-      await deleteProject(project.name);
+      await deleteProject(project.dir);
       track('project_deleted');
-      setSelectedProject((current) => (current === project.name ? null : current));
+      setSelectedProject((current) => (current === project.dir ? null : current));
       refetchProjects();
     } catch (e) {
       toast.error("Failed to delete project", { description: (e as Error).message });
@@ -148,7 +149,7 @@ export function DashboardProjectsView() {
 
   const handleDuplicate = async (project: ProjectInfo) => {
     try {
-      await duplicateProject(project.name);
+      await duplicateProject(project.dir);
       track('project_duplicated');
       refetchProjects();
     } catch (e) {
@@ -172,7 +173,7 @@ export function DashboardProjectsView() {
     refetchProjects();
   };
 
-  const handleKeyDownRenameInput = async (event: KeyboardEvent, projectName: string) => {
+  const handleKeyDownRenameInput = async (event: KeyboardEvent, project: ProjectInfo) => {
     const input = event.currentTarget as HTMLInputElement;
     const trimmedName = renameDraft()?.trim() ?? "";
 
@@ -190,9 +191,11 @@ export function DashboardProjectsView() {
       event.preventDefault();
       event.stopPropagation();
 
-      if (trimmedName.length > 0 && projectName === renamingProject()) {
+      // The folder moves with the name, so the list is refetched below
+      // rather than patched: every path in it has just changed.
+      if (trimmedName.length > 0 && project.dir === renamingProject()) {
         try {
-          await renameProject(projectName, trimmedName);
+          await renameProject(project.dir, trimmedName);
         } catch (e) {
           toast.error("Failed to rename project", { description: (e as Error).message });
         }
@@ -231,8 +234,7 @@ export function DashboardProjectsView() {
         if (!projectsRoot()) return;
       }
 
-      const displayName = generateProjectName();
-      const project = await createProject(folderName(displayName), displayName);
+      const project = await createProject(generateProjectName());
       track('project_created');
       refetchProjects();
       openProject(project);
@@ -293,24 +295,24 @@ export function DashboardProjectsView() {
             <ContextMenu
               modal={false}
               onOpenChange={(open) => {
-                if (open) setSelectedProject(project.name);
+                if (open) setSelectedProject(project.dir);
               }}
             >
               <ContextMenuTrigger as="div" class="contents">
                 <DashboardCardButton
-                  active={selectedProject() === project.name}
-                  onClick={() => setSelectedProject(project.name)}
+                  active={selectedProject() === project.dir}
+                  onClick={() => setSelectedProject(project.dir)}
                   onDoubleClick={() => openProject(project)}
                   onEscape={() => setSelectedProject(null)}
                   onDelete={() => setPendingDelete(project)}
                 >
                   <DashboardCardPreview>
-                    <ProjectThumbnail name={project.name} />
+                    <ProjectThumbnail id={projectKey(project)} />
                   </DashboardCardPreview>
                   <div class="flex flex-col gap-1 px-2">
                     <div class="relative h-4 w-full">
                       <Show
-                        when={renamingProject() === project.name}
+                        when={renamingProject() === project.dir}
                         fallback={
                           <p class="min-w-0 truncate text-xs text-foreground">
                             {project.displayName}
@@ -325,7 +327,7 @@ export function DashboardProjectsView() {
                             onInput={handleRenameInput}
                             onFocus={handleFocusRenameInput}
                             onBlur={handleBlurRenameInput}
-                            onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project.name)}
+                            onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project)}
                             placeholder="Project name"
                             aria-label="Project name"
                             class="absolute inset-x-0 top-1/2 h-5 w-full -translate-y-1/2 border border-ring bg-input px-1 py-0 ring-1 ring-inset ring-ring"
@@ -395,8 +397,8 @@ export function DashboardProjectsView() {
   );
 }
 
-function ProjectThumbnail(props: { name: string }) {
-  const [thumbnail] = createResource(() => props.name, getProjectThumbnail);
+function ProjectThumbnail(props: { id: string }) {
+  const [thumbnail] = createResource(() => props.id, getProjectThumbnail);
   const url = createMemo(() => {
     const blob = thumbnail();
     if (!blob) return null;
@@ -427,14 +429,6 @@ const SORT_OPTIONS: Array<{ id: ProjectSortOption; label: string }> = [
 ];
 
 const MAX_VISIBLE_PROJECTS = 11;
-
-/** Folder-safe project name: "Golden River 15 Aug" -> "golden-river-15-aug". */
-function folderName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "") || "project";
-}
 
 function parseTimestamp(value: string): number {
   const parsed = Date.parse(value);

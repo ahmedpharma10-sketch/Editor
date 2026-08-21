@@ -6,8 +6,7 @@ import { createContext, useContext, onCleanup, onMount } from "solid-js";
 import { toast } from "somoto";
 import { assert, downloadObject } from "@/utils";
 import { useEngine } from "@/context/engine";
-import { useProjectId } from "@/hooks/use-project-id";
-import { getProjectName } from "@/projects";
+import { useProject } from "@/context/project";
 import { track } from "@/lib/analytics";
 import { ExportProgress, type ExportConfig } from "@/components/sidebar-right/inspector/export-progress";
 import { renderScene, renderOverlay, cancelRender } from "@/context/render";
@@ -29,7 +28,7 @@ const ExportContext = createContext<ExportContextValue>();
 export function ExportProvider(props: { children: JSX.Element }) {
   const engine = useEngine();
   const { world } = engine;
-  const projectId = useProjectId();
+  const project = useProject();
 
   const exporting = () => !!renderOverlay();
 
@@ -42,9 +41,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
     const format = config.format ?? "mp4";
     const mimeType = MIME_TYPES[format];
 
-    const name = (await getProjectName(projectId()))
-      .replace(/\s+/g, "-")
-      .toLowerCase();
+    const name = project.name().replace(/\s+/g, "-").toLowerCase();
 
     let target: FileSystemFileHandle;
     try {
@@ -131,9 +128,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
       return;
     }
 
-    const projectName = (await getProjectName(projectId()))
-      .replace(/\s+/g, "-")
-      .toLowerCase();
+    const projectName = project.name().replace(/\s+/g, "-").toLowerCase();
     await downloadObject(blob, `${projectName}-frame.png`);
   };
 

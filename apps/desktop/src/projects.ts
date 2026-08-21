@@ -5,8 +5,8 @@
 // Projects on disk. A project is a plain folder that is a real npm package
 // with a JSX entry file whose default export renders a <stage>. The user picks
 // a root folder; every direct child folder holding an entry file is a project.
-// The package.json is the project record (`displayName`, `main`); there is no
-// registry elsewhere.
+// The package.json is the project record (`projectId`, `displayName`, `main`);
+// there is no registry elsewhere.
 //
 // Compilation bundles the entry with esbuild (which resolves node_modules for
 // us) and runs project sources through babel-preset-solid's universal JSX
@@ -18,6 +18,7 @@ import { watch, type FSWatcher } from "node:fs";
 import { cp, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { nanoid } from "nanoid";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { TransformOptions } from "@babel/core";
@@ -73,7 +74,12 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-type PackageJson = { name?: string; displayName?: string; main?: string } & Record<string, unknown>;
+type PackageJson = {
+  name?: string;
+  projectId?: string;
+  displayName?: string;
+  main?: string;
+} & Record<string, unknown>;
 
 async function readPackage(dir: string): Promise<PackageJson | null> {
   try {
@@ -85,6 +91,37 @@ async function readPackage(dir: string): Promise<PackageJson | null> {
 
 async function writePackage(dir: string, pkg: PackageJson): Promise<void> {
   await writeFile(join(dir, "package.json"), JSON.stringify(pkg, null, 2) + "\n", "utf8");
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+
+// A project is named twice: `displayName` is what the user calls it and the
+// folder is what the disk calls it, and renaming moves both. Neither can be
+// the project's identity, so the record carries an id that nothing renames —
+// it is what the app's URLs point at, and what the editor keys the open world
+// by. Top level rather than inside `diffusion`, which `writeConfig` replaces
+// whole. A `nanoid()`: 21 url-safe characters, so it takes no encoding to be
+// a path segment.
+
+/** The id a record carries, or "" for a folder that predates them. */
+const recordedId = (pkg: PackageJson | null): string =>
+  typeof pkg?.projectId === "string" ? pkg.projectId.trim() : "";
+
+/**
+ * The project's id, minting and recording one when the folder has none: a
+ * folder made before ids existed, or by hand, gets one the first time the app
+ * opens it (see `resolveProject`).
+ */
+async function ensureProjectId(dir: string): Promise<string> {
+  const pkg = await readPackage(dir);
+  const existing = recordedId(pkg);
+  if (existing) return existing;
+
+  const id = nanoid();
+  markSelfWrite(dir, "package.json");
+  await writePackage(dir, { ...(pkg ?? packageJson(basename(dir), basename(dir))), projectId: id });
+  return id;
 }
 
 /** package.json `main` when it names a JSX/TS/JS file that exists, else the default lookup. */
@@ -109,6 +146,7 @@ async function describe(dir: string): Promise<ProjectInfo | null> {
   const name = basename(dir);
   const [folder, file] = await Promise.all([stat(dir), stat(join(dir, entry))]);
   return {
+    id: recordedId(pkg),
     name,
     displayName: pkg?.displayName?.trim() || name,
     dir,
@@ -132,19 +170,100 @@ export async function pickRoot(window: BrowserWindow | null): Promise<string | n
   return filePaths[0];
 }
 
-/** Every direct child folder of `root` that holds an entry file. */
-export async function listProjects(root: string): Promise<ProjectInfo[]> {
+/** Direct child folders of `root` that could hold a project, in a stable order. */
+async function childDirs(root: string): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true });
-  const projects = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
-      .map((entry) => describe(join(root, entry.name))),
-  );
+  return entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
+    .map((entry) => entry.name)
+    .sort()
+    .map((name) => join(root, name));
+}
+
+/** Every direct child folder of `root` that holds an entry file. Reads only. */
+export async function listProjects(root: string): Promise<ProjectInfo[]> {
+  const dirs = await childDirs(root);
+  const projects = await Promise.all(dirs.map(describe));
   return projects.filter((project): project is ProjectInfo => project !== null);
+}
+
+/**
+ * Where an id was last seen, so opening the project the URL names usually
+ * costs one package.json read instead of a scan of the root. Never trusted
+ * without rereading the file: a stale entry (folder renamed behind our back,
+ * project deleted) just falls through to the scan.
+ */
+const dirsById = new Map<string, string>();
+
+const cacheKey = (root: string, id: string): string => `${root}\n${id}`;
+
+/** Drops every cached id that pointed at `dir` (it moved, or is gone). */
+function forgetDir(dir: string): void {
+  for (const [key, cached] of dirsById) {
+    if (cached === dir) dirsById.delete(key);
+  }
+}
+
+/**
+ * The project `ref` names under `root`: an id first, then a folder name, so
+ * links made before ids existed still open. Whatever is found is left holding
+ * an id — this is where a folder that predates them gets one — and the caller
+ * can send the app to that id's URL.
+ *
+ * Ids live in a file the user can copy, so two folders can end up with the
+ * same one. Nothing here can tell which was meant, so it settles for being
+ * predictable: the cache answers first, so a project stays the one that was
+ * already open, and a cold scan is ordered by folder name.
+ */
+export async function resolveProject(root: string, ref: string): Promise<ProjectInfo | null> {
+  if (!ref) return null;
+
+  const found = async (dir: string): Promise<ProjectInfo | null> => {
+    dirsById.set(cacheKey(root, await ensureProjectId(dir)), dir);
+    return describe(dir);
+  };
+
+  const cached = dirsById.get(cacheKey(root, ref));
+  if (cached && recordedId(await readPackage(cached)) === ref) {
+    const project = await describe(cached);
+    if (project) return project;
+  }
+
+  let dirs: string[];
+  try {
+    dirs = await childDirs(root);
+  } catch {
+    return null;
+  }
+  const ids = await Promise.all(dirs.map(async (dir) => recordedId(await readPackage(dir))));
+
+  const byId = dirs[ids.indexOf(ref)];
+  if (byId) return found(byId);
+
+  const byName = dirs.find((dir) => basename(dir) === ref);
+  return byName ? found(byName) : null;
 }
 
 // ---------------------------------------------------------------------------
 // Scaffold
+
+/** Folder-safe project name: "Golden River 15 Aug" -> "golden-river-15-aug". */
+function folderName(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^[-.]+|[-.]+$/g, "")
+      .slice(0, 64) || "project"
+  );
+}
+
+/** `base`, or `base-2`, `base-3`... when the folder is taken. */
+async function freeFolder(root: string, base: string): Promise<string> {
+  let name = base;
+  for (let i = 2; await exists(join(root, name)); i++) name = `${base}-${i}`;
+  return name;
+}
 
 /** npm names: lowercase, url-safe, no leading dot or underscore, <= 214 chars. */
 function packageName(name: string): string {
@@ -188,6 +307,7 @@ const SCRIPTS: Record<string, string> = {
 
 const packageJson = (name: string, displayName: string): PackageJson => ({
   name: packageName(name),
+  projectId: nanoid(),
   displayName,
   private: true,
   type: "module",
@@ -246,7 +366,7 @@ on the canvas.
 | Path | What it is |
 | ---- | ---------- |
 | \`index.tsx\` | The entry. Its default export renders the composition. |
-| \`package.json\` | The project record: \`displayName\` (the name shown in the app), \`main\` (the entry), \`diffusion\` (how each scene is exported), and the dapi commands as scripts. |
+| \`package.json\` | The project record: \`projectId\` (its identity, kept across renames), \`displayName\` (the name shown in the app), \`main\` (the entry), \`diffusion\` (how each scene is exported), and the dapi commands as scripts. |
 | \`tsconfig.json\` | Types for the composition tags, through \`jsxImportSource\`. |
 | \`assets.yml\` | The asset library: for every asset its library path, where its bytes are, and what it was found to be. Written by the app; hand edits are read on the next load. |
 | \`assets/\` | Files the app produced itself, generations under \`assets/generated/\`. Media imported from elsewhere on disk is linked where it lies, never copied. |
@@ -347,12 +467,19 @@ async function ensurePackage(dir: string, name: string, displayName: string, ent
     return;
   }
   const next = { ...pkg };
+  if (!recordedId(next)) next.projectId = nanoid();
   if (typeof next.displayName !== "string") next.displayName = displayName;
   if (typeof next.main !== "string") next.main = entry;
   // The commands are a menu rather than a record: a project that keeps its own
   // scripts is left with them, one with none is given the dapi surface.
   if (typeof next.scripts !== "object" || next.scripts === null) next.scripts = { ...SCRIPTS };
-  if (next.displayName !== pkg.displayName || next.main !== pkg.main || next.scripts !== pkg.scripts) {
+  if (
+    next.projectId !== pkg.projectId ||
+    next.displayName !== pkg.displayName ||
+    next.main !== pkg.main ||
+    next.scripts !== pkg.scripts
+  ) {
+    markSelfWrite(dir, "package.json");
     await writePackage(dir, next);
   }
 }
@@ -378,10 +505,13 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
   await writeIfMissing(dir, "README.md", readme(displayName));
 }
 
-/** Creates a fresh project folder under `root`. Fails if the folder exists. */
-export async function createProject(root: string, name: string, displayName: string): Promise<ProjectInfo> {
-  const dir = join(root, name);
-  if (await exists(dir)) throw new Error(`"${name}" already exists in the projects folder.`);
+/**
+ * Creates a fresh project folder under `root`, named after `displayName`. A
+ * taken name is numbered rather than refused: the folder is a label, the id
+ * inside it is the project.
+ */
+export async function createProject(root: string, displayName: string): Promise<ProjectInfo> {
+  const dir = join(root, await freeFolder(root, folderName(displayName)));
   await mkdir(dir, { recursive: true });
   await scaffold(dir, displayName);
   const project = await describe(dir);
@@ -389,13 +519,51 @@ export async function createProject(root: string, name: string, displayName: str
   return project;
 }
 
-/** Sets the human name (package.json `displayName`). */
+/**
+ * Renames the project: the human name in the record, and the folder with it,
+ * so what the user sees in Finder keeps matching what they see in the app.
+ * This is the only thing here that moves a folder — nothing syncs the two
+ * behind the user's back — and it costs the project neither its identity nor
+ * its links, both of which are the id.
+ */
 export async function renameProject(dir: string, displayName: string): Promise<ProjectInfo> {
   const pkg = (await readPackage(dir)) ?? packageJson(basename(dir), displayName);
-  await writePackage(dir, { ...pkg, displayName: displayName.trim() || basename(dir) });
-  const project = await describe(dir);
+  const name = displayName.trim() || basename(dir);
+  markSelfWrite(dir, "package.json");
+  await writePackage(dir, { ...pkg, displayName: name });
+
+  const project = await describe(await renameFolder(dir, name));
   if (!project) throw new Error("Not a project folder.");
   return project;
+}
+
+/**
+ * Moves the project folder to match `displayName`; answers where it ended up.
+ * Best effort by design: the folder can be locked, open elsewhere, or on a
+ * volume that will not have it, and none of that should cost the user the
+ * name they just typed.
+ */
+async function renameFolder(dir: string, displayName: string): Promise<string> {
+  const root = dirname(dir);
+  const base = folderName(displayName);
+  const current = basename(dir);
+  // Already named after it, numbered suffix and all: moving `my-clip-2` to
+  // `my-clip` (or to `my-clip-3`) shuffles folders that are equally right.
+  if (current === base || (current.startsWith(`${base}-`) && /^\d+$/.test(current.slice(base.length + 1)))) {
+    return dir;
+  }
+
+  try {
+    const target = join(root, await freeFolder(root, base));
+    // The watcher holds the old path, and the renderer re-watches the new one
+    // as soon as it hears where the project went.
+    unwatchProject(dir);
+    await rename(dir, target);
+    forgetDir(dir);
+    return target;
+  } catch {
+    return dir;
+  }
 }
 
 /** Copies the folder next to itself as `<name>-copy` (numbered when taken). */
@@ -404,12 +572,19 @@ export async function duplicateProject(dir: string): Promise<ProjectInfo> {
   if (!source) throw new Error("Not a project folder.");
 
   const root = dirname(dir);
-  let name = `${source.name}-copy`;
-  for (let i = 2; await exists(join(root, name)); i++) name = `${source.name}-copy-${i}`;
-  const target = join(root, name);
+  const target = join(root, await freeFolder(root, `${source.name}-copy`));
 
   await cp(dir, target, { recursive: true, errorOnExist: true, force: false });
-  await renameProject(target, `${source.displayName} (Copy)`);
+  // The record came along with everything else, id included, and two folders
+  // answering to one id is the thing the id exists to prevent. The folder is
+  // already named for the copy, so the record is written here rather than
+  // through `renameProject` (which would move it again).
+  const pkg = await readPackage(target);
+  await writePackage(target, {
+    ...(pkg ?? packageJson(basename(target), source.displayName)),
+    projectId: nanoid(),
+    displayName: `${source.displayName} (Copy)`,
+  });
   const project = await describe(target);
   if (!project) throw new Error("Failed to duplicate the project.");
   return project;
@@ -419,6 +594,7 @@ export async function duplicateProject(dir: string): Promise<ProjectInfo> {
 export async function deleteProject(dir: string): Promise<void> {
   unwatchProject(dir);
   await shell.trashItem(dir);
+  forgetDir(dir);
 }
 
 // ---------------------------------------------------------------------------

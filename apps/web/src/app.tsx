@@ -80,7 +80,7 @@ function App() {
     >
       <Route path="/auth/callback" component={AuthCallbackPage} />
       <Route path="/" component={() => <AuthGate><DashboardPage /></AuthGate>} />
-      <Route path="/projects/*name" component={() => <AuthGate><ProjectPage /></AuthGate>} />
+      <Route path="/projects/*ref" component={() => <AuthGate><ProjectPage /></AuthGate>} />
       <Route path="*404" component={NotFoundPage} />
     </RouterComponent>
   );

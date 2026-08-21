@@ -4,9 +4,15 @@
 
 // Renderer half of on-disk projects. Projects live as folders under a root
 // the user picks once (persisted); each project's package.json is its record
-// (`displayName`, `main`). The desktop main process scans, scaffolds, renames,
-// copies, trashes, compiles, and watches them. Desktop only for now: without
-// the bridge every call rejects and the root is null.
+// (`projectId`, `displayName`, `main`). The desktop main process scans,
+// scaffolds, renames, copies, trashes, compiles, and watches them. Desktop
+// only for now: without the bridge every call rejects and the root is null.
+//
+// A project is addressed by its folder — an absolute path, which is what main
+// takes — and identified by its id, which is what the app's URLs carry and
+// what survives the folder being renamed. `resolveProject` is the one bridge
+// between the two; callers get the folder from the `ProjectInfo` it answers
+// with (and the open project's from `@/context/project`).
 
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { mainBridge } from '@/lib/ipc';
@@ -38,55 +44,57 @@ export async function listProjects(): Promise<ProjectInfo[]> {
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_LIST, { root });
 }
 
-/** Creates a new project folder `name` (with `displayName` in its package.json) under the root. */
-export async function createProject(name: string, displayName = name): Promise<ProjectInfo> {
+/** Creates a project folder under the root, named after `displayName`. */
+export async function createProject(displayName: string): Promise<ProjectInfo> {
 	const root = projectsRoot();
 	if (!root) throw new Error('No projects folder selected.');
-	return mainBridge.call(MAIN_CHANNELS.PROJECTS_CREATE, { root, name, displayName });
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_CREATE, { root, displayName });
 }
 
-/** The project called `name` under the root, or null when there is none. */
-export async function getProject(name: string): Promise<ProjectInfo | null> {
-	const dir = projectDir(name);
+/**
+ * The project `ref` names under the root: its id, or — for links made before
+ * ids existed, and folders opened by name — its folder name. What comes back
+ * always carries an id, so the app can put that in the URL.
+ */
+export async function resolveProject(ref: string): Promise<ProjectInfo | null> {
+	const root = projectsRoot();
+	if (!root || !isDesktop()) return null;
+	return mainBridge.call(MAIN_CHANNELS.PROJECTS_RESOLVE, { root, ref });
+}
+
+/** The project in the folder `dir`, or null when there is none. */
+export async function getProject(dir: string): Promise<ProjectInfo | null> {
 	if (!dir || !isDesktop()) return null;
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_GET, { dir });
 }
 
-/** The human name of project `name` (its folder name when nothing else is known). */
-export async function getProjectName(name: string): Promise<string> {
-	return (await getProject(name).catch(() => null))?.displayName ?? name;
-}
-
-/** Sets the human name of project `name` (package.json `displayName`). */
-export async function renameProject(name: string, displayName: string): Promise<ProjectInfo> {
-	const dir = projectDir(name);
-	if (!dir) throw new Error(`Unknown project "${name}".`);
+/**
+ * Renames the project: `displayName` in the record, and the folder with it.
+ * The folder moves, so the answer says where the project now lives — hold on
+ * to it. Its id has not changed, and neither has its URL.
+ */
+export async function renameProject(dir: string, displayName: string): Promise<ProjectInfo> {
+	if (!dir) throw new Error('No project folder.');
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_RENAME, { dir, displayName });
 }
 
-/** Copies project `name` next to itself and returns the copy. */
-export async function duplicateProject(name: string): Promise<ProjectInfo> {
-	const dir = projectDir(name);
-	if (!dir) throw new Error(`Unknown project "${name}".`);
+/** Copies the project in `dir` next to itself and returns the copy (a new id). */
+export async function duplicateProject(dir: string): Promise<ProjectInfo> {
+	if (!dir) throw new Error('No project folder.');
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_DUPLICATE, { dir });
 }
 
-/** Moves project `name` to the trash. */
-export async function deleteProject(name: string): Promise<void> {
-	const dir = projectDir(name);
-	if (!dir) throw new Error(`Unknown project "${name}".`);
+/** Moves the project in `dir` to the trash. */
+export async function deleteProject(dir: string): Promise<void> {
+	if (!dir) throw new Error('No project folder.');
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_DELETE, { dir });
 }
 
-/** Absolute folder of the project called `name` under the current root, or null. */
-export function projectDir(name: string): string | null {
-	const root = projectsRoot();
-	if (!root) return null;
-	// Names are folder names, never paths.
-	if (!name || name === '.' || name === '..' || /[\\/]/.test(name)) return null;
-	const separator = root.includes('\\') ? '\\' : '/';
-	return `${root}${separator}${name}`;
-}
+/**
+ * What to put in a project's URL: its id, or its folder name while it has
+ * none (a folder that predates ids gets one the next time it is opened).
+ */
+export const projectKey = (project: ProjectInfo): string => project.id || project.name;
 
 export function compileProject(dir: string): Promise<CompileResult> {
 	return mainBridge.call(MAIN_CHANNELS.PROJECTS_COMPILE, { dir });

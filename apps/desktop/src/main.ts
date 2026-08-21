@@ -22,6 +22,7 @@ import {
   listProjects,
   pickRoot,
   renameProject,
+  resolveProject,
   unwatchAll,
   listEntries,
   markSelfWriteAbsolute,
@@ -272,8 +273,9 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_PICK_ROOT, () => pickRoot(mainWindow));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_LIST, ({ root }) => listProjects(root));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_GET, ({ dir }) => getProject(dir));
-  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, name, displayName }) =>
-    createProject(root, name, displayName),
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_RESOLVE, ({ root, ref }) => resolveProject(root, ref));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, displayName }) =>
+    createProject(root, displayName),
   );
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_RENAME, ({ dir, displayName }) => renameProject(dir, displayName));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_DUPLICATE, ({ dir }) => duplicateProject(dir));
