@@ -27,11 +27,6 @@
           document.documentElement.dataset.platform = window.desktop.platform;
           if (window.desktop.platform === "darwin") {
             document.documentElement.dataset.boot = "1";
-            // Failsafe: never strand the mark on screen if the app never mounts.
-            setTimeout(function () {
-              var el = document.getElementById("boot-splash");
-              if (el) el.remove();
-            }, 15000);
           }
         }
       })();

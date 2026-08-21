@@ -44,7 +44,7 @@ export function DashboardPage() {
       <Show when={!!window.desktop}>
         <div class="fixed top-0 left-0 right-0 h-10 z-20" style="-webkit-app-region: drag;" />
       </Show>
-      <aside class="flex min-h-0 w-56 shrink-0 flex-col bg-card">
+      <aside class="flex min-h-0 w-66 shrink-0 flex-col bg-card">
         <DashboardSidebarHeader />
         <DashboardSidebarNav>
           <DashboardSidebarItem active={view() === "projects"} onClick={() => setView("projects")} icon="diffusion-project-file" label="Projects" />
