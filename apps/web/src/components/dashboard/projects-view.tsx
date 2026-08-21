@@ -48,9 +48,9 @@ import {
   createProject,
   deleteProject,
   duplicateProject,
+  ensureProjectsRoot,
   isDesktop,
   listProjects,
-  pickProjectsRoot,
   projectKey,
   projectsRoot,
   renameProject,
@@ -209,18 +209,6 @@ export function DashboardProjectsView() {
     };
   };
 
-  const handleChooseRoot = async () => {
-    if (!isDesktop()) {
-      toast.error("Projects on disk are only available in the desktop app");
-      return;
-    }
-    try {
-      await pickProjectsRoot();
-    } catch (e) {
-      toast.error("Failed to choose projects folder", { description: (e as Error).message });
-    }
-  };
-
   // New project is the one card a single click still acts on, so a double
   // click lands on it as two clicks — the guard keeps that from creating two
   // projects.
@@ -229,10 +217,13 @@ export function DashboardProjectsView() {
     setCreating(true);
 
     try {
-      if (!projectsRoot()) {
-        await handleChooseRoot();
-        if (!projectsRoot()) return;
+      if (!isDesktop()) {
+        toast.error("Projects on disk are only available in the desktop app");
+        return;
       }
+      // Waits for the roots to come back from the database, and asks for one
+      // when there is none to wait for.
+      if (!(await ensureProjectsRoot())) return;
 
       const project = await createProject(generateProjectName());
       track('project_created');

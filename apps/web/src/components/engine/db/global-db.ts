@@ -22,96 +22,92 @@ export function generateProjectName(): string {
   return `${adj} ${noun} ${day} ${month}`;
 }
 
-export interface Directory {
+/**
+ * A folder the user keeps projects in (desktop; see @/projects). A path
+ * rather than a handle: on desktop the main process does the reading, and it
+ * takes paths.
+ *
+ * Stored as a list because there will be several. The app works against one
+ * at a time for now — the most recently used, so no separate "active" flag
+ * can end up pointing at a root that was removed.
+ */
+export interface ProjectRoot {
   id: string;
+  /** Absolute path of the folder. */
+  path: string;
+  /** Its last segment, for showing it. */
   name: string;
-  handle: FileSystemDirectoryHandle;
   createdAt: string;
-  lastAccessedAt: string;
+  lastUsedAt: string;
 }
 
 export interface GlobalDBSchema extends idb.DBSchema {
-  directories: {
-    value: Directory;
+  roots: {
+    value: ProjectRoot;
     key: string;
     indexes: {
-      'by-name': string;
-      'by-last-accessed': string;
+      'by-path': string;
+      'by-last-used': string;
     };
   };
 }
 
-const DB_NAME = 'global-db';
+const DB_NAME = 'diffusion-studio-idb';
 const DB_VERSION = 1;
 
 const dbPromise = openDB<GlobalDBSchema>(DB_NAME, DB_VERSION, {
   upgrade(db) {
-    if (!db.objectStoreNames.contains('directories')) {
-      const store = db.createObjectStore('directories', {
-        keyPath: 'id',
-      });
-      store.createIndex('by-name', 'name');
-      store.createIndex('by-last-accessed', 'lastAccessedAt');
+    if (!db.objectStoreNames.contains('roots')) {
+      const store = db.createObjectStore('roots', { keyPath: 'id' });
+      store.createIndex('by-path', 'path', { unique: true });
+      store.createIndex('by-last-used', 'lastUsedAt');
     }
   },
 });
 
+
+// ---------------------------------------------------------------------------
+// Project roots
+
+/** Last segment of a path, whichever separator it uses. */
+const folderLabel = (path: string): string => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+
 /**
- * Saves the root directory handle to the database.
- * If the same handle already exists, it will be updated.
+ * Records `path` as a projects root, or marks the one already recorded for it
+ * as just used — which is what makes it the active one.
  */
-export async function saveDirectoryHandle(handle: FileSystemDirectoryHandle) {
+export async function rememberProjectRoot(path: string): Promise<ProjectRoot> {
   const db = await dbPromise;
   const now = new Date().toISOString();
+  const existing = await db.getFromIndex('roots', 'by-path', path);
 
-  let id = nanoid();
-  let createdAt = now;
+  const root: ProjectRoot = existing
+    ? { ...existing, name: folderLabel(path), lastUsedAt: now }
+    : { id: nanoid(), path, name: folderLabel(path), createdAt: now, lastUsedAt: now };
 
-  const existingEntries = await db.getAll('directories');
-  for (const entry of existingEntries) {
-    if (typeof entry.handle?.isSameEntry !== 'function') continue;
-    if (await entry.handle.isSameEntry(handle)) {
-      id = entry.id;
-      createdAt = entry.createdAt;
-      break;
-    }
-  }
-
-  const entry: Directory = {
-    id,
-    name: handle.name,
-    handle,
-    createdAt,
-    lastAccessedAt: now,
-  };
-
-  await db.put('directories', entry);
-  return entry;
+  await db.put('roots', root);
+  return root;
 }
 
-/**
- * Returns the most recently accessed root directory, or null if none exists.
- */
-export async function retrieveLastAccessedDirectory(): Promise<Directory | null> {
+/** Every projects root, most recently used first. */
+export async function listProjectRoots(): Promise<ProjectRoot[]> {
+  const db = await dbPromise;
+  return (await db.getAllFromIndex('roots', 'by-last-used')).reverse();
+}
+
+/** The root the app is working against: the one used last, or null when there is none. */
+export async function lastUsedProjectRoot(): Promise<ProjectRoot | null> {
   const db = await dbPromise;
   const cursor = await db
-    .transaction('directories', 'readonly')
-    .store.index('by-last-accessed')
+    .transaction('roots', 'readonly')
+    .store.index('by-last-used')
     .openCursor(null, 'prev');
 
   return cursor?.value ?? null;
 }
 
-/**
- * Finds the last accessed directory handle, or falls back to the origin
- * private file system as a scratch location for asset files.
- * @returns The directory handle.
- */
-export async function retrieveDirectoryHandle() {
-  const lastAccessed = await retrieveLastAccessedDirectory();
-  if (lastAccessed) {
-    return lastAccessed.handle;
-  }
-
-  return await navigator.storage.getDirectory();
+/** Forgets a projects root. The folder itself is left alone. */
+export async function forgetProjectRoot(id: string): Promise<void> {
+  const db = await dbPromise;
+  await db.delete('roots', id);
 }

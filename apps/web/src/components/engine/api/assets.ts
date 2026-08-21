@@ -9,7 +9,6 @@ import { ALL_FORMATS, InputTrack, UrlSource } from 'mediabunny';
 import { BlobSource } from 'mediabunny';
 import { Input } from 'mediabunny';
 import { nanoid } from "nanoid";
-import { saveDirectoryHandle, retrieveDirectoryHandle } from "../db";
 import { GeometryType, PaintType } from "../components";
 import { secondsToFrames } from "../utils/time";
 import { toast } from "somoto";
@@ -42,6 +41,7 @@ type MediaInput =
 type AssetState = {
   projectId: string;
   counter: number;
+  /** Where the browser build writes asset files: the origin private file system. */
   directoryHandle: Promise<FileSystemDirectoryHandle>;
   version: Accessor<number>;
   setVersion: Setter<number>;
@@ -63,7 +63,7 @@ export function initAssets(world: EngineWorld, projectId: string): void {
   assetStates.set(world, {
     projectId,
     counter: 0,
-    directoryHandle: retrieveDirectoryHandle(),
+    directoryHandle: navigator.storage.getDirectory(),
     version,
     setVersion,
     selected,
@@ -550,20 +550,6 @@ export async function uploadAssets(world: EngineWorld, ids?: string[]) {
   if (!ids || ids.length === 0) return undefined;
   const results = await Promise.all(ids.map((id) => uploadAsset(world, id)));
   return results.filter((ref) => ref !== null);
-}
-
-/** Prompts the user for a new OPFS root directory and persists the handle. */
-export async function changeAssetDirectory(world: EngineWorld): Promise<void> {
-  try {
-    const directory = await window.showDirectoryPicker({
-      mode: 'readwrite',
-      startIn: 'videos',
-    });
-    await saveDirectoryHandle(directory);
-    assetState(world).directoryHandle = Promise.resolve(directory);
-  } catch (error) {
-    console.error('Failed to change directory:', error);
-  }
 }
 
 /** Selects a single asset by id (replacing any prior selection). */

@@ -8,7 +8,7 @@ import { toast } from "somoto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { revealPath } from "@/lib/shell";
-import { isDesktop, pickProjectsRoot, projectsRoot } from "@/projects";
+import { isDesktop, pickProjectsRoot, projectsRoot, rootsReady } from "@/projects";
 
 /**
  * Footer bar of the projects view: shows the projects root and the actions on
@@ -16,6 +16,10 @@ import { isDesktop, pickProjectsRoot, projectsRoot } from "@/projects";
  * browser build (see @/projects).
  */
 export function DashboardProjectsFolderBar() {
+  // Blank rather than "No folder selected" until the database has answered:
+  // the root arrives a tick after the bar first renders.
+  const rootLabel = () => (rootsReady() ? projectsRoot() ?? "No folder selected" : "");
+
   const handleChange = async () => {
     try {
       await pickProjectsRoot();
@@ -49,7 +53,7 @@ export function DashboardProjectsFolderBar() {
             <div class="flex min-w-0 flex-1 flex-col justify-center gap-1">
               <p class="h-4 text-xs text-foreground">Project folder</p>
               <p class="min-w-0 truncate text-xs text-muted-foreground">
-                {projectsRoot() ?? "No folder selected"}
+                {rootLabel()}
               </p>
             </div>
           </div>

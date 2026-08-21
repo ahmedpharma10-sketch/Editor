@@ -16,7 +16,7 @@ import { useNavigate } from "@solidjs/router";
 import { For, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
 import { generateProjectName } from "@/components/engine/db";
-import { createProject, deleteProject, duplicateProject, pickProjectsRoot, projectsRoot } from "@/projects";
+import { createProject, deleteProject, duplicateProject, ensureProjectsRoot } from "@/projects";
 import { Not } from "bitecs";
 import { ChildOf, isScene, useQuery } from "@/components/engine";
 import { AssetId, getAssetFile } from "@diffusionstudio/runtime";
@@ -38,7 +38,7 @@ export function FileMenu() {
 
   const handleNewProject = async () => {
     try {
-      if (!projectsRoot() && !(await pickProjectsRoot())) return;
+      if (!(await ensureProjectsRoot())) return;
       const created = await createProject(generateProjectName());
       navigate(projectRoute(created.id));
     } catch (e) {
