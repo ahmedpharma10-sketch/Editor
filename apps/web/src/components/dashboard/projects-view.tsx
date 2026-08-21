@@ -52,19 +52,14 @@ import {
   isDesktop,
   listProjects,
   projectKey,
+  projectCoverKey,
   projectsRoot,
+  readProjectCover,
   renameProject,
   type ProjectInfo,
 } from "@/projects";
 
 import type { ProjectSortOption } from "./types";
-
-// Projects live on disk under a user-picked root (see @/projects); their
-// package.json is the record. Thumbnails have no on-disk backing yet: the UI
-// stays, the lookup is a no-op until the desktop host grows it.
-async function getProjectThumbnail(_id: string): Promise<Blob | undefined> {
-  return undefined;
-}
 
 export function DashboardProjectsView() {
   const navigate = useNavigate();
@@ -298,7 +293,7 @@ export function DashboardProjectsView() {
                   onDelete={() => setPendingDelete(project)}
                 >
                   <DashboardCardPreview>
-                    <ProjectThumbnail id={projectKey(project)} />
+                    <ProjectThumbnail dir={project.dir} />
                   </DashboardCardPreview>
                   <div class="flex flex-col gap-1 px-2">
                     <div class="relative h-4 w-full">
@@ -388,17 +383,22 @@ export function DashboardProjectsView() {
   );
 }
 
-function ProjectThumbnail(props: { id: string }) {
-  const [thumbnail] = createResource(() => props.id, getProjectThumbnail);
-  const url = createMemo(() => {
-    const blob = thumbnail();
-    if (!blob) return null;
-    return URL.createObjectURL(blob);
-  });
+function ProjectThumbnail(props: { dir: string }) {
+  const [cover] = createResource(
+    () => projectCoverKey(props.dir),
+    () => readProjectCover(props.dir),
+  );
+
+  // The URL the last cover was under is released as this one takes its place.
+  const url = createMemo<string | null>((previous) => {
+    if (previous) URL.revokeObjectURL(previous);
+    const blob = cover();
+    return blob ? URL.createObjectURL(blob) : null;
+  }, null);
 
   onCleanup(() => {
-    const u = url();
-    if (u) URL.revokeObjectURL(u);
+    const current = url();
+    if (current) URL.revokeObjectURL(current);
   });
 
   return (

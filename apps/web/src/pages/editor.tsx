@@ -20,7 +20,9 @@ import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-confi
 import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
 import { compileProject, watchProject } from '@/projects/host';
+import { captureProjectCover } from '@/projects/cover';
 import { useProject } from "@/context/project";
+import { useEngineContext } from "@/engine";
 
 import type { Mount } from '@diffusionstudio/reconciler';
 import type { EditWriter } from '@/projects/edits';
@@ -33,6 +35,7 @@ export function EditorPage() {
   const [resizing, setResizing] = createSignal(false);
   const project = useProject();
   const world = useWorld();
+  const engine = useEngineContext();
 
   // Keyed on the folder, not the project: a rename moves it, and everything
   // below holds a path — the watcher, the library, the writer — so all of it
@@ -108,6 +111,7 @@ export function EditorPage() {
 
     onCleanup(() => {
       disposed = true;
+      captureProjectCover(dir, engine.snapshot());
       unwatch();
       unmount();
       config.dispose();

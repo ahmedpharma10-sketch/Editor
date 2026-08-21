@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
+import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, Mode, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
 import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
 import { AssetSelection, Hud, Keys, Pointer, PointerEvents, ProjectConfig, SnapLines } from './traits';
@@ -221,6 +221,23 @@ class Engine {
 		window.addEventListener('blur', this.onBlur);
 
 		this.resizeObserver.observe(canvas.parentElement!);
+	}
+
+	public snapshot(): Promise<Blob | null> {
+		const canvas = this.canvas;
+		if (!canvas?.width || !canvas.height) return Promise.resolve(null);
+
+		const mode = this.world.get(Mode)?.value ?? 'realtime';
+		this.world.set(Mode, { value: 'offline-video' });
+		renderSystem(this.world);
+
+		const encoded = new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+
+		this.world.set(Mode, { value: mode });
+		renderSystem(this.world);
+		hudSystem(this.world);
+
+		return encoded;
 	}
 
 	public dispose(): void {
