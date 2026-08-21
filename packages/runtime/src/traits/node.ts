@@ -85,6 +85,12 @@ export const GenerationRequest = trait(() => ({ ref: null as AssetRef | null }))
 // through the library.
 export const LoadRequest = trait({ value: '' });
 
+// On a `<captions>` element without a src: transcribe the scene it sits
+// under, through the world's Ai. The seed keys the take — the transcript is
+// cached by scene id + seed, so re-running with a seed replays that take and
+// bumping the seed transcribes the scene again. Seed 0 is the default take.
+export const TranscriptionRequest = trait({ seed: 0 });
+
 // The src whose resolution is inflight, kept while the asset system works,
 // so a resolution that arrives after the element was given another source
 // (or none) is dropped. The document clears it whenever a new src arrives.

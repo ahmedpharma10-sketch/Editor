@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
@@ -434,6 +434,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				entity.set(Position, { x: 0, y: 0 });
 				entity.add(Chars);
 				entity.add(Caption);
+				entity.add(TranscriptionRequest);
 				break;
 			}
 			case 'adjustmentLayer': {
@@ -988,8 +989,15 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 				if (value === undefined || value === null || value === '') {
 					entity.remove(AssetId);
+					// A `<captions>` without a src transcribes its scene instead.
+					if (entity.has(Caption)) {
+						entity.add(TranscriptionRequest);
+						entity.set(TranscriptionRequest, { seed: toNumber(entity.get(Authored)?.props.seed) ?? 0 });
+					}
 					return;
 				}
+
+				entity.remove(TranscriptionRequest);
 
 				if (typeof value !== 'string') {
 					entity.remove(AssetId);
@@ -1146,6 +1154,20 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 						? CAPTION_ALIGNS[value]
 						: undefined,
 				});
+				return;
+			}
+			case 'seed': {
+				if (!entity.has(Caption)) return;
+				// An authored src mounts a transcript directly; there is no
+				// transcription for the seed to key. (An AssetRef src is not a
+				// PropValue, so its request stands in for the authored record.)
+				if (entity.get(Authored)?.props.src !== undefined) return;
+				if (entity.has(LoadRequest) || entity.has(GenerationRequest)) return;
+
+				// A resolution running for another seed must not bind late.
+				entity.remove(PendingSource);
+				entity.add(TranscriptionRequest);
+				entity.set(TranscriptionRequest, { seed: toNumber(value) ?? 0 });
 				return;
 			}
 			case 'background': {

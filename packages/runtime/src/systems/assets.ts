@@ -2,20 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Binds entities to the assets their `src` names. The document is
-// synchronous and only leaves requests behind (LoadRequest for a source
-// outside the library, GenerationRequest for a `generate.*` declaration);
-// this system consumes them each frame, starts the async work, and stamps
-// AssetId when the asset lands. Loads go through the world's library;
-// generations through the world's Ai — deduplication (a spec whose hash
-// already produced a library asset binds to it, identical inflight specs
-// share one run) is the Ai implementation's contract (see GenAi). A request
-// the world cannot serve yet — no library, no Ai — is left in place for a
-// frame that can. In offline mode the started work joins FramePromises, so
-// the encoder's barrier waits for the binding before it samples a frame.
-
-import { Ai, FramePromises, GenerationRequest, Library, LoadRequest, PendingSource } from '../traits';
+import { Ai, FramePromises, GenerationRequest, Library, LoadRequest, PendingSource, TranscriptionRequest } from '../traits';
 import { bindAsset } from '../actions/assets';
+import { getEntityTree, getSceneAncestor } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
@@ -38,7 +27,31 @@ export function assetSystem(world: World): void {
 			if (ref === null) continue;
 			resolve(world, entity, ref, ai.resolve(ref));
 		}
+
+		for (const entity of world.query(TranscriptionRequest)) {
+			const scene = getSceneAncestor(entity);
+			if (!scene || hasPendingSources(world, scene, entity)) continue;
+
+			const seed = entity.get(TranscriptionRequest)!.seed;
+			entity.remove(TranscriptionRequest);
+			resolve(world, entity, `transcript:${scene.id()}:${seed}`, ai.transcribe(world, scene, seed));
+		}
 	}
+}
+
+/**
+ * Whether anything in `scene`'s subtree (besides `except`, the requesting
+ * element itself) is still waiting on a source: a request this system has
+ * not consumed, or a resolution it started that has not landed.
+ */
+function hasPendingSources(world: World, scene: Entity, except: Entity): boolean {
+	for (const entity of getEntityTree(world, scene)) {
+		if (entity === except) continue;
+		if (entity.has(LoadRequest) || entity.has(GenerationRequest) || entity.has(PendingSource)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**

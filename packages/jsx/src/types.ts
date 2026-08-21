@@ -686,9 +686,9 @@ export type CaptionsProps = IdentityProps & TimingProps & OffsetProps & Partial<
    */
   verticalAlign?: "top" | "center" | "bottom";
   /**
-   * Transcription seed. Part of the transcript cache key, so a new value
-   * bypasses the cached transcript and transcribes the scene again; reusing
-   * a value replays that take from cache.
+   * Transcription seed. Part of the transcript cache key (scene id + seed),
+   * so a new value bypasses the cached transcript and transcribes the scene
+   * again; reusing a value replays that take from cache. Default 0.
    */
   seed?: number;
   /** `<Animation>` children. */

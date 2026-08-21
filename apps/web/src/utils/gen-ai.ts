@@ -10,9 +10,13 @@
 // finished file lands in the library under `generated/` with the spec's key
 // in the manifest.
 
-import { getAssetSpec, isAssetRef } from "@diffusionstudio/jsx";
-import { Ai, GenAi, getAssetFile, Project } from "@diffusionstudio/runtime";
-import { GENERATED_DIR } from "@diffusionstudio/assets";
+import { getAssetSpec, isAssetRef, parseSource } from "@diffusionstudio/jsx";
+import {
+  Ai, AssetId, Audio, GenAi, getAssetFile, getEntityTree, Hidden, Muted,
+  Paint, PaintType, Project, Source,
+} from "@diffusionstudio/runtime";
+import { createEncoder } from "@diffusionstudio/encoder";
+import { assetName, GENERATED_DIR } from "@diffusionstudio/assets";
 import {
   PROMPT_INPUT_AUDIO_MODEL_OPTIONS,
   PROMPT_INPUT_IMAGE_MODEL_OPTIONS,
@@ -25,7 +29,7 @@ import { trpc } from "@/lib/trpc";
 
 import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
 import type { Asset, AssetLibrary } from "@diffusionstudio/assets";
-import type { World } from "koota";
+import type { Entity, World } from "koota";
 
 // The UI offers a fixed set of voices on a fixed model (see prompt-input.tsx).
 const VOICE_MODEL = "elevenlabs-v3";
@@ -58,7 +62,7 @@ export class EditorGenAi extends GenAi {
    * forgotten, so a remount tries again.
    */
   private readonly memo = new Map<AssetRef, Promise<Asset>>();
-  /** In-flight generations keyed by `generationKey`. */
+  /** In-flight generations and transcriptions keyed by `generationKey`. */
   private readonly inflight = new Map<string, Promise<Asset>>();
 
   public constructor(library: AssetLibrary, projectId: string) {
@@ -78,6 +82,72 @@ export class EditorGenAi extends GenAi {
       this.memo.set(ref, promise);
     }
     return promise;
+  }
+
+  /**
+   * Transcribes the scene's audible mix for a `<captions>` element (see the
+   * runtime's asset system). Cached by scene id + seed: the same pair is the
+   * same transcript asset across sessions (the transcript lands in the
+   * library under `generated/` with that key in the manifest), and a new
+   * seed transcribes the scene again.
+   */
+  public async transcribe(world: World, scene: Entity, seed: number): Promise<Asset> {
+    const key = transcriptKey(scene, seed);
+
+    const cached = this.library.list().find((asset) => asset.generation?.key === key);
+    if (cached) return cached;
+
+    const running = this.inflight.get(key);
+    if (running) return await running;
+
+    const promise = this.runTranscription(world, scene, key);
+    this.inflight.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      this.inflight.delete(key);
+    }
+  }
+
+  /** Encodes the scene's audio, transcribes it, and stores the transcript. */
+  private async runTranscription(world: World, scene: Entity, key: string): Promise<Asset> {
+    assert(sceneHasAudio(world, scene), "No audio found. Add an audio or video clip to the scene to generate captions.");
+
+    const encoder = await createEncoder(world, {
+      scene,
+      format: "ogg",
+      video: { enabled: false },
+      audio: { enabled: true, codec: "opus", sampleRate: 24000 },
+    });
+    const result = await encoder.render();
+    assert(result.type === "success" && result.data !== undefined, "Failed to encode the scene audio");
+
+    const uploadId = crypto.randomUUID();
+    const audioFile = new File([result.data], `${uploadId}.ogg`, { type: "audio/ogg" });
+    const fileRef = await uploadBlob(audioFile, uploadId);
+    assert(fileRef, "Failed to upload the scene audio for transcription");
+
+    const { results: transcript } = await trpc.transcribe.mutate({ audio: fileRef });
+    assert(
+      transcript.length > 0 && transcript.some((segment) => segment.words.length > 0),
+      "No speech detected. The audio does not appear to contain recognizable speech.",
+    );
+
+    const blob = new Blob([JSON.stringify(transcript)], { type: "application/json" });
+    return this.library.store(blob, {
+      name: `${this.nextCaptionsName()}.json`,
+      folder: GENERATED_DIR,
+      generation: { key },
+    });
+  }
+
+  private nextCaptionsName(): string {
+    let max = 0;
+    for (const asset of this.library.list()) {
+      const match = assetName(asset).match(/^Captions (\d+)\.json$/);
+      if (match) max = Math.max(max, Number(match[1]));
+    }
+    return `Captions ${max + 1}`;
   }
 
   private resolveInput(input: AssetInput): Promise<Asset> {
@@ -231,6 +301,31 @@ export class EditorGenAi extends GenAi {
     assert(uploaded, `Failed to upload referenced asset ${assetId}`);
     return uploaded;
   }
+}
+
+/**
+ * The transcript cache key: scene id + seed. The scene's durable name is the
+ * id in its source stamp (`<file>:<id>`, stamped once by the compiler — the
+ * same identity the project config keys by); a scene without one falls back
+ * to its entity id, which only holds within the session.
+ */
+function transcriptKey(scene: Entity, seed: number): string {
+  const source = scene.get(Source)?.value;
+  const locator = source ? parseSource(source)?.locator : undefined;
+  const sceneId = typeof locator === "string" ? locator : source ?? String(scene.id());
+  return `transcript:v1:${sceneId}:${seed}`;
+}
+
+/**
+ * Whether anything in the scene contributes to its audible mix: an unmuted,
+ * unhidden audio clip, video, or video paint with its asset bound.
+ */
+function sceneHasAudio(world: World, scene: Entity): boolean {
+  for (const entity of getEntityTree(world, scene)) {
+    if (entity.has(Hidden) || entity.has(Muted) || !entity.has(AssetId)) continue;
+    if (entity.has(Audio) || entity.get(Paint)?.value === PaintType.VIDEO) return true;
+  }
+  return false;
 }
 
 /**

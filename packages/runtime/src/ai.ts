@@ -2,15 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The generation service a host may attach to the world (the `Ai` trait):
-// what turns a `generate.*` declaration into an asset of the project's
-// library. The runtime itself cannot generate — it only knows the contract —
-// so a world without an Ai never resolves such sources (see the asset
-// system). The asset library knows nothing of generation either; an
-// implementation *uses* a library to look up and store what it makes.
-
 import { generate } from '@diffusionstudio/jsx';
 
+import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
 import type {
 	AssetRef,
@@ -28,6 +22,14 @@ export abstract class GenAi {
 	 * and the next, and identical concurrent declarations share one run.
 	 */
 	public abstract resolve(ref: AssetRef): Promise<Asset>;
+
+	/**
+	 * The transcript of `scene`'s audible mix, as a TRANSCRIPT asset of the
+	 * project's library. Cached by scene id + seed: the same pair resolves to
+	 * the same asset, in this session and the next, and a new seed transcribes
+	 * the scene again. Identical concurrent requests share one run.
+	 */
+	public abstract transcribe(world: World, scene: Entity, seed: number): Promise<Asset>;
 
 	/**
 	 * The imperative surface: `ai.generate.image({...})` declares and resolves
