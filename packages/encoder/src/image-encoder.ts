@@ -7,10 +7,10 @@ import {
 	createRuntimeWorld, createEntity, appendChild, serializeEntity,
 	cloneFromRecords, getEntityTree, framesToSeconds,
 	formatTimecode, assert, store, disposeDecoders,
-	playbackSystem, motionSystem, transformSystem, renderSystem,
+	assetSystem, playbackSystem, motionSystem, transformSystem, renderSystem,
 	ChildOf, Geometry, Group, Hidden, IsMask, Muted, Culled,
 	ClipsContent, Playback, Computed, WorldBounds,
-	Project, Mode, RenderSurface, AudioEngine, Assets, Fonts, Root,
+	Project, Mode, RenderSurface, AudioEngine, Library, Ai, Fonts, Root,
 	resetCamera, setCamera,
 	FramePromises, Time, FrameRate,
 } from '@diffusionstudio/runtime';
@@ -65,7 +65,8 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	const sourceFrameRate = sourceWorld.get(FrameRate)?.value ?? 30;
 	const world = createRuntimeWorld(sourceWorld.get(Project)?.id ?? '');
 	world.set(Mode, { value: 'offline-video' });
-	world.set(Assets, sourceWorld.get(Assets)!);
+	world.set(Library, sourceWorld.get(Library) ?? null);
+	world.set(Ai, sourceWorld.get(Ai) ?? null);
 	world.set(Fonts, { list: [...(sourceWorld.get(Fonts)?.list ?? [])] });
 	world.set(RenderSurface, { canvas: offscreenCanvas, ctx: offscreenCtx, resolution: 1 });
 	world.set(AudioEngine, { context: offlineAudioCtx });
@@ -197,6 +198,7 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 				}
 
 				seek(frame);
+				assetSystem(world);
 				await resolverSystem(world);
 				motionSystem(world);
 				transformSystem(world);

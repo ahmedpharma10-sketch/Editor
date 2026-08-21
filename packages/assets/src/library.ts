@@ -12,9 +12,11 @@
 // keeping (thumbnails, waveforms) is the `cache`'s, under `cache/`.
 //
 // Knows nothing of the host: files come and go through a `ProjectFS`, and
-// what it cannot do itself (generate an asset, follow a rename into whatever
-// names assets by path, rebind whatever is bound to a relinked asset's old
-// id) it asks of `LibraryOptions`. Its state is solid signals (`assets()`,
+// what it cannot do itself (follow a rename into whatever names assets by
+// path, rebind whatever is bound to a relinked asset's old id) it asks of
+// `LibraryOptions`. Generation is not its business either — a generated
+// file is stored like any other bytes the app produced, with its
+// `generation` record along. Its state is solid signals (`assets()`,
 // `folders()`), so readers inside a tracking scope follow it.
 
 import { createSignal, type Accessor } from 'solid-js';
@@ -35,12 +37,6 @@ import type { Asset, AssetDirectoryHandle, AssetFileHandle, AssetGeneration, Seq
 const SAVE_DEBOUNCE = 200;
 
 export interface LibraryOptions {
-	/**
-	 * Turns what the runtime cannot — a `generate.*` declaration — into an
-	 * asset of this library; `resolve` hands it any non-string source. Without
-	 * one, such sources fail to resolve.
-	 */
-	generate?: AssetGenerator;
 	/**
 	 * Called when an asset's library path changes (renamed or moved), so the
 	 * host can follow in whatever names assets by path — the JSX `src` props.
@@ -68,9 +64,6 @@ export interface ImportOptions {
 	generation?: AssetGeneration;
 }
 
-/** See `LibraryOptions.generate`. */
-export type AssetGenerator = (ref: object, library: AssetLibrary) => Promise<Asset>;
-
 export class AssetLibrary {
 	public readonly fs: ProjectFS;
 	/** Thumbnails, rough waveforms: what is derived from assets and kept in `cache/`. */
@@ -86,7 +79,6 @@ export class AssetLibrary {
 	private declared = new Set<string>();
 	/** Every asset by id: the library's, and transient ones resolved from outside it. */
 	private readonly map = new Map<string, Asset>();
-	private readonly generator: LibraryOptions['generate'];
 	private readonly onRename: LibraryOptions['onRename'];
 	private readonly onRelink: LibraryOptions['onRelink'];
 	private inflight = new Map<string, Promise<Asset>>();
@@ -98,7 +90,6 @@ export class AssetLibrary {
 	public constructor(fs: ProjectFS, options: LibraryOptions = {}) {
 		this.fs = fs;
 		this.cache = new AssetCache(fs);
-		this.generator = options.generate;
 		this.onRename = options.onRename;
 		this.onRelink = options.onRelink;
 		[this.assets, this.setAssets] = createSignal<Asset[]>([]);
@@ -252,16 +243,12 @@ export class AssetLibrary {
 	// Resolving
 
 	/**
-	 * The asset a `src` names: a library path or id, an absolute path or URL
-	 * (resolved on the fly, kept in memory only), or a `generate.*` ref (left
-	 * to the host's generator).
+	 * The asset a source string names: a library path or id, or an absolute
+	 * path or URL (resolved on the fly, kept in memory only). Anything the
+	 * library cannot name — a `generate.*` declaration — is not a source; it
+	 * is the host's Ai's to resolve.
 	 */
-	public async resolve(input: unknown): Promise<Asset> {
-		if (typeof input !== 'string') {
-			if (!this.generator) throw new Error('This host cannot generate assets');
-			return this.generator(input as object, this);
-		}
-
+	public async resolve(input: string): Promise<Asset> {
 		const value = input.trim();
 		const known = this.get(value);
 		if (known) return known;

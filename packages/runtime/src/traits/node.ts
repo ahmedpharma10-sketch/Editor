@@ -6,6 +6,8 @@ import { trait } from 'koota';
 
 import { GeometryType, PaintType, CaptionType, CaptionAlign } from '../constants';
 
+import type { AssetRef } from '@diffusionstudio/jsx';
+
 // Geometric primitive: RECT or TEXT (see GeometryType). Other node-like roles
 // (group, audio, scene, caption) are layered on top via tag traits.
 export const Geometry = trait({ value: GeometryType.RECT as GeometryType });
@@ -70,6 +72,23 @@ export const Source = trait({ value: '' });
 export const Loop = trait({ value: '' });
 
 export const AssetId = trait({ value: '' });
+
+// A `src` the document could not bind synchronously. The document only
+// leaves one of these requests behind; the asset system does the async work
+// and stamps AssetId when the asset lands. Never serialized: a request is
+// this world's business, re-derived from the src on any re-render.
+
+// The `generate.*` declaration a src names, to run through the world's Ai.
+export const GenerationRequest = trait(() => ({ ref: null as AssetRef | null }));
+
+// A source outside the library — a path or URL — to load into memory
+// through the library.
+export const LoadRequest = trait({ value: '' });
+
+// The src whose resolution is inflight, kept while the asset system works,
+// so a resolution that arrives after the element was given another source
+// (or none) is dropped. The document clears it whenever a new src arrives.
+export const PendingSource = trait(() => ({ value: undefined as unknown }));
 
 // Sibling order under a ChildOf parent.
 export const ItemIndex = trait({ value: 0 });

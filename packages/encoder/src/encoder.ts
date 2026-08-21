@@ -13,7 +13,7 @@ import {
 	createRuntimeWorld, setActive, serializeEntity, cloneFromRecords,
 	getEntityTree, propagateTimeRangeDown, framesToSeconds,
 	assert, store, disposeDecoders,
-	playbackSystem, motionSystem, transformSystem, renderSystem,
+	assetSystem, playbackSystem, motionSystem, transformSystem, renderSystem,
 	AudioBus, AudioBusHandle,
 	ChildOf, Geometry, Group, Paint, Workarea, Playback,
 	AudioPlayback, Computed, Start, End, SourceIn, SourceOut,
@@ -21,7 +21,7 @@ import {
 	Position, Offset, Rotation, Scale, Skew,
 	Project, Mode, Time, FrameRate, RenderSurface, AudioEngine, Root,
 	resetCamera,
-	Assets, Fonts, FramePromises,
+	Library, Ai, Fonts, FramePromises,
 } from '@diffusionstudio/runtime';
 
 import { TargetBuffer } from './buffer';
@@ -95,7 +95,8 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 	// loaded so the new world doesn't try to re-add them.
 	const world = createRuntimeWorld(sourceWorld.get(Project)?.id ?? '');
 	world.set(Mode, { value: videoEnabled ? 'offline-video' : 'offline-audio' });
-	world.set(Assets, sourceWorld.get(Assets)!);
+	world.set(Library, sourceWorld.get(Library) ?? null);
+	world.set(Ai, sourceWorld.get(Ai) ?? null);
 	world.set(Fonts, { list: [...(sourceWorld.get(Fonts)?.list ?? [])] });
 	world.set(RenderSurface, { canvas: offscreenCanvas, ctx: offscreenCtx, resolution: scale });
 	world.set(AudioEngine, { context: offlineAudioCtx });
@@ -273,6 +274,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 				world.set(Time, { delta: frameDuration * 1000, now: time.now + frameDuration * 1000 });
 
 				{
+					assetSystem(world);
 					playbackSystem(world);
 					await resolverSystem(world);
 					motionSystem(world);

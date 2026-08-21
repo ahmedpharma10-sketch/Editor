@@ -10,8 +10,6 @@
  * opaque to the renderer.
  */
 
-import type { AssetInput } from "@diffusionstudio/jsx";
-
 /**
  * One reading of the host's timeline clock, local to the mounted project:
  * the playhead of the scene the mount's root lives in (or is). Values only
@@ -43,5 +41,4 @@ export interface ProjectDocument<N = unknown> {
   getNextSibling(node: N): N | undefined;
   tick?(): ProjectTick;
   applyRef?(node: N, ref: (target: unknown) => void): void;
-  loadFile?(input: AssetInput): Promise<File>;
 }

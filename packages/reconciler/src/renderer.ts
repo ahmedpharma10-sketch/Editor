@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createContext, createMemo, createResource, useContext } from "solid-js";
+import { createContext, createMemo, useContext } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 
-import type { JSX, ResourceReturn } from "solid-js";
-import type { AssetInput, Ticker } from "@diffusionstudio/jsx";
+import type { JSX } from "solid-js";
+import type { Ticker } from "@diffusionstudio/jsx";
 import type { ProjectDocument } from "./host";
 
 // Compiled project modules call the static runtime exports below
@@ -105,22 +105,6 @@ export function useTicker(): Ticker {
     delta: createMemo(() => tick().delta),
     playing: createMemo(() => tick().playing),
   };
-}
-
-/**
- * The live `useFile` — substituted for the throwing declaration in
- * @diffusionstudio/jsx (see "./runtime"). Resolution is async (fetch a URL,
- * read a path or library asset, await a `generate.*` ref) and needs the host,
- * so it is a `createResource` over the document's `loadFile`.
- */
-export function useFile(src: AssetInput): ResourceReturn<File> {
-  const document = doc();
-  if (!document.loadFile) {
-    throw new Error("useFile: this host does not provide file resolution");
-  }
-
-  const load = document.loadFile.bind(document);
-  return createResource(() => src, (input) => load(input));
 }
 
 /**

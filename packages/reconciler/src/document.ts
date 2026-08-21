@@ -3,12 +3,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Loop, Geometry, GeometryType, Library, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getAssetFile, getEntityChildren, getLibrary, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
-import type { Asset } from '@diffusionstudio/assets';
-import type { AssetInput, PropValue } from '@diffusionstudio/jsx';
+import type { AssetRef, PropValue } from '@diffusionstudio/jsx';
 import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
 
@@ -61,13 +60,6 @@ const TextParts = trait(() => new Set<TextNode>());
  * its element children are the entity's.
  */
 const Authored = trait(() => ({ tag: '', props: {} as Record<string, PropValue> }));
-
-/**
- * The `src` an element is waiting on: set while the library resolves a
- * source the world does not know yet, so a resolution that arrives after the
- * element was given another source (or none) is dropped.
- */
-const SourceRequest = trait(() => ({ value: undefined as unknown }));
 
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
@@ -992,7 +984,29 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				return;
 			}
 			case 'src': {
-				this.setSource(entity, value);
+				entity.remove(GenerationRequest, LoadRequest, PendingSource);
+
+				if (value === undefined || value === null || value === '') {
+					entity.remove(AssetId);
+					return;
+				}
+
+				if (typeof value !== 'string') {
+					entity.remove(AssetId);
+					entity.add(GenerationRequest);
+					entity.set(GenerationRequest, { ref: value as AssetRef });
+					return;
+				}
+
+				const known = getAsset(this.world, value);
+				if (known) {
+					bindAsset(entity, known);
+					return;
+				}
+
+				entity.remove(AssetId);
+				entity.add(LoadRequest);
+				entity.set(LoadRequest, { value });
 				return;
 			}
 			case 'objectFit': {
@@ -1314,70 +1328,6 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		return next === undefined ? undefined : { entity: next };
 	}
 
-	/**
-	 * Binds an element to the asset its `src` names. A library path or id the
-	 * world already knows binds at once; anything else — a path or URL outside
-	 * the library, a `generate.*` ref — is resolved through the library, and
-	 * binds when it arrives, unless the element has moved on to another source
-	 * or gone away in the meantime.
-	 */
-	private setSource(entity: Entity, value: unknown): void {
-		const library = this.world.get(Library);
-		const known = typeof value === 'string' ? getAsset(this.world, value) : undefined;
-
-		if (known) {
-			entity.remove(SourceRequest);
-			this.bindAsset(entity, known);
-			return;
-		}
-
-		if (!library || value === undefined || value === null || value === '') {
-			entity.remove(SourceRequest);
-			entity.remove(AssetId);
-			return;
-		}
-
-		// Whatever it showed before is wrong until the new source arrives.
-		entity.remove(AssetId);
-		entity.add(SourceRequest);
-		entity.set(SourceRequest, { value });
-
-		void library.resolve(value).then(
-			(asset) => {
-				if (!entity.isAlive() || entity.get(SourceRequest)?.value !== value) return;
-				entity.remove(SourceRequest);
-				this.bindAsset(entity, asset);
-			},
-			(error: unknown) => {
-				if (!entity.isAlive() || entity.get(SourceRequest)?.value !== value) return;
-				entity.remove(SourceRequest);
-				console.error(`[reconciler] could not resolve src:`, error);
-			},
-		);
-	}
-
-	/**
-	 * Binds an element to an asset. A frames directory on a `<video>` or
-	 * `<image>` plays as a sequence: the element's paint follows the asset.
-	 */
-	private bindAsset(entity: Entity, asset: Asset): void {
-		entity.add(AssetId);
-		entity.set(AssetId, { value: asset.id });
-
-		const paint = entity.get(Paint)?.value;
-		if (asset.type === 'SEQUENCE' && (paint === PaintType.VIDEO || paint === PaintType.IMAGE)) {
-			entity.set(Paint, { value: PaintType.SEQUENCE });
-		} else if (asset.type !== 'SEQUENCE' && paint === PaintType.SEQUENCE) {
-			entity.set(Paint, { value: asset.type === 'IMAGE' ? PaintType.IMAGE : PaintType.VIDEO });
-		}
-	}
-
-	/** The `useFile` of a project: what its `src` would bind to, as a File. */
-	public async loadFile(input: AssetInput): Promise<File> {
-		const known = typeof input === 'string' ? getAsset(this.world, input) : undefined;
-		const asset = known ?? await getLibrary(this.world).resolve(input);
-		return getAssetFile(asset);
-	}
 
 	public dispose(): void {
 		this.removeNode(this.stage, this.stage);

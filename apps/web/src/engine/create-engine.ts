@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, Mode, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
+import { assetSystem, renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, Mode, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
 import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
 import { AssetSelection, Hud, Keys, Pointer, PointerEvents, ProjectConfig, SnapLines } from './traits';
@@ -198,6 +198,7 @@ class Engine {
 	private runSystems(): void {
 		inputSystem(this.world);
 		shortcutSystem(this.world);
+		assetSystem(this.world);
 		playbackSystem(this.world);
 		motionSystem(this.world);
 		transformSystem(this.world);

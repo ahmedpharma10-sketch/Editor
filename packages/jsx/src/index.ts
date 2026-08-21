@@ -34,7 +34,7 @@ export {
   parseSource,
 } from "./source";
 export type { CompositionTag, PropValue } from "./source";
-export { useTicker, useFile } from "./hooks";
+export { useTicker } from "./hooks";
 export type { Ticker } from "./hooks";
 export type {
   AdjustmentLayerProps,

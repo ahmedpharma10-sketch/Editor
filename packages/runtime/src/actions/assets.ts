@@ -6,16 +6,42 @@
 // goes through the AssetLibrary (@diffusionstudio/assets); these are the
 // lookups the decoders and hosts share.
 
-import { Library } from '../traits';
+import { Ai, AssetId, Library, Paint } from '../traits';
+import { PaintType } from '../constants';
 
-import type { World } from 'koota';
+import type { Entity, World } from 'koota';
 import type { Asset, AssetLibrary } from '@diffusionstudio/assets';
+import type { GenAi } from '../ai';
 
 /** The world's asset library; throws when the host attached none. */
 export function getLibrary(world: World): AssetLibrary {
 	const library = world.get(Library);
 	if (!library) throw new Error('This world has no asset library');
 	return library;
+}
+
+/** The world's generation service; throws when the host attached none. */
+export function getAi(world: World): GenAi {
+	const ai = world.get(Ai);
+	if (!ai) throw new Error('This world cannot generate assets (no Ai attached)');
+	return ai;
+}
+
+/**
+ * Binds an entity to an asset: stamps its AssetId, and follows the asset
+ * with the paint — a frames directory on a `<video>` or `<image>` plays as
+ * a sequence, and a sequence paint goes back when the asset is not one.
+ */
+export function bindAsset(entity: Entity, asset: Asset): void {
+	entity.add(AssetId);
+	entity.set(AssetId, { value: asset.id });
+
+	const paint = entity.get(Paint)?.value;
+	if (asset.type === 'SEQUENCE' && (paint === PaintType.VIDEO || paint === PaintType.IMAGE)) {
+		entity.set(Paint, { value: PaintType.SEQUENCE });
+	} else if (asset.type !== 'SEQUENCE' && paint === PaintType.SEQUENCE) {
+		entity.set(Paint, { value: asset.type === 'IMAGE' ? PaintType.IMAGE : PaintType.VIDEO });
+	}
 }
 
 /** The asset with `id` (or at that library path), or undefined without a library. */

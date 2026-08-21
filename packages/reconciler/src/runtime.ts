@@ -12,7 +12,7 @@
  * `evaluate` binds it to this object instead. So the module a project imports
  * is the authoring surface with the host-bound implementations layered over
  * it: the renderer's element operations, the compile-target components, and
- * live `useTicker` / `useFile` in place of the throwing declarations.
+ * live `useTicker` in place of the throwing declaration.
  *
  * Order matters — the renderer bindings must come last so they win.
  */
@@ -33,7 +33,6 @@ import {
 	setProp,
 	spread,
 	use,
-	useFile,
 	useTicker,
 } from './renderer';
 
@@ -53,5 +52,4 @@ export const JSX_RUNTIME = {
 	mergeProps,
 	use,
 	useTicker,
-	useFile,
 };

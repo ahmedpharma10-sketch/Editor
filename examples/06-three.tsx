@@ -11,9 +11,9 @@
  * createEffect, so scrubbing and exports stay frame-accurate, not wall-clock.
  *
  * The "Battle Damaged Sci-Fi Helmet" is the Khronos DamagedHelmet sample, a
- * single-file .glb GLTFLoader fetches directly over the network (useFile is the
- * host-resolved route for project-local assets). RoomEnvironment bakes an
- * in-memory PBR reflection map, so the metal reads without shipping an HDR.
+ * single-file .glb GLTFLoader fetches directly over the network.
+ * RoomEnvironment bakes an in-memory PBR reflection map, so the metal reads
+ * without shipping an HDR.
  */
 
 import { createEffect, createSignal, onCleanup } from "solid-js";

@@ -6,14 +6,13 @@
 // disk and kept in step with the JSX (a rename in the library is a `src`
 // edit in the file).
 
-import { AssetId, Library, Project } from '@diffusionstudio/runtime';
+import { AssetId, Library } from '@diffusionstudio/runtime';
 import { AssetLibrary, MANIFEST_FILE, ASSETS_DIR } from '@diffusionstudio/assets';
 import { useTrait, useWorld } from '@diffusionstudio/koota-solid';
 import { authoredElement } from '@diffusionstudio/reconciler';
 import type { Accessor } from 'solid-js';
 
 import { createProjectFS } from '@/projects/fs';
-import { generateAsset } from '@/utils/jsx-generation';
 import { getDocumentEditor } from './editor';
 
 import type { Asset } from '@diffusionstudio/assets';
@@ -26,10 +25,7 @@ import type { World } from 'koota';
  * disposer that flushes the manifest and detaches it.
  */
 export function attachLibrary(world: World, dir: string) {
-	const projectId = world.get(Project)?.id ?? 'project';
-
 	const library = new AssetLibrary(createProjectFS(dir), {
-		generate: (ref, library) => generateAsset(ref, library, projectId),
 		onRename: (asset, from) => followRename(world, asset, from),
 		onRelink: (asset, from) => followRelink(world, asset, from),
 	});

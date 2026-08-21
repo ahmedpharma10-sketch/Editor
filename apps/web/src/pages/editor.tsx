@@ -16,6 +16,7 @@ import { useWorld } from '@diffusionstudio/koota-solid';
 import { mount } from '@diffusionstudio/reconciler';
 import { getDocumentEditor } from '@/engine/editor';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
+import { attachAi } from '@/utils/gen-ai';
 import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
 import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
@@ -52,6 +53,8 @@ export function EditorPage() {
 
     // The library first: a mounted project's `src` values name its assets.
     const library = attachLibrary(world, dir);
+    // The generation service over it: what `generate.*` sources resolve through.
+    attachAi(world, library);
     // The project's own settings (package.json `diffusion`), next to the scene.
     const config = attachProjectConfig(world, dir);
 
