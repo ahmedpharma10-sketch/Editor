@@ -19,6 +19,7 @@ export function DashboardProjectsFolderBar() {
   // Blank rather than "No folder selected" until the database has answered:
   // the root arrives a tick after the bar first renders.
   const rootLabel = () => (rootsReady() ? projectsRoot() ?? "No folder selected" : "");
+  const hasRoot = () => !!projectsRoot();
 
   const handleChange = async () => {
     try {
@@ -58,16 +59,13 @@ export function DashboardProjectsFolderBar() {
             </div>
           </div>
           <div class="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              class="text-muted-foreground"
-              disabled={!projectsRoot()}
-              onClick={handleReveal}
-            >
-              Reveal in finder
-            </Button>
+            <Show when={hasRoot()}>
+              <Button variant="ghost" class="text-muted-foreground" onClick={handleReveal}>
+                Reveal in finder
+              </Button>
+            </Show>
             <Button variant="secondary" onClick={handleChange}>
-              Change...
+              {hasRoot() ? "Change..." : "Choose folder..."}
             </Button>
           </div>
         </div>
