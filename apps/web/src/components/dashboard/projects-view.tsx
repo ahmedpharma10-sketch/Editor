@@ -12,6 +12,15 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { TextField, TextFieldInput } from "@/components/ui/text-field";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "somoto";
 import { For, Show, batch, createMemo, createResource, createSignal, onCleanup } from "solid-js";
 import { useNavigate } from "@solidjs/router";
@@ -61,7 +70,10 @@ export function DashboardProjectsView() {
   const [search, setSearch] = createSignal("");
   const [sort, setSort] = createSignal<ProjectSortOption>("last-viewed");
   const [projects, { refetch: refetchProjects }] = createResource(projectsRoot, () => listProjects());
-  const [contextMenuProject, setContextMenuProject] = createSignal<string | null>(null);
+  const [selectedProject, setSelectedProject] = createSignal<string | null>(null);
+  const [creating, setCreating] = createSignal(false);
+  const [pendingDelete, setPendingDelete] = createSignal<ProjectInfo | null>(null);
+  const [deleting, setDeleting] = createSignal(false);
   const [renamingProject, setRenamingProject] = createSignal<string | null>(null);
   const [renameDraft, setRenameDraft] = createSignal("");
 
@@ -114,9 +126,23 @@ export function DashboardProjectsView() {
     try {
       await deleteProject(project.name);
       track('project_deleted');
+      setSelectedProject((current) => (current === project.name ? null : current));
       refetchProjects();
     } catch (e) {
       toast.error("Failed to delete project", { description: (e as Error).message });
+    }
+  };
+
+  const confirmDelete = async () => {
+    const project = pendingDelete();
+    if (!project || deleting()) return;
+
+    setDeleting(true);
+    try {
+      await handleDelete(project);
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -192,13 +218,19 @@ export function DashboardProjectsView() {
     }
   };
 
+  // New project is the one card a single click still acts on, so a double
+  // click lands on it as two clicks — the guard keeps that from creating two
+  // projects.
   const handleCreateProject = async () => {
-    if (!projectsRoot()) {
-      await handleChooseRoot();
-      if (!projectsRoot()) return;
-    }
+    if (creating()) return;
+    setCreating(true);
 
     try {
+      if (!projectsRoot()) {
+        await handleChooseRoot();
+        if (!projectsRoot()) return;
+      }
+
       const displayName = generateProjectName();
       const project = await createProject(folderName(displayName), displayName);
       track('project_created');
@@ -206,6 +238,8 @@ export function DashboardProjectsView() {
       openProject(project);
     } catch (e) {
       toast.error("Failed to create project", { description: (e as Error).message });
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -218,6 +252,7 @@ export function DashboardProjectsView() {
       <DashboardViewSection
         class="pb-4"
         title="Recent projects"
+        onBackgroundClick={() => setSelectedProject(null)}
         controls={
           <>
             <Select<(typeof SORT_OPTIONS)[number]>
@@ -258,16 +293,16 @@ export function DashboardProjectsView() {
             <ContextMenu
               modal={false}
               onOpenChange={(open) => {
-                setContextMenuProject((current) => {
-                  if (open) return project.name;
-                  return current === project.name ? null : current;
-                });
+                if (open) setSelectedProject(project.name);
               }}
             >
               <ContextMenuTrigger as="div" class="contents">
                 <DashboardCardButton
-                  active={contextMenuProject() === project.name}
-                  onClick={() => openProject(project)}
+                  active={selectedProject() === project.name}
+                  onClick={() => setSelectedProject(project.name)}
+                  onDoubleClick={() => openProject(project)}
+                  onEscape={() => setSelectedProject(null)}
+                  onDelete={() => setPendingDelete(project)}
                 >
                   <DashboardCardPreview>
                     <ProjectThumbnail name={project.name} />
@@ -293,7 +328,7 @@ export function DashboardProjectsView() {
                             onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project.name)}
                             placeholder="Project name"
                             aria-label="Project name"
-                            class="absolute left-1/2 top-1/2 h-5 w-56 -translate-x-1/2 -translate-y-1/2 border border-ring bg-input px-1 py-0 ring-1 ring-inset ring-ring"
+                            class="absolute inset-x-0 top-1/2 h-5 w-full -translate-y-1/2 border border-ring bg-input px-1 py-0 ring-1 ring-inset ring-ring"
                           />
                         </TextField>
                       </Show>
@@ -317,7 +352,7 @@ export function DashboardProjectsView() {
                     Duplicate
                   </ContextMenuItem>
                   <ContextMenuSeparator class="my-2" />
-                  <ContextMenuItem onSelect={() => handleDelete(project)}>
+                  <ContextMenuItem onSelect={() => setPendingDelete(project)}>
                     Delete
                   </ContextMenuItem>
                 </ContextMenuContent>
@@ -327,6 +362,35 @@ export function DashboardProjectsView() {
         </For>
       </DashboardViewSection>
       <DashboardProjectsFolderBar />
+
+      <AlertDialog
+        open={pendingDelete() !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting()) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`"${pendingDelete()?.displayName ?? ""}" will be moved to the Trash. `}
+              You can restore it from there until the Trash is emptied.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="secondary"
+              disabled={deleting()}
+              onClick={() => setPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting()} onClick={confirmDelete}>
+              {deleting() ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardSearchPanel>
   );
 }

@@ -396,18 +396,47 @@ export function DashboardInfoActionRow(props: DashboardInfoActionRowProps) {
 type DashboardCardButtonProps = {
   active?: boolean;
   onClick?(): void;
+  onDoubleClick?(): void;
+  onEscape?(): void;
+  onDelete?(): void;
   children: JSX.Element;
   class?: string;
 };
 
 export function DashboardCardButton(props: DashboardCardButtonProps) {
   const handleKeyDown: JSX.EventHandlerUnion<HTMLDivElement, KeyboardEvent> = (event) => {
-    if (!props.onClick) return;
     if (event.target !== event.currentTarget) return;
-    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.key === "Enter") {
+      const activate = props.onDoubleClick ?? props.onClick;
+      if (!activate) return;
 
-    event.preventDefault();
-    props.onClick();
+      event.preventDefault();
+      activate();
+      return;
+    }
+
+    if (event.key === " ") {
+      if (!props.onClick) return;
+
+      event.preventDefault();
+      props.onClick();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      if (!props.onEscape) return;
+
+      event.preventDefault();
+      props.onEscape();
+      return;
+    }
+
+    if (event.key === "Backspace" || event.key === "Delete") {
+      if (!props.onDelete) return;
+
+      event.preventDefault();
+      props.onDelete();
+    }
   };
 
   return (
@@ -415,10 +444,11 @@ export function DashboardCardButton(props: DashboardCardButtonProps) {
       role="button"
       tabIndex={0}
       onClick={props.onClick}
+      onDblClick={props.onDoubleClick}
       onKeyDown={handleKeyDown}
       class={cx(
-        "flex w-62 shrink-0 flex-col gap-3 rounded-xl px-2 pt-2 pb-3 text-left outline-none transition-colors hover:bg-accent/50 focus-ring group",
-        props.active && "bg-muted hover:bg-muted ring-1 ring-inset ring-ring",
+        "flex min-w-0 flex-col gap-3 rounded-xl px-2 pt-2 pb-3 text-left outline-none transition-colors hover:bg-accent/50 focus-ring group",
+        props.active && "bg-primary/15 hover:bg-primary/15 ring-1 ring-inset ring-primary",
         props.class,
       )}
     >
@@ -474,9 +504,17 @@ type DashboardViewSectionProps = {
   controls: JSX.Element;
   children: JSX.Element;
   class?: string;
+  onBackgroundClick?(): void;
 };
 
 export function DashboardViewSection(props: DashboardViewSectionProps) {
+  const handleClick: JSX.EventHandlerUnion<HTMLDivElement, MouseEvent> = (event) => {
+    const target = event.target as HTMLElement;
+    if (target !== event.currentTarget && target.dataset.slot !== "card-grid") return;
+
+    props.onBackgroundClick?.();
+  };
+
   return (
     <div class={cx("flex min-h-0 flex-1 flex-col gap-3 pt-4", props.class)}>
       <div class="flex items-end gap-6 px-6">
@@ -486,8 +524,11 @@ export function DashboardViewSection(props: DashboardViewSectionProps) {
         {props.controls}
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto px-4">
-        <div class="flex flex-wrap content-start items-start gap-y-3">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4" onClick={handleClick}>
+        <div
+          data-slot="card-grid"
+          class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] content-start items-start gap-x-0.5 gap-y-3"
+        >
           {props.children}
         </div>
       </div>
