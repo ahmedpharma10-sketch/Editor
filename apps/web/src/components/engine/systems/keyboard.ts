@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { ToolType, FontStyle, ChildOf } from '../components';
+import { ToolType, ChildOf } from '../components';
 import {
 	copySelection,
 	pasteClipboard,
@@ -22,8 +22,6 @@ import {
 	reorderSelection,
 	getParentEntity,
 	isSequence,
-	loadAsset,
-	getCurrentFolderId,
 } from '../api';
 import {
 	selectStageEntities,
@@ -31,7 +29,7 @@ import {
 	selectChildEntities,
 } from '../selection';
 import { SPACE_HOLD_DELAY_MS } from '../constants';
-import { isInputTarget, showFileDialog } from '@/utils';
+import { isInputTarget } from '@/utils';
 import { query, None, hasComponent, Or, Not } from 'bitecs';
 import { addComponent, clearComponent, removeComponent, setComponent } from '../api/events';
 
@@ -196,22 +194,6 @@ export function createKeyboardSystem(world: EngineWorld, camera: Camera) {
 		}
 	};
 
-	const modImport: KeyboardHandler = async (e) => {
-		if (isInputTarget(e)) return;
-		e.preventDefault();
-		const files = await showFileDialog();
-		const folderId = getCurrentFolderId(world);
-		await Promise.all(files.map((file) => loadAsset(world, file, { folderId })));
-	};
-
-	const modNewFolder: KeyboardHandler = (e) => {
-		if (!e.shiftKey) return;
-		if (isInputTarget(e)) return;
-		e.preventDefault();
-		e.stopPropagation();
-		window.dispatchEvent(new CustomEvent('engine:create-folder'));
-	};
-
 	const modBold: KeyboardHandler = (e) => {
 		const eids = [...query(world, [c.Selected, c.Geometry])].filter(eid => isText(world, eid));
 		if (eids.length === 0) {
@@ -225,28 +207,6 @@ export function createKeyboardSystem(world: EngineWorld, camera: Camera) {
 				fontWeight: allBold ? '400' : '700'
 			}));
 		});
-	};
-
-	const modItalic: KeyboardHandler = (e) => {
-		const eids = [...query(world, [c.Selected, c.Geometry])].filter(eid => isText(world, eid));
-		if (eids.length === 0) {
-			modImport(e);
-			return;
-		}
-		e.preventDefault();
-		const allItalic = eids.every((eid) => (c.TextStyle.fontStyle[eid] ?? FontStyle.NORMAL) === FontStyle.ITALIC);
-		world.history.transaction('Toggle italic', () => {
-			eids.forEach(eid => setComponent(world, eid, c.TextStyle, {
-				fontStyle: allItalic ? FontStyle.NORMAL : FontStyle.ITALIC
-			}));
-		});
-	};
-
-	const modExport: KeyboardHandler = (e) => {
-		if (isInputTarget(e)) return;
-		e.preventDefault();
-		const eventName = e.shiftKey ? 'engine:export-frame' : 'engine:export-scene';
-		window.dispatchEvent(new CustomEvent(eventName));
 	};
 
 	const modHide: KeyboardHandler = (e) => {
@@ -379,10 +339,7 @@ export function createKeyboardSystem(world: EngineWorld, camera: Camera) {
 		'x': modCut,
 		'd': modDuplicate,
 		'b': modBold,
-		'i': modItalic,
-		'e': modExport,
 		'h': modHide,
-		'n': modNewFolder,
 		'g': modGroup,
 		's': modSequential,
 		'a': modSelectAll,

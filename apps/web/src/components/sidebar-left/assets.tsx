@@ -31,6 +31,7 @@ import { FolderItem, handleFolderDrop, isAssetOrFolderDrag, ASSET_DRAG_TYPE, FOL
 import { useLibrary } from "@/engine/library";
 import { useAssetSelection } from "@/engine/hooks";
 import { droppedFiles, importFiles, pickAndImport } from "@/engine/asset-actions";
+import { isInputTarget } from "@/utils";
 
 import type { AssetLibrary } from "@diffusionstudio/assets";
 
@@ -269,10 +270,31 @@ export function Assets() {
     setRenamingFolder(folder);
   });
 
+  /**
+   * The panel's own keys, the ones its menu advertises. These commands are the
+   * library's rather than the stage's, so they are bound here and not in the
+   * engine's shortcut table, and they act on the folder the panel is showing —
+   * the same folder the buttons import into.
+   */
+  const handleShortcut = (event: KeyboardEvent) => {
+    if (!(event.metaKey || event.ctrlKey) || isInputTarget(event)) return;
+    const key = event.key.toLowerCase();
+
+    if (key === "i" && !event.shiftKey) {
+      event.preventDefault();
+      void handleImportAssets();
+      return;
+    }
+
+    if (key === "n" && event.shiftKey) {
+      event.preventDefault();
+      handleCreateFolder();
+    }
+  };
+
   onMount(() => {
-    const onCreateFolder = () => handleCreateFolder();
-    window.addEventListener("engine:create-folder", onCreateFolder);
-    onCleanup(() => window.removeEventListener("engine:create-folder", onCreateFolder));
+    window.addEventListener("keydown", handleShortcut);
+    onCleanup(() => window.removeEventListener("keydown", handleShortcut));
   });
 
   return (
