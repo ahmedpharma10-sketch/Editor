@@ -36,7 +36,7 @@ import { getTransitionWindow } from '../utils/transition';
 import { getIntrinsicPaint } from '../utils/time';
 import { createLinearGradient, createRadialGradient } from './gradients';
 import {
-	resolveImageDecoder, resolveVideoDecoder, resolveSequenceDecoder,
+	resolveImageDecoder, resolveVideoDecoder,
 	resolveCaptionDecoder, resolveShaderHost, resolveWaveformPeaks,
 } from '../media';
 
@@ -234,20 +234,19 @@ export function renderIntrinsicFill(world: World, entity: Entity): void {
 	renderMedia(world, entity, entity, kind);
 }
 
-type MediaKind = 'IMAGE' | 'VIDEO' | 'SEQUENCE';
+type MediaKind = 'IMAGE' | 'VIDEO';
 
 function mediaKind(paint: PaintType | undefined): MediaKind | null {
 	if (paint === PaintType.IMAGE) return 'IMAGE';
 	if (paint === PaintType.VIDEO) return 'VIDEO';
-	if (paint === PaintType.SEQUENCE) return 'SEQUENCE';
 	return null;
 }
 
-/** What the image/video/sequence decoders hand out to draw. */
+/** What the image and video decoders hand out to draw. */
 type MediaFrame = ImageBitmap | HTMLImageElement | HTMLCanvasElement | OffscreenCanvas;
 
 /**
- * Draws the current frame of `source` (an image/video/sequence paint, or the
+ * Draws the current frame of `source` (an image or video paint, or the
  * geometry itself for intrinsic media) into `entity`'s box, fitted by the
  * source's ScaleMode; a failed decoder paints the missing-asset color.
  */
@@ -264,12 +263,8 @@ function renderMedia(world: World, entity: Entity, source: Entity, kind: MediaKi
 		const decoder = resolveImageDecoder(world, source)?.decoder;
 		frame = decoder?.getBitmap(w, h);
 		failed = decoder?.failed ?? false;
-	} else if (kind === 'VIDEO') {
-		const decoder = resolveVideoDecoder(world, source);
-		frame = decoder?.toBitmap();
-		failed = decoder?.errored ?? false;
 	} else {
-		const decoder = resolveSequenceDecoder(world, source);
+		const decoder = resolveVideoDecoder(world, source);
 		frame = decoder?.toBitmap();
 		failed = decoder?.errored ?? false;
 	}
@@ -316,8 +311,6 @@ export function renderFills(world: World, entity: Entity): void {
 			renderMedia(world, entity, fill, 'IMAGE');
 		} else if (paint === PaintType.VIDEO) {
 			renderMedia(world, entity, fill, 'VIDEO');
-		} else if (paint === PaintType.SEQUENCE) {
-			renderMedia(world, entity, fill, 'SEQUENCE');
 		} else if (paint === PaintType.HTML) {
 			const host = fill.has(HtmlHostHandle) ? fill.get(HtmlHostHandle) : null;
 
@@ -568,7 +561,7 @@ function renderGenerating(world: World, entity: Entity): void {
 //
 // Renders an audio asset's pre-computed peaks as a bar chart inside the
 // parent geometry's bounds. Sourced from the paint's own AssetId — the paint
-// carries its asset reference, exactly like IMAGE/VIDEO/SEQUENCE paints.
+// carries its asset reference, exactly like IMAGE and VIDEO paints.
 
 const WAVEFORM_BAR_WIDTH = 6;
 const WAVEFORM_BAR_GAP = 6;

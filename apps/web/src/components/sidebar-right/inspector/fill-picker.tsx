@@ -169,11 +169,10 @@ export function FillPicker(props: FillPickerProps) {
   };
 
   const handleSelectAsset = (asset: Asset) => {
+    // A frames directory plays, and plays through the video paint.
     const plays = asset.type === "VIDEO" || asset.type === "SEQUENCE";
     const current = paintType();
-    const sameKind = plays
-      ? current === PaintType.VIDEO || current === PaintType.SEQUENCE
-      : current === PaintType.IMAGE;
+    const sameKind = plays ? current === PaintType.VIDEO : current === PaintType.IMAGE;
 
     // Same element, another source: a `src` write, so the fit and any tracks
     // under it survive the swap of picture.

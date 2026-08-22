@@ -9,7 +9,7 @@
 import { store } from '../world/store';
 import { DEFAULT_DURATION_FRAMES } from '../constants';
 import {
-	Geometry, Group, AdjustmentLayer, Paint, Caption, Cache, Computed, AssetId, IsMask,
+	Geometry, Group, AdjustmentLayer, Paint, Caption, Cache, Computed,
 	Start, End, SourceIn, SourceOut, PlaybackRate, CaptionDecoderHandle,
 } from '../traits';
 import { isGroupLike } from '../queries/predicates';
@@ -17,18 +17,7 @@ import { getParentNode } from '../queries/hierarchy';
 import { findAssetDuration, getSourceFrameAt, getTimelineOrigin, isPaintEntity } from '../utils/time';
 
 import type { Entity, World } from 'koota';
-
-/**
- * One of the authored time traits: Start, End, SourceIn, SourceOut,
- * PlaybackRate. They all carry a single frame count (or multiplier).
- */
-type TimeTrait = typeof Start;
-
-/**
- * A trait a recompute may read as absent: one of the authored time traits, or
- * the node's own AssetId (its intrinsic media, another source of a length).
- */
-type Ignorable = TimeTrait | typeof AssetId | typeof IsMask;
+import type { Ignorable, TimeTrait } from '../utils/time';
 
 /**
  * The authored value, or undefined when the node doesn't carry it. `ignore`
@@ -60,7 +49,7 @@ function resolveDuration(
 	ignore?: Ignorable,
 ): number {
 	const playbackRate = authored(entity, PlaybackRate, ignore) || 1;
-	const assetDuration = findAssetDuration(world, entity, ignore === AssetId);
+	const assetDuration = findAssetDuration(world, entity, ignore);
 
 	let duration = Infinity;
 
@@ -228,13 +217,13 @@ export function trimEntityOut(_world: World, entity: Entity, frame: number): voi
 }
 
 /**
- * Re-derive the time range when the asset id of an entity changes.
+ * Re-derive the time range when what an entity plays changes: a new asset id,
+ * or a new rate to play a frames directory at.
+ *
+ * `ignore`: the trait is on its way off the entity (koota fires onRemove
+ * before clearing it), so recompute as if it were already gone.
  */
-/**
- * `removing`: the id is on its way off the entity (koota fires onRemove before
- * clearing it), so recompute as if it were already gone.
- */
-export function reactToAssetChange(world: World, entity: Entity, removing = false) {
+export function reactToAssetChange(world: World, entity: Entity, ignore?: Ignorable) {
 	if (isPaintEntity(entity)) {
 		reactToPaintChange(world, entity);
 	} else if (entity.has(Caption)) {
@@ -247,7 +236,7 @@ export function reactToAssetChange(world: World, entity: Entity, removing = fals
 	} else if (entity.has(Geometry)) {
 		// A geometry's own asset backs its intrinsic paint (a video's footage)
 		// or, on an audio clip, its recording: a new one is a new source length.
-		recomputeEntityTimeRange(world, entity, removing ? AssetId : undefined);
+		recomputeEntityTimeRange(world, entity, ignore);
 		bubbleTimeRangeUp(world, entity);
 	}
 }

@@ -9,7 +9,7 @@
 
 import {
 	ChildOf,
-	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
+	ImageDecoderHandle, VideoDecoderHandle,
 	AudioDecoderHandle, CaptionDecoderHandle, WaveformHandle, AudioBusHandle,
 } from '../traits';
 
@@ -23,10 +23,6 @@ export function disposeDecoders(world: World, entity: Entity): void {
 	if (entity.has(VideoDecoderHandle)) {
 		entity.get(VideoDecoderHandle)?.dispose();
 		entity.set(VideoDecoderHandle, null);
-	}
-	if (entity.has(SequenceDecoderHandle)) {
-		entity.get(SequenceDecoderHandle)?.dispose();
-		entity.set(SequenceDecoderHandle, null);
 	}
 	if (entity.has(AudioDecoderHandle)) {
 		entity.get(AudioDecoderHandle)?.reset();

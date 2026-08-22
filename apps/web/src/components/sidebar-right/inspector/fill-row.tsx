@@ -30,7 +30,6 @@ const FILL_TYPE_LABELS: Record<PaintType, string> = {
   [PaintType.SOLID]: "Solid",
   [PaintType.IMAGE]: "Image",
   [PaintType.VIDEO]: "Video",
-  [PaintType.SEQUENCE]: "Sequence",
   [PaintType.LINEAR_GRADIENT]: "Gradient",
   [PaintType.RADIAL_GRADIENT]: "Gradient",
   [PaintType.WAVEFORM]: "Waveform",

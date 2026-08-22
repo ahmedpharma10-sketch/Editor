@@ -384,7 +384,7 @@ function PaintItemIcon(props: PaintItemIconProps) {
 
   return (
     <>
-      <Show when={asset() && (type() === PaintType.VIDEO || type() === PaintType.IMAGE || type() === PaintType.SEQUENCE)}>
+      <Show when={asset() && (type() === PaintType.VIDEO || type() === PaintType.IMAGE)}>
         <AssetThumbnail
           asset={asset()!}
           class="size-full"

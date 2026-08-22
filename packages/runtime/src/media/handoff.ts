@@ -10,13 +10,13 @@
 // seek lands; moving the handle means the copy draws its first frame from the
 // cache that was already warm for it.
 
-import { AssetId, SequenceDecoderHandle, VideoDecoderHandle } from '../traits';
+import { AssetId, VideoDecoderHandle } from '../traits';
 import { getEntityChildren } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
 
 /**
- * Moves the live video and sequence decoders of `from`'s subtree to `to`'s.
+ * Moves the live video decoders of `from`'s subtree to `to`'s.
  *
  * For a split: the original ends at the playhead and the copy starts there,
  * so the copy is what renders next and the original is the one that can
@@ -57,13 +57,5 @@ function handOff(from: Entity, to: Entity): void {
 		to.get(VideoDecoderHandle)?.dispose();
 		to.add(VideoDecoderHandle);
 		to.set(VideoDecoderHandle, video);
-	}
-
-	const sequence = from.get(SequenceDecoderHandle);
-	if (sequence) {
-		from.set(SequenceDecoderHandle, null);
-		to.get(SequenceDecoderHandle)?.dispose();
-		to.add(SequenceDecoderHandle);
-		to.set(SequenceDecoderHandle, sequence);
 	}
 }

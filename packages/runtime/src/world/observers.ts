@@ -20,11 +20,11 @@
 import { store } from './store';
 import {
 	ChildOf, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
-	Start, End, SourceIn, SourceOut, PlaybackRate, Keyframe, ItemIndex,
+	Start, End, SourceIn, SourceOut, PlaybackRate, SourceFrameRate, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Opacity, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
 	ColorStop, StrokeStyle, Size, Computed, Active, Stage, IsMask,
-	ImageDecoderHandle, VideoDecoderHandle, SequenceDecoderHandle,
+	ImageDecoderHandle, VideoDecoderHandle,
 	AudioDecoderHandle, CaptionDecoderHandle, WaveformHandle,
 	HtmlHostHandle, SurfaceHostHandle, ShaderHostHandle, AudioBusHandle,
 } from '../traits';
@@ -80,7 +80,6 @@ export function observeWorld(world: World): () => void {
 	// readable.
 	subs.push(world.onRemove(ImageDecoderHandle, (e) => e.get(ImageDecoderHandle)?.dispose()));
 	subs.push(world.onRemove(VideoDecoderHandle, (e) => e.get(VideoDecoderHandle)?.dispose()));
-	subs.push(world.onRemove(SequenceDecoderHandle, (e) => e.get(SequenceDecoderHandle)?.dispose()));
 	subs.push(world.onRemove(AudioDecoderHandle, (e) => e.get(AudioDecoderHandle)?.reset()));
 	subs.push(world.onRemove(CaptionDecoderHandle, (e) => e.get(CaptionDecoderHandle)?.dispose()));
 	subs.push(world.onRemove(WaveformHandle, (e) => e.get(WaveformHandle)?.dispose()));
@@ -155,7 +154,22 @@ export function observeWorld(world: World): () => void {
 	}));
 
 	subs.push(world.onRemove(AssetId, (entity) => {
-		reactToAssetChange(world, entity, true);
+		reactToAssetChange(world, entity, AssetId);
+	}));
+
+	// The rate a frames directory plays at is the whole of how long it is, so a
+	// change to it is a change of source length — the same recompute a new
+	// asset gets, not the propagate the other authored time traits get.
+	subs.push(world.onAdd(SourceFrameRate, (entity) => {
+		reactToAssetChange(world, entity);
+	}));
+
+	subs.push(world.onChange(SourceFrameRate, (entity) => {
+		reactToAssetChange(world, entity);
+	}));
+
+	subs.push(world.onRemove(SourceFrameRate, (entity) => {
+		reactToAssetChange(world, entity, SourceFrameRate);
 	}));
 
 	const propagateAndBubble = (entity: Entity) => {

@@ -7,11 +7,9 @@
 
 import { toast } from "somoto";
 import { importFiles as importFilesInto, pickFiles, saveAssetAs as saveAs } from "@diffusionstudio/assets";
-import { AssetId, reactToAssetChange } from "@diffusionstudio/runtime";
 import { insertAsset } from "./insert-asset";
 import { forgetPoster } from "./timeline/media";
 
-import type { SequenceAsset } from "@diffusionstudio/assets";
 import type { World } from "koota";
 
 import type { Asset, AssetLibrary } from "@diffusionstudio/assets";
@@ -73,19 +71,3 @@ export function insertAssetAtPlayhead(world: World, asset: Asset): void {
   }
 }
 
-/**
- * Sets the rate an image sequence plays its frames at. The frame count is
- * what the sequence is, so its duration follows; every clip showing it is
- * re-derived (the asset length is one of the caps on a clip's span).
- */
-export function setSequenceFrameRate(world: World, library: AssetLibrary, asset: SequenceAsset, frameRate: number): void {
-  const clamped = Math.max(1, Math.min(240, Math.round(frameRate)));
-  if (clamped === asset.frameRate) return;
-
-  const frames = Math.max(1, Math.round(asset.duration * asset.frameRate));
-  library.update(asset, { frameRate: clamped, duration: frames / clamped });
-
-  for (const entity of world.query(AssetId)) {
-    if (entity.get(AssetId)?.value === asset.id) reactToAssetChange(world, entity);
-  }
-}

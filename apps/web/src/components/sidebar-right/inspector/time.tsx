@@ -37,15 +37,16 @@ import {
   FrameRate,
   Geometry,
   PlaybackRate,
+  SourceFrameRate,
   findGeometryAsset,
+  findGeometryAssetSource,
+  getSequenceFrameRate,
   isGroupLike,
   isScene,
   secondsToFrames,
 } from "@diffusionstudio/runtime";
 import { useDerived, useEditor } from "@/engine/hooks";
 import { editTime, trimIn, trimOut } from "@/engine/timing";
-import { useLibrary } from "@/engine/library";
-import { setSequenceFrameRate } from "@/engine/asset-actions";
 
 import type { Entity } from "koota";
 
@@ -104,7 +105,6 @@ type TimeSettingsProps = {
 export function TimeSettings(props: TimeSettingsProps) {
   const world = useWorld();
   const editor = useEditor();
-  const library = useLibrary();
   const entity = () => props.selection[0]!;
 
   const [addons, setAddons] = createStoredSignal(
@@ -131,13 +131,23 @@ export function TimeSettings(props: TimeSettingsProps) {
 
   const supportsPlaybackRate = createMemo(() => entity().has(Geometry) && !isScene(entity()));
 
-  // The sequence the node shows, if any; its frame rate is the asset's, so
-  // it is sampled too (`library.update` changes it in place).
+  // The frames directory the node shows, if any, and the element carrying it:
+  // the clip itself for a <video>, the paint for a <rect> with a fill.
   const sequenceAsset = useDerived(() => {
     const asset = findGeometryAsset(world, entity());
     return asset?.type === 'SEQUENCE' ? asset : null;
   });
-  const sequenceFrameRate = useDerived(() => sequenceAsset()?.frameRate ?? null);
+  const sequenceSource = useDerived(() => findGeometryAssetSource(world, entity()));
+  // The element's own rate when it sets one, else the asset's. Both are
+  // sampled: the trait is what the prop writes, the asset what it falls back to.
+  const authoredFrameRate = useTrait(sequenceSource, SourceFrameRate);
+  const sequenceFrameRate = createMemo(() => {
+    const asset = sequenceAsset();
+    const source = sequenceSource();
+    if (!asset || !source) return null;
+
+    return authoredFrameRate()?.value || getSequenceFrameRate(source, asset);
+  });
 
   const handleAddAddon = (addon: TimeAddon) => setAddons({ ...addons(), [addon]: true });
   const handleRemoveAddon = (addon: TimeAddon) => setAddons({ ...addons(), [addon]: false });
@@ -174,9 +184,11 @@ export function TimeSettings(props: TimeSettingsProps) {
 
   const handleFrameRateChange = (newRate: number) => {
     const asset = sequenceAsset();
-    const lib = library();
-    if (!asset || !lib) return;
-    setSequenceFrameRate(world, lib, asset, newRate);
+    const source = sequenceSource();
+    if (!asset || !source) return;
+
+    const clamped = Math.max(1, Math.min(240, Math.round(newRate)));
+    editor.editProperty(source, 'frameRate', clamped === asset.frameRate ? false : clamped);
   };
 
   return (

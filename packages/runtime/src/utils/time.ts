@@ -5,8 +5,10 @@
 import { CONONICAL_TIME_BASE, PaintType } from '../constants';
 import {
 	Audio, AssetId, Cache, Computed, Geometry, Paint, SourceIn, Library, FrameRate,
+	Start, IsMask, SourceFrameRate,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
+import { getSourceDuration } from '../actions/assets';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
@@ -108,56 +110,78 @@ export function isPaintEntity(entity: Entity): boolean {
 	return entity.has(Paint) && !entity.has(Geometry);
 }
 
-/** The asset backing a geometry: its own AssetId, or the first fill's. */
-export function findGeometryAsset(world: World, entity: Entity): Asset | null {
+/**
+ * The element a geometry shows its media through: itself when its own paint is
+ * the media, else the first fill that is. This is the element the source props
+ * belong to — a `<video>` carries its own `src`, a `<rect><videoPaint>` carries
+ * it on the paint — so an editor writing one has to write it here.
+ */
+export function findGeometryAssetSource(world: World, entity: Entity): Entity | null {
 	const assets = world.get(Library);
 	if (!assets) return null;
 
 	const ownId = entity.get(AssetId)?.value;
-	if (ownId) {
-		const asset = assets.get(ownId);
-		if (asset) return asset;
-	}
+	if (ownId && assets.get(ownId)) return entity;
 
 	for (const fill of entity.get(Cache)?.fills ?? []) {
 		const fillId = fill.get(AssetId)?.value;
-		if (fillId) {
-			const asset = assets.get(fillId);
-			if (asset) return asset;
-		}
+		if (fillId && assets.get(fillId)) return fill;
 	}
 
 	return null;
 }
 
+/** The asset backing a geometry: its own AssetId, or the first fill's. */
+export function findGeometryAsset(world: World, entity: Entity): Asset | null {
+	const source = findGeometryAssetSource(world, entity);
+	if (source === null) return null;
+
+	return world.get(Library)?.get(source.get(AssetId)?.value ?? '') ?? null;
+}
+
+/**
+ * One of the authored time traits: Start, End, SourceIn, SourceOut,
+ * PlaybackRate, SourceFrameRate. They all carry a single frame count (or rate).
+ */
+export type TimeTrait = typeof Start;
+
+/**
+ * A trait a recompute may read as absent: one of the authored time traits, or
+ * the node's own AssetId (its intrinsic media, another source of a length).
+ * koota fires onRemove before it clears the trait, so a removal handler has to
+ * ask for the length the node will have once it is gone.
+ */
+export type Ignorable = TimeTrait | typeof AssetId | typeof IsMask;
+
 /**
  * Intrinsic duration (in project frames) of the media asset attached to an
  * entity: its own asset when the entity is an audio clip or its intrinsic
- * paint is a video/sequence, else the first video/sequence fill. Null when
- * nothing time-based is attached. `ignoreOwn` reads the entity's own asset as
- * absent (for a handler of its removal).
+ * paint is a video, else the first video fill. Null when nothing time-based is
+ * attached.
+ *
+ * The duration is asked of the holder rather than read off the asset, because
+ * a frames directory only lasts as long as the rate it is played at says (see
+ * `getSourceDuration`).
  */
-export function findAssetDuration(world: World, entity: Entity, ignoreOwn = false): number | null {
+export function findAssetDuration(world: World, entity: Entity, ignore?: Ignorable): number | null {
 	const assets = world.get(Library);
 	if (!assets) return null;
 	const frameRate = world.get(FrameRate)?.value ?? 30;
+	const ignoreAuthoredRate = ignore === SourceFrameRate;
 
 	const paint = getIntrinsicPaint(entity);
-	if (!ignoreOwn && (entity.has(Audio) || paint === PaintType.VIDEO || paint === PaintType.SEQUENCE)) {
+	if (ignore !== AssetId && (entity.has(Audio) || paint === PaintType.VIDEO)) {
 		const asset = assets.get(entity.get(AssetId)?.value ?? '');
-		if (asset?.type === 'AUDIO' || asset?.type === 'VIDEO' || asset?.type === 'SEQUENCE') {
-			return secondsToFrames(asset.duration, frameRate);
-		}
+		const duration = asset ? getSourceDuration(entity, asset, ignoreAuthoredRate) : null;
+		if (duration !== null) return secondsToFrames(duration, frameRate);
 	}
 
 	for (const fill of entity.get(Cache)?.fills ?? []) {
-		const paint = fill.get(Paint)?.value;
-		if (paint === PaintType.VIDEO || paint === PaintType.SEQUENCE) {
-			const asset = assets.get(fill.get(AssetId)?.value ?? '');
-			if (asset && (asset.type === 'VIDEO' || asset.type === 'SEQUENCE')) {
-				return secondsToFrames(asset.duration, frameRate);
-			}
-		}
+		if (fill.get(Paint)?.value !== PaintType.VIDEO) continue;
+
+		const asset = assets.get(fill.get(AssetId)?.value ?? '');
+		const duration = asset ? getSourceDuration(fill, asset, ignoreAuthoredRate) : null;
+		if (duration !== null) return secondsToFrames(duration, frameRate);
 	}
 
 	return null;

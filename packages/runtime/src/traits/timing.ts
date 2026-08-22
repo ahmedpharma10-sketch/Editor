@@ -22,6 +22,14 @@ export const End = trait({ value: 0 });
 export const SourceIn = trait({ value: 0 });
 export const SourceOut = trait({ value: 0 });
 
+// Frames per second a frames-directory source is played at, which is the only
+// thing that says how long it lasts: a folder of pictures has a count, not a
+// duration. Absent means the rate the library gave the asset. Nothing for
+// encoded media to read — a video file carries its own rate — and unrelated to
+// PlaybackRate, which retimes whatever the source's natural speed turns out to
+// be; this is what that speed is.
+export const SourceFrameRate = trait({ value: 0 });
+
 // Speed multiplier for the node's local time (1 = normal). Scales the source
 // window against the timeline window: at 2, twice the source frames fit into
 // the same stretch of timeline.

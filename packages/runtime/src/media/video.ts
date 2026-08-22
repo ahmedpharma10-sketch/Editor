@@ -6,9 +6,10 @@ import { BlobSource, ALL_FORMATS, Input, InputVideoTrack, EncodedPacketSink, Enc
 
 import { AssetId, VideoDecoderHandle, Mode } from '../traits';
 import { assert } from '../utils/assert';
-import { getAsset, getAssetFile } from '../actions/assets';
+import { getAsset, getAssetFile, getSequenceFrameRate } from '../actions/assets';
 import { FrameCache } from './frame-cache';
 import { getKeyframeIndex } from './keyframe-index';
+import { SequenceDecoder } from './sequence';
 
 import type { Entity, World } from 'koota';
 import type { KeyframeIndex } from './keyframe-index';
@@ -675,7 +676,14 @@ export class VideoExporter {
 	}
 }
 
-export type VideoDecoderInstance = VideoBuffer | VideoExporter;
+/**
+ * What a video paint decodes through. Three implementations of one interface
+ * — `seekTo`, `toBitmap`, `idle`, `dispose` — picked by what the source turns
+ * out to be and what the world is doing with it: a demuxed buffer for playing
+ * a file, an exact-seeking reader for encoding one, and a frames directory
+ * read off disk. Nothing downstream of `resolveVideoDecoder` asks which.
+ */
+export type VideoDecoderInstance = VideoBuffer | VideoExporter | SequenceDecoder;
 
 const videoTrackCache = new Map<string, Promise<InputVideoTrack | null>>();
 
@@ -707,12 +715,30 @@ export function getVideoTrack(source: VideoAsset) {
 	return promise;
 }
 
+/**
+ * The decoder `entity`'s video paint draws from, built on first use and kept
+ * until the asset it was built for is no longer the one asked for.
+ *
+ * A sequence's rate is the element's to set, so it is pushed on every call
+ * rather than fixed at construction — re-reading a folder to play it slower
+ * would be a rebuild for nothing.
+ */
 export function resolveVideoDecoder(world: World, entity: Entity): VideoDecoderInstance | null {
 	const assetId = entity.get(AssetId)?.value;
 	if (!assetId) return null;
 
+	// Only a live preview keeps frames around it; an export reads each frame
+	// once, in order, and a cache would be a window it never looks back into.
+	const hasCache = world.get(Mode)?.value === 'realtime';
+
+	// The id is the only thing that can go stale: a library edit assigns onto
+	// the asset in place, so the object a live decoder holds is the library's.
 	const existing = entity.get(VideoDecoderHandle);
 	if (existing && existing.asset.id === assetId) {
+		if (existing instanceof SequenceDecoder) {
+			existing.hasCache = hasCache;
+			existing.frameRate = getSequenceFrameRate(entity, existing.asset);
+		}
 		return existing;
 	}
 
@@ -720,11 +746,18 @@ export function resolveVideoDecoder(world: World, entity: Entity): VideoDecoderI
 	existing?.dispose();
 
 	const asset = getAsset(world, assetId);
-	if (!asset || asset.type !== 'VIDEO') return null;
+	if (!asset) return null;
 
-	const decoder = world.get(Mode)?.value === 'realtime'
-		? new VideoBuffer(asset)
-		: new VideoExporter(asset);
+	let decoder: VideoDecoderInstance;
+	if (asset.type === 'SEQUENCE') {
+		decoder = new SequenceDecoder(asset, hasCache);
+		decoder.frameRate = getSequenceFrameRate(entity, asset);
+	} else if (asset.type === 'VIDEO') {
+		decoder = hasCache ? new VideoBuffer(asset) : new VideoExporter(asset);
+	} else {
+		return null;
+	}
+
 	entity.add(VideoDecoderHandle);
 	entity.set(VideoDecoderHandle, decoder);
 	return decoder;

@@ -73,7 +73,6 @@ export enum PaintType {
   VIDEO,
   LINEAR_GRADIENT,
   RADIAL_GRADIENT,
-  SEQUENCE,
   WAVEFORM,
   HTML,
   SURFACE,

@@ -2,12 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { AssetId, SequenceDecoderHandle } from '../traits';
-import { getAsset } from '../actions/assets';
 import { assert } from '../utils/assert';
 import { FrameCache } from './frame-cache';
 
-import type { Entity, World } from 'koota';
 import type { SequenceAsset } from '@diffusionstudio/assets';
 
 const FRAME_EXTENSIONS = /\.(png|jpe?g|webp|avif|bmp|gif)$/i;
@@ -24,6 +21,14 @@ export class SequenceDecoder {
 	public mode: SequenceBufferMode = 'alive';
 	public initialized: Promise<void>;
 
+	/**
+	 * Frames per second the folder is played at (see the SourceFrameRate
+	 * trait). Read on every seek rather than baked in, so an element retiming
+	 * its sequence does not cost a rebuild — and the frames the decoder holds
+	 * are the right ones either way.
+	 */
+	public frameRate: number;
+
 	private frames: File[] = [];
 	private lastRenderedFrame: number = -1;
 	private seekGeneration = 0;
@@ -37,6 +42,7 @@ export class SequenceDecoder {
 	public constructor(asset: SequenceAsset, hasCache: boolean) {
 		this.hasCache = hasCache;
 		this.asset = asset;
+		this.frameRate = asset.frameRate;
 		this.initialized = this.initialize();
 	}
 
@@ -143,7 +149,7 @@ export class SequenceDecoder {
 	}
 
 	public async seekTo(frame: number, frameRate: number) {
-		const targetFrame = Math.round((frame / frameRate) * this.asset.frameRate);
+		const targetFrame = Math.round((frame / frameRate) * this.frameRate);
 
 		// Path without cache
 		if (!this.hasCache) {
@@ -241,27 +247,4 @@ export class SequenceDecoder {
 		this.canvas.height = 0;
 		this.lastRenderedFrame = -1;
 	}
-}
-
-export function resolveSequenceDecoder(world: World, entity: Entity, hasCache = true): SequenceDecoder | null {
-	const assetId = entity.get(AssetId)?.value;
-	if (!assetId) return null;
-
-	const asset = getAsset(world, assetId);
-	if (!asset || asset.type !== 'SEQUENCE') return null;
-
-	// Identity check (not just id) so decoders rebuild when asset metadata —
-	// e.g. frameRate — changes via `assets.save({ ...asset, frameRate: ... })`.
-	const existing = entity.get(SequenceDecoderHandle);
-	if (existing && existing.asset === asset) {
-		existing.hasCache = hasCache;
-		return existing;
-	}
-
-	existing?.dispose();
-
-	const decoder = new SequenceDecoder(asset, hasCache);
-	entity.add(SequenceDecoderHandle);
-	entity.set(SequenceDecoderHandle, decoder);
-	return decoder;
 }

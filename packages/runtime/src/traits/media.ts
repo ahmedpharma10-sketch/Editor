@@ -11,7 +11,6 @@ import type { SurfaceHost } from '../media/surface';
 import type { ShaderHost } from '../media/shader';
 import type { ImageDecoder } from '../media/image';
 import type { VideoDecoderInstance } from '../media/video';
-import type { SequenceDecoder } from '../media/sequence';
 import type { AudioDecoder } from '../media/audio';
 import type { CaptionDecoder } from '../media/caption/types';
 import type { Waveform } from '../media/audio-peaks';
@@ -37,8 +36,6 @@ export const ShaderHostHandle = trait(() => null as ShaderHost | null);
 export const ImageDecoderHandle = trait(() => null as ImageDecoder | null);
 
 export const VideoDecoderHandle = trait(() => null as VideoDecoderInstance | null);
-
-export const SequenceDecoderHandle = trait(() => null as SequenceDecoder | null);
 
 export const AudioDecoderHandle = trait(() => null as AudioDecoder | null);
 

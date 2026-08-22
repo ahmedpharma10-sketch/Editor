@@ -278,9 +278,12 @@ type FillProps = {
 
 type MediaProps = {
   /**
-   * Path, URL, asset id, or a `generate.*` declaration. On `<Captions>` a
-   * transcript source (.srt, .vtt, or transcript .json) mounted instead of
-   * transcribing the scene; `generate.*` is not accepted there.
+   * Path, URL, asset id, or a `generate.*` declaration. A path naming a
+   * directory of numbered frames (`shot_001.png`, `shot_002.png`, ...) is an
+   * image sequence, and plays on `<Video>` or `<Image>` as footage does — see
+   * `frameRate` for how long it lasts. On `<Captions>` a transcript source
+   * (.srt, .vtt, or transcript .json) mounted instead of transcribing the
+   * scene; `generate.*` is not accepted there.
    */
   src: string | AssetRef;
   /**
@@ -314,6 +317,21 @@ type UpscaleProps = {
 type FitProps = {
   /** How the source maps into the box. Default "cover" on `<Video>`, "contain" on `<Image>`. */
   objectFit?: Fit;
+};
+
+type FrameRateProps = {
+  /**
+   * Frames per second for a `src` naming a directory of numbered frames — a
+   * folder of pictures has a count, not a duration, so this is what says how
+   * long the clip runs (600 frames at 24 is 25 seconds, at 60 is 10). Default
+   * 30. Nothing for encoded video or a still to read: a file carries its own
+   * rate, and neither has a frame count to divide.
+   *
+   * Not `playbackRate`, which retimes a source against the timeline whatever
+   * its natural speed is; this is what that natural speed is. Unrelated to the
+   * composition's own frame rate, which the export sets.
+   */
+  frameRate?: number;
 };
 
 type AudioTrackProps = {
@@ -582,13 +600,13 @@ export type ColorStopProps = ColorProps & OpacityProps & TrackChildren & {
  * geometry's box, a paint child like a solid or a gradient (several stack in
  * document order). The node tags `<image>` / `<video>` are the same media as
  * an element of its own; these fill something else with it, so a rect or a
- * text can be filled with a picture. Which tag it is says what the source is
- * played as, exactly as on the node tags: a frames directory plays as a
- * sequence under either.
+ * text can be filled with a picture. Which tag it is only says what the source
+ * is expected to be: the paint follows what the src turns out to name, so a
+ * frames directory plays under either.
  */
-export type MediaPaintProps = PaintProps & MediaProps & FitProps & TrackChildren;
+export type MediaPaintProps = PaintProps & MediaProps & FitProps & FrameRateProps & TrackChildren;
 
-export type VideoProps = CommonProps & MediaProps & FitProps & AudioTrackProps & UpscaleProps & {
+export type VideoProps = CommonProps & MediaProps & FitProps & FrameRateProps & AudioTrackProps & UpscaleProps & {
   /**
    * Scores the footage: a generated soundtrack for a clip that has none. See
    * `UpscaleProps` for what a modifier is; applied last, after `upscale`, so
@@ -600,7 +618,7 @@ export type VideoProps = CommonProps & MediaProps & FitProps & AudioTrackProps &
     children?: SolidJSX.Element;
   };
 
-export type ImageProps = CommonProps & MediaProps & FitProps & UpscaleProps & {
+export type ImageProps = CommonProps & MediaProps & FitProps & FrameRateProps & UpscaleProps & {
   /**
    * Cuts the subject out, leaving the rest of the picture transparent. See
    * `UpscaleProps` for what a modifier is; applied before `upscale`.

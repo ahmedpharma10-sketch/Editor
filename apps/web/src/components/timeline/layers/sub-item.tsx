@@ -32,7 +32,6 @@ const PAINT_NAMES: Partial<Record<PaintType, string>> = {
   [PaintType.SOLID]: 'Solid',
   [PaintType.IMAGE]: 'Image',
   [PaintType.VIDEO]: 'Video',
-  [PaintType.SEQUENCE]: 'Sequence',
   [PaintType.WAVEFORM]: 'Waveform',
   [PaintType.HTML]: 'HTML',
   [PaintType.SURFACE]: 'Surface',

@@ -26,7 +26,7 @@ import { clamp } from '../math/common';
 import { getTransitionWindow } from '../utils/transition';
 import {
 	resolveAudioDecoder, resolveCaptionDecoder, resolveImageDecoder,
-	resolveSequenceDecoder, resolveShaderHost, resolveVideoDecoder,
+	resolveShaderHost, resolveVideoDecoder,
 } from '../media';
 import { AudioBus } from '../media/audio-bus';
 
@@ -138,30 +138,6 @@ function forwardVideoDecoder(world: World, scene: Entity, entity: Entity, fill: 
 	}
 }
 
-function forwardSequenceDecoder(world: World, scene: Entity, entity: Entity, fill: Entity): void {
-	const computed = store(world, Computed);
-	const eid = entity.id();
-	const fps = world.get(FrameRate)?.value ?? 30;
-
-	const globalFrame = computed.localTime[scene.id()]!;
-	const localFrame = computed.localTime[eid]!;
-	const start = computed.start[eid]!;
-	const end = computed.end[eid]!;
-	const hasCache = world.get(Mode)?.value === 'realtime';
-	const warmupDecoder = globalFrame >= start - WARMUP_FRAMES && globalFrame < end + WARMUP_FRAMES && hasCache;
-
-	const source = getSourceWindow(entity);
-
-	const decoder = resolveSequenceDecoder(world, fill, hasCache);
-	if (!decoder) return;
-
-	if (computed.visibility[eid] === 1 || warmupDecoder) {
-		const seekFrame = clamp(localFrame, source.in, source.out);
-		const seekPromise = decoder.seekTo(seekFrame, fps);
-		framePromises(world)?.push(seekPromise);
-	}
-}
-
 function forwardCaptionDecoder(world: World, _scene: Entity, entity: Entity): void {
 	const localFrame = store(world, Computed).localTime[entity.id()]!;
 	const fps = world.get(FrameRate)?.value ?? 30;
@@ -260,8 +236,6 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 				forwardVideoDecoder(world, scene, entity, entity);
 			}
 			intrinsicVideo = true;
-		} else if (intrinsic === PaintType.SEQUENCE && visualsEnabled) {
-			forwardSequenceDecoder(world, scene, entity, entity);
 		} else if (intrinsic === PaintType.IMAGE && visualsEnabled) {
 			forwardImageDecoder(world, scene, entity, entity);
 		}
@@ -274,10 +248,6 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 					forwardVideoDecoder(world, scene, entity, fill);
 				}
 				paintAudioSource = fill;
-			}
-
-			if (paint === PaintType.SEQUENCE && visualsEnabled) {
-				forwardSequenceDecoder(world, scene, entity, fill);
 			}
 
 			if (paint === PaintType.IMAGE && visualsEnabled) {

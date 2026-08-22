@@ -12,7 +12,7 @@ import {
 	Opacity, BlendMode, Color, CornerRadius, MixedCornerRadius, Blur, ScaleMode, Effect,
 	ColorStop, StrokeStyle, Shader,
 	Chars, TextStyle,
-	Start, End, SourceIn, SourceOut, PlaybackRate,
+	Start, End, SourceIn, SourceOut, PlaybackRate, SourceFrameRate,
 	Playback, Sequential, Transition, ClipHeight, Expanded,
 	Volume, Muted,
 	KeyframeTrack, Keyframe, Animation, Stage,
@@ -132,6 +132,7 @@ export interface EntityRecord {
 	SourceIn?: number;
 	SourceOut?: number;
 	PlaybackRate?: number;
+	SourceFrameRate?: number;
 	Constraint?: {
 		horizontal?: number;
 		vertical?: number;
@@ -344,6 +345,9 @@ export function serializeEntity(entity: Entity): EntityRecord {
 	}
 	if (entity.has(SourceOut)) {
 		record.SourceOut = entity.get(SourceOut)!.value;
+	}
+	if (entity.has(SourceFrameRate)) {
+		record.SourceFrameRate = entity.get(SourceFrameRate)!.value;
 	}
 	if (entity.has(PlaybackRate)) {
 		record.PlaybackRate = entity.get(PlaybackRate)!.value;
@@ -591,6 +595,9 @@ export function deserializeEntity(entity: Entity, e: Partial<EntityRecord>): voi
 	}
 	if (e.SourceOut !== undefined) {
 		entity.add(SourceOut({ value: e.SourceOut }));
+	}
+	if (e.SourceFrameRate !== undefined) {
+		entity.add(SourceFrameRate({ value: e.SourceFrameRate }));
 	}
 	if (e.PlaybackRate !== undefined) {
 		entity.add(PlaybackRate({ value: e.PlaybackRate }));

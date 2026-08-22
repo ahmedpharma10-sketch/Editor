@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
@@ -988,6 +988,21 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 				entity.add(trait);
 				entity.set(trait, { value: this.toFrames(seconds) });
+				return;
+			}
+			case 'frameRate': {
+				// Frames per second for a frames-directory source, which is the
+				// only thing that says how long it lasts. The world's own frame
+				// rate is the composition's and is not authored per element, so
+				// this name is free to mean the source's.
+				const fps = toNumber(value);
+				if (fps === undefined || fps <= 0) {
+					entity.remove(SourceFrameRate);
+					return;
+				}
+
+				entity.add(SourceFrameRate);
+				entity.set(SourceFrameRate, { value: fps });
 				return;
 			}
 			case 'src': {
