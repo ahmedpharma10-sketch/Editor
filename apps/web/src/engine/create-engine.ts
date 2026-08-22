@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { assetSystem, renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, Mode, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
+import { assetSystem, renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, Geometry, Mode, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
 import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
 import { AssetSelection, Hud, Keys, Pointer, PointerEvents, ProjectConfig, SnapLines } from './traits';
 import { inputSystem } from './input/input-system';
-import { timelineSystem, TimelineSurface } from './timeline';
+import { clearClipFrames, clearClipPeaks, clearMedia, clearPeaks, timelineSystem, TimelineSurface } from './timeline';
 import { shortcutSystem } from './input/shortcuts';
 import { sourceErrorSystem } from './source-errors';
 
@@ -54,6 +54,13 @@ class Engine {
 		this.unsubscribe.push(
 			this.world.onAdd(ChildOf('*'), () => (this.interactiveDirty = true)),
 			this.world.onRemove(ChildOf('*'), () => (this.interactiveDirty = true)),
+			// The timeline keeps a clip's waveform and thumbnails by entity id,
+			// and koota hands ids back out: a clip that is gone has to take its
+			// pictures with it, or the next clip to be given its id inherits them.
+			this.world.onRemove(Geometry, (entity) => {
+				clearClipPeaks(entity.id());
+				clearClipFrames(entity.id());
+			}),
 		);
 
 		[this.running, this.setRunning] = createSignal(false);
@@ -267,6 +274,11 @@ class Engine {
 		if (this.ownsAudioContext) {
 			this.audioContext.close();
 		}
+
+		// The timeline's decoded pictures and peaks are of this project's
+		// files, and are held outside the world: they go with the engine.
+		clearPeaks();
+		clearMedia();
 
 		this.unsubscribeEventListeners();
 		this.unsubscribe.forEach(unsubscribe => unsubscribe());

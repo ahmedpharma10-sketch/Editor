@@ -8,6 +8,8 @@ export * from './controller';
 export * from './drag';
 export * from './snapping';
 export * from './layout';
+export * from './media';
+export * from './peaks';
 export * from './style';
 export * from './surface';
 export * from './timeline';

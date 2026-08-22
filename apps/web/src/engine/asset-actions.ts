@@ -8,7 +8,8 @@
 import { toast } from "somoto";
 import { importFiles as importFilesInto, pickFiles, saveAssetAs as saveAs } from "@diffusionstudio/assets";
 import { insertAsset } from "./insert-asset";
-import { forgetPoster } from "./timeline/media";
+import { forgetAssetMedia } from "./timeline/media";
+import { forgetAssetPeaks } from "./timeline/peaks";
 
 import type { World } from "koota";
 
@@ -55,8 +56,10 @@ export async function replaceAssetSource(library: AssetLibrary, asset: Asset): P
   if (!path) return null;
   try {
     const relinked = await library.relink(asset, path);
-    // The picture the timeline is showing is of the file it used to be.
-    forgetPoster(asset.id);
+    // The picture and the waveform the timeline is showing are of the file
+    // it used to be.
+    forgetAssetMedia(asset.id);
+    forgetAssetPeaks(asset.id);
     return relinked;
   } catch (error) {
     toast.error("Failed to replace", { description: (error as Error).message });

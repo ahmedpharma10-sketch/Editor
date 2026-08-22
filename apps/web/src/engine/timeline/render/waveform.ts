@@ -2,37 +2,41 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { AssetId, Cache, Computed, findAssetDuration, getSourceWindow, resolveWaveformPeaks, store } from '@diffusionstudio/runtime';
+import { Computed, getSourceWindow, store } from '@diffusionstudio/runtime';
 
-import { framesToPixels, getResolution } from '../view';
+import { CLIP_BREAKPOINTS, CLIP_CORNER_RADIUS } from '../config';
+import { SAMPLE_WIDTH, getClipSamples, requestPeaks } from '../peaks';
+import { framesToPixels, getFrameRate, getResolution, getViewport } from '../view';
 
+import type { AudioAsset, VideoAsset } from '@diffusionstudio/assets';
 import type { Entity, World } from 'koota';
+import type { ClipSamples } from '../peaks';
 import type { RowCursor } from '../layout';
 import type { TimelineSurfaceState } from '../surface';
 
-/** How wide a bar is, and how much of that is the gap after it. */
-const BAR_WIDTH = 2;
-const BAR_GAP = 1;
-const MIN_BAR_HEIGHT = 1;
+/** How far either side of the viewport peaks are asked for, in pixels. */
+const VIEWPORT_MARGIN = 5;
 
-type WaveformOptions = {
+export type WaveformOptions = {
+	asset: AudioAsset | VideoAsset;
 	color: string;
 	/** How far down the clip the waveform starts. */
 	offsetY: number;
-	/** How much of the height to leave above and below it. */
+	/** How much of the height to leave for it to sit inside. */
 	padding: number;
 };
 
 /**
- * The clip's audio, as bars across the part of the waveform it plays.
+ * The clip's audio, one column of pixels at a time.
  *
- * The peaks belong to the asset, not the clip: they summarise the whole file
- * in a fixed number of bars (`PEAK_BARS`), and the clip's own source window
- * says which stretch of them is its own. That is what makes a split cost
- * nothing — both halves read the same summary, from different ends of it.
+ * A column is a moment of the source, so what it is worth changes with the
+ * zoom: the peaks are asked for at one per pixel (see `../peaks`), and only
+ * for the stretch of the clip that is on screen. Drawing then reads them back
+ * by time rather than by index, so a column drawn before its peaks have
+ * arrived is simply left out and filled in on a later frame.
  *
- * The summary is coarse, so a clip zoomed in far enough draws a smoothed
- * version of its audio rather than its samples.
+ * Tall rows show the waveform about its middle, short ones stand it on the
+ * bottom of the clip and fade it, so the label above it stays readable.
  */
 export function renderWaveform(
 	world: World,
@@ -44,61 +48,100 @@ export function renderWaveform(
 ): void {
 	const ctx = surface.ctx!;
 
-	const source = findPeakSource(entity);
-	if (!source) return;
+	// A video with no audio track has nothing to draw here.
+	if (!options.asset.sampleRate) return;
 
-	const peaks = resolveWaveformPeaks(world, source);
-	if (!peaks || peaks.length === 0) return;
-
-	const height = row.height - options.offsetY - options.padding;
-	if (height < 2) return;
-
+	const eid = entity.id();
 	const computed = store(world, Computed);
 	const resolution = getResolution(world, scene);
+	const fps = getFrameRate(world);
 
-	const left = framesToPixels(computed.start[entity.id()] ?? 0, resolution);
-	const width = framesToPixels(computed.end[entity.id()] ?? 0, resolution) - left;
-	if (width < BAR_WIDTH) return;
+	const clipLeft = framesToPixels(computed.start[eid] ?? 0, resolution);
+	const clipWidth = framesToPixels(computed.end[eid] ?? 0, resolution) - clipLeft;
+	const maskHeight = row.height - options.offsetY;
+	if (maskHeight <= 0) return;
 
-	// Which stretch of the asset this clip plays, as a fraction of it: the
-	// source window is in source frames, and the peaks span all of them.
-	const duration = findAssetDuration(world, entity) ?? 0;
-	const window = getSourceWindow(entity);
-	const from = duration > 0 ? window.in / duration : 0;
-	const to = duration > 0 ? Math.min(1, window.out / duration) : 1;
-
-	const step = BAR_WIDTH + BAR_GAP;
-	const count = Math.floor(width / step);
-	if (count <= 0) return;
-
-	const centerY = options.offsetY + height / 2;
+	const [viewportLeft, viewportRight] = getViewport(world, scene, surface.layout.width);
 
 	ctx.save();
+
+	// Everything below is drawn against the clip's own rounded body.
+	ctx.beginPath();
+	ctx.roundRect(clipLeft, options.offsetY, clipWidth, maskHeight, CLIP_CORNER_RADIUS);
+	ctx.clip();
+
+	// A little smaller than the mask, so the tallest sample does not touch it.
+	const waveformHeight = maskHeight - options.padding;
+
+	const playbackRate = computed.playbackRate[eid] || 1;
+	const pixelsToSeconds = (pixels: number): number => pixels / (fps * resolution);
+
+	// Each pixel covers playbackRate× more source audio when sped up, so we
+	// need proportionally fewer peaks per source second to keep one peak/pixel.
+	// Never none: zoomed far enough out a pixel is worth less than a second of
+	// source, and asking for no peaks a second is asking for no waveform.
+	const peaksPerSecond = Math.max(1, Math.floor(fps * resolution)) / SAMPLE_WIDTH / playbackRate;
+
+	// The source window is in source frames; the clip occupies
+	// window / playbackRate timeline frames, measured from its own origin.
+	const source = getSourceWindow(entity);
+	const inPx = framesToPixels(source.in / playbackRate, resolution);
+	const outPx = framesToPixels(source.out / playbackRate, resolution);
+	const originPx = framesToPixels(computed.origin[eid] ?? 0, resolution);
+
+	const firstSample = Math.max(inPx, viewportLeft - VIEWPORT_MARGIN - originPx);
+	const lastSample = Math.min(outPx, viewportRight + VIEWPORT_MARGIN - originPx);
+
+	requestPeaks({
+		clip: eid,
+		asset: options.asset,
+		start: pixelsToSeconds(firstSample) * playbackRate,
+		end: pixelsToSeconds(lastSample) * playbackRate,
+		peaksPerSecond,
+	});
+
 	ctx.fillStyle = options.color;
 
-	for (let i = 0; i < count; i++) {
-		// Where along the clip this bar is, mapped into the asset's summary.
-		const position = from + ((i + 0.5) / count) * (to - from);
-		const value = (peaks[Math.min(peaks.length - 1, Math.floor(position * peaks.length))] ?? 0) / 255;
-		const barHeight = Math.max(value * height, MIN_BAR_HEIGHT);
+	// A tall row centres the waveform on the space it has; a short one stands
+	// it on the bottom, where it reads as a strip under the label.
+	const anchor = maskHeight > CLIP_BREAKPOINTS.sm ? 0.5 : 1;
+	const minSampleHeight = maskHeight > CLIP_BREAKPOINTS.sm ? 1 : 0;
 
-		ctx.fillRect(left + i * step, centerY - barHeight / 2, BAR_WIDTH, barHeight);
+	// Tone the waveform down on short clip rows so the label stays readable.
+	if (row.height <= CLIP_BREAKPOINTS.sm) ctx.globalAlpha *= 0.6;
+
+	ctx.translate(originPx, options.offsetY + options.padding * anchor);
+
+	const samples = getClipSamples(eid);
+
+	// The chunks are ordered by where they start and the columns are drawn
+	// left to right, so the search for the chunk a column falls in only ever
+	// moves forwards.
+	let cursor = 0;
+
+	for (let x = firstSample; x < lastSample; x += SAMPLE_WIDTH) {
+		const time = pixelsToSeconds(x) * playbackRate;
+
+		cursor = findChunk(samples, time, cursor);
+		const chunk = samples?.[cursor];
+		if (!chunk || time < chunk.start || time > chunk.end) continue;
+
+		const peak = chunk.data[Math.floor((time - chunk.start) * chunk.peaksPerSecond)];
+		if (peak === undefined) continue;
+
+		const height = Math.max((peak / 255) * waveformHeight, minSampleHeight);
+		ctx.fillRect(x, (waveformHeight - height) * anchor, SAMPLE_WIDTH, height);
 	}
 
 	ctx.restore();
 }
 
-/**
- * What holds the asset the peaks come from: the clip itself when it is its
- * own source (an audio clip), otherwise whichever fill names one. Whether
- * that asset has any audio is `resolveWaveformPeaks`'s to say.
- */
-function findPeakSource(entity: Entity): Entity | null {
-	if (entity.has(AssetId)) return entity;
+/** The first chunk at or after `from` that has not already ended by `time`. */
+function findChunk(samples: ClipSamples[] | undefined, time: number, from: number): number {
+	if (!samples) return 0;
 
-	for (const fill of entity.get(Cache)?.fills ?? []) {
-		if (fill.has(AssetId)) return fill;
-	}
+	let index = from;
+	while (index < samples.length && samples[index]!.end < time) index++;
 
-	return null;
+	return index;
 }

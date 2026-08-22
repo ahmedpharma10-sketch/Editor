@@ -29,8 +29,12 @@ export class Waveform {
 	}
 
 	private async initialize(): Promise<void> {
-		const file = await getAssetFile(this.asset);
-		const peaks = await derivePeaks(file);
+		// Through the cache where there is one, so a file's peaks are derived
+		// once per project rather than once per session.
+		const peaks = this.cache
+			? await this.cache.peaks(this.asset)
+			: await derivePeaks(await getAssetFile(this.asset));
+
 		if (!this.disposed) {
 			this.peaks = peaks;
 		}

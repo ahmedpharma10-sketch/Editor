@@ -29,6 +29,7 @@ import {
 import { Or } from 'koota';
 
 import { getDocumentEditor } from './editor';
+import { cloneFramesForSplit, clonePeaksForSplit } from './timeline';
 import { trimIn, trimOut } from './timing';
 
 import type { Entity, World } from 'koota';
@@ -105,6 +106,11 @@ export function splitAtPlayhead(world: World): Entity[] {
 		trimOut(world, original, frame);
 		trimIn(world, copy, frame);
 		handOffDecoders(world, original, copy);
+		// The two halves play the same source at the same zoom, so the copy
+		// starts with the waveform and thumbnails the whole clip had rather
+		// than decoding them all over again.
+		clonePeaksForSplit(original.id(), copy.id());
+		cloneFramesForSplit(original.id(), copy.id());
 	}
 
 	// Two clips side by side under a scene are two layers of the timeline,

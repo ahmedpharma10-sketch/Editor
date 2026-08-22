@@ -20,7 +20,7 @@ import { truncateText } from '../text';
 import { framesToPixels, getResolution, getViewport } from '../view';
 import { renderCaption } from './caption';
 import { renderGroup } from './group';
-import { renderThumbnails } from './thumbnails';
+import { renderStillThumbnails, renderVideoThumbnails } from './thumbnails';
 import { renderWaveform } from './waveform';
 
 import type { Entity, World } from 'koota';
@@ -165,34 +165,24 @@ function renderContent(
 	switch (asset?.type) {
 		case 'IMAGE':
 		case 'SEQUENCE':
-			if (tall) renderThumbnails(world, scene, surface, entity, asset, row);
+			renderStillThumbnails(world, scene, surface, entity, asset, row);
 			return;
 
 		case 'AUDIO':
 			renderWaveform(world, scene, surface, entity, row, {
+				asset,
 				color: style.primary ?? style.foreground,
 				offsetY: tall ? CLIP_LABEL_HEIGHT : 2,
 				padding: 4,
 			});
 			return;
 
-		case 'VIDEO': {
+		case 'VIDEO':
 			// A video shows both: its picture along the top of the row, its
-			// sound along the bottom.
-			const strip = tall ? Math.round((row.height - CLIP_LABEL_HEIGHT) / 2) : 0;
-			if (strip > 0) {
-				renderThumbnails(world, scene, surface, entity, asset, row, {
-					top: CLIP_LABEL_HEIGHT,
-					height: strip,
-				});
-			}
-			renderWaveform(world, scene, surface, entity, row, {
-				color: style.primary ?? style.foreground,
-				offsetY: tall ? CLIP_LABEL_HEIGHT + strip : 2,
-				padding: 2,
-			});
+			// sound along the bottom. Which of the two the row has room for is
+			// the strip's own to work out.
+			renderVideoThumbnails(world, scene, surface, entity, asset, row, style.primary ?? style.foreground);
 			return;
-		}
 	}
 }
 
