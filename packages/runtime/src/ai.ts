@@ -6,6 +6,7 @@ import { generate } from '@diffusionstudio/jsx';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
+import type { SourceModifierValues } from './actions/assets';
 import type {
 	AssetRef,
 	GenerateAudioOptions,
@@ -30,6 +31,14 @@ export abstract class GenAi {
 	 * the scene again. Identical concurrent requests share one run.
 	 */
 	public abstract transcribe(world: World, scene: Entity, seed: number): Promise<Asset>;
+
+	/**
+	 * `asset` put through the modifiers an element asked of its source (see
+	 * `SourceModifiers`): the same asset and the same modifiers are the same
+	 * result, in this session and the next, and every step is cached on its
+	 * own, so adding one to an element does not re-run the others.
+	 */
+	public abstract derive(asset: Asset, modifiers: SourceModifierValues): Promise<Asset>;
 
 	/**
 	 * The imperative surface: `ai.generate.image({...})` declares and resolves

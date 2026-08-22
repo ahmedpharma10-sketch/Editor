@@ -14,54 +14,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createMemo, Show } from "solid-js";
-import { PaintType, isAudio } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { useRemoveBackground } from "./use-remove-background";
-import { useUpscaleImage } from "./use-upscale-image";
-import { useUpscaleVideo } from "./use-upscale-video";
-import { useAddAudioToVideo } from "./use-add-audio-to-video";
 import { useGenerationRecords } from "./use-generation-records";
 import { useGenerateImage } from "./use-generate-image";
 import { useGenerateVideo } from "./use-generate-video";
 import { useGenerateVoice } from "./use-generate-voice";
 import { useGenerateAudio } from "./use-generate-audio";
 import { useAutoCaptions } from "./use-auto-captions";
+import { useMediaSelection } from "./selection";
+import { useModifiers } from "./use-modifiers";
 import { createDefaultConfig } from "./prompt-input";
 import { toast } from "somoto";
-import { useECS } from "@/context/ecs";
-
-import type { EngineWorld } from "@/components/engine";
 
 import type { GenerationConfig } from "@/components/engine/db";
-
-function getNodeMediaType(world: EngineWorld, eid: number) {
-  const c = world.components;
-  if (isAudio(world, eid)) {
-    return "AUDIO";
-  }
-  for (const fid of c.Cache.fills[eid]) {
-    if (c.Paint[fid] === PaintType.VIDEO) {
-      return "VIDEO";
-    }
-    if (c.Paint[fid] === PaintType.IMAGE) {
-      return "IMAGE";
-    }
-  }
-  return null;
-}
 
 interface ActionBarProps {
   openPromptInput?(config: GenerationConfig): void;
 }
 
 export function ActionBar(props: ActionBarProps) {
-  const { world } = useEngine();
-  const { selectedNodes } = useECS();
+  const { imageNodes, videoNodes } = useMediaSelection();
+  const { isOn, toggle } = useModifiers();
 
-  const { generate: upscaleImage } = useUpscaleImage();
-  const { generate: upscaleVideo } = useUpscaleVideo();
-  const { generate: addAudioToVideo } = useAddAudioToVideo();
-  const { generate: removeBackground } = useRemoveBackground();
   const { generate: generateImage } = useGenerateImage();
   const { generate: generateVideo } = useGenerateVideo();
   const { generate: generateVoice } = useGenerateVoice();
@@ -69,19 +42,8 @@ export function ActionBar(props: ActionBarProps) {
   const { generate: autoCaptions, hasScene } = useAutoCaptions();
   const { isGenerated, totalCredits, firstConfig } = useGenerationRecords();
 
-  const isImage = createMemo(() => {
-    return Array.from(selectedNodes()).some(eid => {
-      const mediaType = getNodeMediaType(world, eid);
-      return mediaType === "IMAGE";
-    });
-  });
-
-  const isVideo = createMemo(() => {
-    return Array.from(selectedNodes()).some(eid => {
-      const mediaType = getNodeMediaType(world, eid);
-      return mediaType === "VIDEO";
-    });
-  });
+  const isImage = createMemo(() => imageNodes().length > 0);
+  const isVideo = createMemo(() => videoNodes().length > 0);
 
   const visible = createMemo(() => {
     return isImage() || isVideo() || hasScene();
@@ -143,11 +105,21 @@ export function ActionBar(props: ActionBarProps) {
           </Show>
           <Show when={isImage()}>
             <div class="flex gap-1 items-center">
-              <Button variant="ghost" class="gap-0 pl-0.5 text-muted-foreground" onClick={removeBackground}>
+              <Button
+                variant="ghost"
+                class="gap-0 pl-0.5 text-muted-foreground"
+                classList={{ "text-foreground": isOn("removeBackground") }}
+                onClick={() => toggle("removeBackground")}
+              >
                 <Icon name="ai-generate" />
                 Remove background
               </Button>
-              <Button variant="ghost" class="gap-0 pl-0.5 text-muted-foreground" onClick={upscaleImage}>
+              <Button
+                variant="ghost"
+                class="gap-0 pl-0.5 text-muted-foreground"
+                classList={{ "text-foreground": isOn("upscale") }}
+                onClick={() => toggle("upscale")}
+              >
                 <Icon name="arrow-scale" />
                 Upscale
               </Button>
@@ -197,11 +169,21 @@ export function ActionBar(props: ActionBarProps) {
           </Show>
           <Show when={isVideo()}>
             <div class="flex gap-1 items-center">
-              <Button variant="ghost" class="gap-0 pl-0.5 text-muted-foreground" onClick={addAudioToVideo}>
+              <Button
+                variant="ghost"
+                class="gap-0 pl-0.5 text-muted-foreground"
+                classList={{ "text-foreground": isOn("addAudio") }}
+                onClick={() => toggle("addAudio")}
+              >
                 <Icon name="generate-audio" />
                 Add audio
               </Button>
-              <Button variant="ghost" class="gap-0 pl-0.5 text-muted-foreground" onClick={upscaleVideo}>
+              <Button
+                variant="ghost"
+                class="gap-0 pl-0.5 text-muted-foreground"
+                classList={{ "text-foreground": isOn("upscale") }}
+                onClick={() => toggle("upscale")}
+              >
                 <Icon name="arrow-scale" />
                 Upscale
               </Button>

@@ -61,12 +61,14 @@ generate.video(opts: {
 generate.voice(opts: {
   prompt: string;                  // required: the text to speak
   voice?: string;                  // default: first voice from `dapi voices`
+  seed?: number;
 }): AssetRef;
 
 generate.audio(opts: {
   prompt: string;                  // required
   model?: string;                  // default: first model from `dapi models audio`
   duration?: number;               // seconds; default 30 for music, the model's own default for sfx
+  seed?: number;
 }): AssetRef;
 ```
 

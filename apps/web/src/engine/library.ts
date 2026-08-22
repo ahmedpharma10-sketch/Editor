@@ -40,11 +40,16 @@ export function isLibraryFile(path: string): boolean {
 	return path === MANIFEST_FILE || path === ASSETS_DIR || path.startsWith(`${ASSETS_DIR}/`);
 }
 
-/** Rewrites `src` on every element that named an asset by its old path. */
+/**
+ * Rewrites `src` on every element that named an asset by its old path. Matched
+ * on the path alone, not on what the element is bound to: an element showing a
+ * modified source (`removeBackground`, `upscale`) is bound to what the
+ * modifiers made of the asset rather than to the asset itself, and its `src`
+ * still has to follow the rename.
+ */
 function followRename(world: World, asset: Asset, from: string): void {
 	const editor = getDocumentEditor(world);
 	for (const entity of world.query(AssetId)) {
-		if (entity.get(AssetId)?.value !== asset.id) continue;
 		const src = authoredElement(entity)?.props.src;
 		if (src !== from) continue;
 		editor.editProperty(entity, 'src', asset.path);

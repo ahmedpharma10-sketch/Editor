@@ -31,6 +31,7 @@ import {
 import {
   PROMPT_INPUT_IMAGE_MODEL_OPTIONS,
   PROMPT_INPUT_VIDEO_MODEL_OPTIONS,
+  PROMPT_INPUT_VOICE_MODEL,
   PROMPT_INPUT_VOICE_OPTIONS,
   PROMPT_INPUT_MODE_OPTIONS,
   PROMPT_INPUT_IMAGE_ASPECT_RATIO_OPTIONS,
@@ -48,8 +49,6 @@ import { useGenerateVideo } from "./use-generate-video";
 import { useGenerateVoice } from "./use-generate-voice";
 import { useGenerateAudio } from "./use-generate-audio";
 import { PromptInputActions } from "./prompt-input-actions";
-import { useEngine } from "@/context/engine";
-import { showFileDialog } from "@/utils";
 import type {
   AspectRatio,
   GenerationConfig,
@@ -59,18 +58,13 @@ import type {
   AudioGenerationConfig,
 } from "@/components/engine/db";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
-import { ChildOf, PaintType, removeComponent } from "@/components/engine";
-import { useAssets, loadAsset } from "@/components/engine";
-import { useECS } from "@/context/ecs";
-import { Not, query } from 'bitecs';
-import { AssetId } from "@diffusionstudio/runtime";
 import { useLibrary } from "@/engine/library";
-import { useEditor, useSelection } from "@/engine/hooks";
+import { useEditor } from "@/engine/hooks";
 import { droppedFiles, importFiles, pickFiles } from "@/engine/asset-actions";
+import { useMediaSelection } from "./selection";
 import { ASSET_DRAG_TYPE } from "@/components/sidebar-left/folder-item";
 
-import type { Entity } from "koota";
-import type { Asset as LibraryAsset, AssetCache } from "@diffusionstudio/assets";
+import type { AssetCache } from "@diffusionstudio/assets";
 import type { ThumbnailAsset } from "@/components/ui/asset-thumbnail";
 
 export type PromptInputMode = "IMAGE" | "VIDEO" | "VOICE" | "AUDIO";
@@ -107,7 +101,7 @@ export function createDefaultConfig<K extends keyof GenerationConfgs>(mode: K, p
     case "VOICE":
       return {
         mode: "VOICE",
-        model: "elevenlabs-v3",
+        model: PROMPT_INPUT_VOICE_MODEL,
         prompt,
         voice: PROMPT_INPUT_VOICE_OPTIONS[0].value,
       } as GenerationConfgs[K];
@@ -125,15 +119,9 @@ export interface PromptInputProps {
 }
 
 export function PromptInput(props: PromptInputProps) {
-  const { world } = useEngine();
-  const assets = useAssets(world);
-  const { selectedNodes } = useECS();
-  const c = world.components;
-  // The runtime the IMAGE mode works against: references come from the
-  // project library and the canvas selection, and land as declarations.
   const library = useLibrary();
   const editor = useEditor();
-  const { nodes } = useSelection();
+  const { images: selectedImages } = useMediaSelection();
   const { generate: generateImage } = useGenerateImage();
   const { generate: generateVideo } = useGenerateVideo();
   const { generate: generateVoice } = useGenerateVoice();
@@ -184,46 +172,13 @@ export function PromptInput(props: PromptInputProps) {
     return model ? ALL_VIDEO_ASPECT_RATIO_OPTIONS.filter((o) => model.aspectRatios.includes(o.value)) : [];
   });
 
-  const selectedImageEntries = createMemo(() => {
-    const entries: { assetId: string; eid: number }[] = [];
-    const AssetId = world.components.AssetId;
-    for (const eid of selectedNodes()) {
-      for (const fid of query(world, [c.Paint, ChildOf(eid), Not(c.Deleted), Not(c.Hidden)])) {
-        if (c.Paint[fid] === PaintType.IMAGE) {
-          const assetId = AssetId[fid];
-          if (!assetId) continue;
-          entries.push({ assetId, eid });
-          break; // we just need the first image fill
-        }
-      }
-    }
-    return entries;
-  });
-
-  const selectedImageIds = createMemo(() =>
-    selectedImageEntries().map((e) => e.assetId),
-  );
-
-  // The image assets of the current canvas selection, from the runtime's
-  // world: entities bound to a library image count as references.
-  const selectedLibraryImages = createMemo(() => {
-    const lib = library();
-    if (!lib) return [];
-
-    const entries: { asset: LibraryAsset; entity: Entity }[] = [];
-    for (const entity of nodes()) {
-      const id = entity.get(AssetId)?.value;
-      const asset = id ? lib.get(id) : undefined;
-      if (asset?.type === "IMAGE") entries.push({ asset, entity });
-    }
-    return entries;
-  });
-
+  // Pictures on the canvas are offered as references and as video frames:
+  // selecting one is another way of attaching it.
   const effectiveImageRefIds = createMemo(() => {
     const lib = library();
     if (!lib) return [];
     const local = imageConfig()?.imageRefIds ?? [];
-    const selected = selectedLibraryImages()
+    const selected = selectedImages()
       .map((entry) => entry.asset.id)
       .filter((id) => !local.includes(id));
     return [...local, ...selected]
@@ -231,15 +186,22 @@ export function PromptInput(props: PromptInputProps) {
       .slice(0, MAX_IMAGE_REFERENCES);
   });
 
-  const effectiveStartFrameId = createMemo(() => {
-    const id = videoConfig()?.startFrameImageId ?? selectedImageIds()[0] ?? null;
-    return id && assets.get(id) ? id : null;
-  });
+  /** The library id a frame is set to, explicitly or by the selection. */
+  const frameId = (frame: "start" | "end") => {
+    // A frame the model cannot take is not one the prompt box offers, and
+    // not one a canvas selection quietly attaches either: the declaration is
+    // checked against the model before it runs.
+    if (!currentVideoModel()?.features.includes(`${frame}-frame`)) return null;
 
-  const effectiveEndFrameId = createMemo(() => {
-    const id = videoConfig()?.endFrameImageId ?? selectedImageIds()[1] ?? null;
-    return id && assets.get(id) ? id : null;
-  });
+    const lib = library();
+    const config = videoConfig();
+    const explicit = frame === "start" ? config?.startFrameImageId : config?.endFrameImageId;
+    const id = explicit ?? selectedImages()[frame === "start" ? 0 : 1]?.asset.id ?? null;
+    return id && lib?.get(id) ? id : null;
+  };
+
+  const effectiveStartFrameId = createMemo(() => frameId("start"));
+  const effectiveEndFrameId = createMemo(() => frameId("end"));
 
   const [recentPrompts, setRecentPrompts] = createStoredSignal(
     store.define<string[]>("prompt-input.recent-prompts", []),
@@ -275,7 +237,7 @@ export function PromptInput(props: PromptInputProps) {
     }
     // The reference is shown from a selected canvas entity, so removing it
     // means deselecting that entity.
-    const entry = selectedLibraryImages().find((e) => e.asset.id === assetId);
+    const entry = selectedImages().find((e) => e.asset.id === assetId);
     if (entry) editor.deselect(entry.entity);
   };
 
@@ -297,22 +259,17 @@ export function PromptInput(props: PromptInputProps) {
   };
 
   const openVideoFramePicker = async (frame: "start" | "end") => {
-    const handles = await showFileDialog("image/*", false);
-    if (handles.length !== 1) return;
+    const lib = library();
+    if (!lib) return;
 
-    try {
-      const loadedAsset = await loadAsset(world, handles[0]!);
-      if (loadedAsset.type !== "IMAGE") return;
-      if (frame === "start") {
-        patch({ startFrameImageId: loadedAsset.id });
-      } else {
-        patch({ endFrameImageId: loadedAsset.id });
-      }
-    } catch (e) {
-      toast("Failed to import assets", {
-        description: (e as Error).message,
-      });
-    }
+    const files = await pickFiles({ accept: "image/*", multiple: false });
+    if (files.length === 0) return;
+
+    // `importFiles` reports its own failures.
+    const [imported] = (await importFiles(lib, files, "")).filter((a) => a.type === "IMAGE");
+    if (!imported) return;
+
+    patch(frame === "start" ? { startFrameImageId: imported.id } : { endFrameImageId: imported.id });
   };
 
   const swapVideoFrameImages = () => {
@@ -332,10 +289,8 @@ export function PromptInput(props: PromptInputProps) {
     }
     // The frame is being shown from a selected canvas entity, so clearing it
     // means deselecting that entity (mirrors removeImageReference).
-    const entry = frame === "start" ? selectedImageEntries()[0] : selectedImageEntries()[1];
-    if (entry) {
-      removeComponent(world, entry.eid, c.Selected, false);
-    }
+    const entry = selectedImages()[frame === "start" ? 0 : 1];
+    if (entry) editor.deselect(entry.entity);
   };
 
   const resizeTextarea = () => {
@@ -444,59 +399,42 @@ export function PromptInput(props: PromptInputProps) {
     dragCounter = 0;
     setIsDragging(false);
 
+    if (mode() !== "IMAGE" && mode() !== "VIDEO") return;
+
+    const lib = library();
+    if (!lib) return;
+
+    // What a generation is given to work from lives in the project library:
+    // dragged library assets are taken as they are, external files imported.
     const assetIdData = event.dataTransfer?.getData(ASSET_DRAG_TYPE);
     const existingAssetIds = assetIdData?.split(",").filter(Boolean) ?? [];
+    const files = droppedFiles(event).filter((file) => file.type.startsWith("image/"));
+    if (existingAssetIds.length === 0 && files.length === 0) return;
 
-    // References for an image generation live in the project library:
-    // dragged library assets are taken as they are, external files imported.
-    if (mode() === "IMAGE") {
-      const lib = library();
-      if (!lib) return;
+    // `importFiles` reports its own failures.
+    const droppedIds =
+      existingAssetIds.length > 0
+        ? existingAssetIds
+        : (await importFiles(lib, files, "")).map((a) => a.id);
 
-      const files = droppedFiles(event).filter((file) => file.type.startsWith("image/"));
-      if (existingAssetIds.length === 0 && files.length === 0) return;
+    const imageIds = droppedIds.filter((id) => lib.get(id)?.type === "IMAGE");
+    if (imageIds.length === 0) return;
 
-      const newAssetIds =
-        existingAssetIds.length > 0
-          ? existingAssetIds
-          : (await importFiles(lib, files, "")).map((a) => a.id);
-
-      const imageIds = newAssetIds.filter((id) => lib.get(id)?.type === "IMAGE");
-      const current = imageConfig()?.imageRefIds ?? [];
-      patch({
-        imageRefIds: [...current, ...imageIds].slice(0, MAX_IMAGE_REFERENCES),
-      });
+    if (mode() === "VIDEO") {
+      const c = videoConfig();
+      if (!c?.startFrameImageId && imageIds[0]) {
+        patch({ startFrameImageId: imageIds[0] });
+      }
+      if (!c?.endFrameImageId && imageIds[1]) {
+        patch({ endFrameImageId: imageIds[1] });
+      }
       return;
     }
 
-    const fileItems = Array.from(event.dataTransfer?.items ?? []).filter(
-      (item) => item.kind === "file" && item.type.startsWith("image/"),
-    );
-
-    if (existingAssetIds.length === 0 && fileItems.length === 0) return;
-
-    try {
-      let newAssetIds =
-        existingAssetIds.length > 0
-          ? existingAssetIds
-          : (await Promise.all(fileItems.map((item) => loadAsset(world, item)))).map((a) => a.id);
-
-      newAssetIds = newAssetIds.filter((id) => world.assets.get(id)?.type === "IMAGE");
-
-      if (mode() === "VIDEO") {
-        const c = videoConfig();
-        if (!c?.startFrameImageId && newAssetIds[0]) {
-          patch({ startFrameImageId: newAssetIds[0] });
-        }
-        if (!c?.endFrameImageId && newAssetIds[1]) {
-          patch({ endFrameImageId: newAssetIds[1] });
-        }
-      }
-    } catch (e) {
-      toast("Failed to import assets", {
-        description: (e as Error).message,
-      });
-    }
+    const current = imageConfig()?.imageRefIds ?? [];
+    patch({
+      imageRefIds: [...current, ...imageIds].slice(0, MAX_IMAGE_REFERENCES),
+    });
   };
 
   const handleVideoModelChange = (id: string) => {
@@ -510,7 +448,7 @@ export function PromptInput(props: PromptInputProps) {
       ...c,
       model: id,
       endFrameImageId: model.features.includes("end-frame") ? c.endFrameImageId : undefined,
-      generateAudio: model.features.includes("audio") ? c.generateAudio : true,
+      generateAudio: model.features.includes("audio") ? (c.generateAudio ?? true) : false,
       duration: model.durations.includes(durationStr) ? c.duration : parseInt(model.durations[0], 10),
       aspectRatio: model.aspectRatios.includes(c.aspectRatio)
         ? c.aspectRatio
@@ -577,7 +515,8 @@ export function PromptInput(props: PromptInputProps) {
               >
                 {(src) => (
                   <PromptInputReferenceImageButton
-                    asset={assets.get(src())!}
+                    asset={library()!.get(src())!}
+                    cache={library()!.cache}
                     class="h-16 w-28"
                     size={{ width: 112, height: 64 }}
                     onRemove={() => clearVideoFrame("start")}
@@ -611,7 +550,8 @@ export function PromptInput(props: PromptInputProps) {
               >
                 {(src) => (
                   <PromptInputReferenceImageButton
-                    asset={assets.get(src())!}
+                    asset={library()!.get(src())!}
+                    cache={library()!.cache}
                     class="h-16 w-28"
                     size={{ width: 112, height: 64 }}
                     onRemove={() => clearVideoFrame("end")}

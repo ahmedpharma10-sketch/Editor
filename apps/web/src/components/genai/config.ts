@@ -2,6 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/** The one model the voice mode speaks with; the UI picks the voice, not the model. */
+export const PROMPT_INPUT_VOICE_MODEL = "elevenlabs-v3";
+
+/** What an aspect ratio is worth in pixels, at 1080p. */
+export const ASPECT_RATIO_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  "16:9": { width: 1920, height: 1080 },
+  "9:16": { width: 1080, height: 1920 },
+  "1:1": { width: 1080, height: 1080 },
+  "4:3": { width: 1440, height: 1080 },
+  "3:4": { width: 1080, height: 1440 },
+};
+
 export const PROMPT_INPUT_MODE_OPTIONS = [
   { value: "IMAGE", label: "Image", icon: "image" },
   { value: "VIDEO", label: "Video", icon: "film-video-export" },

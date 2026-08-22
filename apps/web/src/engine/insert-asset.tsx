@@ -25,8 +25,8 @@ export interface InsertAssetOptions {
 	start?: number;
 }
 
-const AUDIO_WIDTH = 500;
-const AUDIO_HEIGHT = 150;
+/** The box an audio clip gets on the canvas: it has no size of its own. */
+export const AUDIO_SIZE = { width: 500, height: 150 } as const;
 
 /**
  * Inserts `asset` into the project as the element of its type and returns
@@ -73,7 +73,7 @@ function sizeOf(asset: Asset): { width: number; height: number } | undefined {
 		case 'SEQUENCE':
 			return { width: Math.round(asset.width), height: Math.round(asset.height) };
 		case 'AUDIO':
-			return { width: AUDIO_WIDTH, height: AUDIO_HEIGHT };
+			return { ...AUDIO_SIZE };
 		default:
 			return undefined;
 	}

@@ -7,12 +7,14 @@ import {
   Ai, AssetId, Audio, GenAi, getAssetFile, getEntityTree, Hidden, Muted,
   Paint, PaintType, Project, Source,
 } from "@diffusionstudio/runtime";
+import type { SourceModifierValues } from "@diffusionstudio/runtime";
 import { createEncoder } from "@diffusionstudio/encoder";
 import { assetName, GENERATED_DIR } from "@diffusionstudio/assets";
 import {
   PROMPT_INPUT_AUDIO_MODEL_OPTIONS,
   PROMPT_INPUT_IMAGE_MODEL_OPTIONS,
   PROMPT_INPUT_VIDEO_MODEL_OPTIONS,
+  PROMPT_INPUT_VOICE_MODEL,
   PROMPT_INPUT_VOICE_OPTIONS,
 } from "@/components/genai/config";
 import { assert } from "@/utils";
@@ -22,11 +24,9 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "somoto";
 
 import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
-import type { Asset, AssetLibrary } from "@diffusionstudio/assets";
+import type { Asset, AssetLibrary, AssetType } from "@diffusionstudio/assets";
+import type { FileRef } from "@diffusionstudio/api-contract";
 import type { Entity, World } from "koota";
-
-// The UI offers a fixed set of voices on a fixed model (see prompt-input.tsx).
-const VOICE_MODEL = "elevenlabs-v3";
 
 /** What a failure is called where the user reads about it. */
 const FAILURE_TITLES: Record<AssetSpecInput["type"] | "transcript", string> = {
@@ -38,14 +38,39 @@ const FAILURE_TITLES: Record<AssetSpecInput["type"] | "transcript", string> = {
 };
 
 /**
+ * One step of a source modifier (see the runtime's `SourceModifiers`): a
+ * model call that makes a new asset out of one the library already holds.
+ * An element asks for these by prop and goes on naming what it was made
+ * from, so each step is stored and cached on its own, and a set of modifiers
+ * is these run in order (see `derive`).
+ */
+export type TransformKind = "remove-background" | "upscale" | "add-audio";
+
+/** What each step is called where the user reads about it, and names its result. */
+const TRANSFORMS: Record<TransformKind, { title: string; suffix: string }> = {
+  "remove-background": { title: "Background removal failed", suffix: "Background removed" },
+  "upscale": { title: "Upscale failed", suffix: "Upscaled" },
+  "add-audio": { title: "Adding audio failed", suffix: "With audio" },
+};
+
+/** The steps a set of modifiers comes to, in the order they are applied. */
+function steps(modifiers: SourceModifierValues): TransformKind[] {
+  const kinds: TransformKind[] = [];
+  if (modifiers.removeBackground) kinds.push("remove-background");
+  if (modifiers.upscale > 1) kinds.push("upscale");
+  if (modifiers.addAudio) kinds.push("add-audio");
+  return kinds;
+}
+
+/**
  * A spec with defaults applied and every `AssetInput` reduced to an asset id.
  * Field order is fixed, so `JSON.stringify` of it is a stable `generationKey`.
  */
 type ResolvedSpec =
   | { type: "image"; model: string; prompt: string; aspectRatio: AspectRatio; seed?: number; refIds: string[] }
   | { type: "video"; model: string; prompt: string; aspectRatio: AspectRatio; duration: number; audio: boolean; seed?: number; startFrameId?: string; endFrameId?: string }
-  | { type: "voice"; model: string; prompt: string; voice: string }
-  | { type: "audio"; model: string; prompt: string; duration?: number };
+  | { type: "voice"; model: string; prompt: string; voice: string; seed?: number }
+  | { type: "audio"; model: string; prompt: string; duration?: number; seed?: number };
 
 /** Creates the project's GenAi over `library` and attaches it as the world's Ai. */
 export function attachAi(world: World, library: AssetLibrary): EditorGenAi {
@@ -222,9 +247,10 @@ export class EditorGenAi extends GenAi {
       case "voice": {
         return {
           type: "voice",
-          model: VOICE_MODEL,
+          model: PROMPT_INPUT_VOICE_MODEL,
           prompt: spec.prompt,
           voice: spec.voice ?? PROMPT_INPUT_VOICE_OPTIONS[0].value,
+          seed: spec.seed,
         };
       }
       case "audio": {
@@ -233,6 +259,7 @@ export class EditorGenAi extends GenAi {
           model: spec.model ?? PROMPT_INPUT_AUDIO_MODEL_OPTIONS[0].id,
           prompt: spec.prompt,
           duration: spec.duration,
+          seed: spec.seed,
         };
       }
     }
@@ -254,14 +281,7 @@ export class EditorGenAi extends GenAi {
       const { name, results, generationId } = await this.requestGeneration(spec);
       assert(results.length > 0, "No results returned from the model");
 
-      const url = results[0].url;
-      const response = await fetch(url);
-      assert(response.ok, `Failed to fetch the generated asset: ${response.status}`);
-      const blob = await response.blob();
-      const extension = url.split(/[?#]/)[0].split(".").pop();
-      const fileName = extension && extension.length <= 5 ? `${name}.${extension}` : name;
-
-      const asset = await this.library.store(blob, { name: fileName, folder: GENERATED_DIR, generation: { key: generationKey, id: generationId } });
+      const asset = await this.store(results[0].url, name, { key: generationKey, id: generationId });
       track("generation_completed", {
         mode: spec.type,
         model: spec.model,
@@ -277,6 +297,108 @@ export class EditorGenAi extends GenAi {
       });
       throw err;
     }
+  }
+
+  /**
+   * `asset` through every modifier the element asked for, one step at a time
+   * and in a fixed order. Each step is cached in its own right, so turning
+   * one on leaves what the others already made alone — adding `upscale` to a
+   * cut-out picture pays for the enlarging, not for the matte again.
+   */
+  public async derive(asset: Asset, modifiers: SourceModifierValues): Promise<Asset> {
+    let derived = asset;
+    for (const kind of steps(modifiers)) {
+      derived = await this.transform(kind, derived);
+    }
+    return derived;
+  }
+
+  /**
+   * Runs one step over `asset` and returns what it produced, stored under
+   * `generated/` like any other model output. Keyed by step and input, so the
+   * same call on the same asset is the same result in this session and the
+   * next: upscaling a picture twice costs what upscaling it once did.
+   */
+  public async transform(kind: TransformKind, asset: Asset): Promise<Asset> {
+    // No upscale factor in the key: the endpoint takes none, so every factor
+    // is the same call and would otherwise be billed once per number asked
+    // for. It belongs here the moment the API can be told one.
+    const key = `transform:v1:${kind}:${asset.id}`;
+
+    const cached = this.library.list().find((entry) => entry.generation?.key === key);
+    if (cached) return cached;
+
+    const running = this.inflight.get(key);
+    if (running) return await running;
+
+    const promise = this.runTransform(kind, asset, key);
+    this.inflight.set(key, promise);
+    try {
+      return await promise;
+    } catch (error) {
+      throw reportFailure(error, TRANSFORMS[kind].title);
+    } finally {
+      this.inflight.delete(key);
+    }
+  }
+
+  /** Uploads the input, runs the call, and stores the result beside the generations. */
+  private async runTransform(kind: TransformKind, asset: Asset, key: string): Promise<Asset> {
+    const startedAt = performance.now();
+    track("generation_started", { mode: kind });
+
+    try {
+      console.log(`[gen-ai] running ${kind} on ${asset.path}`);
+      const input = await this.uploadInput(asset.id);
+      const { url, generationId } = await this.requestTransform(kind, asset, input);
+
+      const base = assetName(asset).replace(/\.[^.]+$/, "");
+      const stored = await this.store(url, `${base} (${TRANSFORMS[kind].suffix})`, { key, id: generationId });
+
+      track("generation_completed", {
+        mode: kind,
+        duration_ms: Math.round(performance.now() - startedAt),
+      });
+      return stored;
+    } catch (err) {
+      track("generation_failed", {
+        mode: kind,
+        duration_ms: Math.round(performance.now() - startedAt),
+        error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+      });
+      throw err;
+    }
+  }
+
+  private requestTransform(kind: TransformKind, asset: Asset, input: FileRef) {
+    switch (kind) {
+      case "remove-background":
+        assert(asset.type === "IMAGE", "Only a picture has a background to remove");
+        return trpc.removeBackground.mutate({ image: input });
+      case "upscale":
+        return isMoving(asset.type)
+          ? trpc.upscaleVideo.mutate({ video: input })
+          : trpc.upscaleImage.mutate({ image: input });
+      case "add-audio":
+        assert(isMoving(asset.type), "Only footage can be scored");
+        return trpc.addAudioToVideo.mutate({ video: input });
+    }
+  }
+
+  /**
+   * Downloads what a model returned and files it in the library. The name is
+   * the model's, the extension the URL's — what came back decides what the
+   * file is called, not what was asked for.
+   */
+  private async store(url: string, name: string, generation: { key: string; id?: string | null }): Promise<Asset> {
+    const response = await fetch(url);
+    assert(response.ok, `Failed to fetch the generated asset: ${response.status}`);
+    const blob = await response.blob();
+
+    const extension = url.split(/[?#]/)[0].split(".").pop();
+    const fileName = extension && extension.length <= 5 ? `${name}.${extension}` : name;
+
+    return this.library.store(blob, { name: fileName, folder: GENERATED_DIR, generation });
   }
 
   private requestGeneration(spec: ResolvedSpec) {
@@ -321,6 +443,7 @@ export class EditorGenAi extends GenAi {
           model: spec.model,
           prompt: spec.prompt,
           voice: spec.voice,
+          seed: spec.seed,
         });
       }
       case "audio": {
@@ -328,6 +451,7 @@ export class EditorGenAi extends GenAi {
           model: spec.model,
           prompt: spec.prompt,
           duration: spec.duration,
+          seed: spec.seed,
         });
       }
     }
@@ -342,6 +466,9 @@ export class EditorGenAi extends GenAi {
     return uploaded;
   }
 }
+
+/** Whether an asset type is footage, for the calls that only take footage. */
+const isMoving = (type: AssetType): boolean => type === "VIDEO" || type === "SEQUENCE";
 
 /**
  * Says what a generation failed with, and hands the error on. The message is

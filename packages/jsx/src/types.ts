@@ -295,6 +295,22 @@ type MediaProps = {
   error?: string;
 };
 
+/**
+ * Model calls the source is put through before the element shows it. The
+ * `src` goes on naming what it was made from, so taking a modifier off gives
+ * the original back; what they made is cached by source and modifiers, so it
+ * is made once however many elements ask for it, and adding a second
+ * modifier does not re-run the first. Applied in the order below.
+ */
+type UpscaleProps = {
+  /**
+   * Resolution multiplier: 2 asks for twice the pixels. Enlarges the source,
+   * not the box — the element keeps the width and height it was given, and
+   * renders sharper. Default 1, the source as it is.
+   */
+  upscale?: number;
+};
+
 type FitProps = {
   /** How the source maps into the box. Default "cover" on `<Video>`, "contain" on `<Image>`. */
   objectFit?: Fit;
@@ -572,12 +588,24 @@ export type ColorStopProps = ColorProps & OpacityProps & TrackChildren & {
  */
 export type MediaPaintProps = PaintProps & MediaProps & FitProps & TrackChildren;
 
-export type VideoProps = CommonProps & MediaProps & FitProps & AudioTrackProps & {
+export type VideoProps = CommonProps & MediaProps & FitProps & AudioTrackProps & UpscaleProps & {
+  /**
+   * Scores the footage: a generated soundtrack for a clip that has none. See
+   * `UpscaleProps` for what a modifier is; applied last, after `upscale`, so
+   * a re-encode cannot drop the track. Independent of `volume` and `muted`,
+   * which mix whatever track the clip ends up with.
+   */
+  addAudio?: boolean;
   /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>`, `<Effect>`, `<Animation>` and `<KeyframeTrack>` children. */
     children?: SolidJSX.Element;
   };
 
-export type ImageProps = CommonProps & MediaProps & FitProps & {
+export type ImageProps = CommonProps & MediaProps & FitProps & UpscaleProps & {
+  /**
+   * Cuts the subject out, leaving the rest of the picture transparent. See
+   * `UpscaleProps` for what a modifier is; applied before `upscale`.
+   */
+  removeBackground?: boolean;
   /** Paint children, stacked over the media paint created by `src`; `<Stroke>`, `<Shadow>`, `<Effect>`, `<Animation>` and `<KeyframeTrack>` children. */
     children?: SolidJSX.Element;
   };
@@ -638,7 +666,13 @@ export type SurfacePaintProps = PaintProps & {
 /** `<Surface>` — a rectangle carrying a `<SurfacePaint>` with the given ref. */
 export type SurfaceProps = CommonProps & Pick<SurfacePaintProps, "ref">;
 
-export type AudioProps = IdentityProps & TimingProps & MediaProps & AudioTrackProps & {
+/**
+ * `<audio>` — a clip with a sound and no picture. It draws nothing inside a
+ * scene, but on the canvas it is still something to point at: the editor
+ * shows its waveform in a box, and `x`/`y`/`width`/`height` are where that
+ * box is. Left off inside a scene, where they mean nothing.
+ */
+export type AudioProps = IdentityProps & PositionProps & SizeProps & TimingProps & MediaProps & AudioTrackProps & {
   /** `<KeyframeTrack>` (a `volume` track) and `<Animation>` children. */
   children?: SolidJSX.Element;
 };

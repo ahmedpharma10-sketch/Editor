@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { Ai, FramePromises, Generating, GenerationRequest, Library, LoadRequest, PendingSource, SourceError, TranscriptionRequest } from '../traits';
-import { bindAsset } from '../actions/assets';
+import { bindAsset, getModifiers } from '../actions/assets';
 import { getEntityTree, getSceneAncestor } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
@@ -15,7 +15,7 @@ export function assetSystem(world: World): void {
 		for (const entity of world.query(LoadRequest)) {
 			const source = entity.get(LoadRequest)!.value;
 			entity.remove(LoadRequest);
-			resolve(world, entity, source, library.resolve(source));
+			start(world, entity, library.resolve(source));
 		}
 	}
 
@@ -25,7 +25,7 @@ export function assetSystem(world: World): void {
 			const ref = entity.get(GenerationRequest)!.ref;
 			entity.remove(GenerationRequest);
 			if (ref === null || entity.has(SourceError)) continue;
-			resolve(world, entity, ref, ai.resolve(ref), true);
+			start(world, entity, ai.resolve(ref), true);
 		}
 
 		for (const entity of world.query(TranscriptionRequest)) {
@@ -35,9 +35,27 @@ export function assetSystem(world: World): void {
 			const seed = entity.get(TranscriptionRequest)!.seed;
 			entity.remove(TranscriptionRequest);
 			if (entity.has(SourceError)) continue;
-			resolve(world, entity, `transcript:${scene.id()}:${seed}`, ai.transcribe(world, scene, seed), true);
+			resolve(world, entity, ai.transcribe(world, scene, seed), true);
 		}
 	}
+}
+
+/**
+ * Starts a resolution for whatever the element's src named, putting it
+ * through the modifiers the element asks of it (see `SourceModifiers`). The
+ * two are one wait: the element binds the asset it is going to show, not
+ * first the one it was made from.
+ */
+function start(world: World, entity: Entity, base: Promise<Asset>, generating = false): void {
+	const modifiers = getModifiers(entity);
+	const ai = world.get(Ai);
+
+	if (!modifiers || !ai) {
+		resolve(world, entity, base, generating);
+		return;
+	}
+
+	resolve(world, entity, base.then((asset) => ai.derive(asset, modifiers)), true);
 }
 
 /**
@@ -56,24 +74,28 @@ function hasPendingSources(world: World, scene: Entity, except: Entity): boolean
 }
 
 /**
- * Tracks one started resolution: the entity remembers what it is waiting on
- * (PendingSource), so of overlapping resolutions only the latest binds, and
- * one that outlives its element (or its src) is dropped.
+ * Tracks one started resolution: the entity remembers which one it is waiting
+ * on (PendingSource), so of overlapping resolutions only the latest binds, and
+ * one that outlives its element (or its src) is dropped. The wait itself is
+ * the identity rather than what was asked for — the same src put through
+ * different modifiers is a different answer, and the later question is always
+ * the one being asked.
  */
-function resolve(world: World, entity: Entity, value: unknown, promise: Promise<Asset>, generating = false): void {
+function resolve(world: World, entity: Entity, promise: Promise<Asset>, generating = false): void {
+	const token = {};
 	entity.remove(SourceError);
 	entity.add(PendingSource);
-	entity.set(PendingSource, { value });
+	entity.set(PendingSource, { value: token });
 	if (generating) entity.add(Generating);
 
 	const done = promise.then(
 		(asset) => {
-			if (!current(entity, value)) return;
+			if (!current(entity, token)) return;
 			entity.remove(PendingSource, Generating);
 			bindAsset(entity, asset);
 		},
 		(error: unknown) => {
-			if (!current(entity, value)) return;
+			if (!current(entity, token)) return;
 			entity.remove(PendingSource, Generating);
 			entity.add(SourceError);
 			entity.set(SourceError, { value: errorMessage(error), generated: generating });
@@ -90,6 +112,6 @@ function errorMessage(error: unknown): string {
 	return message.trim() || 'Something went wrong';
 }
 
-function current(entity: Entity, value: unknown): boolean {
-	return entity.isAlive() && entity.get(PendingSource)?.value === value;
+function current(entity: Entity, token: object): boolean {
+	return entity.isAlive() && entity.get(PendingSource)?.value === token;
 }

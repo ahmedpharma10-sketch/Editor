@@ -44,12 +44,14 @@ export type GenerateVoiceOptions = {
   prompt: string;
   /** Voice id; default the first voice from `dapi voices`. */
   voice?: string;
+  seed?: number;
 };
 
 export type GenerateAudioOptions = {
   prompt: string;
   model?: string;
   duration?: number;
+  seed?: number;
 };
 
 export type AssetSpecInput =

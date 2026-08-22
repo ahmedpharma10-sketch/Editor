@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
@@ -62,6 +62,15 @@ const Authored = trait(() => ({ tag: '', props: {} as Record<string, unknown> })
 
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
+
+/** What an element with no `SourceModifiers` trait is asking for: nothing. */
+const NO_MODIFIERS = { removeBackground: false, upscale: 1, addAudio: false };
+
+/** `upscale` as a factor; anything that is not one above 1 is natural size. */
+function upscaleFactor(value: unknown): number {
+	const factor = typeof value === 'number' ? value : Number(value);
+	return Number.isFinite(factor) && factor > 1 ? factor : 1;
+}
 
 export interface AuthoredElement {
 	/** The camelCase tag the project used. */
@@ -1166,6 +1175,47 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 						? CAPTION_ALIGNS[value]
 						: undefined,
 				});
+				return;
+			}
+			case 'removeBackground':
+			case 'addAudio':
+			case 'upscale': {
+				const current = entity.get(SourceModifiers) ?? NO_MODIFIERS;
+				const next = {
+					...current,
+					[name]: name === 'upscale' ? upscaleFactor(value) : value === true,
+				};
+
+				if (
+					next.removeBackground === current.removeBackground
+					&& next.upscale === current.upscale
+					&& next.addAudio === current.addAudio
+				) return;
+
+				if (hasModifier(next)) {
+					entity.add(SourceModifiers);
+					entity.set(SourceModifiers, next);
+				} else {
+					entity.remove(SourceModifiers);
+				}
+
+				if (entity.has(LoadRequest) || entity.has(GenerationRequest)) return;
+
+				const src = entity.get(Authored)?.props.src;
+				if (src === undefined || src === null || src === '') return;
+
+				// A resolution running for the old modifiers must not bind late.
+				entity.remove(PendingSource, Generating);
+
+				if (typeof src === 'string') {
+					entity.add(LoadRequest);
+					entity.set(LoadRequest, { value: src });
+					return;
+				}
+
+				entity.add(GenerationRequest);
+				entity.set(GenerationRequest, { ref: src as AssetRef });
+
 				return;
 			}
 			case 'seed': {
