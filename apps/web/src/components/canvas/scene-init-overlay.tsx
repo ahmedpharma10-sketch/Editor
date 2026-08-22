@@ -4,8 +4,7 @@
 
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { useQuery, useTrait, useWorld } from "@diffusionstudio/koota-solid";
-import { Scene as SceneElement } from "@diffusionstudio/reconciler";
-import { ChildOf, getCameraMatrix, getNextName, Root, setCamera, Source } from "@diffusionstudio/runtime";
+import { ChildOf, Library, Root, setCamera, Source } from "@diffusionstudio/runtime";
 import { Icon } from "@/components/ui/icon";
 import {
   DropdownMenu,
@@ -22,7 +21,11 @@ import {
   PRESET_CATEGORIES,
 } from "@/lib/layout-presets";
 import { useEditor } from "@/engine";
+import { droppedFiles, importFiles } from "@/engine/asset-actions";
+import { createScene, insertAssetsInNewScene } from "@/engine/new-scene";
+import { ASSET_DRAG_TYPE } from "@/components/sidebar-left/folder-item";
 
+import type { Rect } from "@diffusionstudio/runtime";
 import type { LayoutPreset } from "@/lib/layout-presets";
 
 
@@ -44,6 +47,7 @@ export function SceneInitOverlay() {
   const [editing, setEditing] = createSignal(false);
   const [selectedPreset, setSelectedPreset] = createSignal<LayoutPreset>(DEFAULT_PRESET);
   const [sceneName, setSceneName] = createSignal(DEFAULT_NAME);
+  const [dropping, setDropping] = createSignal(false);
 
   let overlayRef: HTMLDivElement | undefined;
   let buttonRef: HTMLButtonElement | undefined;
@@ -86,34 +90,70 @@ export function SceneInitOverlay() {
     }
   };
 
-  const handleInitializeScene = () => {
+  /**
+   * Puts the new scene exactly where the placeholder frame is, rather than
+   * framing it the way the camera would on its own. A scene made from a
+   * dropped asset need not have the placeholder's aspect ratio, so it is
+   * fitted inside the frame rather than stretched over it.
+   */
+  const focusPlaceholder = (rect: Rect) => {
     const buttonRect = buttonRef?.getBoundingClientRect();
+    // The overlay covers the canvas, so its rect is the canvas rect.
     const canvasRect = overlayRef?.getBoundingClientRect();
     if (!buttonRect || !canvasRect) return;
 
-    const template = selectedPreset();
-    const worldX = Math.round(-template.width / 2);
-    const worldY = Math.round(-template.height / 2);
+    const scale = Math.min(buttonRect.width / rect.width, buttonRect.height / rect.height);
+    const screenX = buttonRect.left - canvasRect.left + (buttonRect.width - rect.width * scale) / 2;
+    const screenY = buttonRect.top - canvasRect.top + (buttonRect.height - rect.height * scale) / 2;
+    setCamera(world, { a: scale, b: 0, c: 0, d: scale, e: screenX - rect.x * scale, f: screenY - rect.y * scale });
+  };
 
-    const name = sceneName() != DEFAULT_NAME
-      ? sceneName()
-      : getNextName(world, 'Scene');
+  const sceneOptions = () => ({
+    ...(sceneName() != DEFAULT_NAME ? { name: sceneName() } : {}),
+    format: selectedPreset(),
+    focus: focusPlaceholder,
+  });
 
-    // Fit the camera so the scene appears where the placeholder is: the
-    // overlay covers the canvas, so its rect is the canvas rect.
-    const screenX = buttonRect.left - canvasRect.left;
-    const screenY = buttonRect.top - canvasRect.top;
-    const scale = buttonRect.width / template.width;
-    setCamera(world, { a: scale, b: 0, c: 0, d: scale, e: screenX - worldX * scale, f: screenY - worldY * scale });
-    editor.reportEdit(root, 'camera', getCameraMatrix(world));
+  const handleInitializeScene = () => {
+    const scene = createScene(world, selectedPreset(), sceneOptions());
+    if (scene) editor.select(scene);
+  };
 
-    const [scene] = editor.insertElement(root, () => (
-      <SceneElement name={name} x={worldX} y={worldY} width={template.width} height={template.height} fill="#000000" />
-    ));
-    if (!scene) return;
+  /**
+   * Assets dropped on the placeholder all go into the one scene it becomes,
+   * which takes its format from the last of them that has one.
+   */
+  const handleDrop = async (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDropping(false);
 
-    editor.activate(scene);
-    editor.select(scene);
+    const library = world.get(Library);
+    if (!library) return;
+
+    // Read the transfer before the first await: it is gone by the time an
+    // import resolves.
+    const assetIds = event.dataTransfer?.getData(ASSET_DRAG_TYPE)?.split(',').filter(Boolean) ?? [];
+    const files = droppedFiles(event);
+
+    const assets = assetIds.map((id) => library.get(id)).filter((asset) => asset != null);
+    if (files.length) assets.push(...await importFiles(library, files, ''));
+    if (!assets.length) return;
+
+    insertAssetsInNewScene(world, assets, sceneOptions());
+  };
+
+  const handleDragOver = (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDropping(true);
+  };
+
+  const handleDragLeave = (event: DragEvent) => {
+    // Moving onto the frame or the name is still a drag over the overlay.
+    const to = event.relatedTarget;
+    if (to instanceof Node && overlayRef?.contains(to)) return;
+    setDropping(false);
   };
 
   return (
@@ -121,6 +161,9 @@ export function SceneInitOverlay() {
       <div
         ref={overlayRef}
         class="absolute inset-0 z-2 flex items-center justify-center"
+        on:drop={handleDrop}
+        on:dragover={handleDragOver}
+        on:dragleave={handleDragLeave}
       >
         <div
           class="relative"
@@ -182,6 +225,7 @@ export function SceneInitOverlay() {
           <button
             type="button"
             class="w-full h-full bg-accent/50 border border-border overflow-hidden flex items-center justify-center hover:bg-accent hover:border-input active:bg-muted active:border-input"
+            classList={{ 'bg-accent! border-input!': dropping() }}
             onClick={handleInitializeScene}
             ref={buttonRef}
           >
