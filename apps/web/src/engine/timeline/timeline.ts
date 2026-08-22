@@ -17,6 +17,8 @@ import { TimelineSurface } from './surface';
 import { ensureTimelineView, getTimelineScene } from './view';
 
 import type { World } from 'koota';
+import type { TimelinePointer } from './pointer';
+import type { TimelineSurfaceState } from './surface';
 
 const cursor = useCursor();
 
@@ -26,7 +28,10 @@ export function timelineSystem(world: World): void {
 	if (!surface || !canvas || !ctx || !pointer) return;
 
 	const scene = getTimelineScene(world);
-	if (scene === null) return;
+	if (scene === null) {
+		clearTimeline(surface, canvas, ctx, pointer);
+		return;
+	}
 
 	ensureTimelineView(world, scene);
 
@@ -72,4 +77,30 @@ export function timelineSystem(world: World): void {
 		// The regions drawn this frame are what the next frame tests against.
 		pointer.reset();
 	}
+}
+
+/**
+ * Wipes the timeline when there is no scene left to show. A canvas keeps
+ * whatever was painted on it last, so the scene that was just deleted would
+ * otherwise leave its rows, ruler and playhead behind, drawn over nothing.
+ *
+ * The regions the pointer tests against go with them: they describe rows that
+ * are gone, and the first frame of whichever scene comes next must not be hit
+ * against them.
+ */
+function clearTimeline(
+	surface: TimelineSurfaceState,
+	canvas: HTMLCanvasElement,
+	ctx: CanvasRenderingContext2D,
+	pointer: TimelinePointer,
+): void {
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+	surface.marquee = null;
+	surface.snapX = null;
+	surface.cursor = 'default';
+	cursor.set(canvas, surface.cursor);
+
+	pointer.reset();
 }
