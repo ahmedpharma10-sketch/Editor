@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuPortal,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -61,18 +62,22 @@ export function InspectorHeader() {
           <DropdownMenuContent class="w-40">
             <DropdownMenuItem onSelect={() => zoomBy(1.25)}>
               Zoom in
+              <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => zoomBy(0.8)}>
               Zoom out
+              <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={zoomToFit}>
               Zoom to fit
+              <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => zoomTo(50)}>
               Zoom to 50%
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => zoomTo(100)}>
               Zoom to 100%
+              <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => zoomTo(200)}>
               Zoom to 200%

@@ -16,6 +16,7 @@ import {
 	Time,
 	Tool,
 	ToolType,
+	focusContent,
 	focusEntities,
 	getActiveEntity,
 	getCameraMatrix,
@@ -271,12 +272,9 @@ function resetZoom(world: World): void {
 	reportCamera(world);
 }
 
-/** Frames the scene the timeline is pointed at. */
-function focusActive(world: World): void {
-	const scene = getActiveEntity(world);
-	if (!scene) return;
-
-	focusEntities(world, [scene]);
+/** Frames everything on the stage — the zoom menu's "Zoom to fit". */
+function focusAll(world: World): void {
+	focusContent(world);
 	reportCamera(world);
 }
 
@@ -407,7 +405,7 @@ const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['+', 'mod'], action: zoomBy(ZOOM_STEP) },
 	{ keys: ['-', 'mod'], action: zoomBy(1 / ZOOM_STEP) },
 	{ keys: ['0', 'mod'], action: resetZoom },
-	{ keys: ['1', 'mod'], action: focusActive },
+	{ keys: ['1', 'mod'], action: focusAll },
 	{ keys: ['2', 'mod'], action: focusSelection },
 	{ keys: ['v', '!mod'], action: selectTool(ToolType.MOVE) },
 	{ keys: ['h', '!mod'], action: selectTool(ToolType.HAND) },
