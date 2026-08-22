@@ -3,11 +3,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
-import { isPropValue, LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceIn, SourceOut, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SurfaceHost, SurfaceHostHandle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
-import type { AssetRef, PropValue } from '@diffusionstudio/jsx';
+import type { AssetRef } from '@diffusionstudio/jsx';
 import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
 
@@ -52,14 +52,13 @@ const TextParts = trait(() => new Set<TextNode>());
 
 /**
  * What the project wrote on an entity's element, in the vocabulary of the JSX
- * rather than of the traits it became: the tag, and every prop worth a value a
- * source file could spell (see `PropValue`), as last set. Kept so an editor
- * can spell an entity back out as an element — which is how a loop's
- * iterations get written down one by one — without reading the traits
+ * rather than of the traits it became: the tag, and every prop as last set.
+ * Kept so an editor can spell an entity back out as an element — which is how
+ * a loop's iterations get written down one by one — without reading the traits
  * backwards. `children` is not a prop here: an element's text is `Chars`, and
  * its element children are the entity's.
  */
-const Authored = trait(() => ({ tag: '', props: {} as Record<string, PropValue> }));
+const Authored = trait(() => ({ tag: '', props: {} as Record<string, unknown> }));
 
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
@@ -67,7 +66,7 @@ const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, '
 export interface AuthoredElement {
 	/** The camelCase tag the project used. */
 	tag: string;
-	props: Record<string, PropValue>;
+	props: Record<string, unknown>;
 	/** The literal text of a `<text>`, when it holds any. */
 	text?: string;
 }
@@ -649,12 +648,10 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		if (!isSceneNode(node)) return;
 		const { entity } = node;
 
-		// Noted before it is interpreted: what the project wrote is what an
-		// editor spelling the element back out needs, however the traits pack it.
 		const authored = entity.get(Authored);
 		if (authored && !UNAUTHORED_PROPS.has(name)) {
-			if (isPropValue(value)) authored.props[name] = value;
-			else delete authored.props[name];
+			if (value === undefined) delete authored.props[name];
+			else authored.props[name] = value;
 		}
 
 		switch (name) {
@@ -985,7 +982,10 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				return;
 			}
 			case 'src': {
-				entity.remove(GenerationRequest, LoadRequest, PendingSource);
+				// Generating goes with the wait it belongs to: the resolution
+				// running for the old src will not clear it, having been
+				// superseded by whatever this one starts.
+				entity.remove(GenerationRequest, LoadRequest, PendingSource, Generating);
 
 				if (value === undefined || value === null || value === '') {
 					entity.remove(AssetId);
@@ -1159,13 +1159,13 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			case 'seed': {
 				if (!entity.has(Caption)) return;
 				// An authored src mounts a transcript directly; there is no
-				// transcription for the seed to key. (An AssetRef src is not a
-				// PropValue, so its request stands in for the authored record.)
+				// transcription for the seed to key.
 				if (entity.get(Authored)?.props.src !== undefined) return;
 				if (entity.has(LoadRequest) || entity.has(GenerationRequest)) return;
 
-				// A resolution running for another seed must not bind late.
-				entity.remove(PendingSource);
+				// A resolution running for another seed must not bind late,
+				// nor leave the wait it was marked with behind.
+				entity.remove(PendingSource, Generating);
 				entity.add(TranscriptionRequest);
 				entity.set(TranscriptionRequest, { seed: toNumber(value) ?? 0 });
 				return;

@@ -10,11 +10,20 @@
  * @diffusionstudio/reconciler), so nothing in this package touches a host.
  */
 
-export { generate, AssetRef, isAssetRef, getAssetSpec } from "./generate";
+export {
+  generate,
+  AssetRef,
+  isAssetRef,
+  getAssetSpec,
+  serializeAssetRef,
+  isSerializedAssetRef,
+} from "./generate";
 export type {
   AspectRatio,
   AssetInput,
   AssetSpecInput,
+  FlatAssetSpec,
+  SerializedAssetRef,
   GenerateAudioOptions,
   GenerateImageOptions,
   GenerateVideoOptions,

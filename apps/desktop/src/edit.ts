@@ -9,9 +9,9 @@ import { join } from "node:path";
 
 import { IndentationText, Project, SyntaxKind } from "ts-morph";
 
-import { ID_ATTR, formatSource, isCompositionTag, isLoopTag, parseSource } from "@diffusionstudio/jsx";
+import { ID_ATTR, formatSource, isCompositionTag, isLoopTag, isSerializedAssetRef, parseSource } from "@diffusionstudio/jsx";
 
-import type { PropValue } from "@diffusionstudio/jsx";
+import type { PropValue, SerializedAssetRef } from "@diffusionstudio/jsx";
 import type {
   ArrowFunction,
   FunctionExpression,
@@ -24,7 +24,14 @@ import type {
   SourceFile,
 } from "ts-morph";
 
-export type { PropValue };
+export type { PropValue, SerializedAssetRef };
+
+/**
+ * A value an edit can carry: what a source spells as a literal, or a
+ * `generate.*` declaration in its wire form, spelled as the call that
+ * reproduces it (see `setProp`).
+ */
+export type EditValue = PropValue | SerializedAssetRef;
 
 export interface SourceContext {
   /** Absolute path of the project folder. */
@@ -42,7 +49,7 @@ export interface SourceContext {
 export interface SourceSet {
   kind: "set";
   source: string;
-  props: Record<string, PropValue>;
+  props: Record<string, EditValue>;
   text?: string;
 }
 
@@ -59,7 +66,7 @@ export interface SourceInsert {
   source: string;
   parent: string;
   tag: string;
-  props: Record<string, PropValue>;
+  props: Record<string, EditValue>;
   before?: string;
   text?: string;
 }
@@ -99,7 +106,7 @@ export interface SourceRemove {
  * one in `ids`. The first iteration keeps the body's own names, so it carries
  * none.
  */
-export type SourceIteration = Record<string, { props: Record<string, PropValue>; text?: string; pending?: string }>;
+export type SourceIteration = Record<string, { props: Record<string, EditValue>; text?: string; pending?: string }>;
 
 /**
  * Replaces the `<For>`/`<Index>` around the element named by `source` with
@@ -245,13 +252,28 @@ const initializerText = (value: PropValue): string =>
     ? `"${value}"`
     : `{${literalText(value)}}`;
 
+/** A declaration's wire form as the `generate.*` call that reproduces it. */
+function generateCallText(ref: SerializedAssetRef): string {
+  const { type, ...options } = ref.$generate;
+  return `generate.${type}(${literalText(options as Record<string, PropValue>)})`;
+}
+
 /**
  * Writes a prop onto a tag as one would write it: `muted`, not `muted={true}`,
  * and no attribute at all rather than `muted={false}`, since absence is what a
- * boolean prop's false reads as.
+ * boolean prop's false reads as. A declaration is spelled as its `generate.*`
+ * call — the caller makes sure `generate` is imported (see
+ * `ensureGenerateImport`).
  */
-function setProp(tag: JsxTag, name: string, value: PropValue): void {
+function setProp(tag: JsxTag, name: string, value: EditValue): void {
   const attribute = attributeOf(tag, name);
+
+  if (isSerializedAssetRef(value)) {
+    const initializer = `{${generateCallText(value)}}`;
+    if (attribute) attribute.setInitializer(initializer);
+    else tag.addAttribute({ name, initializer });
+    return;
+  }
 
   if (value === true) {
     if (attribute) attribute.removeInitializer();
@@ -266,6 +288,40 @@ function setProp(tag: JsxTag, name: string, value: PropValue): void {
 
   if (attribute) attribute.setInitializer(initializerText(value));
   else tag.addAttribute({ name, initializer: initializerText(value) });
+}
+
+/** Where `generate` comes from — the module every project authors against. */
+const GENERATE_MODULE = "@diffusionstudio/jsx";
+
+/**
+ * Makes sure `generate` is in scope once a declaration has been spelled into
+ * the file: added to the module's existing import, or as an import of its own
+ * after the last one — or above the first statement, past the file's header
+ * comments, when there are no imports at all. Idempotent.
+ */
+function ensureGenerateImport(sourceFile: SourceFile): void {
+  const declarations = sourceFile.getImportDeclarations();
+  const importable = declarations.find(
+    (declaration) =>
+      declaration.getModuleSpecifierValue() === GENERATE_MODULE &&
+      !declaration.isTypeOnly() &&
+      !declaration.getNamespaceImport(),
+  );
+
+  if (importable) {
+    const named = importable.getNamedImports();
+    if (named.some((specifier) => specifier.getName() === "generate" && !specifier.getAliasNode())) return;
+    importable.addNamedImport("generate");
+    return;
+  }
+
+  const statement = `import { generate } from "${GENERATE_MODULE}";`;
+  const last = declarations.at(-1);
+  if (last) sourceFile.insertText(last.getEnd(), `\n${statement}`);
+  else {
+    const first = sourceFile.getStatements()[0];
+    sourceFile.insertText(first ? first.getStart() : 0, `${statement}\n\n`);
+  }
 }
 
 /**
@@ -506,9 +562,25 @@ function isLiteral(node: Node): boolean {
 }
 
 /**
- * A prop is only written back when the source holds a plain literal. Anything
- * else — a signal, a prop of the surrounding component, an expression — is
- * someone's reactivity, and a drag has no business overwriting it.
+ * A `generate.*` call over a literal spec: what the writer spells a
+ * declaration as, and so an initializer it may also overwrite. One whose
+ * argument computes anything is authored reactivity, like any expression.
+ */
+function isGenerateCall(node: Node): boolean {
+  const call = node.asKind(SyntaxKind.CallExpression);
+  const callee = call?.getExpression().asKind(SyntaxKind.PropertyAccessExpression);
+  if (!call || !callee || !callee.getExpression().isKind(SyntaxKind.Identifier)) return false;
+  if (callee.getExpression().getText() !== "generate") return false;
+
+  const args = call.getArguments();
+  return args.length === 1 && isLiteral(args[0]!);
+}
+
+/**
+ * A prop is only written back when the source holds a plain literal (or a
+ * declaration the writer itself spells). Anything else — a signal, a prop of
+ * the surrounding component, an expression — is someone's reactivity, and a
+ * drag has no business overwriting it.
  */
 function isWritable(attribute: JsxAttribute): boolean {
   const initializer = attribute.getInitializer();
@@ -517,7 +589,7 @@ function isWritable(attribute: JsxAttribute): boolean {
   if (!initializer.isKind(SyntaxKind.JsxExpression)) return false;
 
   const expression = initializer.getExpression();
-  return expression !== undefined && isLiteral(expression);
+  return expression !== undefined && (isLiteral(expression) || isGenerateCall(expression));
 }
 
 // ---------------------------------------------------------------------------
@@ -817,6 +889,7 @@ class SourceWriter {
           }
 
           setProp(tag, name, value);
+          if (isSerializedAssetRef(value)) ensureGenerateImport(sourceFile);
           wrote = true;
         }
 
@@ -888,6 +961,7 @@ class SourceWriter {
     insertChild(sourceFile, parent, child, before);
     for (const [name, value] of Object.entries(edit.props)) {
       setProp(findTag(sourceFile, id)!, name, value);
+      if (isSerializedAssetRef(value)) ensureGenerateImport(sourceFile);
     }
     ids[edit.source] = formatSource(file, id);
     return true;
@@ -1127,6 +1201,7 @@ class SourceWriter {
         }
         for (const [name, value] of Object.entries(record.props)) {
           setProp(found(), name, value);
+          if (isSerializedAssetRef(value)) ensureGenerateImport(sourceFile);
         }
 
         const element = elementOf(found());

@@ -11,14 +11,21 @@
  */
 
 import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Loop, Selected, Sequential, setActive, Source, Stage } from '@diffusionstudio/runtime';
-import { isPropValue, SOURCE_ATTR } from '@diffusionstudio/jsx';
+import { isAssetRef, isPropValue, serializeAssetRef, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
 import { authoredElement, authoredTree, getRuntimeDocument, insert, isSceneNode, renderAuthored, withDocument } from '@diffusionstudio/reconciler';
 
-import type { PropValue } from '@diffusionstudio/jsx';
+import type { PropValue, SerializedAssetRef } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 import type { AuthoredTree, HostNode, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
+
+/**
+ * A value an edit can carry to the file: what a source spells as a literal,
+ * or a `generate.*` declaration in its wire form (see `SerializedAssetRef`),
+ * which the writer spells as the call that reproduces it.
+ */
+export type EditValue = PropValue | SerializedAssetRef;
 
 /**
  * A property the editor changed, in the vocabulary of the JSX rather than of
@@ -31,7 +38,7 @@ export interface PropEdit {
 	kind: 'prop';
 	source: string;
 	name: string;
-	value: PropValue;
+	value: EditValue;
 }
 
 /**
@@ -59,7 +66,7 @@ export interface InsertEdit {
 	source: string;
 	parent: string;
 	tag: string;
-	props: Record<string, PropValue>;
+	props: Record<string, EditValue>;
 	before?: string;
 	text?: string;
 }
@@ -95,7 +102,7 @@ export interface RemoveEdit {
  * own names — the pending source its entity has been re-stamped with, so the
  * write can answer with the real one (see `isPendingSource`).
  */
-export type LoopIteration = Record<string, { props: Record<string, PropValue>; text?: string; pending?: string }>;
+export type LoopIteration = Record<string, { props: Record<string, EditValue>; text?: string; pending?: string }>;
 
 /**
  * A `<For>`/`<Index>` the editor needs written out as its iterations, so that
@@ -132,7 +139,30 @@ export const isLooped = (entity: Entity): boolean => entity.isAlive() && entity.
 /** What `insertElement` learns about each element while it renders. */
 interface Recorded {
 	tag: string;
-	props: Record<string, PropValue>;
+	props: Record<string, EditValue>;
+}
+
+/**
+ * A prop as an edit can carry it (see `EditValue`): a value a file spells as
+ * it is, a declaration in its wire form, or undefined for anything else — an
+ * element is written with whatever of it the file can say, and the rest is
+ * the project's to keep, not the writer's to guess at. The one place that
+ * decides this, so a new kind of value is taught here once.
+ */
+function wireValue(value: unknown): EditValue | undefined {
+	if (isPropValue(value)) return value;
+	if (isAssetRef(value)) return serializeAssetRef(value);
+	return undefined;
+}
+
+/** `wireValue` over a whole authored element, dropping what will not travel. */
+function wireProps(props: Record<string, unknown>): Record<string, EditValue> {
+	const wired: Record<string, EditValue> = {};
+	for (const [name, value] of Object.entries(props)) {
+		const wire = wireValue(value);
+		if (wire !== undefined) wired[name] = wire;
+	}
+	return wired;
 }
 
 /**
@@ -329,7 +359,7 @@ export class DocumentEditor {
 					// know, or one the body renders twice: not spellable.
 					if (!source || !stamped(member) || source in iteration) return;
 					const pending = index > 0 ? nextPendingSource() : undefined;
-					iteration[source] = { props: authored.props, ...(authored.text === undefined ? {} : { text: authored.text }), ...(pending ? { pending } : {}) };
+					iteration[source] = { props: wireProps(authored.props), ...(authored.text === undefined ? {} : { text: authored.text }), ...(pending ? { pending } : {}) };
 					if (pending) restamp.push([member, pending]);
 				}
 			}
@@ -770,8 +800,9 @@ export class DocumentEditor {
 			},
 			setProperty: (node, name, value) => {
 				const recorded = isSceneNode(node) ? created.get(node.entity) : undefined;
-				if (recorded && name !== SOURCE_ATTR && name !== 'children' && name !== 'ref' && isPropValue(value)) {
-					recorded.props[name] = value;
+				if (recorded && name !== SOURCE_ATTR && name !== 'children' && name !== 'ref') {
+					const wire = wireValue(value);
+					if (wire !== undefined) recorded.props[name] = wire;
 				}
 				document.setProperty(node, name, value);
 			},

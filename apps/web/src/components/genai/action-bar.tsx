@@ -13,15 +13,8 @@ import {
   DropdownMenuPortal,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogPortal,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { createMemo, Show } from "solid-js";
-import { PaintType, isScene as isSceneEntity, isAudio } from "@/components/engine";
+import { PaintType, isAudio } from "@/components/engine";
 import { useEngine } from "@/context/engine";
 import { useRemoveBackground } from "./use-remove-background";
 import { useUpscaleImage } from "./use-upscale-image";
@@ -73,17 +66,8 @@ export function ActionBar(props: ActionBarProps) {
   const { generate: generateVideo } = useGenerateVideo();
   const { generate: generateVoice } = useGenerateVoice();
   const { generate: generateAudio } = useGenerateAudio();
-  const { generate: autoCaptions, status: autoCaptionsStatus } = useAutoCaptions();
+  const { generate: autoCaptions, hasScene } = useAutoCaptions();
   const { isGenerated, totalCredits, firstConfig } = useGenerationRecords();
-
-  const autoCaptionsStatusText = createMemo(() => {
-    switch (autoCaptionsStatus()) {
-      case "encoding": return "Encoding audio…";
-      case "uploading": return "Uploading audio…";
-      case "transcribing": return "Transcribing audio…";
-      default: return "";
-    }
-  });
 
   const isImage = createMemo(() => {
     return Array.from(selectedNodes()).some(eid => {
@@ -99,12 +83,8 @@ export function ActionBar(props: ActionBarProps) {
     });
   });
 
-  const isScene = createMemo(() => {
-    return Array.from(selectedNodes()).some(eid => isSceneEntity(world, eid));
-  });
-
   const visible = createMemo(() => {
-    return isImage() || isVideo() || isScene();
+    return isImage() || isVideo() || hasScene();
   })
 
   const handleRerun = () => {
@@ -151,33 +131,12 @@ export function ActionBar(props: ActionBarProps) {
     props.openPromptInput?.(config);
   };
 
-  const handleAutoCaptions = async () => {
-    for (const eid of selectedNodes()) {
-      if (isSceneEntity(world, eid)) {
-        await autoCaptions(eid);
-      }
-    }
-  };
-
   return (
     <>
-      <Dialog open={autoCaptionsStatus() !== null}>
-        <DialogPortal>
-          <DialogContent class="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Auto-Captions</DialogTitle>
-            </DialogHeader>
-            <div class="flex items-center gap-2 text-sm text-muted-foreground">
-              <Icon name="spinner-loader" class="size-6 animate-spin" />
-              {autoCaptionsStatusText()}
-            </div>
-          </DialogContent>
-        </DialogPortal>
-      </Dialog>
       <Show when={visible()}>
         <div class="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 rounded-xl p-1 bg-background border border-border flex gap-1 items-center">
-          <Show when={isScene()}>
-            <Button variant="ghost" class="gap-0 pl-0.5 text-muted-foreground" onClick={handleAutoCaptions}>
+          <Show when={hasScene()}>
+            <Button variant="ghost" class="gap-0 pl-0.5 text-muted-foreground" onClick={autoCaptions}>
               <Icon name="captions" />
               Auto-Captions
             </Button>

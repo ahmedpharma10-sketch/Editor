@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Ai, FramePromises, GenerationRequest, Library, LoadRequest, PendingSource, TranscriptionRequest } from '../traits';
+import { Ai, FramePromises, Generating, GenerationRequest, Library, LoadRequest, PendingSource, TranscriptionRequest } from '../traits';
 import { bindAsset } from '../actions/assets';
 import { getEntityTree, getSceneAncestor } from '../queries/hierarchy';
 
@@ -25,7 +25,7 @@ export function assetSystem(world: World): void {
 			const ref = entity.get(GenerationRequest)!.ref;
 			entity.remove(GenerationRequest);
 			if (ref === null) continue;
-			resolve(world, entity, ref, ai.resolve(ref));
+			resolve(world, entity, ref, ai.resolve(ref), true);
 		}
 
 		for (const entity of world.query(TranscriptionRequest)) {
@@ -34,7 +34,7 @@ export function assetSystem(world: World): void {
 
 			const seed = entity.get(TranscriptionRequest)!.seed;
 			entity.remove(TranscriptionRequest);
-			resolve(world, entity, `transcript:${scene.id()}:${seed}`, ai.transcribe(world, scene, seed));
+			resolve(world, entity, `transcript:${scene.id()}:${seed}`, ai.transcribe(world, scene, seed), true);
 		}
 	}
 }
@@ -59,19 +59,20 @@ function hasPendingSources(world: World, scene: Entity, except: Entity): boolean
  * (PendingSource), so of overlapping resolutions only the latest binds, and
  * one that outlives its element (or its src) is dropped.
  */
-function resolve(world: World, entity: Entity, value: unknown, promise: Promise<Asset>): void {
+function resolve(world: World, entity: Entity, value: unknown, promise: Promise<Asset>, generating = false): void {
 	entity.add(PendingSource);
 	entity.set(PendingSource, { value });
+	if (generating) entity.add(Generating);
 
 	const done = promise.then(
 		(asset) => {
 			if (!current(entity, value)) return;
-			entity.remove(PendingSource);
+			entity.remove(PendingSource, Generating);
 			bindAsset(entity, asset);
 		},
 		(error: unknown) => {
 			if (!current(entity, value)) return;
-			entity.remove(PendingSource);
+			entity.remove(PendingSource, Generating);
 			console.error('[runtime] could not resolve src:', error);
 		},
 	);

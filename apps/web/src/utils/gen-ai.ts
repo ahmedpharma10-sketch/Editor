@@ -25,6 +25,7 @@ import {
 } from "@/components/genai/config";
 import { assert } from "@/utils";
 import { uploadBlob } from "@/components/engine";
+import { track } from "@/lib/analytics";
 import { trpc } from "@/lib/trpc";
 
 import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
@@ -124,9 +125,11 @@ export class EditorGenAi extends GenAi {
 
     const uploadId = crypto.randomUUID();
     const audioFile = new File([result.data], `${uploadId}.ogg`, { type: "audio/ogg" });
+    console.log(`[gen-ai] uploading scene audio for ${key} (${audioFile.size} bytes)`);
     const fileRef = await uploadBlob(audioFile, uploadId);
     assert(fileRef, "Failed to upload the scene audio for transcription");
 
+    console.log(`[gen-ai] transcribing scene audio for ${key}`);
     const { results: transcript } = await trpc.transcribe.mutate({ audio: fileRef });
     assert(
       transcript.length > 0 && transcript.some((segment) => segment.words.length > 0),
@@ -226,17 +229,43 @@ export class EditorGenAi extends GenAi {
 
   /** Runs a generation and stores its first result under `generated/`. */
   private async runGeneration(spec: ResolvedSpec, generationKey: string): Promise<Asset> {
-    const { name, results, generationId } = await this.requestGeneration(spec);
-    assert(results.length > 0, "No results returned from the model");
+    const startedAt = performance.now();
+    track("generation_started", {
+      mode: spec.type,
+      model: spec.model,
+      prompt_length: spec.prompt.length,
+      ...("aspectRatio" in spec ? { aspect_ratio: spec.aspectRatio } : {}),
+      ...(spec.type === "image" ? { reference_count: spec.refIds.length } : {}),
+    });
 
-    const url = results[0].url;
-    const response = await fetch(url);
-    assert(response.ok, `Failed to fetch the generated asset: ${response.status}`);
-    const blob = await response.blob();
-    const extension = url.split(/[?#]/)[0].split(".").pop();
-    const fileName = extension && extension.length <= 5 ? `${name}.${extension}` : name;
+    try {
+      console.log(`[gen-ai] generating ${spec.type} with ${spec.model}:`, spec);
+      const { name, results, generationId } = await this.requestGeneration(spec);
+      assert(results.length > 0, "No results returned from the model");
 
-    return this.library.store(blob, { name: fileName, folder: GENERATED_DIR, generation: { key: generationKey, id: generationId } });
+      const url = results[0].url;
+      const response = await fetch(url);
+      assert(response.ok, `Failed to fetch the generated asset: ${response.status}`);
+      const blob = await response.blob();
+      const extension = url.split(/[?#]/)[0].split(".").pop();
+      const fileName = extension && extension.length <= 5 ? `${name}.${extension}` : name;
+
+      const asset = await this.library.store(blob, { name: fileName, folder: GENERATED_DIR, generation: { key: generationKey, id: generationId } });
+      track("generation_completed", {
+        mode: spec.type,
+        model: spec.model,
+        duration_ms: Math.round(performance.now() - startedAt),
+      });
+      return asset;
+    } catch (err) {
+      track("generation_failed", {
+        mode: spec.type,
+        model: spec.model,
+        duration_ms: Math.round(performance.now() - startedAt),
+        error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+      });
+      throw err;
+    }
   }
 
   private requestGeneration(spec: ResolvedSpec) {
