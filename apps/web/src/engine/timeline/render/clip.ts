@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Caption, CaptionType, Chars, ClipDragOrigin, Computed, Hidden, Name, Selected, TrimDragOrigin, fitsChildren, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
+import { Caption, CaptionType, Chars, ClipDragOrigin, Computed, Generating, Hidden, Name, Selected, TrimDragOrigin, fitsChildren, getGeneratingColor, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../../editor';
 import {
@@ -66,14 +66,18 @@ export function renderClip(
 		left = framesToPixels(computed.start[entity.id()] ?? 0, resolution);
 	}
 
+	const generating = entity.has(Generating);
+
 	ctx.save();
 	ctx.beginPath();
 	ctx.roundRect(left, 0, width, row.height, CLIP_CORNER_RADIUS);
-	ctx.fillStyle = style.background;
+	ctx.fillStyle = generating ? getGeneratingColor(world) : style.background;
 	ctx.fill();
 	ctx.restore();
 
-	renderContent(world, scene, surface, entity, asset, style, row);
+	if (!generating) {
+		renderContent(world, scene, surface, entity, asset, style, row);
+	}
 
 	renderLabel(world, scene, surface, entity, style.foreground, left, width, row);
 
@@ -259,8 +263,9 @@ function renderLabel(
 	const ctx = surface.ctx!;
 
 	// A caption's row is mostly its words; below a certain height the label
-	// would be all there is room for, so the words win.
-	if (isCaption(entity) && row.height < CLIP_BREAKPOINTS.sm) return;
+	// would be all there is room for, so the words win. One still generating
+	// has no words yet, so there is nothing for the label to crowd out.
+	if (isCaption(entity) && !entity.has(Generating) && row.height < CLIP_BREAKPOINTS.sm) return;
 
 	const label = clipLabel(entity);
 	if (!label) return;
@@ -305,6 +310,8 @@ const CAPTION_PRESETS: Record<CaptionType, string> = {
  * naming the thing it is drawing is an edit nobody asked for.
  */
 function clipLabel(entity: Entity): string {
+	if (entity.has(Generating)) return 'Generating...';
+
 	const name = entity.get(Name)?.value;
 
 	if (isCaption(entity)) {

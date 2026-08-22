@@ -9,7 +9,6 @@
 // attaches its handlers.
 
 import { Not, Or } from 'koota';
-import { cubicBezier } from 'animejs';
 
 import { store } from '../world/store';
 import {
@@ -22,13 +21,14 @@ import {
 	BlendMode, Effect, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
-	Mode, Time, FrameRate, Camera, Background, RenderSurface,
+	Mode, FrameRate, Camera, Background, RenderSurface,
 	HitRegions,
 	Root,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
 import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
+import { getGeneratingColor } from '../utils/generating';
 import { applyStrokeStyle } from '../utils/stroke';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
@@ -551,53 +551,12 @@ function renderStrokes(world: World, entity: Entity): void {
 	}
 }
 
-/**
- * Pulse animation for entities with the Generating tag.
- *
- * Easing:     cubic-bezier(0.52, 0.18, 0.56, 0.88)
- * Duration:   0.6s per half-cycle (alternating)
- * Delay:      0.2s before the first transition
- * Full cycle: 0.2 delay + 0.6 forward + 0.6 reverse = 1.4s
- *             repeats ∞ for the entire gen phase (~4.5s)
- *
- * Pulses between --background (#1c1c1c) and --secondary (#292929).
- */
-const generatingEase = cubicBezier(0.52, 0.18, 0.56, 0.88);
-
-const GEN_DELAY = 200;  // ms
-const GEN_DURATION = 600;  // ms per half-cycle
-const GEN_CYCLE = GEN_DURATION * 2; // full forward+reverse cycle
-
-// Colors: #1c1c1c → rgb(28,28,28) and #292929 → rgb(41,41,41)
-const GEN_FROM_R = 28, GEN_FROM_G = 28, GEN_FROM_B = 28;
-const GEN_TO_R = 41, GEN_TO_G = 41, GEN_TO_B = 41;
-
+/** The pulse a node waiting on a generation is filled with (see `../utils/generating`). */
 function renderGenerating(world: World, entity: Entity): void {
-	const ctx = getCtx(world);
 	if (!entity.has(Generating)) return;
 
-	const t = world.get(Time)?.now ?? 0;
-
-	// Before initial delay → show base color
-	const elapsed = t % (GEN_DELAY + GEN_CYCLE);
-	let factor = 0;
-
-	if (elapsed >= GEN_DELAY) {
-		const cycleT = elapsed - GEN_DELAY;
-		const half = cycleT % GEN_DURATION;
-		const progress = half / GEN_DURATION;
-		const eased = generatingEase(progress);
-
-		// Alternate direction: first half forward, second half reverse
-		const inReverse = cycleT >= GEN_DURATION;
-		factor = inReverse ? 1 - eased : eased;
-	}
-
-	const r = Math.round(GEN_FROM_R + (GEN_TO_R - GEN_FROM_R) * factor);
-	const g = Math.round(GEN_FROM_G + (GEN_TO_G - GEN_FROM_G) * factor);
-	const b = Math.round(GEN_FROM_B + (GEN_TO_B - GEN_FROM_B) * factor);
-
-	ctx.fillStyle = `rgb(${r},${g},${b})`;
+	const ctx = getCtx(world);
+	ctx.fillStyle = getGeneratingColor(world);
 	ctx.fill();
 }
 
