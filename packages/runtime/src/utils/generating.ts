@@ -3,7 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
- * Pulse animation for entities with the Generating tag. Everything that draws
+ * Pulse animation for entities with the Generating tag, and the still fill
+ * that takes its place when the wait ends in an error. Everything that draws
  * one reads it from here — the stage and the timeline both — so a node
  * waiting on a generation pulses in step wherever it is shown.
  *
@@ -47,6 +48,13 @@ function generatingFactor(world: World): number {
 	// Alternate direction: first half forward, second half reverse
 	return cycleT >= GEN_DURATION ? 1 - eased : eased;
 }
+
+/**
+ * The fill a node whose source failed is left with: the pulse gone still and
+ * turned toward red, so a node that will never fill itself in is not mistaken
+ * for one that still might.
+ */
+export const FAILED_COLOR = '#2e1d1d';
 
 /** The fill a node in generation is painted with this frame. */
 export function getGeneratingColor(world: World): string {

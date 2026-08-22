@@ -9,6 +9,7 @@ import { AssetSelection, Hud, Keys, Pointer, PointerEvents, ProjectConfig, SnapL
 import { inputSystem } from './input/input-system';
 import { timelineSystem, TimelineSurface } from './timeline';
 import { shortcutSystem } from './input/shortcuts';
+import { sourceErrorSystem } from './source-errors';
 
 import type { RuntimeWorld } from '@diffusionstudio/runtime';
 import type { CanvasPointerEvent, PointerEventType } from '@diffusionstudio/runtime';
@@ -199,6 +200,7 @@ class Engine {
 		inputSystem(this.world);
 		shortcutSystem(this.world);
 		assetSystem(this.world);
+		sourceErrorSystem(this.world);
 		playbackSystem(this.world);
 		motionSystem(this.world);
 		transformSystem(this.world);

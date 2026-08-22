@@ -19,7 +19,7 @@ import { Not, Or } from 'koota';
 import {
 	Active, Computed, Culled, FrameRate, Generating, Geometry, Group, Hidden,
 	HitRegions, Hovering, Name, Playback, RenderSurface, Root, Selected,
-	Sequential, ChildOf,
+	Sequential, SourceError, ChildOf,
 	entityQuad, entityWorldMat, getMaskSelection, getSelectionMask, invert2D,
 	multiply2D, rectToQuad, rotate2D, scale2D, store, transformPoint,
 	translate2D,
@@ -38,6 +38,7 @@ import type { Mat2D } from '@diffusionstudio/runtime';
 
 const ACCENT = '#008CFF';
 const SNAP_COLOR = '#F43535';
+const ERROR_COLOR = '#FF8A8A';
 const HEADER_FONT = '350 11px Inter, sans-serif';
 const HEADER_HEIGHT = 22;
 const ACTIVE_BADGE_WIDTH = 60;
@@ -53,7 +54,7 @@ export function hudSystem(world: World): void {
 	drawSnapLines(world, ctx, resolution);
 	drawHoverOutlines(world, ctx, resolution);
 
-	for (const entity of world.query(Or(Name, Generating), ChildOf(world.get(Root)!), Not(Culled), Not(Hidden))) {
+	for (const entity of world.query(Or(Name, Generating, SourceError), ChildOf(world.get(Root)!), Not(Culled), Not(Hidden))) {
 		drawHeader(world, ctx, entity, resolution);
 	}
 
@@ -118,15 +119,16 @@ function drawHoverOutlines(world: World, ctx: Ctx2D, resolution: number): void {
  * It sits in the node's own rotation, one line above its top edge.
  */
 function drawHeader(world: World, ctx: Ctx2D, entity: Entity, resolution: number): void {
+	const failure = entity.get(SourceError)?.value;
 	const generating = entity.has(Generating);
-	const label = generating ? 'Generating...' : entity.get(Name)?.value;
+	const label = failure || (generating ? 'Generating...' : entity.get(Name)?.value);
 	if (!label) return;
 
 	const header = getHeaderLayout(world, entity, resolution);
 	const playback = entity.get(Playback);
 	const selected = entity.has(Selected);
 	const active = entity.has(Active);
-	const foreground = selected ? '#cce8ff' : 'rgba(242, 242, 242, 0.64)';
+	const foreground = failure ? ERROR_COLOR : selected ? '#cce8ff' : 'rgba(242, 242, 242, 0.64)';
 	const regions = world.get(HitRegions)!.list;
 
 	ctx.setTransform(header.mat.a, header.mat.b, header.mat.c, header.mat.d, header.mat.e, header.mat.f);

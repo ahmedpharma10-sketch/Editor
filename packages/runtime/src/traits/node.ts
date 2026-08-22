@@ -96,6 +96,19 @@ export const TranscriptionRequest = trait({ seed: 0 });
 // (or none) is dropped. The document clears it whenever a new src arrives.
 export const PendingSource = trait(() => ({ value: undefined as unknown }));
 
+// Why the entity's src never became an asset: the message of the rejection
+// the asset system saw. It stands until the element is authored without it
+// (the `error` prop) or a resolution for it starts — which, for a generation,
+// only happens once that prop is gone.
+//
+// `generated` tells a failed generation from a failed load, which are worth
+// different things: a load is cheap and idempotent, so it is simply tried
+// again next render, while a generation is neither. An element carrying one
+// of those is not resolved again (see the asset system), and the host is
+// expected to write it back to the source the element came from — which is
+// what makes the failure outlive the session that saw it.
+export const SourceError = trait({ value: '', generated: false });
+
 // Sibling order under a ChildOf parent.
 export const ItemIndex = trait({ value: 0 });
 

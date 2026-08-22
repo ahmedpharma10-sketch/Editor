@@ -127,5 +127,9 @@ export const COLORS = {
       background: '#2B525F',
       foreground: '#E7F4F9',
     },
+    failed: {
+      background: '#2E1D1D',
+      foreground: '#FF8A8A',
+    },
   },
 } as const;

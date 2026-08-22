@@ -16,8 +16,9 @@ import {
 	TransitionType,
 } from '../constants';
 import {
-	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
+	AssetId, ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
+	SourceError,
 	BlendMode, Effect, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	HtmlHostHandle, SurfaceHostHandle,
@@ -28,7 +29,7 @@ import {
 import { getParentNode } from '../queries/hierarchy';
 import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
-import { getGeneratingColor } from '../utils/generating';
+import { FAILED_COLOR, getGeneratingColor } from '../utils/generating';
 import { applyStrokeStyle } from '../utils/stroke';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
@@ -551,12 +552,15 @@ function renderStrokes(world: World, entity: Entity): void {
 	}
 }
 
-/** The pulse a node waiting on a generation is filled with (see `../utils/generating`). */
+/**
+ * The pulse a node waiting on a generation is filled with
+ */
 function renderGenerating(world: World, entity: Entity): void {
-	if (!entity.has(Generating)) return;
+	const failed = entity.has(SourceError) && !entity.has(AssetId);
+	if (!failed && !entity.has(Generating)) return;
 
 	const ctx = getCtx(world);
-	ctx.fillStyle = getGeneratingColor(world);
+	ctx.fillStyle = failed ? FAILED_COLOR : getGeneratingColor(world);
 	ctx.fill();
 }
 

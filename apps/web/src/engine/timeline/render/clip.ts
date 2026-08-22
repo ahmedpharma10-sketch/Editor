@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Caption, CaptionType, Chars, ClipDragOrigin, Computed, Generating, Hidden, Name, Selected, TrimDragOrigin, fitsChildren, getGeneratingColor, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
+import { Caption, CaptionType, Chars, ClipDragOrigin, Computed, Generating, Hidden, Name, Selected, SourceError, TrimDragOrigin, fitsChildren, getGeneratingColor, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../../editor';
 import {
@@ -56,6 +56,7 @@ export function renderClip(
 	pointer.scope(String(entity.id()));
 
 	const asset = getClipAsset(world, entity);
+	const failed = entity.has(SourceError);
 	const style = getClipStyle(entity, asset);
 
 	handleBody(world, surface, entity, left, width, row, resolution);
@@ -75,7 +76,7 @@ export function renderClip(
 	ctx.fill();
 	ctx.restore();
 
-	if (!generating) {
+	if (!generating && !failed) {
 		renderContent(world, scene, surface, entity, asset, style, row);
 	}
 
@@ -264,8 +265,12 @@ function renderLabel(
 
 	// A caption's row is mostly its words; below a certain height the label
 	// would be all there is room for, so the words win. One still generating
-	// has no words yet, so there is nothing for the label to crowd out.
-	if (isCaption(entity) && !entity.has(Generating) && row.height < CLIP_BREAKPOINTS.sm) return;
+	// (or one that failed) has no words yet, so there is nothing for the label
+	// to crowd out.
+	if (
+		isCaption(entity) && !entity.has(Generating) && !entity.has(SourceError)
+		&& row.height < CLIP_BREAKPOINTS.sm
+	) return;
 
 	const label = clipLabel(entity);
 	if (!label) return;
@@ -310,6 +315,9 @@ const CAPTION_PRESETS: Record<CaptionType, string> = {
  * naming the thing it is drawing is an edit nobody asked for.
  */
 function clipLabel(entity: Entity): string {
+	const failure = entity.get(SourceError)?.value;
+	if (failure) return failure;
+
 	if (entity.has(Generating)) return 'Generating...';
 
 	const name = entity.get(Name)?.value;

@@ -2,14 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/**
- * What colour a clip is. A clip is coloured by what it *is* rather than by
- * what it holds, so the tests run from the most specific kind outward — a
- * caption is text geometry too, and would read as plain text if text were
- * asked about first.
- */
-
 import {
+	AssetId,
 	findGeometryAsset,
 	hasHtmlPaint,
 	hasSurfacePaint,
@@ -19,6 +13,7 @@ import {
 	isMask,
 	isScene,
 	isText,
+	SourceError,
 } from '@diffusionstudio/runtime';
 
 import { COLORS } from './constants';
@@ -34,6 +29,7 @@ export type ClipStyle = {
 };
 
 export function getClipStyle(entity: Entity, asset: Asset | null): ClipStyle {
+	if (entity.has(SourceError) && !entity.has(AssetId)) return COLORS.clip.failed;
 	if (isCaption(entity)) return COLORS.clip.caption;
 	if (isText(entity)) return COLORS.clip.text;
 	if (isScene(entity)) return COLORS.clip.scene;

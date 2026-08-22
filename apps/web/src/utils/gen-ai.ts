@@ -2,14 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// The app's GenAi: `generate.*` declarations made real against this
-// project's library and the dapi backend. Attached to the world as the `Ai`
-// trait, which is what the runtime's asset system (and `ai.generate.image`
-// callers) resolve through. A declaration resolves to an asset by content —
-// the same spec is the same asset, in this session and the next, since the
-// finished file lands in the library under `generated/` with the spec's key
-// in the manifest.
-
 import { getAssetSpec, isAssetRef, parseSource } from "@diffusionstudio/jsx";
 import {
   Ai, AssetId, Audio, GenAi, getAssetFile, getEntityTree, Hidden, Muted,
@@ -27,6 +19,7 @@ import { assert } from "@/utils";
 import { uploadBlob } from "@/components/engine";
 import { track } from "@/lib/analytics";
 import { trpc } from "@/lib/trpc";
+import { toast } from "somoto";
 
 import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
 import type { Asset, AssetLibrary } from "@diffusionstudio/assets";
@@ -34,6 +27,15 @@ import type { Entity, World } from "koota";
 
 // The UI offers a fixed set of voices on a fixed model (see prompt-input.tsx).
 const VOICE_MODEL = "elevenlabs-v3";
+
+/** What a failure is called where the user reads about it. */
+const FAILURE_TITLES: Record<AssetSpecInput["type"] | "transcript", string> = {
+  image: "Image generation failed",
+  video: "Video generation failed",
+  voice: "Voice generation failed",
+  audio: "Audio generation failed",
+  transcript: "Caption generation failed",
+};
 
 /**
  * A spec with defaults applied and every `AssetInput` reduced to an asset id.
@@ -59,8 +61,9 @@ export class EditorGenAi extends GenAi {
 
   /**
    * Declarations already resolved, keyed by ref identity — a ref consumed by
-   * several elements resolves (and validates) once. A failed one is
-   * forgotten, so a remount tries again.
+   * several elements resolves (and validates) once. A failed one is forgotten:
+   * from there on the element that asked is what carries the failure, in its
+   * `error` prop, and that is what keeps the generation from running again.
    */
   private readonly memo = new Map<AssetRef, Promise<Asset>>();
   /** In-flight generations and transcriptions keyed by `generationKey`. */
@@ -105,6 +108,8 @@ export class EditorGenAi extends GenAi {
     this.inflight.set(key, promise);
     try {
       return await promise;
+    } catch (error) {
+      throw reportFailure(error, FAILURE_TITLES.transcript);
     } finally {
       this.inflight.delete(key);
     }
@@ -158,21 +163,27 @@ export class EditorGenAi extends GenAi {
   }
 
   private async generateFromRef(ref: AssetRef): Promise<Asset> {
-    const resolved = await this.resolveSpec(getAssetSpec(ref));
-    const generationKey = JSON.stringify(resolved);
+    const spec = getAssetSpec(ref);
 
-    const cached = this.library.list().find((asset) => asset.generation?.key === generationKey);
-    if (cached) return cached;
-
-    const running = this.inflight.get(generationKey);
-    if (running) return await running;
-
-    const promise = this.runGeneration(resolved, generationKey);
-    this.inflight.set(generationKey, promise);
     try {
-      return await promise;
-    } finally {
-      this.inflight.delete(generationKey);
+      const resolved = await this.resolveSpec(spec);
+      const generationKey = JSON.stringify(resolved);
+
+      const cached = this.library.list().find((asset) => asset.generation?.key === generationKey);
+      if (cached) return cached;
+
+      const running = this.inflight.get(generationKey);
+      if (running) return await running;
+
+      const promise = this.runGeneration(resolved, generationKey);
+      this.inflight.set(generationKey, promise);
+      try {
+        return await promise;
+      } finally {
+        this.inflight.delete(generationKey);
+      }
+    } catch (error) {
+      throw reportFailure(error, FAILURE_TITLES[spec.type]);
     }
   }
 
@@ -330,6 +341,26 @@ export class EditorGenAi extends GenAi {
     assert(uploaded, `Failed to upload referenced asset ${assetId}`);
     return uploaded;
   }
+}
+
+/**
+ * Says what a generation failed with, and hands the error on. The message is
+ * what the element ends up carrying too (the runtime's `SourceError`, which
+ * the editor writes into its `error` prop), so the sentence in the file, the
+ * one on the canvas and the one in the toast are the same. The toast is keyed
+ * by it: variants that failed the same way are one thing gone wrong rather
+ * than four, and a render that ran into the same wall does not stack up.
+ */
+function reportFailure(error: unknown, title: string): Error {
+  const failure = error instanceof Error ? error : new Error(String(error));
+
+  console.error(`[gen-ai] ${title}:`, failure);
+  toast.error(title, {
+    id: `gen-ai:${title}:${failure.message}`,
+    description: failure.message,
+  });
+
+  return failure;
 }
 
 /**
