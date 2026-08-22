@@ -11,8 +11,18 @@ import type { AssetRef } from '@diffusionstudio/jsx';
 import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
 
+/**
+ * One element of the document, and its place in it. `parent` and `children`
+ * are the tree the reconciler reads back: text nodes and element nodes in the
+ * one order they were inserted in, which is what the document answers
+ * `getFirstChild` and `getNextSibling` from.
+ */
 export interface SceneNode {
 	readonly entity: Entity;
+	tag: string;
+	props: Record<string, unknown>;
+	parent: SceneNode | null;
+	children: HostNode[];
 }
 
 /**
@@ -33,32 +43,7 @@ export interface TextNode {
 
 export type HostNode = SceneNode | TextNode;
 
-/**
- * The text nodes a `<text>` entity holds, in order.
- *
- * The world is the document's only store: everything the document knows
- * about a node lives on that node's entity as a trait, and nothing is
- * mirrored in fields on `RuntimeDocument`. State that lives in two places
- * drifts as soon as one side (a cascade destroy, a move, an undo) is
- * updated without the other; state that lives on the entity is destroyed,
- * copied and observed together with it. When the document needs something
- * new, add a trait here — do not add a Map/Set field to the class.
- *
- * Text nodes themselves are the one thing not backed by an entity (they
- * are the reconciler's, held by identity), which is why they hang off their
- * parent entity via this trait rather than the other way around.
- */
-const TextParts = trait(() => new Set<TextNode>());
-
-/**
- * What the project wrote on an entity's element, in the vocabulary of the JSX
- * rather than of the traits it became: the tag, and every prop as last set.
- * Kept so an editor can spell an entity back out as an element — which is how
- * a loop's iterations get written down one by one — without reading the traits
- * backwards. `children` is not a prop here: an element's text is `Chars`, and
- * its element children are the entity's.
- */
-const Authored = trait(() => ({ tag: '', props: {} as Record<string, unknown> }));
+const Host = trait(() => null as SceneNode | null);
 
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
@@ -85,11 +70,11 @@ export interface AuthoredElement {
  * undefined for an entity no document created (the stage included).
  */
 export function authoredElement(entity: Entity): AuthoredElement | undefined {
-	const authored = entity.get(Authored);
-	if (authored === undefined) return undefined;
+	const node = entity.get(Host);
+	if (!node || node.tag === '') return undefined;
 
 	const text = isText(entity) ? entity.get(Chars)?.value : undefined;
-	return { tag: authored.tag, props: { ...authored.props }, ...(text ? { text } : {}) };
+	return { tag: node.tag, props: { ...node.props }, ...(text ? { text } : {}) };
 }
 
 /** An authored element with the authored elements under it, in order. */
@@ -121,31 +106,49 @@ export function isSceneNode(node: HostNode): node is SceneNode {
 }
 
 /**
- * The text nodes of `entity` in order; empty when it holds none.
+ * The text nodes among `node`'s children, in order; empty when it holds none.
  */
-function textParts(entity: Entity): TextNode[] {
-	return Array.from(entity.get(TextParts) ?? []);
+function textParts(node: SceneNode): TextNode[] {
+	return node.children.filter((child): child is TextNode => !isSceneNode(child));
 }
 
 /**
- * Re-derives `Chars` from the text nodes `entity` currently holds.
+ * Re-derives `Chars` from the text nodes `node` currently holds. Only a text
+ * entity has any to read: anywhere else a text node is a placeholder the
+ * renderer left behind and says nothing (see `insertNode`).
  */
-function syncChars(entity: Entity): void {
-	if (!entity.isAlive()) return;
+function syncChars(node: SceneNode): void {
+	const { entity } = node;
+	if (!entity.isAlive() || !isText(entity)) return;
 	entity.add(Chars);
-	entity.set(Chars, { value: textParts(entity).map((part) => part.text).join('') });
+	entity.set(Chars, { value: textParts(node).map((part) => part.text).join('') });
 }
 
 /**
- * Detaches `node` from its parent entity and refreshes that entity's text.
+ * Takes `node` out of the children of whatever parent it has, and refreshes
+ * that parent's text.
  */
-function detachText(node: TextNode): void {
+function detach(node: HostNode): void {
 	const parent = node.parent;
 	if (parent === null) return;
 
-	parent.entity.get(TextParts)?.delete(node);
+	const at = parent.children.indexOf(node);
+	if (at !== -1) parent.children.splice(at, 1);
 	node.parent = null;
-	syncChars(parent.entity);
+	syncChars(parent);
+}
+
+/**
+ * Cuts the links inside a subtree about to be destroyed, so whatever the
+ * reconciler still holds out of it reads as detached — the way its entities
+ * read as destroyed.
+ */
+function detachSubtree(node: SceneNode): void {
+	for (const child of node.children) {
+		if (isSceneNode(child)) detachSubtree(child);
+		child.parent = null;
+	}
+	node.children.length = 0;
 }
 
 const TIME_TRAITS = {
@@ -395,7 +398,27 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 	public constructor(world: World) {
 		this.world = world;
-		this.stage = { entity: world.get(Root)! };
+		const root = world.get(Root)!;
+		this.stage = { entity: root, tag: '', props: {}, parent: null, children: [] };
+		root.add(Host);
+		root.set(Host, this.stage);
+	}
+
+	/**
+	 * The node of `entity`: the one object the document and the renderer both
+	 * hold for it (see `Host`), so `===` between two of them means what it
+	 * says. An entity the document never created is adopted here rather than
+	 * refused — it has no place in the tree yet, which is what an empty node
+	 * says — so an editor can hand any entity to `insertNode` or `setProperty`.
+	 */
+	public node(entity: Entity): SceneNode {
+		const held = entity.get(Host);
+		if (held) return held;
+
+		const node: SceneNode = { entity, tag: '', props: {}, parent: null, children: [] };
+		entity.add(Host);
+		entity.set(Host, node);
+		return node;
 	}
 
 	public createElement(tag: string): SceneNode | SurfaceNode {
@@ -595,23 +618,31 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				);
 		}
 
-		if (entity !== this.stage.entity) {
-			entity.add(Authored);
-			entity.set(Authored, { tag: name, props: {} });
+		// The stage is the document's own node rather than one it creates: a
+		// project spelling `<stage>` addresses the one already there.
+		if (entity === this.stage.entity) {
+			return this.stage;
 		}
 
+		const node: SceneNode = {
+			entity,
+			tag: name,
+			props: {},
+			parent: null,
+			children: []
+		};
+
 		if (name === 'surface' || name === 'surfacePaint') {
-			// A getter, not a copy: the node holds no state of its own.
-			const node: SurfaceNode = {
-				entity,
+			Object.assign(node, {
 				get canvas() {
 					return entity.get(SurfaceHostHandle)?.canvas ?? null;
 				},
-			};
-			return node;
+			})
 		}
 
-		return { entity };
+		entity.add(Host);
+		entity.set(Host, node);
+		return node;
 	}
 
 	public createTextNode(text: string): TextNode {
@@ -622,7 +653,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		if (isSceneNode(node)) return;
 		node.text = text;
 		if (node.parent) {
-			syncChars(node.parent.entity);
+			syncChars(node.parent);
 		}
 	}
 
@@ -639,7 +670,8 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 	 * the canvas, whose element is not written yet) gets `Chars` alone.
 	 */
 	public setText(entity: Entity, text: string): void {
-		const parts = textParts(entity);
+		const node = this.node(entity);
+		const parts = textParts(node);
 
 		if (parts.length === 0) {
 			entity.add(Chars);
@@ -650,17 +682,18 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 		for (const [index, part] of parts.entries()) {
 			part.text = index === 0 ? text : '';
 		}
-		syncChars(entity);
+		syncChars(node);
 	}
 
 	public setProperty(node: HostNode, name: string, value: unknown): void {
 		if (!isSceneNode(node)) return;
 		const { entity } = node;
 
-		const authored = entity.get(Authored);
-		if (authored && !UNAUTHORED_PROPS.has(name)) {
-			if (value === undefined) delete authored.props[name];
-			else authored.props[name] = value;
+		// The stage and anything adopted from outside are no element of the
+		// project's, so nothing they are given is written down as one.
+		if (node.tag !== '' && !UNAUTHORED_PROPS.has(name)) {
+			if (value === undefined) delete node.props[name];
+			else node.props[name] = value;
 		}
 
 		switch (name) {
@@ -779,14 +812,14 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 					entity.set(CornerRadius, { value: radius });
 				}
 				// The corners without a radius of their own take this one.
-				this.syncCornerRadii(entity);
+				this.syncCornerRadii(node);
 				return;
 			}
 			case 'cornerRadiusTopLeft':
 			case 'cornerRadiusTopRight':
 			case 'cornerRadiusBottomRight':
 			case 'cornerRadiusBottomLeft': {
-				this.syncCornerRadii(entity);
+				this.syncCornerRadii(node);
 				return;
 			}
 			case 'blendMode': {
@@ -874,7 +907,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 					// neither bound authored it sizes itself to its glyphs
 					// again. Size holds both, so it only goes when both are.
 					const other = name === 'width' ? 'height' : 'width';
-					if (isText(entity) && toNumber(entity.get(Authored)?.props[other]) === undefined) {
+					if (isText(entity) && toNumber(node.props[other]) === undefined) {
 						entity.remove(Size);
 					}
 					return;
@@ -1016,7 +1049,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 					// A `<captions>` without a src transcribes its scene instead.
 					if (entity.has(Caption)) {
 						entity.add(TranscriptionRequest);
-						entity.set(TranscriptionRequest, { seed: toNumber(entity.get(Authored)?.props.seed) ?? 0 });
+						entity.set(TranscriptionRequest, { seed: toNumber(node.props.seed) ?? 0 });
 					}
 					return;
 				}
@@ -1216,7 +1249,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 				if (entity.has(LoadRequest) || entity.has(GenerationRequest)) return;
 
-				const src = entity.get(Authored)?.props.src;
+				const src = node.props.src;
 				if (src === undefined || src === null || src === '') return;
 
 				// A resolution running for the old modifiers must not bind late.
@@ -1237,7 +1270,7 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 				if (!entity.has(Caption)) return;
 				// An authored src mounts a transcript directly; there is no
 				// transcription for the seed to key.
-				if (entity.get(Authored)?.props.src !== undefined) return;
+				if (node.props.src !== undefined) return;
 				if (entity.has(LoadRequest) || entity.has(GenerationRequest)) return;
 
 				// A resolution running for another seed must not bind late
@@ -1289,8 +1322,8 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 	 * without one takes `cornerRadius`. Recomputed whole on every one of the
 	 * five, so the order Solid sets them in does not matter.
 	 */
-	private syncCornerRadii(entity: Entity): void {
-		const props = entity.get(Authored)?.props ?? {};
+	private syncCornerRadii(node: SceneNode): void {
+		const { entity, props } = node;
 		const corners = CORNER_PROPS.map((name) => toNumber(props[name]));
 		if (corners.every((corner) => corner === undefined)) {
 			entity.remove(MixedCornerRadius);
@@ -1304,39 +1337,45 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 	}
 
 	/**
-	 * Entity handles are minted per lookup, so every comparison here is between
-	 * entities: two handles for the same node are never the same object. Text
-	 * nodes are the exception, held by identity (see `TextNode`).
+	 * Puts `node` under `parent`, in front of `anchor` or last.
+	 *
+	 * `children` is written first — it is what the document answers from —
+	 * and the traits are derived from it: `ChildOf` for the parent, then
+	 * `ItemIndex` over the element children in the order they now sit in.
+	 *
+	 * A text node under a parent that is not a `<text>` is an inert
+	 * placeholder rather than an error: it is how the renderer marks the spot
+	 * a conditional or an emptied list left behind (`cleanChildren`), and the
+	 * next value takes its place. Only a `<text>` reads its text children back
+	 * out as `Chars`.
 	 */
 	public insertNode(parent: HostNode, node: HostNode, anchor?: HostNode): void {
 		if (!isSceneNode(parent)) {
 			throw new Error('Text cannot contain children.');
 		}
 
-		if (!isSceneNode(node)) {
-			if (!isText(parent.entity)) {
-				throw new Error('Only <text> takes text children.');
+		if (isSceneNode(node)) {
+			if (parent.entity === node.entity) return;
+			// Checked before anything moves: `appendChild` asserts the same
+			// thing, but only once the node has left the parent it had.
+			if (
+				getParentEntity(node.entity) !== parent.entity &&
+				getEntityTree(this.world, node.entity).includes(parent.entity)
+			) {
+				throw new Error('Cannot parent entity into its own subtree');
 			}
-
-			if (node.parent && node.parent.entity !== parent.entity) {
-				detachText(node);
-			}
-
-			// The Set keeps insertion order, so a reorder is a rebuild.
-			parent.entity.add(TextParts);
-			const parts = textParts(parent.entity).filter((part) => part !== node);
-			const at = anchor && !isSceneNode(anchor) ? parts.indexOf(anchor) : -1;
-			if (at === -1) parts.push(node);
-			else parts.splice(at, 0, node);
-			parent.entity.set(TextParts, new Set(parts));
-
-			node.parent = parent;
-			syncChars(parent.entity);
-			return;
 		}
 
-		if (parent.entity === node.entity) return;
+		detach(node);
+		const at = anchor === undefined ? -1 : parent.children.indexOf(anchor);
+		if (at === -1) parent.children.push(node);
+		else parent.children.splice(at, 0, node);
+		node.parent = parent;
 
+		if (!isSceneNode(node)) {
+			syncChars(parent);
+			return;
+		}
 
 		if (getParentEntity(node.entity) !== parent.entity) {
 			// appendChild only takes top-level entities, so a move between two
@@ -1350,80 +1389,61 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 			appendChild(this.world, node.entity, parent.entity);
 
 			if (node.entity.has(KeyframeTrack)) {
-				this.resolveTrackProperty(node.entity, node.entity.get(Authored)?.props.property);
+				this.resolveTrackProperty(node.entity, node.props.property);
 			}
 			if (node.entity.has(SurfaceHostHandle)) {
 				syncSurfaceSize(this.world, parent.entity);
 			}
 		}
 
-		const siblings = getEntityChildren(this.world, parent.entity).filter((sibling) => sibling !== node.entity);
-		const at = anchor && isSceneNode(anchor) ? siblings.indexOf(anchor.entity) : -1;
-		if (at === -1) siblings.push(node.entity);
-		else siblings.splice(at, 0, node.entity);
-		for (const [index, sibling] of siblings.entries()) {
-			sibling.add(ItemIndex);
-			sibling.set(ItemIndex, { value: index });
+		let index = 0;
+		for (const sibling of parent.children) {
+			if (!isSceneNode(sibling)) continue;
+			sibling.entity.add(ItemIndex);
+			sibling.entity.set(ItemIndex, { value: index++ });
 		}
 	}
 
+	/**
+	 * Takes `node` out of the document. The parent it comes out of is the one
+	 * it has rather than the one the caller names: a move has already put it
+	 * in the new one by the time the renderer asks the old one to drop it.
+	 */
 	public removeNode(_parent: HostNode, node: HostNode): void {
-		if (!isSceneNode(node)) {
-			detachText(node);
-			return;
-		}
+		detach(node);
+
+		if (!isSceneNode(node)) return;
 
 		if (node.entity.has(Stage)) {
-			for (const child of getEntityChildren(this.world, node.entity)) {
-				this.removeNode(node, { entity: child });
+			for (const child of [...node.children]) {
+				this.removeNode(node, child);
 			}
 			node.entity.set(Background, { value: DEFAULT_BACKGROUND });
 			node.entity.remove(Source);
 			return;
 		}
-		// Destroy cascades through the subtree; the text nodes held for it go too.
-		for (const entity of getEntityTree(this.world, node.entity)) {
-			const texts = entity.get(TextParts);
-			if (texts === undefined) continue;
-			for (const text of texts) {
-				text.parent = null;
-			}
-			entity.remove(TextParts);
-		}
+
+		// Destroy cascades through the subtree; whatever the reconciler still
+		// holds out of it — a text node, a node a ref kept — learns it has no
+		// parent, the way the entities learn they are gone.
+		detachSubtree(node);
 		// ChildOf auto-destroys orphans, so paints go with it.
 		node.entity.destroy();
 	}
 
 	public getParentNode(node: HostNode): SceneNode | undefined {
-		if (!isSceneNode(node)) return node.parent ?? undefined;
-		const parent = getParentEntity(node.entity);
-		return parent === null ? undefined : { entity: parent };
+		return node.parent ?? undefined;
 	}
 
 	public getFirstChild(node: HostNode): HostNode | undefined {
-		if (!isSceneNode(node)) return undefined;
-		const text = node.entity.get(TextParts)?.values().next().value;
-		if (text !== undefined) return text;
-		const child = getEntityChildren(this.world, node.entity).at(0);
-		return child === undefined ? undefined : { entity: child };
+		return isSceneNode(node) ? node.children[0] : undefined;
 	}
 
 	public getNextSibling(node: HostNode): HostNode | undefined {
-		if (!isSceneNode(node)) {
-			// A text entity has only text nodes to iterate.
-			if (node.parent === null) return undefined;
-			const parts = textParts(node.parent.entity);
-			const at = parts.indexOf(node);
-			return at === -1 ? undefined : parts[at + 1];
-		}
-
-		const parent = this.getParentNode(node);
-		if (parent === undefined) return undefined;
-		const siblings = getEntityChildren(this.world, parent.entity);
-		const at = siblings.indexOf(node.entity);
-		if (at === -1) return undefined;
-		const next = siblings[at + 1];
-		return next === undefined ? undefined : { entity: next };
+		const parent = node.parent;
+		if (parent === null) return undefined;
+		const at = parent.children.indexOf(node);
+		return at === -1 ? undefined : parent.children[at + 1];
 	}
 
 

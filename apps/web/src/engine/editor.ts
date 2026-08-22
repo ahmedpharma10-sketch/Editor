@@ -204,7 +204,7 @@ export class DocumentEditor {
 
 	/** Writes a prop to the document and reports it. */
 	public editProperty(entity: Entity, name: string, value: PropValue): void {
-		this.document.setProperty({ entity }, name, value);
+		this.document.setProperty(this.document.node(entity), name, value);
 		this.reportEdit(entity, name, value);
 	}
 
@@ -424,9 +424,10 @@ export class DocumentEditor {
 		if (anchor) this.settle(anchor);
 
 		const created = new Map<Entity, Recorded>();
+		const document = this.document;
 		const dispose = createRoot((dispose) => {
 			withDocument(this.recording(created), () =>
-				insert({ entity: parent }, element, anchor ? { entity: anchor } : null),
+				insert(document.node(parent), element, anchor ? document.node(anchor) : null),
 			);
 			return dispose;
 		});
@@ -693,7 +694,8 @@ export class DocumentEditor {
 		const wasActive = entity.has(Active);
 
 		try {
-			this.document.insertNode({ entity: parent }, { entity }, anchor ? { entity: anchor } : undefined);
+			const document = this.document;
+			document.insertNode(document.node(parent), document.node(entity), anchor ? document.node(anchor) : undefined);
 		} catch {
 			return false;
 		}
@@ -745,7 +747,7 @@ export class DocumentEditor {
 			// Cut from the file as one iteration's element, not the body's.
 			this.settle(entity);
 			const source = entity.get(Source)!.value;
-			document.removeNode({ entity: getParentEntity(entity) ?? document.stage.entity }, { entity });
+			document.removeNode(document.node(getParentEntity(entity) ?? document.stage.entity), document.node(entity));
 			this.sink?.({ kind: 'remove', source });
 		}
 
@@ -777,7 +779,7 @@ export class DocumentEditor {
 		for (const entity of doomed) {
 			if (!entity.isAlive()) continue;
 			const parent = getParentEntity(entity);
-			document.removeNode({ entity: parent ?? document.stage.entity }, { entity });
+			document.removeNode(document.node(parent ?? document.stage.entity), document.node(entity));
 		}
 	}
 
