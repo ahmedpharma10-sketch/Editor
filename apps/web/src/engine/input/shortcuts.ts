@@ -1,7 +1,37 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-import { Computed, getActiveEntity, getCameraMatrix, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected, store, Time, togglePlayback, Tool, ToolType } from '@diffusionstudio/runtime';
+import {
+	AdjustmentLayer,
+	ChildOf,
+	Computed,
+	Culled,
+	FrameRate,
+	Geometry,
+	Group,
+	Hidden,
+	Position,
+	Root,
+	Selected,
+	Time,
+	Tool,
+	ToolType,
+	focusEntities,
+	getActiveEntity,
+	getCameraMatrix,
+	getEntityChildren,
+	getParentEntity,
+	getParentNode,
+	getSelection,
+	isGroupLike,
+	isSequence,
+	resetCameraZoom,
+	setPlayhead,
+	store,
+	togglePlayback,
+	zoomCameraBy,
+} from '@diffusionstudio/runtime';
+import { Not, Or } from 'koota';
 
 import { getDocumentEditor } from '../editor';
 import { splitAtPlayhead } from '../split';
@@ -10,12 +40,15 @@ import { editTransform } from './interactions';
 
 import type { TransformWrite } from './interactions';
 import type { CameraMatrix } from '@diffusionstudio/runtime';
-import type { World } from 'koota';
+import type { Entity, World } from 'koota';
 
 type Shortcut = {
 	keys: string[];
 	action: (world: World) => void;
 }
+
+/** The node kinds a shortcut selects, hides or seeks around. */
+const NODES = Or(Geometry, Group, AdjustmentLayer);
 
 export function deleteSelection(world: World): void {
 	const selected = [...world.query(Selected)];
@@ -39,6 +72,12 @@ export function copySelection(world: World): void {
 	if (selected.length) {
 		getDocumentEditor(world).copy(selected);
 	}
+}
+
+/** Copy and delete in one, so the clipboard holds what the stage lost. */
+export function cutSelection(world: World): void {
+	copySelection(world);
+	deleteSelection(world);
 }
 
 /**
@@ -194,6 +233,167 @@ const selectTool = (value: ToolType) => (world: World): void => {
 	world.set(Tool, { value });
 };
 
+/**
+ * Moves the active scene's playhead by `frames`, the same seek a scrub of the
+ * ruler comes to. Nothing to seek without an active scene.
+ */
+export function seekBy(world: World, frames: number): void {
+	const scene = getActiveEntity(world);
+	if (!scene) return;
+
+	setPlayhead(world, scene, (store(world, Computed).localTime[scene.id()] ?? 0) + frames);
+}
+
+const seekFrames = (frames: number) => (world: World): void => seekBy(world, frames);
+
+const seekSeconds = (seconds: number) => (world: World): void =>
+	seekBy(world, Math.round(seconds * (world.get(FrameRate)?.value ?? 30)));
+
+/** How much of the zoom a step takes, in or out. */
+const ZOOM_STEP = 1.25;
+
+/**
+ * The camera is the document's, so a zoom travels like a pan does (see
+ * `CameraController`): the world already holds the new matrix, the file is
+ * told what it now says.
+ */
+function reportCamera(world: World): void {
+	getDocumentEditor(world).reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
+}
+
+const zoomBy = (factor: number) => (world: World): void => {
+	zoomCameraBy(world, factor);
+	reportCamera(world);
+};
+
+function resetZoom(world: World): void {
+	resetCameraZoom(world);
+	reportCamera(world);
+}
+
+/** Frames the scene the timeline is pointed at. */
+function focusActive(world: World): void {
+	const scene = getActiveEntity(world);
+	if (!scene) return;
+
+	focusEntities(world, [scene]);
+	reportCamera(world);
+}
+
+/** Frames what is selected, wherever on the stage it sits. */
+function focusSelection(world: World): void {
+	const selected = getSelection(world);
+	if (!selected.length) return;
+
+	focusEntities(world, selected);
+	reportCamera(world);
+}
+
+/**
+ * Hides the selection, or brings it back once all of it is hidden — the same
+ * property the eye in the layer list writes, one write per node.
+ */
+export function toggleSelectionHidden(world: World): void {
+	const editor = getDocumentEditor(world);
+	const selected = [...world.query(Selected, NODES)];
+	if (!selected.length) return;
+
+	const hide = selected.some(entity => !entity.has(Hidden));
+	for (const entity of selected) editor.editProperty(entity, 'hidden', hide);
+}
+
+/**
+ * Sends the selection to the front or the back of its siblings. Which of two
+ * nodes is drawn on top is which of them the file lists last, so a restack is
+ * a move through the document rather than an index written to the node. A
+ * selection spanning parents is restacked inside each of them, and the moved
+ * nodes keep the order they had among themselves.
+ */
+export function restackSelection(world: World, target: 'front' | 'back'): void {
+	const editor = getDocumentEditor(world);
+	const selected = new Set([...world.query(Selected, NODES)]);
+	if (!selected.size) return;
+
+	const parents = new Set<Entity>();
+	for (const entity of selected) {
+		const parent = getParentEntity(entity);
+		if (parent !== null) parents.add(parent);
+	}
+
+	for (const parent of parents) {
+		const siblings = getEntityChildren(world, parent);
+		const moving = siblings.filter(entity => selected.has(entity));
+
+		if (target === 'front') {
+			// Appended one after the other, each lands on top of the last, so
+			// the order they were in is the order they end up in.
+			for (const entity of moving) editor.reparent(entity, parent);
+			continue;
+		}
+
+		// All of them go before the backmost sibling that is staying put —
+		// the one node the whole block has to end up behind.
+		const anchor = siblings.find(entity => !selected.has(entity));
+		if (anchor === undefined) continue;
+		for (const entity of moving) editor.reparent(entity, parent, anchor);
+	}
+}
+
+const restack = (target: 'front' | 'back') => (world: World): void => restackSelection(world, target);
+
+/**
+ * Selects what holds the selection. A sequence is a container the timeline
+ * draws rather than a node the canvas selects, so the walk goes on through
+ * it; a node the stage holds directly has nothing to go up to.
+ */
+export function selectParents(world: World): void {
+	const selected = [...world.query(Selected, NODES)];
+	if (!selected.length) return;
+
+	const parents = new Set<Entity>();
+
+	for (const entity of selected) {
+		let parent = getParentNode(entity);
+		while (parent !== null && isSequence(parent)) {
+			parent = getParentNode(parent);
+		}
+		if (parent !== null) parents.add(parent);
+	}
+
+	if (parents.size) getDocumentEditor(world).select([...parents]);
+}
+
+/**
+ * Selects what the selection holds, one level down, sequences seen through
+ * the same way `selectParents` sees through them. What is hidden or out of
+ * range is not there to be stepped into.
+ */
+export function selectChildren(world: World): void {
+	const selected = [...world.query(Selected, NODES)];
+	if (!selected.length) return;
+
+	const children = new Set<Entity>();
+
+	const collect = (parent: Entity): void => {
+		for (const child of world.query(NODES, ChildOf(parent), Not(Hidden), Not(Culled))) {
+			if (isSequence(child)) collect(child);
+			else children.add(child);
+		}
+	};
+
+	for (const entity of selected) collect(entity);
+
+	if (children.size) getDocumentEditor(world).select([...children]);
+}
+
+/** Drops the selection, and whatever tool was drawing with it. */
+function deselect(world: World): void {
+	getDocumentEditor(world).clearSelection();
+
+	const tool = world.get(Tool)?.value ?? ToolType.MOVE;
+	if (tool !== ToolType.MOVE && tool !== ToolType.HAND) selectTool(ToolType.MOVE)(world);
+}
+
 const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['backspace'], action: deleteSelection },
 	{ keys: ['delete'], action: deleteSelection },
@@ -201,8 +401,28 @@ const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['b', 'mod'], action: splitAtPlayhead },
 	{ keys: ['c', 'mod'], action: copySelection },
 	{ keys: ['v', 'mod'], action: pasteSelection },
+	{ keys: ['x', 'mod'], action: cutSelection },
+	{ keys: ['h', 'mod', 'shift'], action: toggleSelectionHidden },
+	{ keys: ['=', 'mod'], action: zoomBy(ZOOM_STEP) },
+	{ keys: ['+', 'mod'], action: zoomBy(ZOOM_STEP) },
+	{ keys: ['-', 'mod'], action: zoomBy(1 / ZOOM_STEP) },
+	{ keys: ['0', 'mod'], action: resetZoom },
+	{ keys: ['1', 'mod'], action: focusActive },
+	{ keys: ['2', 'mod'], action: focusSelection },
 	{ keys: ['v', '!mod'], action: selectTool(ToolType.MOVE) },
 	{ keys: ['h', '!mod'], action: selectTool(ToolType.HAND) },
+	{ keys: ['f', '!mod'], action: selectTool(ToolType.SCENE) },
+	{ keys: ['t', '!mod'], action: selectTool(ToolType.TEXT) },
+	{ keys: ['r', '!mod'], action: selectTool(ToolType.RECT) },
+	{ keys: ['a', '!mod'], action: seekFrames(-1) },
+	{ keys: ['d', '!mod'], action: seekFrames(1) },
+	{ keys: ['w', '!mod'], action: seekSeconds(1) },
+	{ keys: ['s', '!mod'], action: seekSeconds(-1) },
+	{ keys: [']', '!mod'], action: restack('front') },
+	{ keys: ['[', '!mod'], action: restack('back') },
+	{ keys: ['\\', '!mod'], action: selectParents },
+	{ keys: ['enter', '!mod'], action: selectChildren },
+	{ keys: ['escape'], action: deselect },
 	{ keys: ['arrowleft', '!shift'], action: nudge(-NUDGE, 0) },
 	{ keys: ['arrowright', '!shift'], action: nudge(NUDGE, 0) },
 	{ keys: ['arrowup', '!shift'], action: nudge(0, -NUDGE) },
