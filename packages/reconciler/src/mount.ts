@@ -15,7 +15,9 @@ export interface Mount {
 
 /**
  * Renders a compiled project bundle into `world`. Throws if the bundle does
- * not evaluate or its root is not a <stage>; nothing is left behind in the
+ * not evaluate, if its root is not a <stage>, or if `world` still has a
+ * mounted project (dispose that one first — the stage is a singleton, so
+ * two mounts would render into each other); nothing is left behind in the
  * world when it throws.
  */
 export function mount(code: string, world: World): Mount {

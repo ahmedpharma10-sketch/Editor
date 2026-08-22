@@ -1429,6 +1429,11 @@ export class RuntimeDocument implements ProjectDocument<HostNode> {
 
 	public dispose(): void {
 		this.removeNode(this.stage, this.stage);
+		// The world is free for the next mount. A document already replaced by
+		// another leaves the registry as it found it.
+		if (documents.get(this.world) === this) {
+			documents.delete(this.world);
+		}
 	}
 }
 
@@ -1444,7 +1449,18 @@ export function getRuntimeDocument(world: World): RuntimeDocument {
 	return document;
 }
 
+/**
+ * The world's runtime document, for the length of one mount. A world holds at
+ * most one: the stage it renders into is a world singleton, so a second
+ * document would append its project's entities alongside the first's, and the
+ * ones already there would be reachable only through the earlier `Mount`.
+ * Dispose the running mount before starting another.
+ */
 export function createRuntimeDocument(world: World): RuntimeDocument {
+	if (documents.has(world)) {
+		throw new Error('This world already has a mounted project — dispose it before mounting another');
+	}
+
 	const document = new RuntimeDocument(world);
 	documents.set(world, document);
 	return document;
