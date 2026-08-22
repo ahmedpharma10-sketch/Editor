@@ -8,39 +8,39 @@ import {
   DropdownMenuShortcut,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { useEngine } from "@/context/engine";
+import { useWorld } from "@diffusionstudio/koota-solid";
 import { useLayout } from "@/context/layout";
-import { useECS } from "@/context/ecs";
+import { useSelection, zoomBy, zoomTo, zoomToFit, zoomToSelection } from "@/engine";
 
 export function ViewMenu() {
-  const engine = useEngine();
+  const world = useWorld();
   const layout = useLayout();
-  const { selectedNodes } = useECS();
+  const { nodes } = useSelection();
 
-  const hasSelection = () => selectedNodes().size > 0;
+  const hasSelection = () => nodes().length > 0;
 
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={() => engine.camera.zoomBy(1.25)}>
+        <DropdownMenuItem onSelect={() => zoomBy(world, 1.25)}>
           Zoom in
           <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => engine.camera.zoomBy(0.8)}>
+        <DropdownMenuItem onSelect={() => zoomBy(world, 0.8)}>
           Zoom out
           <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => engine.camera.resetZoom()}>
+        <DropdownMenuItem onSelect={() => zoomTo(world, 1)}>
           Zoom to 100%
           <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => engine.camera.fitToActiveScene()}>
+        <DropdownMenuItem onSelect={() => zoomToFit(world)}>
           Zoom to fit
           <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!hasSelection()}
-          onSelect={() => engine.camera.fitToSelection()}
+          onSelect={() => zoomToSelection(world)}
         >
           Zoom to selection
           <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>

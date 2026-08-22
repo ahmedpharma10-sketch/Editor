@@ -16,8 +16,6 @@ import {
 	Time,
 	Tool,
 	ToolType,
-	focusContent,
-	focusEntities,
 	getActiveEntity,
 	getCameraMatrix,
 	getEntityChildren,
@@ -26,14 +24,13 @@ import {
 	getSelection,
 	isGroupLike,
 	isSequence,
-	resetCameraZoom,
 	setPlayhead,
 	store,
 	togglePlayback,
-	zoomCameraBy,
 } from '@diffusionstudio/runtime';
 import { Not, Or } from 'koota';
 
+import { zoomBy, zoomTo, zoomToFit, zoomToSelection } from '../camera';
 import { getDocumentEditor } from '../editor';
 import { splitAtPlayhead } from '../split';
 import { Keys, Pointer } from '../traits';
@@ -253,39 +250,9 @@ const seekSeconds = (seconds: number) => (world: World): void =>
 /** How much of the zoom a step takes, in or out. */
 const ZOOM_STEP = 1.25;
 
-/**
- * The camera is the document's, so a zoom travels like a pan does (see
- * `CameraController`): the world already holds the new matrix, the file is
- * told what it now says.
- */
-function reportCamera(world: World): void {
-	getDocumentEditor(world).reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
-}
+const zoom = (factor: number) => (world: World): void => zoomBy(world, factor);
 
-const zoomBy = (factor: number) => (world: World): void => {
-	zoomCameraBy(world, factor);
-	reportCamera(world);
-};
-
-function resetZoom(world: World): void {
-	resetCameraZoom(world);
-	reportCamera(world);
-}
-
-/** Frames everything on the stage — the zoom menu's "Zoom to fit". */
-function focusAll(world: World): void {
-	focusContent(world);
-	reportCamera(world);
-}
-
-/** Frames what is selected, wherever on the stage it sits. */
-function focusSelection(world: World): void {
-	const selected = getSelection(world);
-	if (!selected.length) return;
-
-	focusEntities(world, selected);
-	reportCamera(world);
-}
+const zoomActualSize = (world: World): void => zoomTo(world, 1);
 
 /**
  * Hides the selection, or brings it back once all of it is hidden — the same
@@ -338,6 +305,18 @@ export function restackSelection(world: World, target: 'front' | 'back'): void {
 }
 
 const restack = (target: 'front' | 'back') => (world: World): void => restackSelection(world, target);
+
+/**
+ * Selects everything the stage holds directly — the scenes and whatever else
+ * sits loose on it, rather than what is inside them.
+ */
+export function selectAll(world: World): void {
+	const root = world.get(Root);
+	if (!root) return;
+
+	const entities = [...world.query(NODES, ChildOf(root), Not(Hidden), Not(Culled))];
+	if (entities.length) getDocumentEditor(world).select(entities);
+}
 
 /**
  * Selects what holds the selection. A sequence is a container the timeline
@@ -395,18 +374,19 @@ function deselect(world: World): void {
 const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['backspace'], action: deleteSelection },
 	{ keys: ['delete'], action: deleteSelection },
-	{ keys: ['d', 'mod'], action: duplicateSelection },
+	{ keys: ['d', 'mod', '!shift'], action: duplicateSelection },
 	{ keys: ['b', 'mod'], action: splitAtPlayhead },
 	{ keys: ['c', 'mod'], action: copySelection },
 	{ keys: ['v', 'mod'], action: pasteSelection },
 	{ keys: ['x', 'mod'], action: cutSelection },
 	{ keys: ['h', 'mod', 'shift'], action: toggleSelectionHidden },
-	{ keys: ['=', 'mod'], action: zoomBy(ZOOM_STEP) },
-	{ keys: ['+', 'mod'], action: zoomBy(ZOOM_STEP) },
-	{ keys: ['-', 'mod'], action: zoomBy(1 / ZOOM_STEP) },
-	{ keys: ['0', 'mod'], action: resetZoom },
-	{ keys: ['1', 'mod'], action: focusAll },
-	{ keys: ['2', 'mod'], action: focusSelection },
+	{ keys: ['a', 'mod'], action: selectAll },
+	{ keys: ['=', 'mod'], action: zoom(ZOOM_STEP) },
+	{ keys: ['+', 'mod'], action: zoom(ZOOM_STEP) },
+	{ keys: ['-', 'mod'], action: zoom(1 / ZOOM_STEP) },
+	{ keys: ['0', 'mod'], action: zoomActualSize },
+	{ keys: ['1', 'mod'], action: zoomToFit },
+	{ keys: ['2', 'mod'], action: zoomToSelection },
 	{ keys: ['v', '!mod'], action: selectTool(ToolType.MOVE) },
 	{ keys: ['h', '!mod'], action: selectTool(ToolType.HAND) },
 	{ keys: ['f', '!mod'], action: selectTool(ToolType.SCENE) },

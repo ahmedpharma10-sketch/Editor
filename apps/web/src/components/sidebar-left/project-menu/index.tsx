@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -16,7 +17,8 @@ import {
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "@solidjs/router";
-import { Show } from "solid-js";
+import { Show, onCleanup, onMount } from "solid-js";
+import { isInputTarget } from "@/utils";
 import { useEditorApi } from "@/context/dapi";
 import { downloadDesktopApp } from "@/lib/desktop-app";
 import { FileMenu } from "./file-menu";
@@ -40,6 +42,23 @@ export function ProjectMenu() {
     navigate("/?dashboard=account");
   };
 
+  /**
+   * Leaving the editor is the app's command rather than the runtime's, so its
+   * key is bound here, with the item that offers it.
+   */
+  const handleShortcut = (event: KeyboardEvent) => {
+    if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return;
+    if (event.key.toLowerCase() !== "d" || isInputTarget(event)) return;
+
+    event.preventDefault();
+    handleOpenDashboard();
+  };
+
+  onMount(() => {
+    window.addEventListener("keydown", handleShortcut);
+    onCleanup(() => window.removeEventListener("keydown", handleShortcut));
+  });
+
   return (
     <>
       <DropdownMenu placement="bottom-start">
@@ -58,6 +77,7 @@ export function ProjectMenu() {
             <DropdownMenuGroup>
               <DropdownMenuItem onSelect={handleOpenDashboard}>
                 Go to dashboard
+                <DropdownMenuShortcut>⇧⌘D</DropdownMenuShortcut>
               </DropdownMenuItem>
             </DropdownMenuGroup>
 

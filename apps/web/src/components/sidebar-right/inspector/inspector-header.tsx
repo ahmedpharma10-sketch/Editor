@@ -13,31 +13,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useWorld } from "@diffusionstudio/koota-solid";
-import { focusContent, getCameraMatrix, Root, setCameraZoom, zoomCameraBy } from "@diffusionstudio/runtime";
-import { useCameraScale } from "@/engine";
-import { useEditor } from "@/engine/hooks/use-editor";
+import { useCameraScale, zoomBy, zoomTo, zoomToFit } from "@/engine";
 
 export function InspectorHeader() {
   const world = useWorld();
-  const editor = useEditor();
 
   // Every operation here is anchored on the stage itself — its center, or its
   // content — so the menu needs no canvas geometry of its own.
   const scale = useCameraScale();
   const zoomLabel = () => `${Math.round(scale() * 100)}%`;
-
-  const zoomBy = (factor: number) => {
-    zoomCameraBy(world, factor);
-    editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
-  };
-  const zoomTo = (percent: number) => {
-    setCameraZoom(world, percent / 100);
-    editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
-  };
-  const zoomToFit = () => {
-    focusContent(world);
-    editor.reportEdit(world.get(Root)!, 'camera', getCameraMatrix(world));
-  };
 
   return (
     <div class="h-12 shrink-0 flex items-center px-4">
@@ -60,26 +44,26 @@ export function InspectorHeader() {
         />
         <DropdownMenuPortal>
           <DropdownMenuContent class="w-40">
-            <DropdownMenuItem onSelect={() => zoomBy(1.25)}>
+            <DropdownMenuItem onSelect={() => zoomBy(world, 1.25)}>
               Zoom in
               <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomBy(0.8)}>
+            <DropdownMenuItem onSelect={() => zoomBy(world, 0.8)}>
               Zoom out
               <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={zoomToFit}>
+            <DropdownMenuItem onSelect={() => zoomToFit(world)}>
               Zoom to fit
               <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomTo(50)}>
+            <DropdownMenuItem onSelect={() => zoomTo(world, 0.5)}>
               Zoom to 50%
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomTo(100)}>
+            <DropdownMenuItem onSelect={() => zoomTo(world, 1)}>
               Zoom to 100%
               <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomTo(200)}>
+            <DropdownMenuItem onSelect={() => zoomTo(world, 2)}>
               Zoom to 200%
             </DropdownMenuItem>
           </DropdownMenuContent>

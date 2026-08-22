@@ -237,6 +237,12 @@ export function FileAssetMenu() {
   );
 }
 
+/**
+ * The last of this menu still on the bitecs engine: the render pipeline
+ * (`@/context/render` → `@/components/engine/encode`) takes an old-world
+ * scene, so both the scene it exports and the list below have to come from
+ * there. Moves to koota with the encoder (see the TODO in inspector/export).
+ */
 export function FileExportMenu() {
   const { world } = useEngine();
   const { exportScene, exportCurrentFrame } = useExport();
