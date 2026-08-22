@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { useWorld } from "@diffusionstudio/koota-solid";
-import { findSceneAt, screenToWorld, worldToLocal, Library } from "@diffusionstudio/runtime";
+import { findSceneAt, screenToWorld, worldToLocal, Library, Root } from "@diffusionstudio/runtime";
 import { CameraController, EngineCanvas } from "@/engine";
 import { insertAsset } from "@/engine/insert-asset";
 import { droppedFiles, importFiles } from "@/engine/asset-actions";
@@ -25,6 +25,10 @@ export function Canvas() {
    * Drops onto the canvas: library assets (dragged from the panel) land where
    * they were dropped, in the scene under the pointer; external files are
    * imported into the library first, then land the same way.
+   *
+   * With no scene under the pointer they land loose on the stage, like an
+   * element drawn there (see DrawOverlay): the drop says where, so the active
+   * scene — which is somewhere else entirely — is not the answer.
    */
   const handleDropEvent = async (event: DragEvent) => {
     event.preventDefault();
@@ -36,12 +40,13 @@ export function Canvas() {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const worldPt = screenToWorld(world, event.clientX - rect.left, event.clientY - rect.top);
     const scene = findSceneAt(world, worldPt.x, worldPt.y);
+    const parent = scene ?? world.get(Root)!;
     const localPt = scene ? worldToLocal(world, scene, worldPt.x, worldPt.y) : worldPt;
 
     const place = (asset: Asset) => {
       const size = 'width' in asset && 'height' in asset ? { width: asset.width, height: asset.height } : { width: 500, height: 150 };
       const placed = insertAsset(world, asset, {
-        ...(scene ? { parent: scene } : {}),
+        parent,
         x: localPt.x - size.width / 2,
         y: localPt.y - size.height / 2,
       });
