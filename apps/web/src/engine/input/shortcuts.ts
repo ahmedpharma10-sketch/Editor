@@ -1,18 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-/**
- * Keyboard commands on the canvas: what a key press does, as opposed to the
- * held keys that modify a gesture. The DOM listener only records (see
- * `Keys`); the shortcut system runs once a frame and, when a key was just
- * pressed, matches what is held against the table below and runs the action.
- * Space is the exception the table cannot hold — it is also the pan
- * modifier, so what it does depends on where the pointer is and on whether
- * the camera moved while it was down; see `playbackShortcut`.
- */
-
-import { Computed, getActiveEntity, getCameraMatrix, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected, store, togglePlayback } from '@diffusionstudio/runtime';
+import { Computed, getActiveEntity, getCameraMatrix, getEntityChildren, getParentEntity, getSelection, isGroupLike, Position, Selected, store, Time, togglePlayback, Tool, ToolType } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../editor';
 import { splitAtPlayhead } from '../split';
@@ -107,11 +96,42 @@ export function nudgeSelection(world: World, dx: number, dy: number): void {
 
 const nudge = (dx: number, dy: number) => (world: World): void => nudgeSelection(world, dx, dy);
 
+/** How long space has to be held to read as a pan and not as a tap. */
+const SPACE_HAND_DELAY = 200;
+
 /**
  * The camera as it stood when space went down over the stage; null when
  * space is up, or when the press was one that cannot turn into a pan.
  */
 let spaceCamera: CameraMatrix | null = null;
+
+/**
+ * The tool space borrowed the hand from, put back on release; null while
+ * space does not hold the hand.
+ */
+let spaceTool: ToolType | null = null;
+
+/**
+ * When the space press went down, so a hold long enough to be a pan can be
+ * told from a tap; null once the hand has taken over, or once space is up.
+ */
+let spacePressedAt: number | null = null;
+
+/** Puts the hand in the toolbar for as long as space holds it. */
+function takeHandTool(world: World): void {
+	spacePressedAt = null;
+	if (spaceTool !== null) return;
+	spaceTool = world.get(Tool)?.value ?? ToolType.MOVE;
+	world.set(Tool, { value: ToolType.HAND });
+}
+
+/** Gives back whatever tool space borrowed the hand from. */
+function releaseHandTool(world: World): void {
+	spacePressedAt = null;
+	if (spaceTool === null) return;
+	world.set(Tool, { value: spaceTool });
+	spaceTool = null;
+}
 
 function toggleActivePlayback(world: World): void {
 	const scene = getActiveEntity(world);
@@ -119,6 +139,12 @@ function toggleActivePlayback(world: World): void {
 }
 
 function onSpacePressed(world: World): void {
+	// The hand waits out the delay wherever the pointer is; what the pointer
+	// decides is only when playback gets its toggle. Over the stage the press
+	// could still become a pan, so playback waits for a release that left the
+	// camera where it was; anywhere else it toggles here and now.
+	spacePressedAt = world.get(Time)?.now ?? 0;
+
 	if (world.get(Pointer)?.over) {
 		spaceCamera = getCameraMatrix(world);
 	} else {
@@ -133,7 +159,40 @@ function onSpaceLifted(world: World): void {
 		toggleActivePlayback(world);
 	}
 	spaceCamera = null;
+	releaseHandTool(world);
 }
+
+/**
+ * What space does by being held rather than by moving, which the tables
+ * cannot express: the hand takes over once the press outlasts
+ * `SPACE_HAND_DELAY`, and a hold the window loses focus mid-way through
+ * never sees a release (`held` is cleared without a lift), so the borrowed
+ * tool goes back on the first frame the key is no longer down.
+ */
+function updateSpaceHold(world: World, held: Set<string>): void {
+	if (!held.has(' ')) {
+		spaceCamera = null;
+		releaseHandTool(world);
+		return;
+	}
+
+	if (spacePressedAt === null) return;
+	if ((world.get(Time)?.now ?? 0) - spacePressedAt >= SPACE_HAND_DELAY) {
+		takeHandTool(world);
+	}
+}
+
+/**
+ * Picks a tool. While space holds the hand the pick is what the release
+ * goes back to, so the hand keeps the stage until the key is up.
+ */
+const selectTool = (value: ToolType) => (world: World): void => {
+	if (spaceTool !== null) {
+		spaceTool = value;
+		return;
+	}
+	world.set(Tool, { value });
+};
 
 const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['backspace'], action: deleteSelection },
@@ -142,6 +201,8 @@ const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['b', 'mod'], action: splitAtPlayhead },
 	{ keys: ['c', 'mod'], action: copySelection },
 	{ keys: ['v', 'mod'], action: pasteSelection },
+	{ keys: ['v', '!mod'], action: selectTool(ToolType.MOVE) },
+	{ keys: ['h', '!mod'], action: selectTool(ToolType.HAND) },
 	{ keys: ['arrowleft', '!shift'], action: nudge(-NUDGE, 0) },
 	{ keys: ['arrowright', '!shift'], action: nudge(NUDGE, 0) },
 	{ keys: ['arrowup', '!shift'], action: nudge(0, -NUDGE) },
@@ -192,4 +253,6 @@ export function shortcutSystem(world: World): void {
 	if (keys.lifted.size) {
 		LIFTED_SHORTCUTS.find(shortcut => matches(shortcut, keys.lifted, keys.held))?.action(world);
 	}
+
+	updateSpaceHold(world, keys.held);
 }

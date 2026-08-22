@@ -32,7 +32,7 @@ import { Not, Or } from 'koota';
 import { getDocumentEditor } from '../editor';
 import { syncKeyframe } from '../keyframes';
 import { AssetSelection, Hud, Keys, Pointer, SnapLines } from '../traits';
-import { updateCursor, type CursorType } from './cursor';
+import { getToolCursor, updateCursor, type CursorType } from './cursor';
 import { mountNameInput } from '../hud/name-input';
 import {
 	buildSnapCandidatesFromCorners, buildSnapCandidatesFromQuad, findSnapTarget,
@@ -181,7 +181,7 @@ export function handleGeometryInteraction(world: World, event: DispatchedPointer
 	}
 
 	if (world.get(Pointer)!.phase === 'lifted') {
-		updateCursor(world, 'default');
+		updateCursor(world, getToolCursor(world));
 	}
 }
 
@@ -204,7 +204,7 @@ export function handleCanvasInteraction(world: World, event: DispatchedPointerEv
 				.filter((entity) => quadsIntersect(marquee, entityQuad(world, entity))));
 		}
 
-		updateCursor(world, 'default');
+		updateCursor(world, getToolCursor(world));
 	}
 
 	if (event.type === 'dragend') {
@@ -225,7 +225,7 @@ export function handleCanvasInteraction(world: World, event: DispatchedPointerEv
 	}
 
 	if (world.get(Pointer)!.phase === 'lifted') {
-		updateCursor(world, 'default');
+		updateCursor(world, getToolCursor(world));
 	}
 }
 
@@ -721,7 +721,7 @@ export function handleMaskInteraction(world: World, event: DispatchedPointerEven
 	}
 
 	if (world.get(Pointer)!.phase === 'lifted') {
-		updateCursor(world, 'default');
+		updateCursor(world, getToolCursor(world));
 	}
 }
 

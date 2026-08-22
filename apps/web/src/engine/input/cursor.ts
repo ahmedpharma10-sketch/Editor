@@ -13,7 +13,7 @@
  * through `@/hooks/use-cursor`, which is where the trim cursors live.
  */
 
-import { RenderSurface } from '@diffusionstudio/runtime';
+import { RenderSurface, Tool, ToolType } from '@diffusionstudio/runtime';
 
 import type { World } from 'koota';
 
@@ -66,4 +66,33 @@ export function updateCursor(world: World, type: CursorType, rotation = 0, color
 	canvas.style.cursor = STATIC_CURSORS.has(type)
 		? type
 		: CURSORS[type]?.(rotation * 180 / Math.PI, color) ?? 'default';
+}
+
+/**
+ * What each tool points the cursor at while it is armed: `idle`, and
+ * `pressed` where the answer changes while the button is down. There is
+ * always a
+ * tool armed, so there is always an answer — adding a `ToolType` without a
+ * row here does not compile.
+ *
+ * This is the resting cursor, not the last word: what the pointer is over
+ * may say something more specific for as long as it is over it (the move
+ * tool's resize and rotate handles do, see `updateResizeCursor`). The tool
+ * takes the cursor back whenever its own answer changes, which is what
+ * `inputSystem` watches.
+ */
+const TOOL_CURSORS: Record<ToolType, { idle: CursorType; pressed?: CursorType }> = {
+	[ToolType.MOVE]: { idle: 'default' },
+	[ToolType.HAND]: { idle: 'grab', pressed: 'grabbing' },
+	[ToolType.BLADE]: { idle: 'cross' },
+	[ToolType.SCENE]: { idle: 'cross' },
+	[ToolType.RECT]: { idle: 'cross' },
+	[ToolType.TEXT]: { idle: 'cross' },
+	[ToolType.TEXT_EDIT]: { idle: 'text' },
+};
+
+/** The cursor the armed tool asks for, pressed or at rest. */
+export function getToolCursor(world: World, pressed = false): CursorType {
+	const cursor = TOOL_CURSORS[world.get(Tool)?.value ?? ToolType.MOVE];
+	return pressed ? cursor.pressed ?? cursor.idle : cursor.idle;
 }

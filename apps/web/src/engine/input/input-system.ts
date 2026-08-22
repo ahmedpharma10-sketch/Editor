@@ -5,10 +5,11 @@
 import { HitRegions, Tool, ToolType, Dragging, Hovering, isPointerInEntity, pointInQuad } from '@diffusionstudio/runtime';
 
 import { Keys, Pointer, PointerEvents } from '../traits';
-import { updateCursor } from './cursor';
+import { getToolCursor, updateCursor } from './cursor';
 import { handleCanvasInteraction, handleGeometryInteraction } from './interactions';
 
 import type { World } from 'koota';
+import type { CursorType } from './cursor';
 import type { CanvasPointerEvent, DispatchedPointerEvent, HitRegion, PointerEventType } from '@diffusionstudio/runtime';
 
 /**
@@ -61,6 +62,7 @@ function dispatch(
 
 let hovered: HitRegion | null = null;
 let dragged: HitRegion | null = null;
+let toolCursor: CursorType | null = null;
 
 export function inputSystem(world: World) {
 	const panning = world.get(Tool)?.value === ToolType.HAND || (world.get(Keys)?.held.has(' ') ?? false);
@@ -137,7 +139,6 @@ export function inputSystem(world: World) {
 	}
 
 	if (panning) {
-		updateCursor(world, world.get(Pointer)!.phase === 'pressed' ? 'grabbing' : 'grab');
 		for (const entity of world.query(Hovering)) {
 			entity.remove(Hovering);
 		}
@@ -146,6 +147,13 @@ export function inputSystem(world: World) {
 		}
 		hovered = null;
 		dragged = null;
+	}
+
+	const cursor = getToolCursor(world, world.get(Pointer)?.phase === 'pressed');
+
+	if (cursor !== toolCursor) {
+		updateCursor(world, cursor);
+		toolCursor = cursor;
 	}
 
 	queue.length = 0;

@@ -4,9 +4,8 @@
 
 import { createMemo, onCleanup, onMount } from 'solid-js';
 import { useTrait, useWorld } from '@diffusionstudio/koota-solid';
-import { panCamera, setCamera, zoomCameraAt, getCamera, RenderSurface, getCameraMatrix, Root } from '@diffusionstudio/runtime';
+import { panCamera, setCamera, zoomCameraAt, getCamera, RenderSurface, getCameraMatrix, Root, Tool, ToolType } from '@diffusionstudio/runtime';
 import { useEditor } from './hooks/use-editor';
-import { updateCursor } from './input/cursor';
 
 import type { JSX } from 'solid-js';
 
@@ -19,6 +18,7 @@ const MAX_ZOOM_DELTA = 50;
 /** Wheel pixels → zoom exponent. Higher = faster ctrl/pinch zoom. */
 const ZOOM_SENSITIVITY = 0.01;
 
+const LEFT_BUTTON = 0;
 const MIDDLE_BUTTON = 1;
 
 function isEditable(target: EventTarget | null): boolean {
@@ -63,7 +63,6 @@ export function CameraController(): JSX.Element {
 		}
 
 		panPointerId = null;
-		updateCursor(world, spaceHeld ? 'grab' : 'default');
 	};
 
 	const handleWheel = (event: WheelEvent): void => {
@@ -85,8 +84,8 @@ export function CameraController(): JSX.Element {
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
-		if (panning) return;
-		if (!spaceHeld && event.button !== MIDDLE_BUTTON) return;
+		const armed = spaceHeld || world.get(Tool)?.value === ToolType.HAND || panning;
+		if (event.button !== MIDDLE_BUTTON && !(armed && event.button === LEFT_BUTTON)) return;
 
 		// Middle-click would otherwise start autoscroll on some platforms.
 		event.preventDefault();
@@ -99,7 +98,6 @@ export function CameraController(): JSX.Element {
 		const camera = getCamera(world);
 		startE = camera.e;
 		startF = camera.f;
-		updateCursor(world, 'grabbing');
 	};
 
 	const handlePointerMove = (event: PointerEvent): void => {
@@ -120,21 +118,18 @@ export function CameraController(): JSX.Element {
 	const handleKeyDown = (event: KeyboardEvent): void => {
 		if (event.code !== 'Space' || event.repeat || isEditable(event.target)) return;
 		spaceHeld = true;
-		updateCursor(world, 'grab');
 	};
 
 	const handleKeyUp = (event: KeyboardEvent): void => {
 		if (event.code !== 'Space') return;
 		spaceHeld = false;
 		endPan();
-		updateCursor(world, 'default');
 	};
 
 	const handleBlur = (): void => {
 		// Key-up never arrives when focus leaves mid-hold (⌘-tab, devtools).
 		spaceHeld = false;
 		endPan();
-		updateCursor(world, 'default');
 	};
 
 	onMount(() => {
