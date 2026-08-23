@@ -33,12 +33,23 @@ export function generateProjectName(): string {
  */
 export interface ProjectRoot {
   id: string;
-  /** Absolute path of the folder. */
-  path: string;
-  /** Its last segment, for showing it. */
+  path: string; // Absolute path of the folder.
   name: string;
   createdAt: string;
   lastUsedAt: string;
+}
+
+/**
+ * The bundle a project last mounted successfully, keyed by its id. Two jobs:
+ * the copy an export re-renders (see `@/engine/capture`), and the head start
+ * the next open of the project mounts while its first compile still runs.
+ * Written only after a mount lands, so what is here is always something the
+ * canvas has shown.
+ */
+export interface ProjectBundle {
+  projectId: string;
+  code: string;
+  updatedAt: string;
 }
 
 export interface GlobalDBSchema extends idb.DBSchema {
@@ -50,10 +61,14 @@ export interface GlobalDBSchema extends idb.DBSchema {
       'by-last-used': string;
     };
   };
+  bundles: {
+    value: ProjectBundle;
+    key: string;
+  };
 }
 
 const DB_NAME = 'diffusion-studio-idb';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const dbPromise = openDB<GlobalDBSchema>(DB_NAME, DB_VERSION, {
   upgrade(db) {
@@ -61,6 +76,9 @@ const dbPromise = openDB<GlobalDBSchema>(DB_NAME, DB_VERSION, {
       const store = db.createObjectStore('roots', { keyPath: 'id' });
       store.createIndex('by-path', 'path', { unique: true });
       store.createIndex('by-last-used', 'lastUsedAt');
+    }
+    if (!db.objectStoreNames.contains('bundles')) {
+      db.createObjectStore('bundles', { keyPath: 'projectId' });
     }
   },
 });
@@ -110,4 +128,40 @@ export async function lastUsedProjectRoot(): Promise<ProjectRoot | null> {
 export async function forgetProjectRoot(id: string): Promise<void> {
   const db = await dbPromise;
   await db.delete('roots', id);
+}
+
+// ---------------------------------------------------------------------------
+// Project bundles
+
+/** Records the bundle `projectId` just mounted, replacing the one before it. */
+export async function rememberProjectBundle(projectId: string, code: string): Promise<void> {
+  try {
+    const db = await dbPromise;
+    await db.put('bundles', { projectId, code, updatedAt: new Date().toISOString() });
+  } catch (e) {
+    console.error('Failed to remember project bundle', e);
+  }
+}
+
+/** The bundle `projectId` last mounted, or null when it has none on record. */
+export async function loadProjectBundle(projectId: string): Promise<string | null> {
+  if (!projectId) return null;
+  try {
+    const db = await dbPromise;
+    return (await db.get('bundles', projectId))?.code ?? null;
+  } catch (e) {
+    console.error('Failed to load project bundle', e);
+    return null;
+  }
+}
+
+/** Forgets a project's bundle, for when the project itself is deleted. */
+export async function forgetProjectBundle(projectId: string): Promise<void> {
+  if (!projectId) return;
+  try {
+    const db = await dbPromise;
+    await db.delete('bundles', projectId);
+  } catch (e) {
+    console.error('Failed to forget project bundle', e);
+  }
 }

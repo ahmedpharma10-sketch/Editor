@@ -148,7 +148,7 @@ export class EditorGenAi extends GenAi {
 
     // The scene's own capture world: the project rendered again, reduced to
     // this scene, with nothing drawn — see `createCapture`.
-    const capture = createCapture(world, scene, { mode: "offline-audio" });
+    const capture = await createCapture(world, scene, { mode: "offline-audio" });
     let result: ExportResult;
     try {
       const encoder = await createEncoder(capture.world, {

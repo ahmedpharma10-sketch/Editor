@@ -27,7 +27,7 @@ import {
 	createRuntimeWorld, disposeDecoders, getParentNode, removeChild, resetCamera,
 } from '@diffusionstudio/runtime';
 
-import { ProjectBundle } from './traits';
+import { loadProjectBundle } from '@/components/engine/db';
 
 import type { RuntimeMode } from '@diffusionstudio/runtime';
 import type { Entity, World } from 'koota';
@@ -55,8 +55,8 @@ export interface Capture {
  * when the node has no source stamp yet (an element the writer has not put in
  * the file), or when rendering the project produces nothing for that stamp.
  */
-export function createCapture(source: World, node: Entity, options: CaptureOptions = {}): Capture {
-	const code = source.get(ProjectBundle)?.code;
+export async function createCapture(source: World, node: Entity, options: CaptureOptions = {}): Promise<Capture> {
+	const code = await loadProjectBundle(source.get(Project)?.id ?? '');
 	if (!code) throw new Error('There is no project to render');
 
 	// The stamp, not the entity: the two worlds hand out ids of their own, and

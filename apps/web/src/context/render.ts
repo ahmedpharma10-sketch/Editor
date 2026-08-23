@@ -68,7 +68,7 @@ export async function renderScene(
 
   let capture: Capture | undefined;
   try {
-    capture = createCapture(world, scene, {
+    capture = await createCapture(world, scene, {
       frameRate: config?.video?.fps,
       mode: config?.video?.enabled === false || config?.format === "ogg" ? "offline-audio" : "offline-video",
     });
