@@ -10,7 +10,6 @@ import { framesToPixels, getFrameRate, getResolution, getViewport } from '../vie
 
 import type { AudioAsset, VideoAsset } from '@diffusionstudio/assets';
 import type { Entity, World } from 'koota';
-import type { ClipSamples } from '../peaks';
 import type { RowCursor } from '../layout';
 import type { TimelineSurfaceState } from '../surface';
 
@@ -32,8 +31,9 @@ export type WaveformOptions = {
  * A column is a moment of the source, so what it is worth changes with the
  * zoom: the peaks are asked for at one per pixel (see `../peaks`), and only
  * for the stretch of the clip that is on screen. Drawing then reads them back
- * by time rather than by index, so a column drawn before its peaks have
- * arrived is simply left out and filled in on a later frame.
+ * by time rather than by index, so a column outside what has been cut — a
+ * waveform not derived yet, or the margin a scroll has just left — is simply
+ * left out and filled in on a later frame.
  *
  * Tall rows show the waveform about its middle, short ones stand it on the
  * bottom of the clip and fade it, so the label above it stays readable.
@@ -92,7 +92,7 @@ export function renderWaveform(
 	const firstSample = Math.max(inPx, viewportLeft - VIEWPORT_MARGIN - originPx);
 	const lastSample = Math.min(outPx, viewportRight + VIEWPORT_MARGIN - originPx);
 
-	requestPeaks({
+	requestPeaks(world, {
 		clip: eid,
 		asset: options.asset,
 		start: pixelsToSeconds(firstSample) * playbackRate,
@@ -114,19 +114,11 @@ export function renderWaveform(
 
 	const samples = getClipSamples(eid);
 
-	// The chunks are ordered by where they start and the columns are drawn
-	// left to right, so the search for the chunk a column falls in only ever
-	// moves forwards.
-	let cursor = 0;
-
-	for (let x = firstSample; x < lastSample; x += SAMPLE_WIDTH) {
+	for (let x = firstSample; samples && x < lastSample; x += SAMPLE_WIDTH) {
 		const time = pixelsToSeconds(x) * playbackRate;
+		if (time < samples.start || time > samples.end) continue;
 
-		cursor = findChunk(samples, time, cursor);
-		const chunk = samples?.[cursor];
-		if (!chunk || time < chunk.start || time > chunk.end) continue;
-
-		const peak = chunk.data[Math.floor((time - chunk.start) * chunk.peaksPerSecond)];
+		const peak = samples.data[Math.floor((time - samples.start) * samples.peaksPerSecond)];
 		if (peak === undefined) continue;
 
 		const height = Math.max((peak / 255) * waveformHeight, minSampleHeight);
@@ -134,14 +126,4 @@ export function renderWaveform(
 	}
 
 	ctx.restore();
-}
-
-/** The first chunk at or after `from` that has not already ended by `time`. */
-function findChunk(samples: ClipSamples[] | undefined, time: number, from: number): number {
-	if (!samples) return 0;
-
-	let index = from;
-	while (index < samples.length && samples[index]!.end < time) index++;
-
-	return index;
 }

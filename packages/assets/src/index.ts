@@ -11,4 +11,5 @@ export * from './library';
 export * from './browser';
 export * from './cache';
 export * from './derive/peaks';
+export * from './derive/waveform';
 export * from './derive/thumbnail';
