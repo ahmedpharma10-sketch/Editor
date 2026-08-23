@@ -6,9 +6,11 @@
 import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { SVGElements } from 'solid-js/web';
+import { IsExcluded } from 'koota';
 
 import type { CameraMatrix, PropertyPath, SceneNode } from '@diffusionstudio/runtime';
 import type { AnimatableProperty, AssetRef } from '@diffusionstudio/jsx';
+
 import type { Entity, World } from 'koota';
 import type { ProjectDocument } from './host';
 
@@ -1511,7 +1513,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		node.domNode?.remove();
 
 		if (node.entity.isAlive() && node.entity !== this.stage.entity) {
-			node.entity.destroy();
+			attempt(() => node.entity.destroy());
 		}
 	}
 
@@ -1553,15 +1555,14 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	public dispose(): void {
 		for (const entity of this.world.entities) {
-			if (!entity.isAlive() || entity === this.stage.entity) continue;
+			if (!entity.isAlive() || entity.has(IsExcluded) || entity === this.stage.entity) continue;
 			const domNode = entity.get(Host)?.domNode;
-			if (domNode instanceof HTMLImageElement && domNode.src.startsWith('blob:')) {
-				URL.revokeObjectURL(domNode.src);
+
+			if (domNode instanceof HTMLImageElement) {
+				attempt(() => URL.revokeObjectURL(domNode.src));
 			}
-			if (domNode) {
-				domNode.remove();
-			}
-			entity.destroy();
+			attempt(() => domNode?.remove());
+			attempt(() => entity.destroy());
 		}
 
 		// The world is free for the next mount. A document already replaced by
@@ -1663,5 +1664,13 @@ export function createRuntimeDocument(world: World): RuntimeDocument {
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) {
 		throw new Error(message);
+	}
+}
+
+function attempt<T>(fn: () => T): T | undefined {
+	try {
+		return fn();
+	} catch (error) {
+		return undefined;
 	}
 }
