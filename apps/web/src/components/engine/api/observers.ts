@@ -316,14 +316,6 @@ export function observeWorld(world: EngineWorld) {
     if (volume !== undefined) syncKeyframeTrack(world, eid, 'volume');
   });
 
-  observe(world, "add", c.AudioBus, () => {
-    // AudioBus is created lazily during the playback tick (resolveAudioBus),
-    // after the appendChild rebuild has already run. Rebuild the timeline index
-    // so audio-aware UI (e.g. the soundboard meters) reacts to the newly
-    // metered layer instead of staying stale until the next reorder/delete.
-    world.rebuildTimelineIndex();
-  });
-
   observe(world, "add", c.Muted, (eid) => {
     utils.persistEntity(world, eid);
   });
