@@ -450,6 +450,17 @@ export type SceneProps = IdentityProps & PositionProps & Required<SizeProps> & F
    * -Infinity = silence. A clip's own `volume` composes with this one.
    */
   volume?: number;
+  /**
+   * The stretch of the scene that plays and exports, as `[in, out]`: playback
+   * loops within it, and an export is of it and nothing else — so this is
+   * where a render is trimmed. `null` for the whole scene, which is what a
+   * scene without one is.
+   *
+   * Editor state carried by the source the way `active` is (the timeline's
+   * brackets have nowhere else to be written back to), but unlike `active` it
+   * is read wherever the file is: what it says is what comes out of a render.
+   */
+  workarea?: [inPoint: Time, outPoint: Time] | null;
   children?: SolidJSX.Element;
 };
 

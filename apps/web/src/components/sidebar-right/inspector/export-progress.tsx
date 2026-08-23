@@ -6,9 +6,13 @@ import { Show, Portal } from "solid-js/web";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { formatDuration } from "@/utils/formatters";
-import type { EncoderConfig } from "@/components/engine/encode/interfaces";
+import type { EncoderConfig } from "@diffusionstudio/encoder";
 
-export type ExportConfig = Omit<EncoderConfig, "target" | "scene" | "onProgress">;
+/** The settings this overlay reads: the encoder's, less how it is driven. */
+export type ExportConfig = Omit<
+  EncoderConfig,
+  "target" | "scene" | "onProgress" | "realizeScene" | "comment"
+>;
 
 type ExportProgressProps = {
   open: boolean;

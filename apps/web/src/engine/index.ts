@@ -5,6 +5,7 @@
 export * from './create-engine';
 export * from './context';
 export * from './canvas';
+export * from './capture';
 export * from './camera';
 export * from './camera-controller';
 export * from './hooks';

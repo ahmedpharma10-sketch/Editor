@@ -4,8 +4,9 @@
 
 import { createContext, useContext, onCleanup, onMount } from "solid-js";
 import { toast } from "somoto";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Computed, FrameRate, getActiveEntity } from "@diffusionstudio/runtime";
 import { assert, downloadObject, isInputTarget } from "@/utils";
-import { useEngine } from "@/context/engine";
 import { useEngineContext } from "@/engine";
 import { useProject } from "@/context/project";
 import { track } from "@/lib/analytics";
@@ -16,10 +17,11 @@ import {
   getDefaultExportTemplate,
 } from "@/components/sidebar-right/inspector/export-templates";
 
+import type { Entity } from "koota";
 import type { JSX, Accessor } from "solid-js";
 
 type ExportContextValue = {
-  exportScene: (sceneEid: number, config: ExportConfig) => Promise<void>;
+  exportScene: (scene: Entity, config: ExportConfig) => Promise<void>;
   exportCurrentFrame: () => Promise<void>;
   exporting: Accessor<boolean>;
 };
@@ -27,18 +29,17 @@ type ExportContextValue = {
 const ExportContext = createContext<ExportContextValue>();
 
 export function ExportProvider(props: { children: JSX.Element }) {
-  const engine = useEngine();
-  const { world } = engine;
-  const stage = useEngineContext();
+  const engine = useEngineContext();
+  const world = useWorld();
   const project = useProject();
 
   const exporting = () => !!renderOverlay();
 
-  const sceneDurationSeconds = (sceneEid: number) =>
-    world.components.Computed.duration[sceneEid] / world.frameRate;
+  const sceneDurationSeconds = (scene: Entity) =>
+    (scene.get(Computed)?.duration ?? 0) / (world.get(FrameRate)?.value || 30);
 
-  const exportScene: ExportContextValue["exportScene"] = async (sceneEid, config) => {
-    if (!sceneEid) return;
+  const exportScene: ExportContextValue["exportScene"] = async (scene, config) => {
+    if (!scene?.isAlive()) return;
 
     const format = config.format ?? "mp4";
     const mimeType = MIME_TYPES[format];
@@ -72,12 +73,12 @@ export function ExportProvider(props: { children: JSX.Element }) {
       fps: config.video?.fps,
       video_codec: config.video?.codec,
       audio_codec: config.audio?.codec,
-      scene_duration_s: Math.round(sceneDurationSeconds(sceneEid)),
+      scene_duration_s: Math.round(sceneDurationSeconds(scene)),
     });
     const startedAt = performance.now();
 
     try {
-      const result = await renderScene(engine, { scene: sceneEid, target, config });
+      const result = await renderScene(engine, { scene, target, config });
 
       if (result.type === "error") {
         console.error("Export failed:", result.error);
@@ -97,7 +98,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
           format,
           resolution: config.video?.resolution,
           fps: config.video?.fps,
-          scene_duration_s: Math.round(sceneDurationSeconds(sceneEid)),
+          scene_duration_s: Math.round(sceneDurationSeconds(scene)),
           duration_ms: Math.round(performance.now() - startedAt),
         });
       }
@@ -115,9 +116,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
   };
 
   const exportCurrentFrame: ExportContextValue["exportCurrentFrame"] = async () => {
-    // Taken from the engine that draws the stage, not from the deprecated
-    // canvas this provider still renders scenes through.
-    const blob = await stage.snapshot();
+    const blob = await engine.snapshot();
 
     if (!blob) {
       toast.error("Failed to capture frame");
@@ -129,11 +128,11 @@ export function ExportProvider(props: { children: JSX.Element }) {
   };
 
   const exportActiveScene = () => {
-    const sid = world.selection.scene;
-    if (sid === null) {
+    const scene = getActiveEntity(world);
+    if (scene === null) {
       return toast("No active scene to export");
     }
-    exportScene(sid, getDefaultExportTemplate());
+    void exportScene(scene, getDefaultExportTemplate());
   };
 
   /**

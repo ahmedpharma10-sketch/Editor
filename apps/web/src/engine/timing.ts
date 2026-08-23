@@ -43,6 +43,20 @@ export function editTime(world: World, entity: Entity, name: TimeProp, frames: n
 }
 
 /**
+ * Writes the scene's work area from a frame range of this project, or takes
+ * it off with `null`. The file spells it in seconds like every other time,
+ * and `false` is the value the writer drops the attribute for.
+ */
+export function editWorkarea(world: World, scene: Entity, range: [start: number, end: number] | null): void {
+	const fps = world.get(FrameRate)?.value ?? 30;
+	getDocumentEditor(world).editProperty(
+		scene,
+		'workarea',
+		range ? [framesToSeconds(range[0], fps), framesToSeconds(range[1], fps)] : false,
+	);
+}
+
+/**
  * Moves the node's in point to scene frame `frame`, keeping the rest of the
  * clip where it is: the runtime's `trimEntityIn`, as edits. The out point is
  * only implied while the node authors no End, so it is pinned first, or the

@@ -9,6 +9,7 @@ import {
 } from "@diffusionstudio/runtime";
 import type { SourceModifierValues } from "@diffusionstudio/runtime";
 import { createEncoder } from "@diffusionstudio/encoder";
+import { createCapture } from "@/engine/capture";
 import { assetName, GENERATED_DIR } from "@diffusionstudio/assets";
 import {
   PROMPT_INPUT_AUDIO_MODEL_OPTIONS,
@@ -26,6 +27,7 @@ import { toast } from "somoto";
 import type { AspectRatio, AssetInput, AssetRef, AssetSpecInput } from "@diffusionstudio/jsx";
 import type { Asset, AssetLibrary, AssetType } from "@diffusionstudio/assets";
 import type { FileRef } from "@diffusionstudio/api-contract";
+import type { ExportResult } from "@diffusionstudio/encoder";
 import type { Entity, World } from "koota";
 
 /** What a failure is called where the user reads about it. */
@@ -144,13 +146,20 @@ export class EditorGenAi extends GenAi {
   private async runTranscription(world: World, scene: Entity, key: string): Promise<Asset> {
     assert(sceneHasAudio(world, scene), "No audio found. Add an audio or video clip to the scene to generate captions.");
 
-    const encoder = await createEncoder(world, {
-      scene,
-      format: "ogg",
-      video: { enabled: false },
-      audio: { enabled: true, codec: "opus", sampleRate: 24000 },
-    });
-    const result = await encoder.render();
+    // The scene's own capture world: the project rendered again, reduced to
+    // this scene, with nothing drawn — see `createCapture`.
+    const capture = createCapture(world, scene, { mode: "offline-audio" });
+    let result: ExportResult;
+    try {
+      const encoder = await createEncoder(capture.world, {
+        format: "ogg",
+        video: { enabled: false },
+        audio: { enabled: true, codec: "opus", sampleRate: 24000 },
+      });
+      result = await encoder.render();
+    } finally {
+      capture.dispose();
+    }
     assert(result.type === "success" && result.data !== undefined, "Failed to encode the scene audio");
 
     const uploadId = crypto.randomUUID();

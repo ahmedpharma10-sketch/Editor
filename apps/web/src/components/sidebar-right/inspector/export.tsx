@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { Show, createMemo, createSignal } from "solid-js";
-import { toast } from "somoto";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -32,6 +31,7 @@ import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
 import { Computed, FrameRate } from "@diffusionstudio/runtime";
 import { useDerived } from "@/engine/hooks";
 import { useProjectConfig } from "@/engine/project-config";
+import { useExport } from "@/context/export";
 import {
   DEFAULT_EXPORT_TEMPLATE_ID,
   TEMPLATE_BY_ID,
@@ -74,6 +74,7 @@ function templateSettings(id: string): ProjectExportConfig | null {
 export function ExportPanel(props: ExportPanelProps) {
   const world = useWorld();
   const config = useProjectConfig();
+  const { exportScene, exporting } = useExport();
   const entity = () => props.selection[0]!;
 
   const [isInspectorOpen, setIsInspectorOpen] = createSignal(false);
@@ -131,12 +132,15 @@ export function ExportPanel(props: ExportPanelProps) {
     setIsInspectorOpen(false);
   };
 
-  const exportScene = () => {
-    // TODO(koota): render through @diffusionstudio/encoder with
-    // `{ ...settings(), scene: entity() }` once the export path is on the
-    // koota world; the settings are already in its shape.
-    toast("Export is not available yet", {
-      description: "Exporting is not wired to the new engine yet.",
+  // The settings are already the encoder's shape; `template` is the panel's
+  // own label for them and no part of how the file is made.
+  const runExport = () => {
+    const current = settings();
+    if (!current) return;
+    exportScene(entity(), {
+      format: current.format,
+      video: current.video,
+      audio: current.audio,
     });
   };
 
@@ -184,7 +188,7 @@ export function ExportPanel(props: ExportPanelProps) {
             <TooltipContent>Remove export</TooltipContent>
           </Tooltip>
         </ItemRow>
-        <Button class="w-full" onClick={exportScene}>
+        <Button class="w-full" onClick={runExport} disabled={exporting()}>
           Export
         </Button>
         <div class="flex justify-between items-center h-7">

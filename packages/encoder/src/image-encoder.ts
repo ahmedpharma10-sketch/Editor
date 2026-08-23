@@ -4,15 +4,14 @@
 
 import { Or } from 'koota';
 import {
-	createRuntimeWorld, createEntity, appendChild, serializeEntity,
-	cloneFromRecords, getEntityTree, framesToSeconds,
-	formatTimecode, assert, store, disposeDecoders,
+	createEntity, appendChild, getEntityTree, framesToSeconds,
+	formatTimecode, assert, store,
 	assetSystem, playbackSystem, motionSystem, transformSystem, renderSystem,
 	ChildOf, Geometry, Group, Hidden, IsMask, Muted, Culled,
 	ClipsContent, Playback, Computed, WorldBounds,
-	Project, Mode, RenderSurface, AudioEngine, Library, Ai, Fonts, Root,
-	resetCamera, setCamera,
-	FramePromises, Time, FrameRate,
+	RenderSurface, AudioEngine, Root,
+	setCamera,
+	Time, FrameRate,
 } from '@diffusionstudio/runtime';
 
 import { resolverSystem, recomputeAllTimeRanges } from './encoder';
@@ -30,106 +29,80 @@ export type ImageExportResult =
 	| { type: 'error'; error: Error };
 
 /**
- * Renders single frames of one entity into standalone PNGs (base64, no
- * data-url prefix). The entity's subtree is cloned into a fresh offline
- * world and drawn at the top level: the canvas is sized to the union of the
- * entity's world-space AABBs across the requested frames and the camera
- * shifts that box onto the canvas, so the node is fully visible regardless
- * of where it sat in its source scene.
+ * Renders single frames of the node a capture world holds into standalone
+ * PNGs (base64, no data-url prefix).
+ *
+ * `world` is the caller's, built for this capture and holding the node as the
+ * stage's only child — the same arrangement `createEncoder` takes, and for
+ * the same reason. The canvas is sized to the union of the node's world-space
+ * AABBs across the requested frames and the camera shifts that box onto it,
+ * so the node is fully visible wherever it sat in the scene it was rendered
+ * in.
  */
-export async function createImageEncoder(sourceWorld: World, config: ImageEncoderConfig) {
+export async function createImageEncoder(world: World, config: ImageEncoderConfig) {
 	assert(config.frames.length > 0, 'No frames requested');
 
-	const subtree = getEntityTree(sourceWorld, config.entity);
-	const records = subtree.map(entity => serializeEntity(entity));
+	const roots = [...world.query(ChildOf(world.get(Root)!))];
+	assert(roots.length === 1, `A capture world holds one node, this one holds ${roots.length}`);
+	const root = roots[0]!;
 
-	// Re-root the node. Its parent isn't part of the clone, so a dangling
-	// ChildOf would attach to an arbitrary entity in the new world;
-	const rootRecord = records.find(record => record.eid === config.entity);
-	assert(rootRecord !== undefined, `No such entity: ${config.entity}`);
-	delete rootRecord.ChildOf;
-	delete rootRecord.Hidden;
-	const rootStart = rootRecord.Start ?? 0;
-	delete rootRecord.Start;
-	if (rootRecord.End !== undefined) {
-		rootRecord.End -= rootStart;
-	}
+	const canvas = world.get(RenderSurface)?.canvas;
+	assert(canvas instanceof HTMLCanvasElement, 'The capture world has no canvas to draw into');
 
-	const offscreenCanvas = document.createElement('canvas');
-	offscreenCanvas.width = 2;
-	offscreenCanvas.height = 2;
-	offscreenCanvas.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none;';
-	document.body.appendChild(offscreenCanvas);
-	const offscreenCtx = offscreenCanvas.getContext('2d')!;
+	// Never started — image capture is video-only; the context is only there
+	// for the lazy audio-bus wiring to have something to bind to.
+	world.set(AudioEngine, { context: new OfflineAudioContext(2, 1, 48000) });
 
-	// Never started — image capture is video-only; the context just satisfies
-	// world construction and lazy audio-bus wiring.
-	const offlineAudioCtx = new OfflineAudioContext(2, 1, 48000);
-
-	const sourceFrameRate = sourceWorld.get(FrameRate)?.value ?? 30;
-	const world = createRuntimeWorld(sourceWorld.get(Project)?.id ?? '');
-	world.set(Mode, { value: 'offline-video' });
-	world.set(Library, sourceWorld.get(Library) ?? null);
-	world.set(Ai, sourceWorld.get(Ai) ?? null);
-	world.set(Fonts, { list: [...(sourceWorld.get(Fonts)?.list ?? [])] });
-	world.set(RenderSurface, { canvas: offscreenCanvas, ctx: offscreenCtx, resolution: 1 });
-	world.set(AudioEngine, { context: offlineAudioCtx });
-	world.set(FrameRate, { value: sourceFrameRate });
-	world.set(FramePromises, { list: [] });
-
-	resetCamera(world);
-
-	const eidMap = cloneFromRecords(world, records);
-	const root = eidMap.get(config.entity);
-	assert(root !== undefined, 'Failed to clone entity subtree');
-
-	const mounts = (await config.realizeMounts?.(world)) ?? null;
-
-	const cloned = [...eidMap.values()];
+	const frameRate = world.get(FrameRate)?.value ?? 30;
 	const computed = store(world, Computed);
 	const playback = store(world, Playback);
 	const worldBounds = store(world, WorldBounds);
 
+	const subtree = getEntityTree(world, root);
+
 	// Mute everything so the playback system never initializes audio decoders.
-	for (const entity of cloned) {
+	for (const entity of subtree) {
 		entity.add(Muted);
 	}
 
 	// The motion system only samples parented entities, so the node's own
 	// keyframes would be skipped as a top-level root. A synthetic group above
-	// it owns the playhead instead and keeps the node an ordinary child.
-	const stage = createEntity(world);
-	stage.add(Group);
-	appendChild(world, root, stage);
+	// it owns the playhead instead and keeps the node an ordinary child. It
+	// goes under the stage, or nothing below it would be walked at all.
+	const clock = createEntity(world);
+	clock.add(Group);
+	clock.add(Playback);
+	appendChild(world, clock, world.get(Root)!);
+	appendChild(world, root, clock);
 
 	recomputeAllTimeRanges(world);
 
-	// Map "frame 0 = first visible frame": the node now starts at 0, and its
-	// source window puts its own in point there.
+	// Map "frame 0 = the node's first visible frame": the node keeps the time
+	// it was authored at, so where it begins is the offset every requested
+	// frame is counted from.
 	const startFrame = computed.start[root.id()] ?? 0;
 
-	// Entities in the clone that own a timeline clock
+	// Everything in this world that owns a timeline clock, the synthetic one
+	// above included.
 	const clocks = [...world.query(Playback)];
 
 	const seek = (frame: number) => {
 		const stageFrame = startFrame + frame;
-		const stageSeconds = framesToSeconds(stageFrame, sourceFrameRate);
-		computed.localTime[stage.id()] = stageFrame;
-		computed.localTimeInSeconds[stage.id()] = stageSeconds;
+		const stageSeconds = framesToSeconds(stageFrame, frameRate);
 
-		for (const clock of clocks) {
-			computed.localTime[clock.id()] = stageFrame;
-			computed.localTimeInSeconds[clock.id()] = stageSeconds;
-			playback.playing[clock.id()] = true;
+		for (const entity of clocks) {
+			computed.localTime[entity.id()] = stageFrame;
+			computed.localTimeInSeconds[entity.id()] = stageSeconds;
+			playback.playing[entity.id()] = true;
 		}
 
-		const delta = 1000 / sourceFrameRate;
+		const delta = 1000 / frameRate;
 		const time = world.get(Time)!;
 		world.set(Time, { delta, now: time.now + delta });
 
 		// Cull flags derived from a stale canvas/camera would make the motion
 		// system skip entities and keep decoders idle — clear them every tick.
-		for (const entity of cloned) {
+		for (const entity of subtree) {
 			if (entity.has(Culled)) entity.remove(Culled);
 		}
 
@@ -179,8 +152,8 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	/** Re-target the output height; callers that lay frames out do this once measured. */
 	const resize = (height?: number) => {
 		const scale = height ? height / boundsHeight : 1;
-		offscreenCanvas.width = Math.max(1, Math.round(boundsWidth * scale));
-		offscreenCanvas.height = Math.max(1, Math.round(boundsHeight * scale));
+		canvas.width = Math.max(1, Math.round(boundsWidth * scale));
+		canvas.height = Math.max(1, Math.round(boundsHeight * scale));
 		world.set(RenderSurface, { resolution: scale });
 	};
 
@@ -210,8 +183,8 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 
 				const stampFrame = startFrame + frame;
 				images.push({
-					base64: await toBase64Png(offscreenCanvas),
-					timecode: formatTimecode(framesToSeconds(stampFrame, sourceFrameRate), sourceFrameRate),
+					base64: await toBase64Png(canvas),
+					timecode: formatTimecode(framesToSeconds(stampFrame, frameRate), frameRate),
 				});
 			}
 
@@ -221,15 +194,8 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 				type: 'error',
 				error: e instanceof Error ? e : new Error('Unknown error'),
 			};
-		} finally {
-			offscreenCanvas.remove();
-			// Free the graphs and DOM roots realized above, then release decoders
-			// and the world slot itself
-			// (koota caps live worlds at 16).
-			mounts?.disposeAll();
-			disposeDecoders(world, world.get(Root)!);
-			world.destroy();
 		}
+		// The world, its canvas and its decoders are the caller's to release.
 	};
 
 	return {

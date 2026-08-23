@@ -10,124 +10,115 @@ import {
 } from 'mediabunny';
 import { Not, Or } from 'koota';
 import {
-	createRuntimeWorld, setActive, serializeEntity, cloneFromRecords,
-	getEntityTree, propagateTimeRangeDown, framesToSeconds,
-	assert, store, disposeDecoders,
+	setActive, propagateTimeRangeDown, framesToSeconds,
+	assert, store, isScene,
 	assetSystem, playbackSystem, motionSystem, transformSystem, renderSystem,
 	AudioBus, AudioBusHandle,
 	ChildOf, Geometry, Group, Paint, Workarea, Playback,
-	AudioPlayback, Computed, Start, End, SourceIn, SourceOut,
-	Transition, Keyframe, Animation,
+	AudioPlayback, Computed,
 	Position, Offset, Rotation, Scale, Skew,
-	Project, Mode, Time, FrameRate, RenderSurface, AudioEngine, Root,
-	resetCamera,
-	Library, Ai, Fonts, FramePromises,
+	Time, FrameRate, RenderSurface, AudioEngine, Root,
+	FramePromises,
 } from '@diffusionstudio/runtime';
 
 import { TargetBuffer } from './buffer';
 import { createOutputFormat } from './format';
 import { createRenderEventDetail } from './utils';
 
-import type { World } from 'koota';
+import type { Entity, World } from 'koota';
 import type { EncoderConfig } from './interfaces';
 import type { ExportResult } from './types';
 
-export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
-	const sourceComputed = store(sourceWorld, Computed);
-	const sourceScene = config.scene;
-	const sourceSceneId = sourceScene.id();
-	const sourceFrameRate = sourceWorld.get(FrameRate)?.value ?? 30;
-	const frameRate = config.video?.fps ?? sourceFrameRate;
-	const numberOfChannels = config.audio?.numberOfChannels ?? 2;
-	const sampleRate = config.audio?.sampleRate ?? 48000;
-	const sceneWidth = sourceComputed.width[sourceSceneId]!;
-	const sceneHeight = sourceComputed.height[sourceSceneId]!;
-	const sceneEnd = sourceComputed.end[sourceSceneId]!;
+/**
+ * The scene a capture world holds. An encoder takes the world as it is —
+ * what to encode is the whole of what is in it — so a stage with anything
+ * else under it is a caller that has not finished preparing the world.
+ */
+function captureScene(world: World): Entity {
+	const roots = [...world.query(ChildOf(world.get(Root)!))];
+	assert(roots.length === 1, `A capture world holds one scene, this one holds ${roots.length}`);
+
+	const scene = roots[0]!;
+	assert(isScene(scene), 'What the capture world holds is not a scene');
+	return scene;
+}
+
+/**
+ * Encodes the scene a capture world holds into a file.
+ *
+ * `world` is not the editor's: it is a world built for this encode, holding
+ * the composition as it is to be written and nothing else — see the app's
+ * capture builder, which renders the project into a fresh world and reduces
+ * its stage to the one scene. Everything the encode needs is read from there:
+ * the scene is the stage's only child, the frame rate is the world's, the
+ * camera is the view it is drawn with, and the canvas the DOM-backed paints
+ * attached themselves to is the one drawn into.
+ *
+ * The world stays the caller's — it built it, it disposes it. What is created
+ * here is the audio context, the output, and the frames.
+ */
+export async function createEncoder(world: World, config: EncoderConfig) {
+	const scene = captureScene(world);
+	const sceneId = scene.id();
+	const computed = store(world, Computed);
+	const playback = store(world, Playback);
+
+	const frameRate = world.get(FrameRate)?.value ?? 30;
+	const sceneWidth = computed.width[sceneId]!;
+	const sceneHeight = computed.height[sceneId]!;
+	const sceneEnd = computed.end[sceneId]!;
 
 	// Honor the scene's Workarea trait: render only the frames between
 	// Workarea.start and Workarea.end instead of the full scene duration.
-	const hasWorkarea = sourceScene.has(Workarea);
-	const sourceWorkarea = store(sourceWorld, Workarea);
-	const workareaStart = hasWorkarea
-		? Math.max(0, Math.min(sceneEnd, sourceWorkarea.start[sourceSceneId] ?? 0))
-		: 0;
-	const workareaEnd = hasWorkarea
-		? Math.max(workareaStart, Math.min(sceneEnd, sourceWorkarea.end[sourceSceneId] ?? sceneEnd))
+	const workarea = scene.get(Workarea);
+	const workareaStart = workarea ? Math.max(0, Math.min(sceneEnd, workarea.start)) : 0;
+	const workareaEnd = workarea
+		? Math.max(workareaStart, Math.min(sceneEnd, workarea.end || sceneEnd))
 		: sceneEnd;
-	const workareaFrames = workareaEnd - workareaStart;
 
-	const playheadStartSeconds = framesToSeconds(workareaStart, sourceFrameRate);
-	const duration = framesToSeconds(workareaFrames, sourceFrameRate);
-	const audioBitrate = config.audio?.bitrate ?? 128e3;
-	const videoBitrate = config.video?.bitrate ?? 10e6;
-	const audioCodec = config.audio?.codec ?? 'aac';
-	const resolution = config.video?.resolution ?? 1080;
-	const scale = Math.round(resolution * 1e6 / sceneHeight) / 1e6;
-	const width = Math.round(sceneWidth * scale / 2) * 2;
-	const height = Math.round(sceneHeight * scale / 2) * 2;
-	const videoCodec = config.video?.codec ?? 'avc';
-	const containerFormat = config.format ?? 'mp4';
-	const audioEnabled = config.audio?.enabled ?? true;
-	const videoEnabled = config.video?.enabled ?? true;
-	const frameDuration = 1 / frameRate;
+	const playheadStartSeconds = framesToSeconds(workareaStart, frameRate);
+	const duration = framesToSeconds(workareaEnd - workareaStart, frameRate);
 
+	// Before the two below read them: ogg is an audio container, so asking for
+	// one is asking for the audio alone — and with `videoEnabled` derived
+	// first, it would still have gone looking for pictures to put in it.
 	if (config.format === 'ogg') {
 		config.audio = { ...config.audio, enabled: true };
 		config.video = { ...config.video, enabled: false };
 	}
 
-	const sceneSubtree = getEntityTree(sourceWorld, sourceScene);
-	const subtreeRecords = sceneSubtree.map(entity => serializeEntity(entity));
+	const audioEnabled = config.audio?.enabled ?? true;
+	const videoEnabled = config.video?.enabled ?? true;
+	const numberOfChannels = config.audio?.numberOfChannels ?? 2;
+	const sampleRate = config.audio?.sampleRate ?? 48000;
+	const audioBitrate = config.audio?.bitrate ?? 128e3;
+	const videoBitrate = config.video?.bitrate ?? 10e6;
+	const audioCodec = config.audio?.codec ?? 'aac';
+	const videoCodec = config.video?.codec ?? 'avc';
+	const containerFormat = config.format ?? 'mp4';
+	const resolution = config.video?.resolution ?? 1080;
+	const scale = Math.round(resolution * 1e6 / sceneHeight) / 1e6;
+	const width = Math.round(sceneWidth * scale / 2) * 2;
+	const height = Math.round(sceneHeight * scale / 2) * 2;
+	const frameDuration = 1 / frameRate;
 
-	// HTML paints need their layout roots attached to the destination canvas.
-	const offscreenCanvas = document.createElement('canvas');
-	offscreenCanvas.width = width;
-	offscreenCanvas.height = height;
-	offscreenCanvas.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none;';
-	document.body.appendChild(offscreenCanvas);
-	const offscreenCtx = offscreenCanvas.getContext('2d')!;
+	const canvas = world.get(RenderSurface)?.canvas;
+	assert(canvas instanceof HTMLCanvasElement, 'The capture world has no canvas to draw into');
+	canvas.width = width;
+	canvas.height = height;
+	world.set(RenderSurface, { resolution: scale });
 
-	// Offline audio context
 	const offlineAudioCtx = new OfflineAudioContext(
 		numberOfChannels,
 		Math.ceil(duration * sampleRate),
 		sampleRate,
 	);
-
-	// Build a fresh offline world that shares assets with the source. Fonts are
-	// already loaded into the document; copying the array just tracks them as
-	// loaded so the new world doesn't try to re-add them.
-	const world = createRuntimeWorld(sourceWorld.get(Project)?.id ?? '');
-	world.set(Mode, { value: videoEnabled ? 'offline-video' : 'offline-audio' });
-	world.set(Library, sourceWorld.get(Library) ?? null);
-	world.set(Ai, sourceWorld.get(Ai) ?? null);
-	world.set(Fonts, { list: [...(sourceWorld.get(Fonts)?.list ?? [])] });
-	world.set(RenderSurface, { canvas: offscreenCanvas, ctx: offscreenCtx, resolution: scale });
 	world.set(AudioEngine, { context: offlineAudioCtx });
-	world.set(FrameRate, { value: frameRate });
-	world.set(FramePromises, { list: [] });
-
-	resetCamera(world);
-
-	const eidMap = cloneFromRecords(world, subtreeRecords);
-	const scene = eidMap.get(sourceScene);
-	assert(scene !== undefined, 'Failed to clone scene subtree');
-
-	rescaleFrameTimestamps(world, sourceFrameRate, frameRate);
-	recomputeAllTimeRanges(world);
-	normalizeSceneTransform(world, scene.id());
 
 	setActive(world, scene);
 
-	const computed = store(world, Computed);
-	const playback = store(world, Playback);
-	// The workarea (Workarea trait) is runtime-only and never serialized, so it
-	// isn't cloned into the offline world — nothing to strip here. The encoder
-	// drives the playhead explicitly within the [workareaStart, workareaEnd]
-	// window computed from the source scene above.
-	const sceneId = scene.id();
 	computed.localTimeInSeconds[sceneId] = playheadStartSeconds;
-	computed.localTime[sceneId] = Math.round(playheadStartSeconds * frameRate);
+	computed.localTime[sceneId] = workareaStart;
 	playback.playing[sceneId] = true;
 	playback.loop[sceneId] = false;
 	playback.speed[sceneId] = 1;
@@ -138,11 +129,6 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 	const audioPlayback = store(world, AudioPlayback);
 	audioPlayback.contextOffsetInSeconds[sceneId] = 0;
 	audioPlayback.timelineOffsetInSeconds[sceneId] = playheadStartSeconds;
-
-	// Re-execute any mounts into this offline world so it owns its own reactive
-	// graphs + runtime hosts (surface/html). The per-frame playbackSystem then
-	// drives them via the Mounts trait, so ticker-animated surfaces render.
-	const mounts = videoEnabled ? (await config.realizeMounts?.(world)) ?? null : null;
 
 	// Set up mediabunny output
 	const buffer = await TargetBuffer.create(config.target);
@@ -160,7 +146,7 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 
 	const sceneFills = [...world.query(Paint, Not(Geometry), ChildOf(scene))];
 
-	const videoSource = new CanvasSource(offscreenCanvas, {
+	const videoSource = new CanvasSource(canvas, {
 		codec: videoCodec,
 		bitrate: videoBitrate,
 		latencyMode: 'quality',
@@ -246,6 +232,12 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 
 	const render = async (): Promise<ExportResult> => {
 		try {
+			// A rendered project starts with every `src` unresolved, and the
+			// decoders the playback system opens are keyed off the asset an
+			// element is bound to. Settle them before the first frame, or
+			// frame zero is drawn against media that is not there yet.
+			await warmupAssets(world);
+
 			await output.start();
 			const start = performance.now();
 			const startTime = start;
@@ -282,6 +274,8 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 					playbackSystem(world);
 					await resolverSystem(world);
 					motionSystem(world);
+					// May be changed by a system
+					normalizeSceneTransform(world, sceneId);
 				}
 
 				if (videoEnabled) {
@@ -345,16 +339,9 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 				error: e instanceof Error ? e : new Error('Unknown error'),
 			};
 		} finally {
+			// The world, its canvas and the decoders opened in it are the
+			// caller's to release; only the worklet is this encode's.
 			URL.revokeObjectURL(audioWorkletUrl);
-			offscreenCanvas.remove();
-			// Free the graphs and DOM roots realized above before discarding the
-			// offline world.
-			mounts?.disposeAll();
-			// Release decoder file handles/caches, then the world slot itself
-			// (koota caps live worlds at 16, so throwaway offline worlds must
-			// be destroyed — bitecs could just drop them).
-			disposeDecoders(world, world.get(Root)!);
-			world.destroy();
 		}
 	};
 
@@ -427,43 +414,6 @@ function createThrottledCallback<T>(callback: ((value: T) => void) | undefined, 
 	};
 }
 
-function rescaleFrameTimestamps(
-	world: World,
-	sourceFrameRate: number,
-	targetFrameRate: number,
-): void {
-	if (sourceFrameRate === targetFrameRate) return;
-
-	const ratio = targetFrameRate / sourceFrameRate;
-	const rescale = (v: number) => Math.round(v * ratio);
-
-	const transition = store(world, Transition);
-	const keyframe = store(world, Keyframe);
-	const animation = store(world, Animation);
-
-	for (const trait of [Start, End, SourceIn, SourceOut]) {
-		const values = store(world, trait).value;
-		for (const entity of world.query(trait)) {
-			const eid = entity.id();
-			values[eid] = rescale(values[eid] ?? 0);
-		}
-	}
-
-	for (const entity of world.query(Or(Transition, Keyframe, Animation))) {
-		const eid = entity.id();
-		if (entity.has(Transition)) {
-			transition.duration[eid] = rescale(transition.duration[eid] ?? 0);
-		}
-		if (entity.has(Keyframe)) {
-			keyframe.time[eid] = rescale(keyframe.time[eid] ?? 0);
-		}
-		if (entity.has(Animation)) {
-			animation.duration[eid] = rescale(animation.duration[eid] ?? 0);
-			animation.delay[eid] = rescale(animation.delay[eid] ?? 0);
-		}
-	}
-}
-
 function normalizeSceneTransform(world: World, sceneId: number): void {
 	const position = store(world, Position);
 	const offset = store(world, Offset);
@@ -479,12 +429,6 @@ function normalizeSceneTransform(world: World, sceneId: number): void {
 	scaleStore.y[sceneId] = 1;
 	skew.x[sceneId] = 0;
 	skew.y[sceneId] = 0;
-	// computeLocalMatrix reads the Computed.* mirror, not the raw traits. The
-	// base traits are populated via entity.set during the clone, which fires
-	// the observer that copies the (canvas) position into Computed. Writing
-	// the raw stores above bypasses that observer, so the Computed mirror must
-	// be reset here too — otherwise the scene renders at its canvas position
-	// instead of centered in the export.
 	const computed = store(world, Computed);
 	computed.positionX[sceneId] = 0;
 	computed.positionY[sceneId] = 0;
@@ -495,6 +439,20 @@ function normalizeSceneTransform(world: World, sceneId: number): void {
 	computed.scaleY[sceneId] = 1;
 	computed.skewX[sceneId] = 0;
 	computed.skewY[sceneId] = 0;
+}
+
+/**
+ * Runs the asset system until it has nothing left in flight: each pass can
+ * start resolutions the previous one's answers asked for (a modifier chain,
+ * a transcript that waits for the scene's own sources to land). Bounded, so
+ * a source that keeps re-requesting cannot hold an export open forever.
+ */
+async function warmupAssets(world: World): Promise<void> {
+	for (let pass = 0; pass < 16; pass++) {
+		assetSystem(world);
+		if (!world.get(FramePromises)?.list?.length) return;
+		await resolverSystem(world);
+	}
 }
 
 export async function resolverSystem(world: World) {

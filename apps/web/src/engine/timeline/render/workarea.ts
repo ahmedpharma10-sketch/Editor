@@ -5,6 +5,7 @@
 import { Workarea } from '@diffusionstudio/runtime';
 
 import { assert } from '@/utils';
+import { editWorkarea } from '../../timing';
 import { IN_POINT_PATH, OUT_POINT_PATH } from '../paths';
 import { RULER_HEIGHT } from '../config';
 import { framesToPixels, getResolution, getScrollX, pixelsToFrames } from '../view';
@@ -23,9 +24,6 @@ let dragOrigin: [start: number, end: number] = [0, 0];
  * The work area — the stretch of the scene that plays and exports — as a bar
  * in the ruler with a handle at each end. Drag the bar to move the window,
  * a handle to move one edge, double-click to drop it altogether.
- *
- * Nothing here is an edit: the work area is a way of looking at the scene,
- * not part of it, so it lives only as long as the world does.
  */
 export function renderWorkarea(world: World, scene: Entity, surface: TimelineSurfaceState): void {
 	const { ctx, pointer } = surface;
@@ -60,11 +58,11 @@ export function renderWorkarea(world: World, scene: Entity, surface: TimelineSur
 
 		if (dragging) {
 			const delta = draggedFrames();
-			scene.set(Workarea, { start: dragOrigin[0] + delta, end: dragOrigin[1] + delta });
+			editWorkarea(world, scene, [dragOrigin[0] + delta, dragOrigin[1] + delta]);
 		}
 
 		if (doubleClicked) {
-			scene.remove(Workarea);
+			editWorkarea(world, scene, null);
 			ctx.restore();
 			return;
 		}
@@ -90,7 +88,7 @@ export function renderWorkarea(world: World, scene: Entity, surface: TimelineSur
 		const { dragging, pressed } = pointer.region(0, 0, HANDLE_WIDTH, BAR_HEIGHT);
 
 		if (pressed) dragOrigin = [workarea.start, workarea.end];
-		if (dragging) scene.set(Workarea, { start: dragOrigin[0] + draggedFrames() });
+		if (dragging) editWorkarea(world, scene, [dragOrigin[0] + draggedFrames(), dragOrigin[1]]);
 	}
 
 	// The out handle, relative to the in handle the context is now at.
@@ -102,7 +100,7 @@ export function renderWorkarea(world: World, scene: Entity, surface: TimelineSur
 		const { dragging, pressed } = pointer.region(0, 0, HANDLE_WIDTH, BAR_HEIGHT);
 
 		if (pressed) dragOrigin = [workarea.start, workarea.end];
-		if (dragging) scene.set(Workarea, { end: dragOrigin[1] + draggedFrames() });
+		if (dragging) editWorkarea(world, scene, [dragOrigin[0], dragOrigin[1] + draggedFrames()]);
 	}
 
 	ctx.restore();

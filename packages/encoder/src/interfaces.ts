@@ -3,8 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import type { VideoCodec, AudioCodec } from 'mediabunny';
-import type { Entity, World } from 'koota';
-import type { ContainerFormat, EncoderProgress, RealizedMounts, WritableFileTarget } from './types';
+import type { ContainerFormat, EncoderProgress, WritableFileTarget } from './types';
 
 export interface AudioConfig {
 	/**
@@ -63,8 +62,10 @@ export interface VideoConfig {
 	bitrate?: number;
 
 	/**
-	 * Defines the fps at which the composition will be rendered
-	 * @default 30
+	 * Defines the fps at which the composition will be rendered. Read by
+	 * whoever builds the capture world — the copy is timed at it — rather
+	 * than by the encoder, which takes the world's own frame rate.
+	 * @default the source world's
 	 */
 	fps?: number;
 
@@ -97,17 +98,6 @@ export interface EncoderConfig {
 	format?: ContainerFormat;
 
 	/**
-	 * Defines the range of the composition to encode
-	 */
-	trim?: {
-		/**
-		 * Defines the time when the encoding should end
-		 * @default scene.duration
-		 */
-		end?: number;
-	};
-
-	/**
 	 * Defines the target file to encode to.
 	 * When a FileSystemFileHandle (or any WritableFileTarget) is provided, the
 	 * output is streamed to the file. When omitted, the output is buffered in
@@ -121,35 +111,15 @@ export interface EncoderConfig {
 	onProgress?: (progress: EncoderProgress) => void;
 
 	/**
-	 * Defines the source scene to encode
-	 */
-	scene: Entity;
-
-	/**
-	 * Re-executes the source world's mounts into the offline world so their
-	 * reactive graphs and runtime hosts (surface/html) render during capture.
-	 * Mount realization needs the host app's module loader, so it is injected.
-	 */
-	realizeMounts?: (world: World) => Promise<RealizedMounts | null>;
-
-	/**
 	 * Metadata comment tag written into the container (e.g. an app version).
 	 */
 	comment?: string;
 }
 
 export interface ImageEncoderConfig {
-	/**
-	 * The source entity to capture
-	 */
-	entity: Entity;
-
-	/** Frames to capture, relative to the entity's first visible frame. */
+	/** Frames to capture, relative to the node's first visible frame. */
 	frames: number[];
 
-	/** Target output height in px (default: the entity's native size). */
+	/** Target output height in px (default: the node's native size). */
 	resolution?: number;
-
-	/** See EncoderConfig.realizeMounts. */
-	realizeMounts?: (world: World) => Promise<RealizedMounts | null>;
 }

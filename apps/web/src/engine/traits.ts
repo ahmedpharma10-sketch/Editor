@@ -82,3 +82,14 @@ export const AssetSelection = trait({ id: null as string | null });
  * like Library: the values are its own reactive state.
  */
 export const ProjectConfig = trait(() => null as ProjectConfigStore | null);
+
+/**
+ * The compiled bundle the world's project is mounted from. Kept because a
+ * render of it is not reproducible from the entities alone: what a
+ * `<surface>` draws, what an `<html>` subtree shows and what a `useTicker`
+ * memo feeds only exist while the project's graph runs, so an export renders
+ * the same bundle a second time into its offline world (see
+ * `@/context/render`). Empty until the first mount lands; a compile that
+ * fails leaves the last good one, the way the canvas keeps the last render.
+ */
+export const ProjectBundle = trait({ code: '' });

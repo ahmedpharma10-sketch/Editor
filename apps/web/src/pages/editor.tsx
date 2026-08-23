@@ -18,6 +18,7 @@ import { getDocumentEditor } from '@/engine/editor';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
 import { attachAi } from '@/utils/gen-ai';
 import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
+import { ProjectBundle } from '@/engine/traits';
 import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
 import { compileProject, watchProject } from '@/projects/host';
@@ -84,6 +85,8 @@ export function EditorPage() {
       unmount();
       try {
         mounted = mount(result.code, world);
+        // What an export renders a second time, for the one scene it is of.
+        world.set(ProjectBundle, { code: result.code });
         // The rendered scene knows which element every entity came from, so
         // from here on an edit in the editor can find its way back.
         writer = createEditWriter(dir, world);

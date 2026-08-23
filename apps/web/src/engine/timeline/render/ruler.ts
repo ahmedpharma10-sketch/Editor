@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Playback, Workarea, setPlayhead } from '@diffusionstudio/runtime';
+import { Playback, setPlayhead } from '@diffusionstudio/runtime';
 
 import { assert } from '@/utils';
 import { RULER_INTERVALS } from '../constants';
@@ -13,6 +13,7 @@ import {
 	RULER_TICK_HEIGHT_MINOR,
 	TARGET_MAJOR_TICK_DISTANCE,
 } from '../config';
+import { editWorkarea } from '../../timing';
 import { framesToPixels, getFrameRate, getResolution, getScrollX, getViewport, pixelsToFrames } from '../view';
 
 import type { Entity, World } from 'koota';
@@ -59,8 +60,7 @@ export function renderRuler(world: World, scene: Entity, surface: TimelineSurfac
 		const start = pixelsToFrames(pointer.position.initialX + scrollX * resolution, resolution);
 		const end = pixelsToFrames(pointer.position.currentX + scrollX * resolution, resolution);
 
-		scene.add(Workarea);
-		scene.set(Workarea, { start, end });
+		editWorkarea(world, scene, [start, end]);
 
 		// The playhead follows the edge being dragged, so the frame under the
 		// pointer is the one on the canvas.

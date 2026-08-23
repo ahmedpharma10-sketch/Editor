@@ -30,6 +30,3 @@ export type ExportResult =
 		type: 'error';
 		error: Error;
 	};
-
-/** Mount graphs re-executed into an offline world (see EncoderConfig.realizeMounts). */
-export type RealizedMounts = { disposeAll(): void };

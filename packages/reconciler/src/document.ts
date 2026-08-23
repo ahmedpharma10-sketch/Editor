@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { SVGElements } from 'solid-js/web';
 import { IsExcluded } from 'koota';
@@ -1342,6 +1342,20 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				entity.remove(PendingSource, Generating);
 				entity.add(TranscriptionRequest);
 				entity.set(TranscriptionRequest, { seed: toNumber(value) ?? 0 });
+				return;
+			}
+			case 'workarea': {
+				// Two times or none: a half-authored range says nothing, and
+				// `false` is what the editor writes to take the brackets off.
+				const range = Array.isArray(value) ? value.map(toSeconds) : [];
+				const [start, end] = range;
+				if (range.length !== 2 || start === undefined || end === undefined) {
+					entity.remove(Workarea);
+					return;
+				}
+
+				entity.add(Workarea);
+				entity.set(Workarea, { start: this.toFrames(start), end: this.toFrames(end) });
 				return;
 			}
 			case 'background': {

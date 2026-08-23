@@ -17,19 +17,18 @@ import { For, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
 import { generateProjectName } from "@/components/engine/db";
 import { createProject, deleteProject, duplicateProject, ensureProjectsRoot } from "@/projects";
-import { Not } from "bitecs";
-import { ChildOf, isScene, useQuery } from "@/components/engine";
-import { AssetId, getAssetFile } from "@diffusionstudio/runtime";
+import { AssetId, ChildOf, Name, Root, Scene, getAssetFile, getActiveEntity, sortByItemIndex } from "@diffusionstudio/runtime";
 import { assetName } from "@diffusionstudio/assets";
-import { useWorld } from "@diffusionstudio/koota-solid";
+import { useQuery, useWorld } from "@diffusionstudio/koota-solid";
 import { useLibrary } from "@/engine/library";
 import { pickAndImport } from "@/engine/asset-actions";
 import { projectRoute } from "@/hooks/use-project-route";
 import { useProject } from "@/context/project";
-import { useEngine } from "@/context/engine";
 import { useExport } from "@/context/export";
 import { getDefaultExportTemplate } from "@/components/sidebar-right/inspector/export-templates";
 import { mimeTypeToExtension } from "@/utils";
+
+import type { Entity } from "koota";
 
 export function FileMenu() {
   const navigate = useNavigate();
@@ -237,23 +236,17 @@ export function FileAssetMenu() {
   );
 }
 
-/**
- * The last of this menu still on the bitecs engine: the render pipeline
- * (`@/context/render` → `@/components/engine/encode`) takes an old-world
- * scene, so both the scene it exports and the list below have to come from
- * there. Moves to koota with the encoder (see the TODO in inspector/export).
- */
 export function FileExportMenu() {
-  const { world } = useEngine();
+  const world = useWorld();
   const { exportScene, exportCurrentFrame } = useExport();
 
   const handleExportScene = async () => {
-    const sceneEid = world.selection.scene;
-    if (sceneEid === null) {
+    const scene = getActiveEntity(world);
+    if (scene === null) {
       toast("No active scene to export");
       return;
     }
-    await exportScene(sceneEid, getDefaultExportTemplate());
+    await exportScene(scene, getDefaultExportTemplate());
   };
 
   return (
@@ -286,15 +279,16 @@ export function FileExportMenu() {
 }
 
 export function FileExportSpecificSceneMenu() {
-  const { world } = useEngine();
+  const world = useWorld();
   const { exportScene } = useExport();
 
-  const c = world.components;
-  const children = useQuery([c.Geometry, c.Playback, Not(ChildOf('*')), Not(c.Deleted)]);
-  const scenes = createMemo(() => children().filter((eid) => isScene(world, eid)));
+  // Scenes are top-level by definition; the order is the stage's, so the menu
+  // reads the way the timeline's scene switcher does.
+  const children = useQuery(Scene, ChildOf(world.get(Root)!));
+  const scenes = createMemo(() => [...children()].sort(sortByItemIndex));
 
-  const handleExport = async (sceneEid: number) => {
-    await exportScene(sceneEid, getDefaultExportTemplate());
+  const handleExport = async (scene: Entity) => {
+    await exportScene(scene, getDefaultExportTemplate());
   };
 
   return (
@@ -306,9 +300,9 @@ export function FileExportSpecificSceneMenu() {
         }
       >
         <For each={scenes()}>
-          {(sceneEid, index) => (
-            <DropdownMenuItem onSelect={() => handleExport(sceneEid)}>
-              {world.components.Name[sceneEid] || `Scene ${index() + 1}`}
+          {(scene, index) => (
+            <DropdownMenuItem onSelect={() => handleExport(scene)}>
+              {scene.get(Name)?.value || `Scene ${index() + 1}`}
             </DropdownMenuItem>
           )}
         </For>

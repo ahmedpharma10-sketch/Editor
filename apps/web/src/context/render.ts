@@ -3,18 +3,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createSignal } from "solid-js";
+import { createEncoder } from "@diffusionstudio/encoder";
+import { Computed, FrameRate, Workarea } from "@diffusionstudio/runtime";
 
-import { createEncoder } from "@/components/engine/encode/encoder";
+import { createCapture } from "@/engine/capture";
+import { version } from "../../package.json";
 
-import type { Engine } from "@/components/engine";
-import type { EncoderConfig } from "@/components/engine/encode/interfaces";
-import type { ExportResult } from "@/components/engine/encode/types";
+import type { Entity } from "koota";
+import type { EncoderConfig, ExportResult } from "@diffusionstudio/encoder";
+import type { Capture } from "@/engine/capture";
+import type { Engine } from "@/engine";
 import type { ExportConfig } from "@/components/sidebar-right/inspector/export-progress";
 
 /**
  * Unified scene render path, used by the UI export (`ExportProvider.exportScene`):
- * the "Exporting Composition" overlay, the engine stop/start lifecycle, encoder
- * creation, progress reporting, and cancel wiring all live in {@link renderScene}.
+ * the "Exporting Composition" overlay, the engine stop/start lifecycle, the
+ * capture world the encode runs against, progress reporting, and cancel wiring
+ * all live in {@link renderScene}.
  */
 
 export type RenderOverlayState = {
@@ -37,7 +42,7 @@ export function cancelRender() {
 
 export type RenderSceneOptions = {
   /** Scene entity to encode. */
-  scene: number;
+  scene: Entity;
   /** Where to write the output (a save-picker handle in the UI, a file path handle from the CLI). */
   target: NonNullable<EncoderConfig["target"]>;
   /** Encoder settings (resolution, codecs, format, ...). */
@@ -48,18 +53,30 @@ export async function renderScene(
   engine: Engine,
   { scene, target, config }: RenderSceneOptions,
 ): Promise<ExportResult> {
-  const w = engine.world;
-  const duration = w.components.Computed.duration[scene] / w.frameRate;
+  const world = engine.world;
+
+  const workarea = scene.get(Workarea);
+  const frames = workarea
+    ? workarea.end - workarea.start
+    : scene.get(Computed)?.duration ?? 0;
+  const duration = frames / (world.get(FrameRate)?.value || 30);
 
   cancelActive = undefined;
   setOverlay({ config, duration, progress: 0, remaining: undefined });
+
   engine.stop();
 
+  let capture: Capture | undefined;
   try {
-    const encoder = await createEncoder(w, {
+    capture = createCapture(world, scene, {
+      frameRate: config?.video?.fps,
+      mode: config?.video?.enabled === false || config?.format === "ogg" ? "offline-audio" : "offline-video",
+    });
+
+    const encoder = await createEncoder(capture.world, {
       ...config,
-      scene,
       target,
+      comment: `Made with Diffusion v${version}`,
       onProgress(p) {
         const percent = Math.round((p.progress / p.total) * 100);
         setOverlay((prev) =>
@@ -82,6 +99,7 @@ export async function renderScene(
   } finally {
     cancelActive = undefined;
     setOverlay(null);
+    capture?.dispose();
     engine.start();
   }
 }
