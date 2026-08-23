@@ -421,9 +421,10 @@ export default function Project() {
   mount, in dependency order.
 - Solid is fully available while mounting: \`<For>\`, \`<Show>\`, \`createMemo\`, and
   \`useTicker()\` for values that follow the playhead.
-- Any npm package can be imported without installing it: bare specifiers resolve
-  from a CDN at runtime. Add one as a dev dependency (\`npm i -D three\`) only to
-  get its types.
+- npm packages work as they normally do. The folder is a real npm package, so
+  \`npm i three\` in it is all it takes: anything in \`node_modules\` is resolved
+  and bundled, subpath imports included. A composition runs in a browser
+  context, so a package that needs Node APIs will not bundle.
 
 Types are stripped at compile time and never checked, so typecheck the project
 yourself with \`npx tsc --noEmit\`.

@@ -20,26 +20,10 @@ The component receives no props; which document node each rendered root maps ont
 Imports resolve by category:
 
 - **Host modules** (marked external at compile time, resolved in-app so the project shares the editor's reactive runtime): `solid-js`, `solid-js/store`, `@diffusionstudio/jsx`. These must be the editor's own instance and never come from anywhere else.
-- **Userland packages** — any other bare specifier (`three`, `gsap`, `d3-scale`, …). These are **not installed and not bundled**: the CLI rewrites them to a CDN URL (default `https://esm.sh/<specifier>`, so `three/examples/jsm/loaders/GLTFLoader.js` becomes `https://esm.sh/three/examples/jsm/loaders/GLTFLoader.js`) and the renderer imports them natively at runtime. Any npm package works without a `node_modules`, so this works in a packaged app too. The package's own transitive deps are resolved by the CDN. Libraries must be browser-compatible (no Node builtins).
-- **Local and URL imports**: relative/absolute paths (`./helper`, local JSON) are resolved on disk and bundled as before; explicit `https://…` imports pass through to the renderer untouched.
+- **Userland packages** — any other bare specifier (`three`, `gsap`, `d3-scale`, …). A project folder is a real npm package, so these work as they normally do: install one (`npm i three`) and esbuild resolves it from the project's `node_modules` and bundles it into the compiled module, subpath imports and `exports` maps included. Nothing is installed for you and there is no CDN fallback — a specifier that does not resolve fails the compile with `Could not resolve "three"`, and the canvas keeps the last good render. Libraries must be browser-compatible (no Node builtins); sources under `node_modules` skip the JSX transform, so a package must ship compiled JavaScript rather than raw JSX.
+- **Local imports**: relative/absolute paths (`./helper`, local JSON) are resolved on disk and bundled. Static `https://…` imports are **not** supported — they survive bundling as a require the renderer cannot satisfy, and fail at mount.
 - The module executes **inside the editor process**, unsandboxed. This is local tooling with a local trust model, the same trust as running the CLI itself. Only effects made through the JSX runtime are part of the document (and its undo history); anything else the module does is unsupported.
 - Solid's control flow (`<For>`, `<Show>`, `<Index>`, `<Switch>`) and primitives (`createSignal`, `createMemo`, …) are fully available during mount. See [lifecycle.md](./lifecycle.md) for what happens after mount.
-
-### Import map (`dapi.config.json`)
-
-A `dapi.config.json` in the working directory pins versions or redirects userland specifiers — for reproducible mounts, a self-hosted mirror, or a local vendored copy. Exact keys match a specifier; a trailing-slash key maps its subpaths (longest prefix wins):
-
-```json
-{
-  "cdnBase": "https://esm.sh",
-  "imports": {
-    "three": "https://esm.sh/three@0.185.1",
-    "three/": "https://esm.sh/three@0.185.1/"
-  }
-}
-```
-
-`cdnBase` overrides the default CDN for anything not in `imports`. The `DAPI_CDN_BASE` and `DAPI_IMPORT_MAP` (a JSON object) env vars override for one-offs. An unpinned specifier resolves to the CDN's latest.
 
 ## Types and tooling
 
@@ -56,4 +40,4 @@ A `dapi.config.json` in the working directory pins versions or redirects userlan
 
 The CLI does not typecheck; types are stripped at compile time. Run `tsc --noEmit` in the project folder for type safety.
 
-Userland packages resolve from a CDN at runtime, so they need no runtime install, but the editor still wants their type declarations. For IntelliSense on a library, install it (or its `@types/…`) as a **dev-only** dependency (`npm i -D three`); it is used purely for typechecking and never bundled or shipped.
+Installing a userland package gives it both its runtime code and its types. A package that ships no declarations of its own needs its `@types/…` alongside it (`npm i -D @types/three`). `@diffusionstudio/jsx` and `solid-js` are the exception: they are declared in the scaffolded `package.json` for types only, since the compiler always keeps them external and the running composition uses the app's own instance.
