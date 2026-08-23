@@ -444,6 +444,12 @@ export type SceneProps = IdentityProps & PositionProps & Required<SizeProps> & F
    * a file names more than one, the last one rendered wins.
    */
   active?: boolean;
+  /**
+   * Decibels on the scene's own bus, which everything in it mixes into: the
+   * master fader. 0 = unity, negative attenuates (-6 = half as loud),
+   * -Infinity = silence. A clip's own `volume` composes with this one.
+   */
+  volume?: number;
   children?: SolidJSX.Element;
 };
 
