@@ -9,6 +9,7 @@ import { ConstraintType } from '../constants';
 import {
 	ChildOf, Group, Size, Position, Constraint, ConstraintCache,
 	KeepAspectRatio, Sequential, Computed,
+	Host,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
 
@@ -57,6 +58,20 @@ export function resizeEntity(world: World, entity: Entity, params: ResizeParams)
 		...(width !== undefined && { width: Math.round(width) }),
 		...(height !== undefined && { height: Math.round(height) }),
 	});
+
+	// handle DOM nodes
+	const domNode = entity.get(Host)?.domNode;
+
+	if (domNode instanceof HTMLCanvasElement) {
+		domNode.width = width ?? domNode.width;
+		domNode.height = height ?? domNode.height;
+	}
+
+	if (domNode instanceof HTMLElement) {
+		domNode.style.width = `${width ?? domNode.style.width.replace('px', '')}px`;
+		domNode.style.height = `${height ?? domNode.style.height.replace('px', '')}px`;
+	}
+
 	// The Size observer propagates Computed sizes; constraints resolve here.
 	resolveConstraintOffsets(world, entity);
 }

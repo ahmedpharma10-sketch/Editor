@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Render system (was systems/render.ts): draws the document tree onto the
-// world's RenderSurface. Runs identically against the editor canvas and an
-// OffscreenCanvas during capture; without a surface it is a no-op. Hit
+// world's RenderSurface. Runs identically against the editor and capture
+// canvases; without a surface it is a no-op. Hit
 // regions are pushed callback-less (see HitRegions); the app's input layer
 // attaches its handlers.
 
@@ -21,7 +21,7 @@ import {
 	SourceError,
 	BlendMode, Effect, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
-	HtmlHostHandle, SurfaceHostHandle,
+	Host,
 	Mode, FrameRate, Camera, Background, RenderSurface,
 	HitRegions,
 	Root,
@@ -215,16 +215,20 @@ export function renderIntrinsicFill(world: World, entity: Entity): void {
 
 	const intrinsic = getIntrinsicPaint(entity);
 	if (intrinsic === PaintType.SURFACE) {
-		const host = entity.has(SurfaceHostHandle) ? entity.get(SurfaceHostHandle) : null;
-		if (host) {
+		const canvas = entity.get(Host)?.domNode;
+		if (canvas instanceof HTMLCanvasElement) {
 			const ctx = getCtx(world);
 			const computed = store(world, Computed);
 			const eid = entity.id();
 			ctx.save();
 			ctx.clip();
-			host.draw(ctx, computed.width[eid]!, computed.height[eid]!);
+			ctx.drawImage(canvas, 0, 0, computed.width[eid]!, computed.height[eid]!);
 			ctx.restore();
 		}
+		return;
+	}
+	if (intrinsic === PaintType.HTML) {
+		renderHtmlFill(world, entity, entity);
 		return;
 	}
 
@@ -244,6 +248,41 @@ function mediaKind(paint: PaintType | undefined): MediaKind | null {
 
 /** What the image and video decoders hand out to draw. */
 type MediaFrame = ImageBitmap | HTMLImageElement | HTMLCanvasElement | OffscreenCanvas;
+
+// html-in-canvas (https://github.com/WICG/html-in-canvas). Chromium only,
+// behind chrome://flags/#canvas-draw-element; the API surface is still
+// moving, so every touchpoint is typed and isolated here.
+type DrawElementContext = Ctx2D & {
+	drawElementImage(source: Element | unknown, dx: number, dy: number, dw: number, dh: number): DOMMatrix;
+};
+
+
+function renderHtmlFill(world: World, entity: Entity, source: Entity): void {
+	const root = source.get(Host)?.domNode;
+	const surface = world.get(RenderSurface);
+	const ctx = surface?.ctx;
+	if (!(ctx instanceof CanvasRenderingContext2D)) return;
+	if (!(root instanceof HTMLElement)) return;
+
+	const computed = store(world, Computed);
+	const eid = entity.id();
+
+	ctx.save();
+	ctx.clip();
+
+	const width = computed.width[eid]!;
+	const height = computed.height[eid]!;
+	root.style.width = `${width}px`;
+	root.style.height = `${height}px`;
+
+	try {
+		(ctx as DrawElementContext).drawElementImage(root, 0, 0, width, height);
+	} catch (error) {
+		console.error(`Error drawing <HtmlPaint> content: ${error instanceof Error ? `${error.name}: ${error.message}` : error}`);
+	}
+
+	ctx.restore();
+}
 
 /**
  * Draws the current frame of `source` (an image or video paint, or the
@@ -312,21 +351,13 @@ export function renderFills(world: World, entity: Entity): void {
 		} else if (paint === PaintType.VIDEO) {
 			renderMedia(world, entity, fill, 'VIDEO');
 		} else if (paint === PaintType.HTML) {
-			const host = fill.has(HtmlHostHandle) ? fill.get(HtmlHostHandle) : null;
-
-			if (host) {
-				ctx.save();
-				ctx.clip();
-				host.draw(ctx, computed.width[eid]!, computed.height[eid]!);
-				ctx.restore();
-			}
+			renderHtmlFill(world, entity, fill);
 		} else if (paint === PaintType.SURFACE) {
-			const host = fill.has(SurfaceHostHandle) ? fill.get(SurfaceHostHandle) : null;
-
-			if (host) {
+			const canvas = fill.get(Host)?.domNode;
+			if (canvas instanceof HTMLCanvasElement) {
 				ctx.save();
 				ctx.clip();
-				host.draw(ctx, computed.width[eid]!, computed.height[eid]!);
+				ctx.drawImage(canvas, 0, 0, computed.width[eid]!, computed.height[eid]!);
 				ctx.restore();
 			}
 		} else if (paint === PaintType.SOLID) {

@@ -39,6 +39,7 @@ import type {
   ShaderPaintProps,
   ShadowProps,
   SolidPaintProps,
+  StageProps,
   StrokeProps,
   SurfacePaintProps,
   SurfaceProps,
@@ -71,7 +72,7 @@ function hostElement<P extends object>(tag: string): (props: P) => SolidJSX.Elem
  * editor renders it inside `insertElement`'s thunk to duplicate a subtree.
  */
 export function renderAuthored(tree: AuthoredTree): unknown {
-  const node = createElement(tree.tag);
+  const node = createElement(tree.tag.charAt(0).toUpperCase() + tree.tag.slice(1));
   for (const [name, value] of Object.entries(tree.props)) {
     setProp(node, name, value);
   }
@@ -84,6 +85,7 @@ export function renderAuthored(tree: AuthoredTree): unknown {
   return node;
 }
 
+export const Stage = hostElement<StageProps>("Stage");
 export const Scene = hostElement<SceneProps>("Scene");
 export const Group = hostElement<GroupProps>("Group");
 export const Rect = hostElement<RectProps>("Rect");

@@ -643,7 +643,7 @@ export type HtmlPaintProps = PaintProps & {
   children?: SolidJSX.Element;
 };
 
-/** `<Html>` — a rectangle carrying an `<HtmlPaint>` with the given children. */
+/** `<Html>` — a rectangle whose intrinsic paint draws the given DOM children. */
 export type HtmlProps = CommonProps & Pick<HtmlPaintProps, "children">;
 
 // HTMLCanvasElement without requiring the DOM lib (this package also

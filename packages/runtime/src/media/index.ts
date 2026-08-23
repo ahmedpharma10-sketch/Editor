@@ -15,7 +15,6 @@ export * from './image';
 export * from './keyframe-index';
 export * from './sequence';
 export * from './shader';
-export * from './surface';
 export * from './time-stretcher';
 export * from './transcode';
 export * from './video';

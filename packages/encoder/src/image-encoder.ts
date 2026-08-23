@@ -55,7 +55,11 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 		rootRecord.End -= rootStart;
 	}
 
-	const offscreenCanvas = new OffscreenCanvas(2, 2);
+	const offscreenCanvas = document.createElement('canvas');
+	offscreenCanvas.width = 2;
+	offscreenCanvas.height = 2;
+	offscreenCanvas.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none;';
+	document.body.appendChild(offscreenCanvas);
 	const offscreenCtx = offscreenCanvas.getContext('2d')!;
 
 	// Never started — image capture is video-only; the context just satisfies
@@ -218,9 +222,9 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 				error: e instanceof Error ? e : new Error('Unknown error'),
 			};
 		} finally {
-			// Free the graphs + hosts realized above (this offline world is
-			// discarded; realized HtmlHosts otherwise leak a canvas on
-			// document.body), then release decoders and the world slot itself
+			offscreenCanvas.remove();
+			// Free the graphs and DOM roots realized above, then release decoders
+			// and the world slot itself
 			// (koota caps live worlds at 16).
 			mounts?.disposeAll();
 			disposeDecoders(world, world.get(Root)!);
@@ -236,8 +240,10 @@ export async function createImageEncoder(sourceWorld: World, config: ImageEncode
 	};
 }
 
-async function toBase64Png(canvas: OffscreenCanvas): Promise<string> {
-	const blob = await canvas.convertToBlob({ type: 'image/png' });
+async function toBase64Png(canvas: HTMLCanvasElement): Promise<string> {
+	const blob = await new Promise<Blob>((resolve, reject) => {
+		canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Could not encode PNG')), 'image/png');
+	});
 	const dataUrl = await new Promise<string>((resolve, reject) => {
 		const reader = new FileReader();
 		reader.onload = () => resolve(reader.result as string);

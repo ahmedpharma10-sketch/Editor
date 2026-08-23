@@ -27,7 +27,7 @@ import type { BuildOptions, Plugin } from "esbuild";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
 import { applyEdits, stampProject } from "./edit";
-import { sourcePlugin } from "./source";
+import { canonicalizeTagsPlugin, sourcePlugin } from "./source";
 import type { CompileResult, FsEntry, FsStat, ProjectInfo, SourceEdit, WriteResult } from "./main-channels";
 import type { SourceContext } from "./edit";
 
@@ -615,7 +615,7 @@ const babelOptions = (file: string, filename: string): TransformOptions => ({
   configFile: false,
   // Runs before the presets, which is what it needs: Solid's transform
   // replaces the JSX trees this stamps.
-  plugins: [[sourcePlugin, { file }]],
+  plugins: [[sourcePlugin, { file }], canonicalizeTagsPlugin],
   presets: [
     [preset("babel-preset-solid"), { generate: "universal", moduleName: RUNTIME_MODULE }],
     [preset("@babel/preset-typescript"), { onlyRemoveTypeImports: true }],

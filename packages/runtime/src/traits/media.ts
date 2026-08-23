@@ -4,10 +4,6 @@
 
 import { trait } from 'koota';
 
-// Type-only imports: erased at compile time, so the traits ↔ media module
-// cycle never materializes at runtime.
-import type { HtmlHost } from '../media/html';
-import type { SurfaceHost } from '../media/surface';
 import type { ShaderHost } from '../media/shader';
 import type { ImageDecoder } from '../media/image';
 import type { VideoDecoderInstance } from '../media/video';
@@ -22,14 +18,9 @@ export type MountData = {
 	textBox?: DocumentFragment;
 };
 
-// Handle traits store live runtime instances (hosts, decoders, buses) and are
+// Handle traits store live runtime instances (decoders, buses, etc.) and are
 // never serialized. They use AoS storage: entity.get(X) returns the instance
-// directly. Suffixed Handle so the trait and the class it stores (HtmlHost,
-// AudioDecoder, ...) can share one export surface.
-
-export const HtmlHostHandle = trait(() => null as HtmlHost | null);
-
-export const SurfaceHostHandle = trait(() => null as SurfaceHost | null);
+// directly.
 
 export const ShaderHostHandle = trait(() => null as ShaderHost | null);
 

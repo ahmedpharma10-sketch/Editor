@@ -1,5 +1,6 @@
 export * from './relations';
 export * from './node';
+export * from './document';
 export * from './transform';
 export * from './style';
 export * from './text';

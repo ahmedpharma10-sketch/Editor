@@ -16,9 +16,10 @@ import { createRoot } from 'solid-js';
 
 import { authoredElement, authoredTree, getRuntimeDocument, insert, isSceneNode, renderAuthored, withDocument } from '@diffusionstudio/reconciler';
 
+import type { HostNode } from '@diffusionstudio/runtime';
 import type { PropValue, SerializedAssetRef } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
-import type { AuthoredTree, HostNode, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
+import type { AuthoredTree, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
 
 /**
  * A value an edit can carry to the file: what a source spells as a literal,
@@ -794,7 +795,7 @@ export class DocumentEditor {
 			stage: document.stage,
 			createElement: (tag) => {
 				const node = document.createElement(tag);
-				if (node !== document.stage) {
+				if (isSceneNode(node) && node !== document.stage) {
 					document.setProperty(node, SOURCE_ATTR, nextPendingSource());
 					created.set(node.entity, { tag: tag.charAt(0).toLowerCase() + tag.slice(1), props: {} });
 				}

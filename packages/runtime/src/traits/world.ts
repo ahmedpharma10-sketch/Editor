@@ -48,8 +48,8 @@ export const Time = trait({ now: 0, delta: 0 });
 // Project frame rate (frames per second).
 export const FrameRate = trait({ value: 30 });
 
-// Render target injected by the host: the editor canvas in the app, an
-// OffscreenCanvas during capture. resolution is the device pixel ratio.
+// Render target injected by the host. Capture uses an HTML canvas too so HTML
+// paint roots can live in its layout subtree. resolution is the pixel ratio.
 export const RenderSurface = trait({
 	canvas: () => null as HTMLCanvasElement | OffscreenCanvas | null,
 	ctx: () => null as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null,

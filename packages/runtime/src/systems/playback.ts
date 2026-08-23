@@ -16,7 +16,7 @@ import {
 	Geometry, Group, AdjustmentLayer, Paint, Audio, Caption, Muted, Soloed,
 	Sequential, Transition, Playback, Workarea,
 	AudioPlayback, Computed,
-	AudioDecoderHandle, AudioBusHandle, HtmlHostHandle,
+	AudioDecoderHandle, AudioBusHandle, Host,
 	Mode, FrameRate, Time, AudioEngine, FramePromises, Mounts,
 	Root,
 } from '../traits';
@@ -28,6 +28,7 @@ import {
 	resolveAudioDecoder, resolveCaptionDecoder, resolveImageDecoder,
 	resolveShaderHost, resolveVideoDecoder,
 } from '../media';
+import { whenHtmlReady } from '../media/html';
 import { AudioBus } from '../media/audio-bus';
 
 import type { Entity, World } from 'koota';
@@ -201,9 +202,11 @@ function forwardAudioDecoder(world: World, scene: Entity, entity: Entity, audioS
 
 function forwardHtmlHost(world: World, scene: Entity, entity: Entity, fill: Entity): void {
 	const computed = store(world, Computed);
-	const host = fill.has(HtmlHostHandle) ? fill.get(HtmlHostHandle) : null;
-	if (world.get(Mode)?.value === 'realtime' || computed.visibility[entity.id()] !== 1 || !host) return;
-	framePromises(world)?.push(host.whenReady(computed.localTimeInSeconds[scene.id()] ?? 0));
+	const root = fill.get(Host)?.domNode;
+	if (world.get(Mode)?.value === 'realtime'
+		|| computed.visibility[entity.id()] !== 1
+		|| !(root instanceof HTMLElement)) return;
+	framePromises(world)?.push(whenHtmlReady(root, computed.localTimeInSeconds[scene.id()] ?? 0));
 }
 
 function forwardImageDecoder(world: World, _scene: Entity, _entity: Entity, fill: Entity): void {
@@ -238,6 +241,8 @@ function forwardDecoders(world: World, scene: Entity, entity: Entity): void {
 			intrinsicVideo = true;
 		} else if (intrinsic === PaintType.IMAGE && visualsEnabled) {
 			forwardImageDecoder(world, scene, entity, entity);
+		} else if (intrinsic === PaintType.HTML && visualsEnabled) {
+			forwardHtmlHost(world, scene, entity, entity);
 		}
 
 		for (const fill of world.query(ChildOf(entity), Paint, Not(Geometry), Not(Hidden))) {

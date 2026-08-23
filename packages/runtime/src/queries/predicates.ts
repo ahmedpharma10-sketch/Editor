@@ -64,9 +64,11 @@ export function isMask(entity: Entity): boolean {
 }
 
 export function hasHtmlPaint(entity: Entity): boolean {
-	return (entity.get(Cache)?.fills ?? []).some(fill => fill.get(Paint)?.value === PaintType.HTML);
+	return entity.get(Paint)?.value === PaintType.HTML
+		|| (entity.get(Cache)?.fills ?? []).some(fill => fill.get(Paint)?.value === PaintType.HTML);
 }
 
 export function hasSurfacePaint(entity: Entity): boolean {
-	return (entity.get(Cache)?.fills ?? []).some(fill => fill.get(Paint)?.value === PaintType.SURFACE);
+	return entity.get(Paint)?.value === PaintType.SURFACE
+		|| (entity.get(Cache)?.fills ?? []).some(fill => fill.get(Paint)?.value === PaintType.SURFACE);
 }

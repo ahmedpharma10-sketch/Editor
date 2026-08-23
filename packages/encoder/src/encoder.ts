@@ -79,8 +79,12 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 	const sceneSubtree = getEntityTree(sourceWorld, sourceScene);
 	const subtreeRecords = sceneSubtree.map(entity => serializeEntity(entity));
 
-	// Offscreen canvas
-	const offscreenCanvas = new OffscreenCanvas(width, height);
+	// HTML paints need their layout roots attached to the destination canvas.
+	const offscreenCanvas = document.createElement('canvas');
+	offscreenCanvas.width = width;
+	offscreenCanvas.height = height;
+	offscreenCanvas.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none;';
+	document.body.appendChild(offscreenCanvas);
 	const offscreenCtx = offscreenCanvas.getContext('2d')!;
 
 	// Offline audio context
@@ -342,9 +346,9 @@ export async function createEncoder(sourceWorld: World, config: EncoderConfig) {
 			};
 		} finally {
 			URL.revokeObjectURL(audioWorkletUrl);
-			// Free the graphs + hosts realized above (this offline world is
-			// discarded, so nothing else disposes them — an HtmlHost otherwise
-			// leaks a canvas on document.body).
+			offscreenCanvas.remove();
+			// Free the graphs and DOM roots realized above before discarding the
+			// offline world.
 			mounts?.disposeAll();
 			// Release decoder file handles/caches, then the world slot itself
 			// (koota caps live worlds at 16, so throwaway offline worlds must

@@ -2,14 +2,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Ai, FramePromises, Generating, GenerationRequest, Library, LoadRequest, PendingSource, SourceError, TranscriptionRequest } from '../traits';
-import { bindAsset, getModifiers } from '../actions/assets';
+import { Ai, FramePromises, Generating, GenerationRequest, Host, Library, LoadRequest, PendingSource, SourceError, TranscriptionRequest } from '../traits';
+import { bindAsset, getAssetFile, getModifiers } from '../actions/assets';
 import { getEntityTree, getSceneAncestor } from '../queries/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
 
 export function assetSystem(world: World): void {
+	for (const entity of world.query(LoadRequest, Host)) {
+		const source = entity.get(LoadRequest)!.value;
+		if (!isDomImage(entity)) continue;
+		pointDomImageAt(entity, null);
+		if (source !== '' && !/^(?:data|blob):/i.test(source)) continue;
+		entity.remove(LoadRequest);
+		pointDomImageAt(entity, source || null);
+	}
+
 	const library = world.get(Library);
 	if (library) {
 		for (const entity of world.query(LoadRequest)) {
@@ -25,6 +34,7 @@ export function assetSystem(world: World): void {
 			const ref = entity.get(GenerationRequest)!.ref;
 			entity.remove(GenerationRequest);
 			if (ref === null || entity.has(SourceError)) continue;
+			if (isDomImage(entity)) pointDomImageAt(entity, null);
 			start(world, entity, ai.resolve(ref), true);
 		}
 
@@ -88,22 +98,57 @@ function resolve(world: World, entity: Entity, promise: Promise<Asset>, generati
 	entity.set(PendingSource, { value: token });
 	if (generating) entity.add(Generating);
 
-	const done = promise.then(
-		(asset) => {
-			if (!current(entity, token)) return;
-			entity.remove(PendingSource, Generating);
-			bindAsset(entity, asset);
-		},
-		(error: unknown) => {
-			if (!current(entity, token)) return;
-			entity.remove(PendingSource, Generating);
-			entity.add(SourceError);
-			entity.set(SourceError, { value: errorMessage(error), generated: generating });
-			console.error('[runtime] could not resolve src:', error);
-		},
-	);
+	const done = promise.then(async (asset) => {
+		if (!current(entity, token)) return;
+		bindAsset(entity, asset);
+		await bindDomImage(entity, asset, token);
+		if (current(entity, token)) entity.remove(PendingSource, Generating);
+	}).catch((error: unknown) => {
+		if (!current(entity, token)) return;
+		entity.remove(PendingSource, Generating);
+		entity.add(SourceError);
+		entity.set(SourceError, { value: errorMessage(error), generated: generating });
+		console.error('[runtime] could not resolve src:', error);
+	});
 
 	world.get(FramePromises)?.list?.push(done);
+}
+
+function isDomImage(entity: Entity): boolean {
+	return typeof HTMLImageElement !== 'undefined'
+		&& entity.get(Host)?.domNode instanceof HTMLImageElement;
+}
+
+function pointDomImageAt(entity: Entity, source: string | null): void {
+	const node = entity.get(Host);
+	const image = node?.domNode;
+	if (typeof HTMLImageElement === 'undefined' || !(image instanceof HTMLImageElement) || !node) return;
+
+	releaseDomImageSource(image);
+	if (source === null) image.removeAttribute('src');
+	else image.src = source;
+}
+
+export function releaseDomImageSource(image: HTMLImageElement): void {
+	if (image.src.startsWith('blob:')) URL.revokeObjectURL(image.src);
+}
+
+async function bindDomImage(entity: Entity, asset: Asset, token: object): Promise<void> {
+	if (!isDomImage(entity)) return;
+	const file = await getAssetFile(asset);
+	if (!current(entity, token)) return;
+
+	const url = URL.createObjectURL(file);
+	if (!current(entity, token)) {
+		URL.revokeObjectURL(url);
+		return;
+	}
+
+	pointDomImageAt(entity, url);
+	const image = entity.get(Host)?.domNode;
+	if (typeof HTMLImageElement !== 'undefined' && image instanceof HTMLImageElement) {
+		await image.decode().catch(() => undefined);
+	}
 }
 
 /** What a rejection says, for an entity to carry and the host to show. */
