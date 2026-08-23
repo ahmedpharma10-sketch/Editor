@@ -349,6 +349,13 @@ const STARTER = `export default function Project() {
 `;
 
 /**
+ * The library a fresh project starts with: empty, but written, so the file the
+ * app keeps its assets in is part of the folder from the first open rather
+ * than appearing at the first import.
+ */
+const EMPTY_MANIFEST = { version: 1, folders: [], assets: [] };
+
+/**
  * The project's own README: what the folder holds, how the composition is
  * written, and what can be run against it. Written once like the rest of the
  * scaffold, so from then on it is the author's file to say what this project
@@ -503,6 +510,10 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
   await writeIfMissing(dir, "tsconfig.json", TSCONFIG);
   await writeIfMissing(dir, ".gitignore", GITIGNORE);
   await writeIfMissing(dir, "README.md", readme(displayName));
+
+  if (!(await exists(join(dir, MANIFEST_FILE)))) {
+    await writeManifest(dir, EMPTY_MANIFEST);
+  }
 }
 
 /**
