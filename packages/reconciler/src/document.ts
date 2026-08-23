@@ -7,7 +7,7 @@ import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appe
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 
 import type { CameraMatrix, PropertyPath } from '@diffusionstudio/runtime';
-import type { AssetRef } from '@diffusionstudio/jsx';
+import type { AnimatableProperty, AssetRef } from '@diffusionstudio/jsx';
 import { trait, type Entity, type World } from 'koota';
 import type { ProjectDocument } from './host';
 
@@ -233,6 +233,25 @@ export function trackPropertyPath(holder: Entity | null, property: string): Prop
 	const path = TRACK_PROPERTIES[property];
 	if (path === 'width' && holder?.has(Stroke)) return 'stroke.width';
 	return path;
+}
+
+/**
+ * The same the other way about: a path as the prop name it was written from.
+ * `stroke.width` is not a name of its own — on a stroke it is `width`.
+ */
+const TRACK_PROPERTY_NAMES = {
+	...Object.fromEntries(Object.entries(TRACK_PROPERTIES).map(([property, path]) => [path, property])),
+	'stroke.width': 'width',
+} as Partial<Record<PropertyPath, AnimatableProperty>>;
+
+/**
+ * The `<keyframeTrack property>` a track already in the world was written
+ * from, or undefined for a path no track can be authored for. What a surface
+ * holding a track (a timeline row, an inspector) needs to speak about it in
+ * the file's own names.
+ */
+export function trackProperty(path: string): AnimatableProperty | undefined {
+	return TRACK_PROPERTY_NAMES[path as PropertyPath];
 }
 
 /** The `<rect>` props of the per-corner radii, in the trait's (CSS) order. */

@@ -4,6 +4,7 @@
 
 import { createMemo, Show } from 'solid-js';
 import { useTag, useTrait, useWorld } from '@diffusionstudio/koota-solid';
+import { trackProperty } from '@diffusionstudio/reconciler';
 import {
   Cache,
   Computed,
@@ -24,8 +25,8 @@ import { KEYFRAME_TRACK_HEIGHT } from '@/engine/timeline';
 import { NESTED_INDENT_PX } from './config';
 import { setRowHover } from './hover';
 
-import type { AnimatableProperty } from '@diffusionstudio/jsx';
 import type { Entity } from 'koota';
+import type { PropertyPath } from '@diffusionstudio/runtime';
 import type { LayerRowProps } from './layer';
 
 /**
@@ -38,7 +39,8 @@ export function KeyframeLayer(props: LayerRowProps) {
   const entity = () => props.layer.entity;
 
   const track = useTrait(entity, KeyframeTrack);
-  const property = () => (track()?.property ?? '') as AnimatableProperty;
+  const path = () => (track()?.property ?? '') as PropertyPath;
+  const property = () => trackProperty(path());
   const target = () => track()?.target ?? null;
 
   const hovering = useTag(entity, Hovering);
@@ -99,11 +101,12 @@ export function KeyframeLayer(props: LayerRowProps) {
             transform: 'translateX(calc(var(--layer-x, 0px) * -1))',
           }}
         >
+          <div class="size-4 shrink-0" />
           <div class="size-4 shrink-0 mr-0.5 flex items-center justify-center overflow-clip">
             <Icon name="keyframe-indicator-default" class="size-6" />
           </div>
-          <span class="text-xs px-0.5 shrink-0 whitespace-nowrap text-foreground">
-            {formatProperty(property())}
+          <span class="text-xs px-0.5 shrink-0 whitespace-nowrap text-muted-foreground">
+            {formatProperty(path())}
           </span>
         </div>
       </div>
@@ -122,8 +125,8 @@ export function KeyframeLayer(props: LayerRowProps) {
             <TooltipContent>Previous keyframe</TooltipContent>
           </TooltipPortal>
         </Tooltip>
-        <Show when={target()}>
-          {(entity) => <Keyframe property={property()} target={entity() as Entity} />}
+        <Show when={property() && target()}>
+          {(holder) => <Keyframe property={property()!} target={holder() as Entity} />}
         </Show>
         <Tooltip placement="top">
           <TooltipTrigger
@@ -145,14 +148,48 @@ export function KeyframeLayer(props: LayerRowProps) {
 }
 
 /**
- * A property's name as the row shows it. The file spells properties the way
- * JSX does (`offsetX`, `cornerRadiusTopLeft`); this is the same name with the
- * words separated, so the row and the inspector agree on what to call it.
+ * What the row calls each property it can hold a track for — the name the
+ * inspector puts on the same control, so the two agree.
  */
-export function formatProperty(property: string): string {
-  if (!property) return '';
+const PROPERTY_NAMES: Partial<Record<PropertyPath, string>> = {
+  'position.x': 'Position X',
+  'position.y': 'Position Y',
+  'offset.x': 'Offset X',
+  'offset.y': 'Offset Y',
+  'scale': 'Scale',
+  'scale.x': 'Scale X',
+  'scale.y': 'Scale Y',
+  'skew.x': 'Skew X',
+  'skew.y': 'Skew Y',
+  'rotation': 'Rotation',
+  'width': 'Width',
+  'height': 'Height',
+  'opacity': 'Opacity',
+  'color': 'Color',
+  'blur': 'Blur',
+  'volume': 'Volume',
+  'stroke.width': 'Stroke Width',
+  'vertexRadius': 'Radius',
+  'mixedVertexRadius.topLeft': 'Radius TL',
+  'mixedVertexRadius.topRight': 'Radius TR',
+  'mixedVertexRadius.bottomRight': 'Radius BR',
+  'mixedVertexRadius.bottomLeft': 'Radius BL',
+  'stop.offset': 'Offset',
+  'effect.value': 'Value',
+  'chars': 'Text',
+};
 
-  return property
+/**
+ * A property's name as the row shows it. Tracks hold the runtime's paths, so
+ * a path with no name of its own falls back to its last segment as words —
+ * a label rather than the path itself.
+ */
+export function formatProperty(path: string): string {
+  if (!path) return '';
+
+  return PROPERTY_NAMES[path as PropertyPath] ?? path
+    .split('.')
+    .pop()!
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (first) => first.toUpperCase())
     .trim();

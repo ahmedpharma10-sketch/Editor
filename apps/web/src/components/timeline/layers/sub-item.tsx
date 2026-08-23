@@ -77,6 +77,7 @@ export function SubItemLayer(props: LayerRowProps) {
             transform: 'translateX(calc(var(--layer-x, 0px) * -1))',
           }}
         >
+          <div class="size-4 shrink-0" />
           <button
             disabled={!props.layer.expandable}
             onClick={toggleExpanded}
