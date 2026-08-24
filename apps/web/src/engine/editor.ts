@@ -16,7 +16,7 @@ import { createRoot } from 'solid-js';
 
 import { authoredElement, authoredTree, getRuntimeDocument, insert, isSceneNode, renderAuthored, withDocument } from '@diffusionstudio/reconciler';
 
-import type { HostNode } from '@diffusionstudio/runtime';
+import type { SceneNode } from '@diffusionstudio/runtime';
 import type { PropValue, SerializedAssetRef } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 import type { AuthoredTree, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
@@ -865,7 +865,7 @@ export class DocumentEditor {
 	 * every element created stamped pending and its tag and literal props
 	 * noted in `created`. The document itself never learns it was watched.
 	 */
-	private recording(created: Map<Entity, Recorded>): ProjectDocument<HostNode> {
+	private recording(created: Map<Entity, Recorded>): ProjectDocument<SceneNode> {
 		const document = this.document;
 		return {
 			stage: document.stage,
