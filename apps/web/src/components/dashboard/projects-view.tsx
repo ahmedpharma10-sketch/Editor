@@ -157,8 +157,13 @@ export function DashboardProjectsView() {
     setRenameDraft(event.currentTarget.value);
   };
 
-  const handleFocusRenameInput = (event: FocusEvent & { currentTarget: HTMLInputElement }) => {
-    event.currentTarget.select();
+  // The input mounts from a context-menu selection, which restores focus to
+  // the trigger on close — so the input must claim focus itself, after that.
+  const handleRenameInputRef = (el: HTMLInputElement) => {
+    queueMicrotask(() => {
+      el.focus();
+      el.select();
+    });
   };
 
   const handleBlurRenameInput = () => {
@@ -310,9 +315,9 @@ export function DashboardProjectsView() {
                           <TextFieldInput
                             uiSize="compact"
                             type="text"
+                            ref={handleRenameInputRef}
                             value={renameDraft()}
                             onInput={handleRenameInput}
-                            onFocus={handleFocusRenameInput}
                             onBlur={handleBlurRenameInput}
                             onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project)}
                             placeholder="Project name"
