@@ -12,6 +12,7 @@
 import { assert, clamp } from '@/utils';
 import { createPointer } from './pointer';
 import { TimelineSurface } from './surface';
+import { timelineSystem } from './timeline';
 import {
 	getResolution,
 	getScrollX,
@@ -82,6 +83,7 @@ export function createTimelineController(world: World) {
 	const resize = (): void => {
 		applyResize();
 		withScene((scene) => updateTimelineTransform(world, scene));
+		timelineSystem(world);
 	};
 
 	const observer = new ResizeObserver(resize);
