@@ -58,7 +58,7 @@ export type TimecodedImage = { timecode: string; base64: string };
 export type MediaFrameResult = TimecodedImage[];
 
 export type CaptureRequest = {
-  id: number;
+  id: string;
   frames?: number[];
   combine?: boolean;
   perSheet?: number;

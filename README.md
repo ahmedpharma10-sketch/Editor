@@ -171,7 +171,7 @@ dapi media filmstrip clip.mp4                            # grid of video frames
 dapi media waveform track.mp3                            # audio waveform, silence flagged
 dapi media transcribe interview.wav                      # timed, word-level transcript
 dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
-dapi capture 42                                          # see the canvas itself
+dapi capture intro                                       # see the canvas itself, by the node's id in the JSX
 ```
 
 ## CLI at a glance

@@ -4,7 +4,7 @@ Renders a node in isolation at one or more timeline positions and merges them in
 
 ## Input
 
-- `<id>`: node id to capture (required)
+- `<id>`: node id to capture (required) — the element's `id` attribute in the project's JSX (e.g. `hero`), or its position in the file for elements that have none. When two files use the same id, the `file:id` form (`index.tsx:hero`) settles it. Entity numbers are not accepted; they change on every recompile.
 - `-t, --time <time...>`: one or more positions to capture, relative to the node's start (`0` = its first visible frame), each a `Time` value (optional; default `0`)
 - `-S, --separate`: write one PNG per position instead of merging them into contact sheets (optional). Each is rendered at 720p height on a transparent background and named after its timecode (e.g. `01s12f.png`). The way to keep the alpha channel.
 - `--per-sheet <n>`: positions per contact sheet, 1 to 12 (optional; default as many as fit). Fewer positions per sheet means a larger cell each. Sheets are balanced, so 13 positions become 7 + 6 rather than 12 + 1.
@@ -39,4 +39,4 @@ A sheet's timecode is the span it covers; a single position's is its own. Sheets
 
 ## Errors
 
-Exits non-zero if the id is unknown, the node has no timeline clock of its own (capture its scene instead), the node is not visible at any requested position, `--per-sheet` is outside 1 to 12, or a PNG can't be written.
+Exits non-zero if the id is unknown, the id is ambiguous (two files use it — pass `file:id`), the id names an element inside a loop (capture its scene instead), the node has no timeline clock of its own (capture its scene instead), the node is not visible at any requested position, `--per-sheet` is outside 1 to 12, or a PNG can't be written.

@@ -283,22 +283,9 @@ async function mediaWaveform(ref: string, opts: MediaPreviewOptions): Promise<vo
   }
 }
 
-// Node ids are entity ids — integers. argv is always string, so the
-// conversion belongs here, at the one boundary, with a strict check. Coercing
-// app-side with Number() would silently accept "0x1f", "1e3", " 7 ", "" → 0.
-function parseNodeId(id: string): number {
-  if (!/^\d+$/.test(id)) {
-    console.error(`Invalid node id: ${JSON.stringify(id)} (expected a non-negative integer)`);
-    process.exit(1);
-  }
-  return Number(id);
-}
-
 type CaptureOptions = { time?: string[]; output?: string; separate?: boolean; perSheet?: string };
 
 async function captureNode(id: string, opts: CaptureOptions): Promise<void> {
-  const eid = parseNodeId(id);
-
   const times = (opts.time ?? ["0"]).map((t) => parseTimeArg(t, "--time"));
   const frames = times.map((t) => Math.round(t * TIME_FPS));
   const perSheet = parsePerSheet(opts.perSheet, opts.separate);
@@ -307,7 +294,7 @@ async function captureNode(id: string, opts: CaptureOptions): Promise<void> {
   mkdirSync(dir, { recursive: true });
   try {
     const images = await editor.capture.query(
-      { id: eid, frames, combine: !opts.separate, perSheet },
+      { id, frames, combine: !opts.separate, perSheet },
       GENERATE,
     );
     writeImages(images, dir);
@@ -620,7 +607,7 @@ program
   .description(
     `Render a node in isolation to PNGs. By default the positions are merged into contact sheets: up to 12 per image, each cell labelled with its timecode (\`08s10f\`, zero segments dropped) and rendered as large as fits, so a few positions arrive as one high-resolution picture instead of a directory to open one by one (\`--separate\` writes a PNG per position, at 720p height, keeping the alpha channel). The node is drawn offscreen, tightly framed to its own bounds on a transparent background; siblings and overlapping scene content are not included, so capture a scene id to check composition ("what plays at time T": layout, overlaps, text, timing). For a video asset's own full-resolution pixels use \`media grab\`.`,
   )
-  .argument("<id>", "node id to capture")
+  .argument("<id>", 'node id to capture or `file:id` when two files use the same id')
   .option("-t, --time <time...>", `one or more positions to capture, relative to the node's start (0 = its first visible frame) — seconds ("1.5"), frames ("45f"), or "MM:SS" (default: 0, the node's first visible frame)`)
   .option("-S, --separate", "write one PNG per position instead of merging them into contact sheets")
   .option("--per-sheet <n>", "positions per contact sheet, 1-12; fewer means a larger cell each (default: as many as fit)")
