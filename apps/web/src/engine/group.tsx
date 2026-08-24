@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Group as GroupElement, Sequence as SequenceElement } from '@diffusionstudio/reconciler';
+import { Group as GroupElement, Scene as SceneElement, Sequence as SequenceElement } from '@diffusionstudio/reconciler';
 import {
 	AdjustmentLayer,
 	Computed,
@@ -11,9 +11,11 @@ import {
 	Geometry,
 	Group,
 	IsMask,
+	Position,
 	Selected,
 	Sequential,
 	Skew,
+	aabbFromTransformedRect,
 	computeLocalMatrix,
 	decompose2D,
 	entityAnchor,
@@ -93,6 +95,98 @@ export function wrapSelectionInSequence(world: World): void {
 	editor.select(sequence);
 }
 
+/** The children of `entity` that are nodes of the container, in file order. */
+function nodeChildren(world: World, entity: Entity): Entity[] {
+	return getEntityChildren(world, entity).filter(
+		(child) => (child.has(Geometry) || child.has(Group) || child.has(AdjustmentLayer)) && !child.has(IsMask),
+	);
+}
+
+/**
+ * The nodes under `entity` that hold a place of their own: the entity itself,
+ * unless it is a sequence — a sequence mirrors its parent's space and cannot
+ * author a position, so its node children (in the same space, the sequence
+ * being passthrough) are the ones with a box to measure and an `x` to shift.
+ */
+function spatialLeaves(world: World, entity: Entity): Entity[] {
+	if (!entity.has(Sequential)) return [entity];
+	return nodeChildren(world, entity).flatMap((child) => spatialLeaves(world, child));
+}
+
+/**
+ * Puts the selection into a new scene. Unlike a group or a sequence, a scene
+ * has a place and a size of its own, so it is authored around the members —
+ * their box in the parent's space, edges rounded outward so the scene's clip
+ * crops nothing — and the members move into it shifted by exactly the
+ * scene's corner, so nothing moves on the canvas (the scene's own transform
+ * is a pure translation: it has no rotation or scale to author). Members
+ * that cannot hold a position (a sequence's are measured and shifted through
+ * it; anything else without one is left be, like a nudge leaves it) ride
+ * along unshifted. No fill is authored, so the picture behind the members
+ * stays whatever it was. The selection moves to the scene.
+ */
+export function wrapSelectionInScene(world: World): void {
+	const editor = getDocumentEditor(world);
+	const selected = new Set(world.query(Selected, NODES, Not(IsMask)));
+	const first = [...selected][0];
+	if (!first) return;
+
+	const parent = getParentEntity(first);
+	if (!parent) return;
+
+	// The same members `wrap` will take: the selected among the first one's
+	// parent's children.
+	const members = getEntityChildren(world, parent).filter((entity) => selected.has(entity));
+	const measured = members.flatMap((member) => spatialLeaves(world, member));
+	if (!measured.length) return;
+
+	const computed = store(world, Computed);
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+
+	for (const entity of measured) {
+		const eid = entity.id();
+		computeLocalMatrix(world, entity);
+		// The box the way computeWorldBounds frames it: the origin folded into
+		// the matrix, so a group's children-derived rect sits where it is drawn.
+		const bounds = aabbFromTransformedRect(
+			multiply2D(entityLocalMat(world, entity), translate2D(computed.originX[eid] ?? 0, computed.originY[eid] ?? 0)),
+			computed.width[eid] ?? 0,
+			computed.height[eid] ?? 0,
+		);
+		if (bounds.minX < minX) minX = bounds.minX;
+		if (bounds.minY < minY) minY = bounds.minY;
+		if (bounds.maxX > maxX) maxX = bounds.maxX;
+		if (bounds.maxY > maxY) maxY = bounds.maxY;
+	}
+
+	const x = Math.floor(minX);
+	const y = Math.floor(minY);
+	const width = Math.max(1, Math.ceil(maxX) - x);
+	const height = Math.max(1, Math.ceil(maxY) - y);
+
+	const scene = editor.wrap([...selected], () => (
+		<SceneElement name={getNextName(world, 'Scene')} x={x} y={y} width={width} height={height} />
+	));
+	if (!scene) return;
+
+	if (x !== 0 || y !== 0) {
+		for (const entity of measured) {
+			if (!entity.has(Position)) continue;
+			const eid = entity.id();
+
+			const writes: TransformWrite[] = [];
+			if (x !== 0) writes.push(['x', Math.round(computed.positionX[eid] ?? 0) - x]);
+			if (y !== 0) writes.push(['y', Math.round(computed.positionY[eid] ?? 0) - y]);
+			editTransform(world, editor, entity, writes);
+		}
+	}
+
+	editor.select(scene);
+}
+
 /**
  * How far the group's own timeline sits from its parent's, in frames: what
  * has to be added to a child's authored times for it to play at the same
@@ -151,9 +245,7 @@ function dissolveContainers(world: World, containers: Entity[]): void {
 		const bake = !isIdentity(groupLocal);
 		const shift = timelineShift(world, group);
 
-		const children = getEntityChildren(world, group).filter(
-			(child) => (child.has(Geometry) || child.has(Group) || child.has(AdjustmentLayer)) && !child.has(IsMask),
-		);
+		const children = nodeChildren(world, group);
 
 		for (const child of children) {
 			const writes: TransformWrite[] = [];

@@ -32,7 +32,7 @@ import { Not, Or } from 'koota';
 
 import { zoomBy, zoomTo, zoomToFit, zoomToSelection } from '../camera';
 import { getDocumentEditor } from '../editor';
-import { groupSelection, ungroupSelection, unwrapSequenceSelection, wrapSelectionInSequence } from '../group';
+import { groupSelection, ungroupSelection, unwrapSequenceSelection, wrapSelectionInScene, wrapSelectionInSequence } from '../group';
 import { getEditHistory } from '../history';
 import { splitAtPlayhead } from '../split';
 import { Keys, MODIFIER_KEYS, Pointer } from '../traits';
@@ -389,9 +389,9 @@ const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['d', 'mod', '!shift'], action: duplicateSelection },
 	{ keys: ['g', 'mod', '!shift'], action: groupSelection },
 	{ keys: ['g', 'mod', 'shift'], action: ungroupSelection },
-	// '!alt' keeps ⌘⌥↩︎ free for the wrap-in-scene the object menu promises.
-	{ keys: ['enter', 'mod', '!shift', '!alt'], action: wrapSelectionInSequence },
-	{ keys: ['enter', 'mod', 'shift', '!alt'], action: unwrapSequenceSelection },
+	{ keys: ['enter', 'mod', '!shift', '!alt'], action: wrapSelectionInScene },
+	{ keys: ['enter', 'mod', 'alt', '!shift'], action: wrapSelectionInSequence },
+	{ keys: ['enter', 'mod', 'alt', 'shift'], action: unwrapSequenceSelection },
 	{ keys: ['b', 'mod'], action: splitAtPlayhead },
 	{ keys: ['c', 'mod'], action: copySelection },
 	{ keys: ['v', 'mod'], action: pasteSelection },

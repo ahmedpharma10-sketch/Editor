@@ -13,6 +13,7 @@ export * from './editor';
 export * from './history';
 export * from './timing';
 export * from './split';
+export * from './group';
 export * from './overlap';
 export * from './traits';
 export * from './input';
