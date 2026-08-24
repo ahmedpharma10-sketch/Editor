@@ -6,8 +6,6 @@ import { getStore } from 'koota';
 
 import type { ExtractStore, Trait, World } from 'koota';
 
-const registered = new WeakMap<World, WeakSet<Trait>>();
-
 /**
  * Direct SoA store access for hot paths (array indexing by entity.id(), no
  * snapshots, no change events). koota registers a trait's
@@ -15,14 +13,10 @@ const registered = new WeakMap<World, WeakSet<Trait>>();
  * this wrapper registers the trait once per world.
  */
 export function store<T extends Trait>(world: World, trait: T): ExtractStore<T> {
-	let traits = registered.get(world);
-	if (!traits) {
-		traits = new WeakSet();
-		registered.set(world, traits);
-	}
-	if (!traits.has(trait)) {
+	try {
+		return getStore(world, trait);
+	} catch {
 		world.query(trait);
-		traits.add(trait);
+		return getStore(world, trait);
 	}
-	return getStore(world, trait);
 }
