@@ -58,13 +58,13 @@ const DEFAULT_GRADIENT_STOPS = ["#E0E0E0", "#000000"];
  * The fit modes `objectFit` can say. `cover` is what an unset prop renders
  * as, and `ScaleModeType.NONE` has no spelling, so it is not offered.
  */
-const FIT_OPTIONS: ReadonlyArray<{ value: Fit; label: string }> = [
+export const FIT_OPTIONS: ReadonlyArray<{ value: Fit; label: string }> = [
   { value: "cover", label: "Cover" },
   { value: "contain", label: "Contain" },
   { value: "fill", label: "Fill" },
 ];
 
-const FIT_NAMES: Partial<Record<ScaleModeType, Fit>> = {
+export const FIT_NAMES: Partial<Record<ScaleModeType, Fit>> = {
   [ScaleModeType.COVER]: "cover",
   [ScaleModeType.FIT]: "contain",
   [ScaleModeType.FILL]: "fill",
@@ -242,8 +242,12 @@ type FitMenuProps = {
   fill: Entity;
 };
 
-/** How an asset fill maps into the box: the paint's `objectFit`. */
-function FitMenu(props: FitMenuProps) {
+/**
+ * How an asset fill maps into the box: the paint's `objectFit`. Also serves
+ * the Source section's picker, where `fill` is the geometry itself — an
+ * intrinsic paint's traits live on the node, and the prop is the same.
+ */
+export function FitMenu(props: FitMenuProps) {
   const editor = useEditor();
   const scaleMode = useTrait(() => props.fill, ScaleMode);
 

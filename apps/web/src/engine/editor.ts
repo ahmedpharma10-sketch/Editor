@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { Active, Chars, getActiveEntity, getEntityChildren, getEntityTree, getParentEntity, isText, Loop, Selected, Sequential, setActive, Source, Stage } from '@diffusionstudio/runtime';
+import { Active, Chars, Computed, End, FrameRate, framesToSeconds, getActiveEntity, getEntityChildren, getEntityTree, getIntrinsicPaint, getParentEntity, getTimelineOrigin, isText, Loop, PaintType, Selected, Sequential, setActive, Size, Source, Stage, Start } from '@diffusionstudio/runtime';
 import { isAssetRef, isPropValue, serializeAssetRef, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -165,6 +165,16 @@ function wireProps(props: Record<string, unknown>): Record<string, EditValue> {
 	}
 	return wired;
 }
+
+/**
+ * The props of a `<video>`/`<image>` that only mean something while the node
+ * plays media, dropped when the intrinsic paint is removed (see
+ * `removeIntrinsicPaint`): the source, what qualifies it (its fit, its
+ * window, a frames directory's rate, the modifiers put on it), its error,
+ * and the audio mix a rect has no track to apply to. `start`/`end` stay:
+ * they place the clip, media or not.
+ */
+const MEDIA_PROPS = ['src', 'error', 'objectFit', 'frameRate', 'sourceIn', 'sourceOut', 'upscale', 'removeBackground', 'addAudio', 'volume', 'muted', 'syncTo'] as const;
 
 /**
  * What `copy` took: the subtrees as authored, and the source of the parent
@@ -591,6 +601,72 @@ export class DocumentEditor {
 		}
 
 		return wrapper;
+	}
+
+	/**
+	 * Takes a node's intrinsic media off by rewriting the element: a `<video>`
+	 * or `<image>` becomes the `<rect>` it otherwise was — same box, same
+	 * timing, same children (fills, strokes, animations) — with the props that
+	 * only meant something while it played media dropped (see `MEDIA_PROPS`).
+	 * What the media implied rather than the element authored is pinned so
+	 * only the picture goes away: the box (a media element defaults to
+	 * 1920x1080 where a rect is 100x100) and the span (a clip lasts its
+	 * footage where a rect falls back to the default; the same pin the runtime
+	 * makes when a geometry loses its paint, see `pinEndToCurrentBounds`).
+	 * Goes to the file the way the fill picker swaps a fill's kind: the
+	 * insert of the rect, then the removal of the old element. The selection
+	 * and the timeline's active pointer move to the rect. Returns the rect,
+	 * or null when the node has no intrinsic media to remove.
+	 */
+	public removeIntrinsicPaint(node: Entity): Entity | null {
+		const intrinsic = getIntrinsicPaint(node);
+		if (intrinsic !== PaintType.VIDEO && intrinsic !== PaintType.IMAGE) return null;
+
+		const parent = getParentEntity(node);
+		if (!parent) return null;
+
+		// Spelled as its own element, not every iteration's of a loop.
+		this.settle(node);
+		const tree = this.spell(node);
+		if (!tree) return null;
+
+		const props = { ...tree.props };
+		for (const name of MEDIA_PROPS) {
+			delete props[name];
+		}
+
+		const size = node.get(Size);
+		if (size) {
+			props.width ??= size.width;
+			props.height ??= size.height;
+		}
+
+		const fps = this.world.get(FrameRate)?.value ?? 30;
+		if (props.start === undefined) {
+			// A start the source derived (a syncTo correlation) rather than
+			// the element authored.
+			const start = node.get(Start)?.value ?? 0;
+			if (start > 0) props.start = framesToSeconds(start, fps);
+		}
+		if (props.end === undefined) {
+			const end = node.get(End)?.value
+				?? (node.get(Computed)?.end ?? 0) - getTimelineOrigin(node);
+			if (end > 0) props.end = framesToSeconds(end, fps);
+		}
+
+		const rect: AuthoredTree = { tag: 'rect', props, children: tree.children };
+
+		const wasSelected = node.has(Selected);
+		const wasActive = node.has(Active);
+
+		const [next] = this.insertElement(parent, () => renderAuthored(rect), node);
+		if (!next) return null;
+		this.remove(node);
+
+		if (wasSelected) this.select(next);
+		if (wasActive) this.activate(next);
+
+		return next;
 	}
 
 	/**
