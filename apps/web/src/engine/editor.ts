@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { Active, Chars, Computed, End, FrameRate, framesToSeconds, getActiveEntity, getEntityChildren, getEntityTree, getIntrinsicPaint, getParentEntity, getTimelineOrigin, isText, Loop, PaintType, Selected, Sequential, setActive, Size, Source, Stage, Start } from '@diffusionstudio/runtime';
+import { Active, Background, Chars, colorToHex, Computed, DEFAULT_BACKGROUND, End, FrameRate, framesToSeconds, getActiveEntity, getEntityChildren, getEntityTree, getIntrinsicPaint, getParentEntity, getTimelineOrigin, isText, Loop, PaintType, Selected, Sequential, setActive, Size, Source, Stage, Start } from '@diffusionstudio/runtime';
 import { isAssetRef, isPropValue, serializeAssetRef, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -40,6 +40,14 @@ export interface PropEdit {
 	source: string;
 	name: string;
 	value: EditValue;
+	/**
+	 * What the element authored for `name` before this edit — `false` for a
+	 * prop it did not author, the same value an editor unsets one with. The
+	 * history inverts the edit from this; the writer ignores it. Absent on an
+	 * edit reported after the fact (`reportEdit` with no previous), which is
+	 * therefore not invertible.
+	 */
+	previous?: unknown;
 }
 
 /**
@@ -51,6 +59,8 @@ export interface TextEdit {
 	kind: 'text';
 	source: string;
 	value: string;
+	/** What the `<text>` said before this edit. Inverse info, as on `PropEdit`. */
+	previous?: string;
 }
 
 /**
@@ -84,16 +94,44 @@ export interface MoveEdit {
 	source: string;
 	parent: string;
 	before?: string;
+	/**
+	 * Where the element came from: the parent it left and the sibling it stood
+	 * in front of there, when the file names them. Inverse info, as on
+	 * `PropEdit` — moving it back is these two spots swapped in.
+	 */
+	fromParent?: string;
+	fromBefore?: string;
+}
+
+/**
+ * A deleted subtree as it stood the moment before it went, one node per
+ * authored element: the source it was stamped with, what a project would
+ * author it as (live values, `AssetRef`s included — this never crosses a
+ * wire), and its children in order. What an undo needs to put the subtree
+ * back, and to pair the old sources with the new ones the reinsert mints.
+ */
+export interface CapturedNode {
+	source: string;
+	tag: string;
+	props: Record<string, unknown>;
+	text?: string;
+	children: CapturedNode[];
 }
 
 /**
  * An element the editor deleted, descendants included: they were its content
  * in the file and went with it on the canvas, so only the top of a deleted
- * subtree is reported. The entity is already gone when this is.
+ * subtree is reported. The entity is already gone when this is — `parent`,
+ * `before` and `node` are its place and its content as they stood just
+ * before, captured for the history (the writer ignores them, as on
+ * `PropEdit`); absent when the subtree could not be captured whole.
  */
 export interface RemoveEdit {
 	kind: 'remove';
 	source: string;
+	parent?: string;
+	before?: string;
+	node?: CapturedNode;
 }
 
 /**
@@ -167,6 +205,48 @@ function wireProps(props: Record<string, unknown>): Record<string, EditValue> {
 }
 
 /**
+ * `entity`'s subtree as a `CapturedNode`, or undefined for an entity that is
+ * not an addressable element (no authored element, or no source) — a child
+ * like that is simply left out, the way `authoredTree` leaves out derived
+ * sub-entities. `authoredElement` already copies the props, so the capture
+ * does not change under the caller afterwards.
+ */
+function captureNode(world: World, entity: Entity): CapturedNode | undefined {
+	const element = authoredElement(entity);
+	const source = entity.get(Source)?.value;
+	if (!element || !source) return undefined;
+
+	const children: CapturedNode[] = [];
+	for (const child of getEntityChildren(world, entity)) {
+		const node = captureNode(world, child);
+		if (node) children.push(node);
+	}
+
+	return {
+		source,
+		tag: element.tag,
+		props: element.props,
+		...(element.text === undefined ? {} : { text: element.text }),
+		children,
+	};
+}
+
+/**
+ * The source of the next sibling after `entity` that the file can name — the
+ * `before` a reinsert at this spot would use — or undefined for none (last).
+ */
+function nextSourceAfter(world: World, entity: Entity): string | undefined {
+	const parent = getParentEntity(entity);
+	if (!parent) return undefined;
+	const siblings = getEntityChildren(world, parent);
+	for (const sibling of siblings.slice(siblings.indexOf(entity) + 1)) {
+		const source = sibling.get(Source)?.value;
+		if (source) return source;
+	}
+	return undefined;
+}
+
+/**
  * The props of a `<video>`/`<image>` that only mean something while the node
  * plays media, dropped when the intrinsic paint is removed (see
  * `removeIntrinsicPaint`): the source, what qualifies it (its fit, its
@@ -188,7 +268,8 @@ interface Clipboard {
 
 export class DocumentEditor {
 	private readonly world: World;
-	private sink?: (edit: EntityEdit) => void;
+	private readonly sinks = new Set<(edit: EntityEdit) => void>();
+	private readonly renames = new Set<(ids: Record<string, string>) => void>();
 	private clipboard: Clipboard = { trees: [] };
 
 	public constructor(world: World) {
@@ -201,22 +282,45 @@ export class DocumentEditor {
 	}
 
 	/**
-	 * Listens for edits made through this editor. One sink at a time — a
-	 * second call replaces the first. Returns an unsubscribe.
+	 * Listens for edits made through this editor. Every listener hears every
+	 * edit — the writer takes them to the file, the history keeps them —
+	 * in the order they subscribed. Returns an unsubscribe.
 	 */
 	public onEdit(sink: (edit: EntityEdit) => void): () => void {
-		this.sink = sink;
+		this.sinks.add(sink);
 		return () => {
-			if (this.sink === sink) {
-				this.sink = undefined;
-			}
+			this.sinks.delete(sink);
 		};
+	}
+
+	/**
+	 * Listens for `restamp`: whoever holds sources of their own (the history)
+	 * hears the same renames the entities get. Returns an unsubscribe.
+	 */
+	public onRename(listener: (ids: Record<string, string>) => void): () => void {
+		this.renames.add(listener);
+		return () => {
+			this.renames.delete(listener);
+		};
+	}
+
+	private emit(edit: EntityEdit): void {
+		for (const sink of [...this.sinks]) sink(edit);
 	}
 
 	/** Writes a prop to the document and reports it. */
 	public editProperty(entity: Entity, name: string, value: PropValue): void {
-		this.document.setProperty(this.document.node(entity), name, value);
-		this.reportEdit(entity, name, value);
+		const node = this.document.node(entity);
+		let previous = node.props[name];
+		// The stage keeps no authored record (see RuntimeDocument.setProperty),
+		// so its one editable prop reads its previous value off the trait; the
+		// default spells as the attribute's absence, like any unset prop.
+		if (name === 'background' && previous === undefined) {
+			const background = entity.get(Background)?.value;
+			if (background !== undefined && background !== DEFAULT_BACKGROUND) previous = colorToHex(background);
+		}
+		this.document.setProperty(node, name, value);
+		this.reportEdit(entity, name, value, previous ?? false);
 	}
 
 	/**
@@ -225,12 +329,13 @@ export class DocumentEditor {
 	 * something the others do not.
 	 */
 	public editText(entity: Entity, text: string): void {
+		const previous = entity.get(Chars)?.value ?? '';
 		this.document.setText(entity, text);
 		this.settle(entity);
 		const source = entity.get(Source)?.value;
 
 		if (source) {
-			this.sink?.({ kind: 'text', source, value: text });
+			this.emit({ kind: 'text', source, value: text, previous });
 		}
 	}
 
@@ -238,14 +343,16 @@ export class DocumentEditor {
 	 * Reports an edit whose change the editor already made itself. An entity a
 	 * loop rendered is settled first (see `settle`): its element is every
 	 * iteration's until the loop is unrolled, and the file hears about that
-	 * before it hears the value.
+	 * before it hears the value. `previous` is the inverse for the history
+	 * (see `PropEdit`); a caller that cannot say what the value was leaves it
+	 * out, and the edit is not undoable.
 	 */
-	public reportEdit(entity: Entity, name: string, value: PropValue): void {
+	public reportEdit(entity: Entity, name: string, value: PropValue, previous?: unknown): void {
 		this.settle(entity);
 		const source = entity.get(Source)?.value;
 
 		if (source) {
-			this.sink?.({ kind: 'prop', source, name, value });
+			this.emit({ kind: 'prop', source, name, value, ...(previous === undefined ? {} : { previous }) });
 		}
 	}
 
@@ -382,7 +489,7 @@ export class DocumentEditor {
 			for (const member of getEntityTree(this.world, root)) member.remove(Loop);
 		}
 
-		this.sink?.({ kind: 'unroll', source: first, loop, iterations });
+		this.emit({ kind: 'unroll', source: first, loop, iterations });
 	}
 
 	/**
@@ -464,7 +571,7 @@ export class DocumentEditor {
 			// has already folded into Chars; that is what the file gets.
 			const text = isText(entity) ? entity.get(Chars)?.value : undefined;
 
-			this.sink?.({
+			this.emit({
 				kind: 'insert',
 				source: entity.get(Source)!.value,
 				parent: parentSource,
@@ -768,6 +875,10 @@ export class DocumentEditor {
 		const source = entity.get(Source)!.value;
 		const parentSource = parent.get(Source)!.value;
 
+		// Where it stands now, before the document moves it: the inverse move.
+		const fromParent = getParentEntity(entity)?.get(Source)?.value;
+		const fromBefore = nextSourceAfter(this.world, entity);
+
 		const wasActive = entity.has(Active);
 
 		try {
@@ -781,11 +892,13 @@ export class DocumentEditor {
 		// the honest answer, and where the document put it either way.
 		const before = anchor?.get(Source)?.value;
 
-		this.sink?.({
+		this.emit({
 			kind: 'move',
 			source,
 			parent: parentSource,
 			...(before ? { before } : {}),
+			...(fromParent ? { fromParent } : {}),
+			...(fromBefore ? { fromBefore } : {}),
 		});
 
 		// Only a root holds the active tag (see world/observers), so a node
@@ -824,8 +937,20 @@ export class DocumentEditor {
 			// Cut from the file as one iteration's element, not the body's.
 			this.settle(entity);
 			const source = entity.get(Source)!.value;
+			// Its place and its content, the moment before they go. A doomed
+			// sibling can be the `before`: the undo reinserts in reverse order,
+			// so it is back by the time anything is placed against it.
+			const parentSource = getParentEntity(entity)?.get(Source)?.value;
+			const before = nextSourceAfter(this.world, entity);
+			const node = captureNode(this.world, entity);
 			document.removeNode(document.node(getParentEntity(entity) ?? document.stage.entity), document.node(entity));
-			this.sink?.({ kind: 'remove', source });
+			this.emit({
+				kind: 'remove',
+				source,
+				...(parentSource ? { parent: parentSource } : {}),
+				...(before ? { before } : {}),
+				...(node ? { node } : {}),
+			});
 		}
 
 		return roots;
@@ -841,6 +966,7 @@ export class DocumentEditor {
 			const next = ids[entity.get(Source)!.value];
 			if (next) entity.set(Source, { value: next });
 		}
+		for (const listener of [...this.renames]) listener(ids);
 	}
 
 	/**

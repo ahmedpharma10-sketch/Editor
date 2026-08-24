@@ -15,6 +15,7 @@ import { toast } from 'somoto';
 import { useWorld } from '@diffusionstudio/koota-solid';
 import { mount } from '@diffusionstudio/reconciler';
 import { getDocumentEditor } from '@/engine/editor';
+import { getEditHistory } from '@/engine/history';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
 import { attachAi } from '@/utils/gen-ai';
 import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
@@ -84,6 +85,9 @@ export function EditorPage() {
       writer = createEditWriter(dir, world);
       const editor = getDocumentEditor(world);
       unlisten = editor.onEdit((edit) => writer?.push(edit));
+      // A mount comes from the file: edits recorded against the document it
+      // replaced cannot be replayed against this one.
+      getEditHistory(world).reset();
     };
 
     const loadProject = async (): Promise<void> => {

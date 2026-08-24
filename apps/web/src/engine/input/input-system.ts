@@ -4,6 +4,7 @@
 
 import { HitRegions, Tool, ToolType, Dragging, Hovering, isPointerInEntity, pointInQuad } from '@diffusionstudio/runtime';
 
+import { getEditHistory } from '../history';
 import { Keys, Pointer, PointerEvents } from '../traits';
 import { getToolCursor, updateCursor } from './cursor';
 import { handleCanvasInteraction, handleGeometryInteraction } from './interactions';
@@ -68,6 +69,7 @@ export function inputSystem(world: World) {
 	const panning = world.get(Tool)?.value === ToolType.HAND || (world.get(Keys)?.held.has(' ') ?? false);
 	const queue = world.get(PointerEvents)?.queue ?? [];
 	const regions = world.get(HitRegions)?.list ?? [];
+	const history = getEditHistory(world);
 
 	for (const event of queue) {
 		world.set(Pointer, {
@@ -81,6 +83,12 @@ export function inputSystem(world: World) {
 			}),
 			...(event.type === 'pointerup' && { phase: 'lifted' as const }),
 		});
+
+		// One pointer hold is one undo step, whatever the drag writes along
+		// the way. Bracketed before the panning skip: a release must close
+		// the gesture however the press has been reinterpreted since.
+		if (event.type === 'pointerdown' && event.button === 0) history.beginGesture();
+		if (event.type === 'pointerup') history.endGesture();
 
 		if (panning) continue;
 

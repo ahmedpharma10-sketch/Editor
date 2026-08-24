@@ -13,6 +13,7 @@ import {
   copySelection,
   deleteSelection,
   duplicateSelection,
+  getEditHistory,
   pasteSelection,
   selectAll,
   selectChildren,
@@ -25,17 +26,18 @@ import {
 export function EditMenu() {
   const world = useWorld();
   const editor = useEditor();
+  const history = getEditHistory(world);
   const { nodes } = useSelection();
   const hasSelection = () => nodes().length > 0;
 
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem disabled={!history.canUndo()} onSelect={() => history.undo()}>
           Undo
           <DropdownMenuShortcut>⌘Z</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem disabled={!history.canRedo()} onSelect={() => history.redo()}>
           Redo
           <DropdownMenuShortcut>⇧⌘Z</DropdownMenuShortcut>
         </DropdownMenuItem>

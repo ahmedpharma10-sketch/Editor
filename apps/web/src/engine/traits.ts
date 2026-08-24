@@ -49,6 +49,15 @@ export const Keys = trait({
 	lifted: () => new Set<string>(),
 });
 
+/**
+ * The keys of `Keys` that are modifiers, `mod` (the ⌘/Ctrl alias) included.
+ * They qualify a shortcut but never trigger one, and they are the only keys
+ * whose key-ups can be trusted: macOS does not deliver the key-up of a key
+ * released while ⌘ is held, so anything else still in `held` when the
+ * modifier goes up may be long gone.
+ */
+export const MODIFIER_KEYS: ReadonlySet<string> = new Set(['mod', 'meta', 'control', 'shift', 'alt']);
+
 export type SnapLine = { from: Point; to: Point };
 
 /** Snap guides for the gesture in flight; the HUD draws and empties them. */

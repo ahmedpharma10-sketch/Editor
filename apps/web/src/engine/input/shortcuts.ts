@@ -32,8 +32,9 @@ import { Not, Or } from 'koota';
 
 import { zoomBy, zoomTo, zoomToFit, zoomToSelection } from '../camera';
 import { getDocumentEditor } from '../editor';
+import { getEditHistory } from '../history';
 import { splitAtPlayhead } from '../split';
-import { Keys, Pointer } from '../traits';
+import { Keys, MODIFIER_KEYS, Pointer } from '../traits';
 import { editTransform } from './interactions';
 
 import type { TransformWrite } from './interactions';
@@ -47,6 +48,14 @@ type Shortcut = {
 
 /** The node kinds a shortcut selects, hides or seeks around. */
 const NODES = Or(Geometry, Group, AdjustmentLayer);
+
+export function undoEdit(world: World): void {
+	getEditHistory(world).undo();
+}
+
+export function redoEdit(world: World): void {
+	getEditHistory(world).redo();
+}
 
 export function deleteSelection(world: World): void {
 	const selected = [...world.query(Selected)];
@@ -372,6 +381,8 @@ function deselect(world: World): void {
 }
 
 const PRESSED_SHORTCUTS: readonly Shortcut[] = [
+	{ keys: ['z', 'mod', '!shift'], action: undoEdit },
+	{ keys: ['z', 'mod', 'shift'], action: redoEdit },
 	{ keys: ['backspace'], action: deleteSelection },
 	{ keys: ['delete'], action: deleteSelection },
 	{ keys: ['d', 'mod', '!shift'], action: duplicateSelection },
@@ -422,6 +433,11 @@ const LIFTED_SHORTCUTS: readonly Shortcut[] = [
  * be held, and a '!' key has to be up. The key that moved is matched
  * against `moved` rather than `held` because a lift takes it out of `held`,
  * and a tap shorter than a frame is over before the frame runs.
+ *
+ * Only a non-modifier can be the trigger: ⌘Z means Z pressed under ⌘, not ⌘
+ * pressed over a Z — and `held` can hold a stale letter, since macOS drops
+ * the key-up of a key released while ⌘ is down, so a fresh ⌘ press must not
+ * complete a shortcut on its own.
  */
 function matches(shortcut: Shortcut, moved: Set<string>, held: Set<string>): boolean {
 	let triggered = false;
@@ -429,7 +445,7 @@ function matches(shortcut: Shortcut, moved: Set<string>, held: Set<string>): boo
 	for (const key of shortcut.keys) {
 		if (key.startsWith('!')) {
 			if (held.has(key.slice(1))) return false;
-		} else if (moved.has(key)) {
+		} else if (moved.has(key) && !MODIFIER_KEYS.has(key)) {
 			triggered = true;
 		} else if (!held.has(key)) {
 			return false;

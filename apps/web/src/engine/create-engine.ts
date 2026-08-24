@@ -5,7 +5,7 @@
 import { assetSystem, renderSystem, transformSystem, playbackSystem, motionSystem, AudioEngine, createRuntimeWorld, Geometry, Mode, RenderSurface, Time, ChildOf, syncInteractiveState } from '@diffusionstudio/runtime';
 import { hudSystem } from './hud';
 import { createSignal, type Accessor, type Setter } from 'solid-js';
-import { AssetSelection, Hud, Keys, Pointer, PointerEvents, ProjectConfig, SnapLines } from './traits';
+import { AssetSelection, Hud, Keys, MODIFIER_KEYS, Pointer, PointerEvents, ProjectConfig, SnapLines } from './traits';
 import { inputSystem } from './input/input-system';
 import { clearClipFrames, clearClipPeaks, clearMedia, clearPeaks, timelineSystem, TimelineSurface } from './timeline';
 import { shortcutSystem } from './input/shortcuts';
@@ -142,9 +142,15 @@ class Engine {
 
 		keys.held.delete(key);
 		keys.lifted.add(key);
-		if (isMod) {
-			keys.held.delete('mod');
-			keys.lifted.add('mod');
+
+		if (!isMod) return;
+
+		keys.held.delete('mod');
+		keys.lifted.add('mod');
+
+		for (const stale of [...keys.held]) {
+			// macOS never delivers the key-up of a key released while ⌘ is held
+			if (!MODIFIER_KEYS.has(stale)) keys.held.delete(stale);
 		}
 	};
 

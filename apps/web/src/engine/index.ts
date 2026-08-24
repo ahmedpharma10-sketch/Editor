@@ -10,6 +10,7 @@ export * from './camera';
 export * from './camera-controller';
 export * from './hooks';
 export * from './editor';
+export * from './history';
 export * from './timing';
 export * from './split';
 export * from './overlap';
