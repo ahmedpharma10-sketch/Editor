@@ -122,6 +122,12 @@ export function evictFromCaches(world: World, entity: Entity, parent: Entity | n
 		// a new identity is the only signal a reader gets that one changed.
 		if (members?.includes(entity)) {
 			cache[list][pid] = members.filter((member) => member !== entity);
+			// The motion system resets Computed only while motion remains, so
+			// the last animation to leave must put the base values back itself
+			// (rebuildCaches cannot: a destroy strips the traits it files by).
+			if (list === 'animations' || list === 'keyframeTracks') {
+				resetAnimatedValues(world, parent);
+			}
 		}
 	}
 }
