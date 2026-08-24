@@ -16,10 +16,12 @@ import { PanelSection } from "@/components/ui/panel-section";
 import { ControlRow } from "@/components/ui/control-group";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
 import { OpacitySwatch } from "@/components/ui/opacity-swatch";
+import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
 import { assetName } from "@diffusionstudio/assets";
-import { useHas, useTrait } from "@diffusionstudio/koota-solid";
+import { useHas, useTrait, useWorld } from "@diffusionstudio/koota-solid";
 import { AssetId, Color, Computed, PaintType, colorToHex, getIntrinsicPaint, parseColor } from "@diffusionstudio/runtime";
 import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
 import { useLibrary } from "@/engine/library";
 import { FitMenu } from "./fill-picker";
 import { AssetFillPicker } from "./asset-picker";
@@ -65,7 +67,8 @@ export function SourceSettings(props: SourceSettingsProps) {
 
   let anchorRef!: HTMLDivElement;
 
-  const [picking, setPicking] = createSignal(false);
+  // One picker at a time: they anchor to the same section and would overlap.
+  const [picking, setPicking] = createSignal<"media" | "solid">();
 
   const intrinsic = useDerived(() => getIntrinsicPaint(entity()));
   const isMedia = createMemo(
@@ -89,7 +92,7 @@ export function SourceSettings(props: SourceSettingsProps) {
   // Removal is the element ceasing to be a media element: the node is
   // rewritten as the <rect> it otherwise was, and this section goes with it.
   const handleRemoveMedia = () => {
-    setPicking(false);
+    setPicking(undefined);
     editor.removeIntrinsicPaint(entity());
   };
 
@@ -113,7 +116,7 @@ export function SourceSettings(props: SourceSettingsProps) {
             <div class="flex h-7 w-full items-center overflow-hidden rounded-md border border-transparent bg-input text-foreground focus-within:border-primary">
               <button
                 class="flex h-full min-w-0 flex-1 items-center gap-2 pl-1 text-left"
-                onClick={() => setPicking(true)}
+                onClick={() => setPicking("media")}
               >
                 <span class="size-5 min-w-5 overflow-hidden rounded-sm">
                   <Show
@@ -153,11 +156,16 @@ export function SourceSettings(props: SourceSettingsProps) {
         </Show>
 
         <Show when={hasFill()}>
-          <SolidFillRow node={entity()} />
+          <SolidFillRow
+            node={entity()}
+            anchorRef={anchorRef}
+            picking={picking() === "solid"}
+            onPickingChange={(open) => setPicking(open ? "solid" : undefined)}
+          />
         </Show>
       </PanelSection>
 
-      <Show when={picking()}>
+      <Show when={picking() === "media"}>
         <FloatingInspector open anchorRef={anchorRef}>
           <FloatingInspectorHeader>
             <FloatingInspectorTitle>Source</FloatingInspectorTitle>
@@ -169,7 +177,7 @@ export function SourceSettings(props: SourceSettingsProps) {
                   size="icon"
                   variant="ghost"
                   class="text-muted-foreground"
-                  onClick={() => setPicking(false)}
+                  onClick={() => setPicking(undefined)}
                 >
                   <Icon name="close-remove" class="size-6" />
                 </TooltipTrigger>
@@ -192,19 +200,36 @@ export function SourceSettings(props: SourceSettingsProps) {
 
 type SolidFillRowProps = {
   node: Entity;
+  anchorRef: HTMLElement;
+  picking: boolean;
+  onPickingChange(open: boolean): void;
 };
 
 /**
  * The node's intrinsic solid: the `fill` prop, edited in place as a hex the
- * way a solid fill row edits its color. Read from `Computed.color` so it
- * animates; alpha is not offered because the prop ignores it. The X takes
- * the prop off the node.
+ * way a solid fill row edits its color, or through the picker the swatch
+ * opens — both are `fill` prop writes, the node keeps its identity. Read
+ * from `Computed.color` so it animates (the `color` keyframe track drives
+ * the same trait); alpha is not offered because the prop ignores it. The X
+ * takes the prop off the node.
  */
 function SolidFillRow(props: SolidFillRowProps) {
+  const world = useWorld();
   const editor = useEditor();
 
   const color = useDerived(() => props.node.get(Computed)?.color ?? 0xE0E0E0);
   const colorText = createMemo(() => colorToHex(color()).replace("#", ""));
+
+  const updateColor = (next: number) => {
+    const hex = colorToHex(next);
+    editor.editProperty(props.node, "fill", hex);
+    syncKeyframe(world, editor, props.node, "color", hex);
+  };
+
+  const handleRemoveFill = () => {
+    props.onPickingChange(false);
+    editor.editProperty(props.node, "fill", false);
+  };
 
   const [draft, setDraft] = createSignal(colorText());
   let cancelCommit = false;
@@ -252,9 +277,12 @@ function SolidFillRow(props: SolidFillRowProps) {
     <ControlRow label="Solid">
       <div class="flex h-7 w-full items-center overflow-hidden rounded-md border border-transparent bg-input text-foreground focus-within:border-primary">
         <div class="flex h-full min-w-0 flex-1 items-center gap-2 pl-1">
-          <span class="size-5 min-w-5 overflow-hidden rounded-sm">
+          <button
+            class="size-5 min-w-5 overflow-hidden rounded-sm"
+            onClick={() => props.onPickingChange(true)}
+          >
             <OpacitySwatch color={color()} opacity={1} />
-          </span>
+          </button>
           <input
             type="text"
             value={draft()}
@@ -270,13 +298,44 @@ function SolidFillRow(props: SolidFillRowProps) {
             size="icon"
             variant="ghost"
             class="text-muted-foreground"
-            onClick={() => editor.editProperty(props.node, "fill", false)}
+            onClick={handleRemoveFill}
           >
             <Icon name="close-remove-small" />
           </TooltipTrigger>
           <TooltipContent>Remove fill</TooltipContent>
         </Tooltip>
       </div>
+
+      <Show when={props.picking}>
+        <FloatingInspector open anchorRef={props.anchorRef}>
+          <FloatingInspectorHeader>
+            <FloatingInspectorTitle>Solid</FloatingInspectorTitle>
+            <div class="ml-auto flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger
+                  as={Button}
+                  size="icon"
+                  variant="ghost"
+                  class="text-muted-foreground"
+                  onClick={() => props.onPickingChange(false)}
+                >
+                  <Icon name="close-remove" class="size-6" />
+                </TooltipTrigger>
+                <TooltipContent>Close</TooltipContent>
+              </Tooltip>
+            </div>
+          </FloatingInspectorHeader>
+          <FloatingInspectorContent class="p-0">
+            <ColorOpacityPicker
+              color={color()}
+              opacity={1}
+              onColorChange={updateColor}
+              withoutOpacity
+              keyframeTarget={props.node}
+            />
+          </FloatingInspectorContent>
+        </FloatingInspector>
+      </Show>
     </ControlRow>
   );
 }

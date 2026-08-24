@@ -12,6 +12,7 @@ import {
 	Group,
 	IsMask,
 	Position,
+	Scene,
 	Selected,
 	Sequential,
 	Skew,
@@ -38,6 +39,7 @@ import { syncKeyframe } from './keyframes';
 import { resolveNewSequenceOverlaps } from './overlap';
 import { authoredTime } from './timing';
 
+import type { DocumentEditor } from './editor';
 import type { TransformWrite } from './input/interactions';
 import type { Mat2D } from '@diffusionstudio/runtime';
 import type { Entity, World } from 'koota';
@@ -198,13 +200,14 @@ function timelineShift(world: World, group: Entity): number {
 }
 
 /**
- * Dissolves every selected group, sequences included: a sequence is a group
- * without spatial identity of its own (see the Sequential observer), so the
- * one bake covers both — for a sequence it finds the identity and writes
- * nothing.
+ * Dissolves every selected container, whatever its kind: groups, sequences
+ * (a sequence is a group without spatial identity of its own; see the
+ * Sequential observer) and scenes. The one bake covers all of them — a
+ * sequence's transform is the identity and writes nothing, a scene's is the
+ * pure translation its `x`/`y` spell.
  */
 export function ungroupSelection(world: World): void {
-	dissolveContainers(world, [...world.query(Selected, Group)]);
+	dissolveContainers(world, [...world.query(Selected, Or(Group, Scene))]);
 }
 
 /** Dissolves only the selected sequences, the inverse of the wrap above. */
@@ -228,8 +231,6 @@ function dissolveContainers(world: World, containers: Entity[]): void {
 	if (!containers.length) return;
 
 	const editor = getDocumentEditor(world);
-	const computed = store(world, Computed);
-	const flip = store(world, Flip);
 	const released: Entity[] = [];
 
 	for (const group of containers) {
@@ -245,87 +246,15 @@ function dissolveContainers(world: World, containers: Entity[]): void {
 		const bake = !isIdentity(groupLocal);
 		const shift = timelineShift(world, group);
 
-		const children = nodeChildren(world, group);
-
-		for (const child of children) {
-			const writes: TransformWrite[] = [];
-			let scale: { x: number; y: number } | null = null;
-			let skew: { x: number; y: number } | null = null;
-			const cid = child.id();
-
-			if (bake) {
-				computeLocalMatrix(world, child);
-				const anchor = entityAnchor(world, child);
-				const pivotX = anchor.x * (computed.width[cid] ?? 0);
-				const pivotY = anchor.y * (computed.height[cid] ?? 0);
-
-				// The pivot folded in before decomposing, as `resizeNode` folds
-				// it: the translation that comes out is position + pivot, clear
-				// of the (I - L)·pivot term the local matrix wraps around it.
-				const composed = multiply2D(
-					multiply2D(groupLocal, entityLocalMat(world, child)),
-					translate2D(pivotX, pivotY),
-				);
-				const decomposed = decompose2D(composed);
-				const offset = entityOffset(world, child);
-
-				const x = Math.round(decomposed.x - pivotX - offset.x);
-				const y = Math.round(decomposed.y - pivotY - offset.y);
-				const rotation = round2(decomposed.rotation);
-				if (x !== Math.round(computed.positionX[cid] ?? 0)) writes.push(['x', x]);
-				if (y !== Math.round(computed.positionY[cid] ?? 0)) writes.push(['y', y]);
-				if (rotation !== round2(computed.rotation[cid] ?? 0)) writes.push(['rotation', rotation]);
-
-				// The decomposed scale carries the flip the local matrix folded
-				// in; divided back out, since the trait keeps holding it.
-				const scaleX = round4(decomposed.scaleX / (flip.x[cid] ?? 1));
-				const scaleY = round4(decomposed.scaleY / (flip.y[cid] ?? 1));
-				if (scaleX !== round4(computed.scaleX[cid] ?? 1) || scaleY !== round4(computed.scaleY[cid] ?? 1)) {
-					scale = { x: scaleX, y: scaleY };
-				}
-
-				const skewX = round2(decomposed.skewX);
-				const skewY = round2(decomposed.skewY);
-				if (skewX !== round2(computed.skewX[cid] ?? 0) || skewY !== round2(computed.skewY[cid] ?? 0)) {
-					skew = { x: skewX, y: skewY };
-				}
-			}
-
+		for (const child of nodeChildren(world, group)) {
 			if (!editor.reparent(child, parent, group)) continue;
 			released.push(child);
 
-			if (writes.length) editTransform(world, editor, child, writes);
-
-			if (scale) {
-				// The scale-row's spelling: one uniform `scale`, or the two axes
-				// with whichever of the two forms it replaces unset.
-				if (Math.abs(scale.x - scale.y) < EPSILON) {
-					editor.editProperty(child, 'scaleX', false);
-					editor.editProperty(child, 'scaleY', false);
-					editor.editProperty(child, 'scale', scale.x === 1 ? false : scale.x);
-					syncKeyframe(world, editor, child, 'scale', scale.x);
-				} else {
-					editor.editProperty(child, 'scale', false);
-					editor.editProperty(child, 'scaleX', scale.x);
-					editor.editProperty(child, 'scaleY', scale.y);
-					syncKeyframe(world, editor, child, 'scaleX', scale.x);
-					syncKeyframe(world, editor, child, 'scaleY', scale.y);
-				}
-			}
-
-			if (skew) {
-				// Skew has no JSX spelling, so it is written to the trait alone
-				// and lasts until the project is rendered again (see resizeNode).
-				child.add(Skew);
-				child.set(Skew, skew);
-			}
-
-			if (shift !== 0) {
-				const fps = world.get(FrameRate)?.value ?? 30;
-				const start = (authoredTime(world, child, 'start') ?? 0) + shift;
-				editor.editProperty(child, 'start', start === 0 ? false : framesToSeconds(start, fps));
-				const end = authoredTime(world, child, 'end');
-				if (end !== undefined) editor.editProperty(child, 'end', framesToSeconds(end + shift, fps));
+			// A sequence among the children can hold neither the position nor
+			// the start the bake writes; what its contents mean is written to
+			// them instead, in the same space the sequence passes through.
+			for (const leaf of spatialLeaves(world, child)) {
+				bakeContainerInto(world, editor, leaf, bake ? groupLocal : null, shift);
 			}
 		}
 
@@ -333,4 +262,85 @@ function dissolveContainers(world: World, containers: Entity[]): void {
 	}
 
 	if (released.length) editor.select(released);
+}
+
+/**
+ * Writes what a dissolved container leaves behind onto one released node:
+ * `containerLocal` (null for the identity) composed onto the node's local
+ * matrix and spelled back as props, and `shift` added to its times.
+ */
+function bakeContainerInto(
+	world: World,
+	editor: DocumentEditor,
+	child: Entity,
+	containerLocal: Mat2D | null,
+	shift: number,
+): void {
+	const computed = store(world, Computed);
+	const flip = store(world, Flip);
+	const cid = child.id();
+
+	if (containerLocal) {
+		computeLocalMatrix(world, child);
+		const anchor = entityAnchor(world, child);
+		const pivotX = anchor.x * (computed.width[cid] ?? 0);
+		const pivotY = anchor.y * (computed.height[cid] ?? 0);
+
+		// The pivot folded in before decomposing, as `resizeNode` folds
+		// it: the translation that comes out is position + pivot, clear
+		// of the (I - L)·pivot term the local matrix wraps around it.
+		const composed = multiply2D(
+			multiply2D(containerLocal, entityLocalMat(world, child)),
+			translate2D(pivotX, pivotY),
+		);
+		const decomposed = decompose2D(composed);
+		const offset = entityOffset(world, child);
+
+		const x = Math.round(decomposed.x - pivotX - offset.x);
+		const y = Math.round(decomposed.y - pivotY - offset.y);
+		const rotation = round2(decomposed.rotation);
+		const writes: TransformWrite[] = [];
+		if (x !== Math.round(computed.positionX[cid] ?? 0)) writes.push(['x', x]);
+		if (y !== Math.round(computed.positionY[cid] ?? 0)) writes.push(['y', y]);
+		if (rotation !== round2(computed.rotation[cid] ?? 0)) writes.push(['rotation', rotation]);
+		if (writes.length) editTransform(world, editor, child, writes);
+
+		// The decomposed scale carries the flip the local matrix folded
+		// in; divided back out, since the trait keeps holding it.
+		const scaleX = round4(decomposed.scaleX / (flip.x[cid] ?? 1));
+		const scaleY = round4(decomposed.scaleY / (flip.y[cid] ?? 1));
+		if (scaleX !== round4(computed.scaleX[cid] ?? 1) || scaleY !== round4(computed.scaleY[cid] ?? 1)) {
+			// The scale-row's spelling: one uniform `scale`, or the two axes
+			// with whichever of the two forms it replaces unset.
+			if (Math.abs(scaleX - scaleY) < EPSILON) {
+				editor.editProperty(child, 'scaleX', false);
+				editor.editProperty(child, 'scaleY', false);
+				editor.editProperty(child, 'scale', scaleX === 1 ? false : scaleX);
+				syncKeyframe(world, editor, child, 'scale', scaleX);
+			} else {
+				editor.editProperty(child, 'scale', false);
+				editor.editProperty(child, 'scaleX', scaleX);
+				editor.editProperty(child, 'scaleY', scaleY);
+				syncKeyframe(world, editor, child, 'scaleX', scaleX);
+				syncKeyframe(world, editor, child, 'scaleY', scaleY);
+			}
+		}
+
+		const skewX = round2(decomposed.skewX);
+		const skewY = round2(decomposed.skewY);
+		if (skewX !== round2(computed.skewX[cid] ?? 0) || skewY !== round2(computed.skewY[cid] ?? 0)) {
+			// Skew has no JSX spelling, so it is written to the trait alone
+			// and lasts until the project is rendered again (see resizeNode).
+			child.add(Skew);
+			child.set(Skew, { x: skewX, y: skewY });
+		}
+	}
+
+	if (shift !== 0) {
+		const fps = world.get(FrameRate)?.value ?? 30;
+		const start = (authoredTime(world, child, 'start') ?? 0) + shift;
+		editor.editProperty(child, 'start', start === 0 ? false : framesToSeconds(start, fps));
+		const end = authoredTime(world, child, 'end');
+		if (end !== undefined) editor.editProperty(child, 'end', framesToSeconds(end + shift, fps));
+	}
 }

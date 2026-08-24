@@ -13,7 +13,7 @@ import {
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { useWorld } from "@diffusionstudio/koota-solid";
-import { isGroup, isSequence } from "@diffusionstudio/runtime";
+import { isGroupLike, isSequence } from "@diffusionstudio/runtime";
 import {
   groupSelection,
   ungroupSelection,
@@ -27,9 +27,8 @@ export function ObjectMenu() {
   const world = useWorld();
   const { nodes } = useSelection();
   const hasSelection = () => nodes().length > 0;
-  // Sequences carry the Group trait too, so the one check enables Ungroup
-  // for both — the same containers the shortcut dissolves.
-  const hasContainer = () => nodes().some(isGroup);
+
+  const hasContainer = () => nodes().some((node) => isGroupLike(node) || isSequence(node));
   const hasSequence = () => nodes().some(isSequence);
 
   return (
