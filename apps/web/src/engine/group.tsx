@@ -6,7 +6,6 @@ import { Group as GroupElement, Sequence as SequenceElement } from '@diffusionst
 import {
 	AdjustmentLayer,
 	Computed,
-	End,
 	Flip,
 	FrameRate,
 	Geometry,
@@ -15,7 +14,6 @@ import {
 	Selected,
 	Sequential,
 	Skew,
-	Start,
 	computeLocalMatrix,
 	decompose2D,
 	entityAnchor,
@@ -36,6 +34,7 @@ import { getDocumentEditor } from './editor';
 import { editTransform } from './input/interactions';
 import { syncKeyframe } from './keyframes';
 import { resolveNewSequenceOverlaps } from './overlap';
+import { authoredTime } from './timing';
 
 import type { TransformWrite } from './input/interactions';
 import type { Mat2D } from '@diffusionstudio/runtime';
@@ -231,9 +230,9 @@ function dissolveContainers(world: World, containers: Entity[]): void {
 
 			if (shift !== 0) {
 				const fps = world.get(FrameRate)?.value ?? 30;
-				const start = (child.get(Start)?.value ?? 0) + shift;
+				const start = (authoredTime(world, child, 'start') ?? 0) + shift;
 				editor.editProperty(child, 'start', start === 0 ? false : framesToSeconds(start, fps));
-				const end = child.get(End)?.value;
+				const end = authoredTime(world, child, 'end');
 				if (end !== undefined) editor.editProperty(child, 'end', framesToSeconds(end + shift, fps));
 			}
 		}

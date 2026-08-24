@@ -33,11 +33,11 @@ import { store } from "@/init";
 import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
 import {
   Computed,
-  End,
   FrameRate,
   Geometry,
   PlaybackRate,
   SourceFrameRate,
+  Trim,
   findGeometryAsset,
   findGeometryAssetSource,
   getSequenceFrameRate,
@@ -115,13 +115,13 @@ export function TimeSettings(props: TimeSettingsProps) {
   const fps = () => frameRate()?.value ?? 30;
 
   const playbackRate = useTrait(entity, PlaybackRate);
-  const authoredEnd = useTrait(entity, End);
+  const trim = useTrait(entity, Trim);
   const start = useDerived(() => entity().get(Computed)?.start ?? 0);
   const end = useDerived(() => entity().get(Computed)?.end ?? 0);
 
   const isContainer = createMemo(() => isGroupLike(entity()));
-  // A container authoring an End spans that rather than fitting its children.
-  const hasTrim = () => authoredEnd() !== undefined;
+  // A container whose trim closes spans that rather than fitting its children.
+  const hasTrim = () => (trim()?.end ?? null) !== null;
 
   const playbackRatePercent = createMemo(() => Math.round((playbackRate()?.value ?? 1) * 100));
 

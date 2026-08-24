@@ -10,7 +10,7 @@
  * where the commands live.
  */
 
-import { Active, Background, Chars, colorToHex, Computed, DEFAULT_BACKGROUND, End, FrameRate, framesToSeconds, getActiveEntity, getEntityChildren, getEntityTree, getIntrinsicPaint, getParentEntity, getTimelineOrigin, isText, Loop, PaintType, Selected, Sequential, setActive, Size, Source, Stage, Start } from '@diffusionstudio/runtime';
+import { Active, Background, Chars, colorToHex, Computed, DEFAULT_BACKGROUND, FrameRate, framesToSeconds, getActiveEntity, getEntityChildren, getEntityTree, getIntrinsicPaint, getParentEntity, getTimelineOrigin, isText, Loop, PaintType, Selected, Sequential, setActive, Size, Source, Stage } from '@diffusionstudio/runtime';
 import { isAssetRef, isPropValue, serializeAssetRef, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createRoot } from 'solid-js';
 
@@ -719,7 +719,7 @@ export class DocumentEditor {
 	 * only the picture goes away: the box (a media element defaults to
 	 * 1920x1080 where a rect is 100x100) and the span (a clip lasts its
 	 * footage where a rect falls back to the default; the same pin the runtime
-	 * makes when a geometry loses its paint, see `pinEndToCurrentBounds`).
+	 * makes when a geometry loses its paint, see `pinTrimToCurrentBounds`).
 	 * Goes to the file the way the fill picker swaps a fill's kind: the
 	 * insert of the rect, then the removal of the old element. The selection
 	 * and the timeline's active pointer move to the rect. Returns the rect,
@@ -750,14 +750,13 @@ export class DocumentEditor {
 
 		const fps = this.world.get(FrameRate)?.value ?? 30;
 		if (props.start === undefined) {
-			// A start the source derived (a syncTo correlation) rather than
+			// A start the runtime derived (a syncTo correlation) rather than
 			// the element authored.
-			const start = node.get(Start)?.value ?? 0;
+			const start = Math.round((node.get(Computed)?.start ?? 0) - getTimelineOrigin(node));
 			if (start > 0) props.start = framesToSeconds(start, fps);
 		}
 		if (props.end === undefined) {
-			const end = node.get(End)?.value
-				?? (node.get(Computed)?.end ?? 0) - getTimelineOrigin(node);
+			const end = (node.get(Computed)?.end ?? 0) - getTimelineOrigin(node);
 			if (end > 0) props.end = framesToSeconds(end, fps);
 		}
 

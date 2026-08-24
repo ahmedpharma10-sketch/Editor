@@ -5,29 +5,51 @@
 /**
  * Where a node sits on the timeline, moved the way every editor change moves:
  * the document for the canvas, an edit for the file. The runtime has
- * `trimEntityIn`/`trimEntityOut`, which write the traits themselves — that
+ * `trimEntityIn`/`trimEntityOut`, which write Delay/Trim themselves — that
  * moves the clip on screen and nowhere else — so everything that trims a clip
  * (the inspector's fields, the timeline's handles, a split) goes through here
  * instead, and the file hears about it.
+ *
+ * The runtime no longer stores the file's time vocabulary: it reconciles
+ * `start`/`end`/`sourceIn`/`sourceOut` down to Delay and Trim. What a node
+ * authors is read back from the copy its host node keeps (`authoredTime`),
+ * which is what these edits rewrite.
  */
 
 import {
 	Computed,
-	End,
 	FrameRate,
-	SourceOut,
-	Start,
+	Host,
 	framesToSeconds,
 	getSourceFrameAt,
 	getTimelineOrigin,
+	secondsToFrames,
 } from '@diffusionstudio/runtime';
+import { parseTime } from '@diffusionstudio/jsx';
 
 import { getDocumentEditor } from './editor';
 
+import type { Time } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 
 /** The time a node authors, in the vocabulary of the JSX rather than the traits'. */
 export type TimeProp = 'start' | 'end' | 'sourceIn' | 'sourceOut';
+
+/**
+ * The time prop as the node's host holds it, in frames of this project, or
+ * undefined while the element doesn't author it. The authored copy rather
+ * than the traits: Delay and Trim fold the four props together, and an edit
+ * has to know what the file actually says to rewrite it.
+ */
+export function authoredTime(world: World, entity: Entity, name: TimeProp): number | undefined {
+	const value = entity.get(Host)?.props[name];
+	const seconds = typeof value === 'number' || typeof value === 'string'
+		? parseTime(value as Time | string)
+		: undefined;
+	if (seconds === undefined) return undefined;
+
+	return secondsToFrames(seconds, world.get(FrameRate)?.value ?? 30);
+}
 
 /**
  * Writes a time prop from a frame count of this project; the file spells
@@ -59,15 +81,15 @@ export function editWorkarea(world: World, scene: Entity, range: [start: number,
 /**
  * Moves the node's in point to scene frame `frame`, keeping the rest of the
  * clip where it is: the runtime's `trimEntityIn`, as edits. The out point is
- * only implied while the node authors no End, so it is pinned first, or the
- * tail would follow the head; then Start moves and SourceIn rolls forward by
+ * only implied while the node authors no end, so it is pinned first, or the
+ * tail would follow the head; then start moves and sourceIn rolls forward by
  * as much as the head lost.
  */
 export function trimIn(world: World, entity: Entity, frame: number): void {
-	if (!entity.has(End)) {
+	if (authoredTime(world, entity, 'end') === undefined) {
 		editTime(world, entity, 'end', (entity.get(Computed)?.end ?? 0) - getTimelineOrigin(entity));
 	}
-	// Both read the origin, which the Start write moves.
+	// Both read the origin, which the start write moves.
 	const start = frame - getTimelineOrigin(entity);
 	const source = getSourceFrameAt(entity, frame);
 	editTime(world, entity, 'start', start);
@@ -77,10 +99,10 @@ export function trimIn(world: World, entity: Entity, frame: number): void {
 /**
  * Moves the node's out point to scene frame `frame` (the runtime's
  * `trimEntityOut`, as edits). The source window follows only when the node
- * authors one; otherwise End alone says where the clip runs out.
+ * authors one; otherwise end alone says where the clip runs out.
  */
 export function trimOut(world: World, entity: Entity, frame: number): void {
-	if (entity.has(SourceOut)) {
+	if (authoredTime(world, entity, 'sourceOut') !== undefined) {
 		editTime(world, entity, 'sourceOut', getSourceFrameAt(entity, frame));
 	}
 	editTime(world, entity, 'end', frame - getTimelineOrigin(entity));
@@ -91,22 +113,22 @@ export function trimOut(world: World, entity: Entity, frame: number): void {
  * about it: the same stretch of its source plays, for the same length, only
  * later or earlier.
  *
- * Start and End are both parent-relative — a node's length is `end - start` —
+ * Start and end are both parent-relative — a node's length is `end - start` —
  * so a move is both of them by the same amount. Writing only the start would
  * leave the end where it was and stretch the clip, which is a trim.
  *
- * A container that takes its bounds from its children authors no End, and so
+ * A container that takes its bounds from its children authors no end, and so
  * only its start moves: its children are placed against its origin, and they
  * all travel with it.
  */
 export function moveEntityTo(world: World, entity: Entity, frame: number): void {
 	const start = frame - getTimelineOrigin(entity);
-	const delta = start - (entity.get(Start)?.value ?? 0);
+	const delta = start - (authoredTime(world, entity, 'start') ?? 0);
 	if (delta === 0) return;
 
 	// Before the start, which moves the origin the end would then be read
 	// against — both are worked out from what the node says now.
-	const end = entity.get(End)?.value;
+	const end = authoredTime(world, entity, 'end');
 	if (end !== undefined) editTime(world, entity, 'end', end + delta);
 
 	editTime(world, entity, 'start', start);

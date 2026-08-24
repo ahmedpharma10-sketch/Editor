@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Effect, EffectType, End, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceIn, SourceOut, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Start, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { SVGElements } from 'solid-js/web';
 import { IsExcluded } from 'koota';
@@ -121,13 +121,6 @@ function detach(node: SceneNode): void {
 	node.parent = null;
 	syncChars(parent);
 }
-
-const TIME_TRAITS = {
-	start: Start,
-	end: End,
-	sourceIn: SourceIn,
-	sourceOut: SourceOut,
-} as const;
 
 const PAINT_TYPES: Record<string, PaintType> = {
 	solidPaint: PaintType.SOLID,
@@ -919,11 +912,14 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				const rate = toNumber(value);
 				if (rate === undefined || rate === 0) {
 					entity.remove(PlaybackRate);
-					return;
+				} else {
+					entity.add(PlaybackRate);
+					entity.set(PlaybackRate, { value: rate });
 				}
 
-				entity.add(PlaybackRate);
-				entity.set(PlaybackRate, { value: rate });
+				// The rate scales the authored window onto the runtime's traits,
+				// so they are re-derived with it.
+				this.syncTiming(node);
 				return;
 			}
 			case 'transition': {
@@ -1076,16 +1072,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 					return;
 				}
 
-				const trait = TIME_TRAITS[name];
-				const seconds = toSeconds(value);
-
-				if (seconds === undefined) {
-					entity.remove(trait);
-					return;
-				}
-
-				entity.add(trait);
-				entity.set(trait, { value: this.toFrames(seconds) });
+				this.syncTiming(node);
 				return;
 			}
 			case 'frameRate': {
@@ -1382,6 +1369,58 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	/** Seconds as frames of this project. */
 	private toFrames(seconds: number): number {
 		return secondsToFrames(seconds, this.world.get(FrameRate)?.value ?? 30);
+	}
+
+	/**
+	 * Reconciles the authored time props (`start`/`end`/`sourceIn`/`sourceOut`,
+	 * the copy this node holds) into the runtime's own vocabulary, Delay and
+	 * Trim. Recomputed whole from the props on every one of them (and on
+	 * `playbackRate`, which scales the window), so the order Solid sets them in
+	 * does not matter.
+	 *
+	 * Delay places the node's local time 0 on its parent's timeline: the
+	 * authored start, pulled back by the stretch of source the trim skips
+	 * (`start - sourceIn/rate`), so the trimmed window opens at the start. The
+	 * trim is the source window; an authored end becomes source frames through
+	 * the rate, and whichever of it and sourceOut closes first wins. With no
+	 * out bound at all the trim stays open (`end: null`) and the runtime runs
+	 * the clip to its source's natural end.
+	 */
+	private syncTiming(node: SceneNode): void {
+		const { entity, props } = node;
+
+		const rate = toNumber(props.playbackRate) || 1;
+		const start = toSeconds(props.start);
+		const end = toSeconds(props.end);
+		const sourceIn = toSeconds(props.sourceIn);
+		const sourceOut = toSeconds(props.sourceOut);
+
+		const startFrames = start === undefined ? 0 : this.toFrames(start);
+		const sourceInFrames = sourceIn === undefined ? 0 : this.toFrames(sourceIn);
+
+		const delay = startFrames - sourceInFrames / rate;
+		if (delay === 0) {
+			entity.remove(Delay);
+		} else {
+			entity.add(Delay);
+			entity.set(Delay, { value: delay });
+		}
+
+		let out: number | null = null;
+		if (end !== undefined) {
+			out = sourceInFrames + (this.toFrames(end) - startFrames) * rate;
+		}
+		if (sourceOut !== undefined) {
+			const frames = this.toFrames(sourceOut);
+			out = out === null ? frames : Math.min(out, frames);
+		}
+
+		if (sourceInFrames === 0 && out === null) {
+			entity.remove(Trim);
+		} else {
+			entity.add(Trim);
+			entity.set(Trim, { start: sourceInFrames, end: out });
+		}
 	}
 
 	/**

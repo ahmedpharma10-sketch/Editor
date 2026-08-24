@@ -20,7 +20,6 @@ import {
 	Group,
 	KeyframeDragOrigin,
 	Selected,
-	Start,
 	TrimDragOrigin,
 	findAssetDuration,
 	store,
@@ -29,7 +28,7 @@ import { Not, Or } from 'koota';
 
 import { clamp } from '@/utils';
 import { resolveSequentialOverlaps } from '../overlap';
-import { moveEntityTo, trimIn, trimOut } from '../timing';
+import { authoredTime, moveEntityTo, trimIn, trimOut } from '../timing';
 import { findSnapDelta, findSnapFrame } from './snapping';
 import { framesToPixels, pixelsToFrames } from './view';
 
@@ -93,7 +92,7 @@ export function beginClipDrag(world: World, entity: Entity): void {
 
 	entity.add(ClipDragOrigin);
 	entity.set(ClipDragOrigin, {
-		authored: entity.get(Start)?.value ?? 0,
+		authored: authoredTime(world, entity, 'start') ?? 0,
 		start: computed.start[eid] ?? 0,
 		end: computed.end[eid] ?? 0,
 	});

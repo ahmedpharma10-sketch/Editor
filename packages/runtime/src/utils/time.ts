@@ -4,8 +4,8 @@
 
 import { CONONICAL_TIME_BASE, PaintType } from '../constants';
 import {
-	Audio, AssetId, Cache, Computed, Geometry, Paint, SourceIn, Library, FrameRate,
-	Start, IsMask, SourceFrameRate,
+	Audio, AssetId, Cache, Computed, Geometry, Paint, Trim, Library, FrameRate,
+	Delay, IsMask, PlaybackRate, SourceFrameRate,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
 import { getSourceDuration } from '../actions/assets';
@@ -60,9 +60,9 @@ export function formatTimecode(seconds: number, frameRate: number): string {
 }
 
 /**
- * The scene frame that authored time 0 means for `entity`, its parent's
+ * The scene frame that local time 0 means for `entity`, its parent's
  * origin. Converts between the absolute frames Computed works in and the
- * parent-relative frames Start and End are authored in.
+ * parent-relative frames Delay is expressed in.
  */
 export function getTimelineOrigin(entity: Entity): number {
 	const parent = getParentNode(entity);
@@ -81,11 +81,11 @@ export function getSourceFrameAt(entity: Entity, frame: number): number {
 /**
  * The node's resolved source window, in source frames: where its in point is
  * and how far its timeline span actually reaches into the source. Derived from
- * the resolved duration rather than read off SourceOut, so a window the node
- * never gets to play (an End that runs out first) is not reported as playing.
+ * the resolved duration rather than read off Trim's end, so a window the node
+ * never gets to play (a source the trim outruns) is not reported as playing.
  */
 export function getSourceWindow(entity: Entity): { in: number; out: number } {
-	const sourceIn = entity.get(SourceIn)?.value ?? 0;
+	const sourceIn = entity.get(Trim)?.start ?? 0;
 	const computed = entity.get(Computed);
 	const duration = computed?.duration ?? 0;
 	const playbackRate = computed?.playbackRate || 1;
@@ -140,18 +140,18 @@ export function findGeometryAsset(world: World, entity: Entity): Asset | null {
 }
 
 /**
- * One of the authored time traits: Start, End, SourceIn, SourceOut,
- * PlaybackRate, SourceFrameRate. They all carry a single frame count (or rate).
+ * A single-value time trait: Delay, PlaybackRate, SourceFrameRate. Each
+ * carries one frame count (or rate).
  */
-export type TimeTrait = typeof Start;
+export type TimeTrait = typeof Delay | typeof PlaybackRate | typeof SourceFrameRate;
 
 /**
- * A trait a recompute may read as absent: one of the authored time traits, or
- * the node's own AssetId (its intrinsic media, another source of a length).
+ * A trait a recompute may read as absent: one of the time traits, or the
+ * node's own AssetId (its intrinsic media, another source of a length).
  * koota fires onRemove before it clears the trait, so a removal handler has to
  * ask for the length the node will have once it is gone.
  */
-export type Ignorable = TimeTrait | typeof AssetId | typeof IsMask;
+export type Ignorable = TimeTrait | typeof Trim | typeof AssetId | typeof IsMask;
 
 /**
  * Intrinsic duration (in project frames) of the media asset attached to an

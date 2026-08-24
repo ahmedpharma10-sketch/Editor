@@ -6,21 +6,18 @@ import { trait } from 'koota';
 
 import { TransitionType } from '../constants';
 
-// The authored time of a node, in the vocabulary the JSX uses. One trait per
-// value, all frames, because a clip rarely says more than one of these things:
-// they are separate answers to separate questions, and absence is the answer
-// most nodes give. `resolveTimeRange` in actions/timing.ts fills the gaps.
-//
-// Start/End place the node on its parent's timeline. Absent Start is 0 (begin
-// with the parent), absent End is the source's natural duration, or 16s for a
-// node with no source. Scenes and groups without an End fit their children.
-export const Start = trait({ value: 0 });
-export const End = trait({ value: 0 });
+// Offset where the node's local time 0 (source frame 0) sits on its parent's
+// timeline, in frames. May carry a fraction: audio is scheduled against it,
+// and a trimmed clip's origin sits sourceIn/rate before its first visible
+// frame. Absent is 0 (the node's time begins with its parent's).
+export const Delay = trait({ value: 0 });
 
-// SourceIn/SourceOut pick the slice of the node's own source that plays there.
-// Absent SourceIn is 0 (from the top), absent SourceOut is the natural end.
-export const SourceIn = trait({ value: 0 });
-export const SourceOut = trait({ value: 0 });
+// The slice of the node's own source that plays, in source frames. A null
+// `end` is no fixed out point: the clip runs to its source's natural end (or
+// the 16s default for a node with no source). Absent entirely, `start` is 0
+// and scenes/groups fit their children; `resolveSourceOut` in actions/
+// timing.ts fills the gaps.
+export const Trim = trait({ start: 0, end: null as number | null });
 
 // Frames per second a frames-directory source is played at, which is the only
 // thing that says how long it lasts: a folder of pictures has a count, not a

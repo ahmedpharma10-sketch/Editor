@@ -12,7 +12,7 @@ import {
 	Opacity, BlendMode, Color, CornerRadius, MixedCornerRadius, Blur, ScaleMode, Effect,
 	ColorStop, StrokeStyle, Shader,
 	Chars, TextStyle,
-	Start, End, SourceIn, SourceOut, PlaybackRate, SourceFrameRate,
+	Delay, Trim, PlaybackRate, SourceFrameRate,
 	Playback, Sequential, Transition, ClipHeight, Expanded,
 	Volume, Muted,
 	KeyframeTrack, Keyframe, Animation, Stage,
@@ -127,10 +127,11 @@ export interface EntityRecord {
 	Playback?: {
 		loop?: number;
 	};
-	Start?: number;
-	End?: number;
-	SourceIn?: number;
-	SourceOut?: number;
+	Delay?: number;
+	Trim?: {
+		start: number;
+		end: number | null;
+	};
 	PlaybackRate?: number;
 	SourceFrameRate?: number;
 	Constraint?: {
@@ -334,17 +335,12 @@ export function serializeEntity(entity: Entity): EntityRecord {
 			loop: entity.get(Playback)!.loop ? 1 : 0,
 		};
 	}
-	if (entity.has(Start)) {
-		record.Start = entity.get(Start)!.value;
+	if (entity.has(Delay)) {
+		record.Delay = entity.get(Delay)!.value;
 	}
-	if (entity.has(End)) {
-		record.End = entity.get(End)!.value;
-	}
-	if (entity.has(SourceIn)) {
-		record.SourceIn = entity.get(SourceIn)!.value;
-	}
-	if (entity.has(SourceOut)) {
-		record.SourceOut = entity.get(SourceOut)!.value;
+	if (entity.has(Trim)) {
+		const trim = entity.get(Trim)!;
+		record.Trim = { start: trim.start, end: trim.end };
 	}
 	if (entity.has(SourceFrameRate)) {
 		record.SourceFrameRate = entity.get(SourceFrameRate)!.value;
@@ -584,17 +580,11 @@ export function deserializeEntity(entity: Entity, e: Partial<EntityRecord>): voi
 		entity.add(Playback);
 		entity.set(Playback, { loop: !!e.Playback.loop });
 	}
-	if (e.Start !== undefined) {
-		entity.add(Start({ value: e.Start }));
+	if (e.Delay !== undefined) {
+		entity.add(Delay({ value: e.Delay }));
 	}
-	if (e.End !== undefined) {
-		entity.add(End({ value: e.End }));
-	}
-	if (e.SourceIn !== undefined) {
-		entity.add(SourceIn({ value: e.SourceIn }));
-	}
-	if (e.SourceOut !== undefined) {
-		entity.add(SourceOut({ value: e.SourceOut }));
+	if (e.Trim !== undefined) {
+		entity.add(Trim({ start: e.Trim.start, end: e.Trim.end }));
 	}
 	if (e.SourceFrameRate !== undefined) {
 		entity.add(SourceFrameRate({ value: e.SourceFrameRate }));

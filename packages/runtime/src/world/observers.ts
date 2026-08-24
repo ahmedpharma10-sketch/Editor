@@ -6,7 +6,7 @@
 import { store } from './store';
 import {
 	ChildOf, Culled, Sequential, Group, Scene, Audio, Paint, AssetId,
-	Start, End, SourceIn, SourceOut, PlaybackRate, SourceFrameRate, Keyframe, ItemIndex,
+	Delay, Trim, PlaybackRate, SourceFrameRate, Keyframe, ItemIndex,
 	Position, Offset, Rotation, Scale, UniformScale, Skew, Anchor, Flip,
 	Opacity, Color, Blur, Volume, Effect, CornerRadius, MixedCornerRadius,
 	ColorStop, StrokeStyle, Size, Computed, Active, Stage, IsMask,
@@ -161,7 +161,7 @@ export function observeWorld(world: World): () => void {
 		bubbleTimeRangeUp(world, entity);
 	};
 
-	for (const trait of [Start, End, SourceIn, SourceOut, PlaybackRate]) {
+	for (const trait of [Delay, Trim, PlaybackRate]) {
 		subs.push(world.onAdd(trait, propagateAndBubble));
 		subs.push(world.onChange(trait, propagateAndBubble));
 		subs.push(world.onRemove(trait, (entity) => {
