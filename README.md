@@ -1,17 +1,45 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Diffusion Studio" width="700" />
+  <a href="https://diffusion.studio">
+    <img src="assets/banner.png" alt="Diffusion Studio" width="700" />
+  </a>
 </p>
 
+<p align="center">The professional video editor built for agents</p>
+
 <p align="center">
+  <a href="https://github.com/diffusionstudio/editor/releases/latest/download/Diffusion-Studio-arm64.dmg"><img src="https://img.shields.io/badge/Download-macOS%20Apple%20Silicon-161616?style=flat&logo=apple&logoColor=F8F8F8&labelColor=000000" alt="Download for macOS (Apple Silicon)" /></a>
   <a href="https://discord.com/invite/zPQJrNGuFB"><img src="https://img.shields.io/discord/1115673443141156924?style=flat&logo=discord&logoColor=F8F8F8&label=Discord&labelColor=000000&color=161616" alt="Discord" /></a>
   <a href="https://x.com/diffusionhq"><img src="https://img.shields.io/badge/Follow%20for-Updates-161616?style=flat&logo=x&logoColor=F8F8F8&labelColor=000000" alt="Follow on X" /></a>
   <a href="https://www.ycombinator.com/companies/diffusion-studio"><img src="https://img.shields.io/badge/Combinator-F24-161616?style=flat&logo=ycombinator&logoColor=F8F8F8&labelColor=000000" alt="Y Combinator F24" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MPL--2.0-161616?style=flat&labelColor=000000&color=161616" alt="License: MPL-2.0" /></a>
 </p>
 
-**Diffusion Studio** is an open-source video editor built for agents. It bundles video analysis tools like speech recognition and multimodal understanding with an editable timeline into a single CLI: everything agents need to edit videos and generate motion graphics.
+<p align="center">
+  <code>npx skills add diffusionstudio/skills -g</code>
+</p>
+
+<br />
+
+<p align="center">
+  <a href="https://app.diffusion.studio">
+    <img src="assets/desktop-screenshot.png" alt="The Diffusion Studio editor" width="800" />
+  </a>
+</p>
+
+<br />
+
+## Why Diffusion Studio
+
+Diffusion Studio is an open-source video editor built for agents. It runs as a desktop app with a command line that lets an agent watch and listen to footage and cut it on a timeline.
 
 Every output opens in a full video editing interface, so you can pick up and refine exactly where the agent left off.
+
+## What it's for
+
+- **Video editing**: raw footage into a finished cut
+- **Motion graphics**: explainers, promos, and title sequences
+- **Generative assets**: images, video, and voiceover, declared in code and composited into the timeline
+- **Clipping**: highlights from a long video, reformatted for social
+- **Video understanding**: summaries, scene search, quotes with timestamps
 
 ## Getting started
 
@@ -21,11 +49,12 @@ Use with Claude Code, Codex, Cursor, Copilot, or Gemini CLI. Install the skill o
 npx skills add diffusionstudio/skills -g
 ```
 
-`/editor` is the main skill you'll use. Ask for what you want in plain language.
+`/editor` is the main skill you'll use. Ask for what you want in plain language. Behind it is `dapi`, the CLI that drives the app.
 
 ## Prompt examples
 
-**Motion graphics**
+<details open>
+<summary><b>Motion graphics</b></summary>
 
 ```text
 /editor Create a ~20-second promo for vercel-labs/native in Vercel's presentation style. Research its official website, GitHub, and brand guidelines; use authentic assets and verified product features, with crisp typography, polished motion, and a strong final CTA.
@@ -35,7 +64,10 @@ npx skills add diffusionstudio/skills -g
 /editor Recreate the 3blue1brown animation from https://youtu.be/HEfHFsfGXjs, closely matching its visual style, pacing, framing, colors, labels, and transitions. Use the exact collision mathematics from Gregory Galperin's original paper, do not approximate the physics.
 ```
 
-**Video editing**
+</details>
+
+<details>
+<summary><b>Video editing</b></summary>
 
 ```text
 /editor edit the footage in /path/to/folder
@@ -45,7 +77,10 @@ npx skills add diffusionstudio/skills -g
 /editor turn this footage into a polished YouTube video. Add readable captions and an attention-grabbing graphic in the opening to give viewers a strong visual hook.
 ```
 
-**Clipping**
+</details>
+
+<details>
+<summary><b>Clipping</b></summary>
 
 ```text
 /editor Can you pull the best 30-second moment from https://youtu.be/MtQ0qxyf-Ds and make a vertical version for social?
@@ -55,8 +90,10 @@ npx skills add diffusionstudio/skills -g
 /editor Make a 15-second version of this launch video. https://x.com/claudeai/status/2045156267690213649
 ```
 
+</details>
 
-**Video understanding and reasoning**
+<details>
+<summary><b>Video understanding and reasoning</b></summary>
 
 ```text
 /watch In three bullets, explain what starts the conflict. Include timestamps. https://youtu.be/aqz-KE-bpKQ
@@ -65,6 +102,16 @@ npx skills add diffusionstudio/skills -g
 ```text
 /watch Name three recurring locations and give one visual cue that distinguishes each. https://youtu.be/dQw4w9WgXcQ
 ```
+
+</details>
+
+## Made with Diffusion Studio
+
+Both were created by prompting. The compositions are published in [diffusionstudio/open-projects](https://github.com/diffusionstudio/open-projects):
+
+| [Launch video](https://github.com/diffusionstudio/open-projects/tree/main/launch-video) | [Raise announcement](https://github.com/diffusionstudio/open-projects/tree/main/raise-announcement) |
+| --- | --- |
+| <img src="assets/launch-video.gif" alt="Launch video" width="420" /> | <img src="assets/raise-announcement.gif" alt="Raise announcement" width="420" /> |
 
 ## Compositions as code
 

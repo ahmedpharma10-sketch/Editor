@@ -42,11 +42,9 @@ function formatCreditTierLabel(tier: SubscriptionCredits): string {
 function DashboardBillingFreePlanFeatures() {
   return (
     <>
-      <DashboardFeatureRow label="Unlimited 4K exports" />
+      <DashboardFeatureRow label="The full editor" />
       <DashboardFeatureRow label="Unlimited projects" />
-      <DashboardFeatureRow label="Unlimited file imports" />
-      <DashboardFeatureRow label="No watermark" />
-      <DashboardFeatureRow label="Commercial use allowed" />
+      <DashboardFeatureRow label="Unlimited exports" />
     </>
   );
 }
@@ -54,10 +52,11 @@ function DashboardBillingFreePlanFeatures() {
 export function DashboardProPlanFeatures() {
   return (
     <>
+      <DashboardFeatureRow label="Let AI edit your videos" />
+      <DashboardFeatureRow label="Analyze & transcribe footage" />
+      <DashboardFeatureRow label="Generate video, images & voice" />
+      <DashboardFeatureRow label="Auto generated subtitles" />
       <DashboardFeatureRow label="Top up credits anytime" />
-      <DashboardFeatureRow label="Monthly credit refill" />
-      <DashboardFeatureRow label="Access to pro models" />
-      <DashboardFeatureRow label="Priority feedback channel" />
     </>
   );
 }
@@ -65,10 +64,9 @@ export function DashboardProPlanFeatures() {
 function DashboardBillingEnterprisePlanFeatures() {
   return (
     <>
-      <DashboardFeatureRow label="SSO & SAML" />
-      <DashboardFeatureRow label="Cloud backup" />
-      <DashboardFeatureRow label="Train your own model" />
-      <DashboardFeatureRow label="Dedicated account manager" />
+      <DashboardFeatureRow label="Shared workspace and assets" />
+      <DashboardFeatureRow label="SSO and audit logs" />
+      <DashboardFeatureRow label="Pooled credits, invoiced" />
     </>
   );
 }
@@ -115,31 +113,18 @@ export function DashboardPlansView() {
             </div>
           </div>
 
-          <div class="flex shrink-0 items-center gap-2 text-xs  ">
-            <button
-              type="button"
-              class="transition-colors text-muted-foreground hover:text-foreground"
-              classList={{ "text-foreground": !annualBilling() }}
-              onClick={() => setAnnualBilling(false)}
-            >
-              Monthly
-            </button>
+          <div class="flex shrink-0 items-center gap-2 text-xs">
+            <div class="flex flex-col text-right text-muted-foreground">
+              <span>Yearly billing</span>
+              <span>Save up to 40%</span>
+            </div>
 
             <Toggle checked={annualBilling()} onChange={setAnnualBilling} class="relative">
-              <SwitchInput aria-label="Toggle annual billing" />
+              <SwitchInput aria-label="Toggle yearly billing" />
               <SwitchControl variant="compact">
                 <SwitchThumb variant="compact" />
               </SwitchControl>
             </Toggle>
-
-            <button
-              type="button"
-              class="transition-colors text-muted-foreground hover:text-foreground"
-              classList={{ "text-foreground": annualBilling() }}
-              onClick={() => setAnnualBilling(true)}
-            >
-              Annually (Save 25%)
-            </button>
           </div>
         </div>
 
@@ -153,8 +138,8 @@ export function DashboardPlansView() {
                 <p class="text-lg leading-6  font-450 text-foreground">
                   $0
                 </p>
-                <p class="text-muted-foreground text-xs">
-                  For getting started with video editing
+                <p class="text-muted-foreground text-xs min-h-8 line-clamp-2 -mb-2">
+                  Everything you need to edit and export videos
                 </p>
               </div>
 
@@ -192,8 +177,8 @@ export function DashboardPlansView() {
                     {annualBilling() ? "/month, billed annually" : "/month"}
                   </p>
                 </div>
-                <p class="text-muted-foreground text-xs">
-                  For creators and professionals
+                <p class="text-muted-foreground text-xs min-h-8 line-clamp-2 -mb-2">
+                  AI powered editing, analysis, and generation
                 </p>
               </div>
 
@@ -244,8 +229,8 @@ export function DashboardPlansView() {
                 <p class="text-lg leading-6  font-450 text-foreground">
                   Custom
                 </p>
-                <p class="text-muted-foreground text-xs">
-                  For teams and organizations
+                <p class="text-muted-foreground text-xs min-h-8 line-clamp-2 -mb-2">
+                  For larger production operations
                 </p>
               </div>
 

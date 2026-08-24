@@ -1,10 +1,13 @@
 {
   "name": "@diffusionstudio/editor",
-  "version": "0.132.1",
+  "version": "0.132.2",
   "private": true,
   "license": "MPL-2.0",
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev:web",
     "dev:web": "npm run dev --workspace=@diffusionstudio/web",
