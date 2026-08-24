@@ -419,7 +419,8 @@ export default function Project() {
   survives the file being relinked), an asset id, a URL, or an absolute path.
 - Generated assets are declared rather than fetched: \`src={generate.image({ prompt })}\`,
   and \`generate.video\`, \`generate.voice\`, \`generate.audio\`. They are produced on
-  mount, in dependency order.
+  mount, in dependency order. \`dapi context\` reports where each stands:
+  generating, failed with the reason, or done with the asset path it landed as.
 - Solid is fully available while mounting: \`<For>\`, \`<Show>\`, \`createMemo\`, and
   \`useTicker()\` for values that follow the playhead.
 - npm packages work as they normally do. The folder is a real npm package, so
@@ -439,7 +440,7 @@ All of them talk to the running app, except \`fonts\` and \`fetch\`.
 | Script | Command | What it does |
 | ------ | ------- | ------------ |
 | \`open\` | \`dapi open .\` | Launch the app with this project open. |
-| \`context\` | \`dapi context\` | Which project the app has open, where its playhead sits, its fonts. |
+| \`context\` | \`dapi context\` | Which project the app has open, where its playhead sits, its fonts, where its generations stand. |
 | \`capture\` | \`dapi capture <id>\` | Render one node in isolation to labelled PNG contact sheets. |
 | \`probe\` | \`dapi media probe <id\\|path>\` | Container and per-track metadata, without decoding. |
 | \`transcribe\` | \`dapi media transcribe <id\\|path>\` | Timed speech transcript, word by word. |
