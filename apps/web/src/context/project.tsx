@@ -15,7 +15,7 @@ import { getProject, renameProject } from '@/projects';
 
 import type { ProjectInfo } from '@/projects';
 
-type ProjectContextValue = {
+export type ProjectContextValue = {
 	/** package.json `projectId`: what the project is, whatever it is called. */
 	id: Accessor<string>;
 	/** Absolute project folder. Moves when the project is renamed. */

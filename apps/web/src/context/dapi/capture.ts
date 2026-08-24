@@ -27,9 +27,8 @@ function isNode(entity: Entity): boolean {
 }
 
 /**
- * The entity `id` names. Entities travel to the CLI as their koota values
- * (`dapi context` hands them out), so an id is one straight back — it only
- * has to still be alive and still be something worth drawing.
+ * The entity `id` names. An id is a koota entity value handed straight back,
+ * so it only has to still be alive and still be something worth drawing.
  */
 function resolveNode(world: World, id: number): Entity {
   const entity = id as Entity;

@@ -186,7 +186,7 @@ dapi node render -o hero.mp4    # encode the scene to disk
 
 | Command | Purpose |
 | --- | --- |
-| `dapi context` | Summary of the open project: scenes, playhead, fonts |
+| `dapi context` | Summary of app state |
 | `dapi capture` | Render a node in isolation to a labelled contact sheet, or one PNG per position |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |

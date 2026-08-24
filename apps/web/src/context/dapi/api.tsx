@@ -23,6 +23,7 @@ import { useFullscreenState } from "@/hooks/use-fullscreen-state";
 import type { JSX, Accessor } from 'solid-js';
 import type { User } from '@supabase/supabase-js';
 import type { World } from 'koota';
+import type { ProjectContextValue } from '@/context/project';
 
 type EditorApiProviderProps = {
   children: JSX.Element;
@@ -56,7 +57,7 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   createEffect(() => {
     if (!window.desktop || project.id() !== world.get(Project)?.id) return;
 
-    const router = createAppRouter({ world, getUser, requireAuth });
+    const router = createAppRouter({ world, project, getUser, requireAuth });
     onCleanup(cliBridge.register(createRouterCaller(router)));
   });
 
@@ -75,15 +76,16 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
 
 type AppRouterDeps = {
   world: World;
+  project: ProjectContextValue;
   getUser: () => User;
   requireAuth: <I, O>(fn: (data: I) => Promise<O>) => (data: I) => Promise<O>;
 };
 
-function createAppRouter({ world, getUser, requireAuth }: AppRouterDeps) {
+function createAppRouter({ world, project, getUser, requireAuth }: AppRouterDeps) {
   return t.router({
     ping: t.procedure.query(() => {}),
     whoami: t.procedure.query(() => getUser()),
-    context: q0(handleContextGet(world)),
+    context: q0(handleContextGet(world, project)),
     capture: q(handleCapture(world)),
     models: q(handleModels()),
     logs: q(handleLogs()),

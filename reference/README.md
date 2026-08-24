@@ -28,7 +28,7 @@ How the surface is divided:
 
 ### Document
 
-- [`dapi context`](./context.md): essential context about the open project
+- [`dapi context`](./context.md): which project the app has open, where its playhead sits, and its registered fonts
 - [`dapi capture`](./capture.md): render a node in isolation to a labelled contact sheet, or one PNG per position
 
 ### Media

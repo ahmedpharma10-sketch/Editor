@@ -572,7 +572,7 @@ program
   .command("context")
   .alias("ctx")
   .description(
-    `Print essential context about the open project. Call this first to orient: "this" or "here" may refer to the selection (spatial) or workarea (temporal).`,
+    `Print the current app context: which project the app has open (id, display name, folder), where its playhead sits, in seconds, and the registered font families.`,
   )
   .action(() => context());
 

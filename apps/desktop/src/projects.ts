@@ -437,7 +437,7 @@ All of them talk to the running app, except \`fonts\` and \`fetch\`.
 
 | Script | Command | What it does |
 | ------ | ------- | ------------ |
-| \`context\` | \`dapi context\` | What is open: scenes, active scene, playhead, work area, selection. |
+| \`context\` | \`dapi context\` | Which project the app has open, where its playhead sits, its fonts. |
 | \`capture\` | \`dapi capture <id>\` | Render one node in isolation to labelled PNG contact sheets. |
 | \`probe\` | \`dapi media probe <id\\|path>\` | Container and per-track metadata, without decoding. |
 | \`transcribe\` | \`dapi media transcribe <id\\|path>\` | Timed speech transcript, word by word. |

@@ -1,6 +1,6 @@
 # `dapi context`
 
-Essential context about the open project. Call this first to understand the canvas situation. Alias: `ctx`.
+Summary of app state. Alias: `ctx`.
 
 ## Input
 
@@ -12,13 +12,22 @@ One JSON object:
 
 ```ts
 {
-  projectId:      string;        // package.json `projectId`, stable across renames
-  entityCount:    number;
-  scenes:         number[];        // ids of the top-level scenes
-  activeSceneId:  number | null;   // null if no scene is active
-  currentFrame:   number;          // current timeline playhead position, in frames
-  workarea:       { start: number; end: number } | null;   // seconds, null if the active scene has none
-  fontFamilies:   string[];
-  selection:      number[];        // ids of the selected nodes, empty if nothing is selected
+  project: {
+    id:         string;   // package.json `projectId`, stable across renames
+    name:       string;   // package.json `displayName`, what the user calls it
+    dir:        string;   // absolute project folder — where the JSX being edited lives
+  };
+  currentTime:  number | null;   // playhead in the active scene, in seconds; null if no scene is active
+  fontFamilies: string[];        // families registered in the running world, valid as `fontFamily`
 }
 ```
+
+`currentTime` is local to the active scene, the same origin a clip's `start`
+and `end` are placed against, and in the same unit.
+
+`project.dir` is the folder the app is editing, which is not necessarily the
+one a command was run from: check it before writing to source files.
+
+`fontFamilies` is what text can be drawn with right now — loaded into the world,
+not merely named in the source — and always includes the editor default. For
+every family installed on the machine, see [`dapi fonts`](./fonts.md).
