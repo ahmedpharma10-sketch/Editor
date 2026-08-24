@@ -41,6 +41,7 @@ import { store } from '@/init';
 import { createStoredSignal } from '@/lib/store';
 import { Layer } from './layer';
 import { LayerContextProvider } from './context';
+import { DropIndicator } from './drop-indicator';
 import { formatFrames, TIME_FORMAT_OPTIONS, type TimeFormat } from '../time-format';
 
 import type { TimelineNode } from '@diffusionstudio/runtime';
@@ -276,6 +277,7 @@ export function Layers() {
               <Index each={layers()}>
                 {(layer) => <Layer layer={layer()} />}
               </Index>
+              <DropIndicator />
             </LayerContextProvider>
           </div>
         </div>

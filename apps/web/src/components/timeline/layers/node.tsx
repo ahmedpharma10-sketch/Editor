@@ -62,7 +62,8 @@ export function NodeLayer(props: LayerRowProps) {
   const selected = useTag(entity, Selected);
   const controlsVisible = createMemo(() => hovering() || muted() || soloed() || hidden());
 
-  const [resized, setResized] = useLayerContext().resized;
+  const { resized: resizedSignal, drag } = useLayerContext();
+  const [resized, setResized] = resizedSignal;
 
   const [editing, setEditing] = createSignal(false);
   let originalName = '';
@@ -99,12 +100,17 @@ export function NodeLayer(props: LayerRowProps) {
     if (!wasSoloed) entity().add(Soloed);
   };
 
-  /** A press on a row selects it, shift-clicking to extend the selection. */
+  /**
+   * A press on a row selects it, shift-clicking to extend the selection. A
+   * plain press also arms a drag: moving far enough turns the press into
+   * dragging the layer to a new place in the tree.
+   */
   const handleRowPointerDown = (e: PointerEvent) => {
     if (e.button !== 0 || resized() !== null) return;
     if ((e.target as HTMLElement | null)?.closest('button')) return;
 
     editor.select(entity(), { extend: e.shiftKey });
+    if (!e.shiftKey) drag.begin(e, entity());
   };
 
   let resizeStartY = 0;
@@ -187,14 +193,16 @@ export function NodeLayer(props: LayerRowProps) {
     <ContextMenu>
       <ContextMenuTrigger
         as="div"
+        data-layer-row
         class="w-full text-muted-foreground group relative select-none"
         onPointerEnter={() => setRowHover(world, entity())}
         onPointerLeave={() => setRowHover(world, null)}
         onPointerDown={handleRowPointerDown}
         classList={{
           'bg-accent': selected(),
-          'bg-accent/70': !selected() && hovering() && resized() === null,
+          'bg-accent/70': !selected() && hovering() && resized() === null && drag.dragging() === null,
           'bg-accent/40': !selected() && !(hovering() && resized() === null) && props.ancestorSelected,
+          'opacity-60': drag.dragging() === entity(),
         }}
         style={{ height: height() + 'px' }}
       >

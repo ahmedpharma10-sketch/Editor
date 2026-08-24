@@ -173,6 +173,15 @@ export function createTimelineController(world: World) {
 		});
 	};
 
+	/** Programmatic vertical scroll, for gestures that hold near an edge. */
+	const scrollBy = (deltaY: number): void => {
+		withScene((scene) => {
+			setScrollY(world, scene, getScrollY(world, scene) + deltaY);
+			applyScroll();
+			updateTimelineTransform(world, scene);
+		});
+	};
+
 	const clientToFrame = (clientX: number): number => {
 		const scene = getTimelineScene(world);
 		if (scene === null) return 0;
@@ -256,6 +265,7 @@ export function createTimelineController(world: World) {
 		attachCanvas,
 		detachCanvas,
 		scroll,
+		scrollBy,
 		clientToFrame,
 		clientToTime,
 		setMinimized,
