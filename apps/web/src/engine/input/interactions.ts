@@ -11,9 +11,9 @@
  * Every change goes through `DocumentEditor`, because the source is the
  * document: dragging a node writes `x`/`y` back to the element it came from,
  * and dropping it into a scene moves the element under that scene's, the same
- * way the inspector or a hand edit would. One bitecs behavior did not come
- * along, for want of a way to say it: alt-drag duplication, which would have
- * to author a copy of a subtree the JSX may well be generating.
+ * way the inspector or a hand edit would. Alt-drag duplication is the one
+ * gesture with no spelling here: it would have to author a copy of a subtree
+ * the JSX may well be generating.
  */
 
 import {

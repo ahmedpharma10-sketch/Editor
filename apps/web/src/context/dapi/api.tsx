@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createEffect, createContext, useContext, onCleanup } from "solid-js";
-import { useEngine } from '@/context/engine';
 import { useWorld } from '@diffusionstudio/koota-solid';
+import { Project } from '@diffusionstudio/runtime';
 import { useProject } from '@/context/project';
 import { useAuth } from '@/context/auth';
 import { t, q, q0 } from "@/lib/cli-rpc";
@@ -22,7 +22,6 @@ import { useFullscreenState } from "@/hooks/use-fullscreen-state";
 
 import type { JSX, Accessor } from 'solid-js';
 import type { User } from '@supabase/supabase-js';
-import type { Engine } from '@/components/engine';
 import type { World } from 'koota';
 
 type EditorApiProviderProps = {
@@ -38,7 +37,6 @@ const EditorApiContext = createContext<EditorApiContextValue>();
 
 export function EditorApiProvider(props: EditorApiProviderProps) {
   const project = useProject();
-  const engine = useEngine();
   const auth = useAuth();
   const isFullscreen = useFullscreenState();
 
@@ -53,14 +51,12 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
     return user;
   };
 
-  const getEngine = () => engine;
   const world = useWorld();
 
   createEffect(() => {
-    if (!window.desktop || !engine.initialized() || project.id() !== engine.world.projectId) return;
+    if (!window.desktop || project.id() !== world.get(Project)?.id) return;
 
-
-    const router = createAppRouter({ getEngine, world, getUser, requireAuth });
+    const router = createAppRouter({ world, getUser, requireAuth });
     onCleanup(cliBridge.register(createRouterCaller(router)));
   });
 
@@ -78,18 +74,17 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
 
 
 type AppRouterDeps = {
-  getEngine: () => Engine;
   world: World;
   getUser: () => User;
   requireAuth: <I, O>(fn: (data: I) => Promise<O>) => (data: I) => Promise<O>;
 };
 
-function createAppRouter({ getEngine, world, getUser, requireAuth }: AppRouterDeps) {
+function createAppRouter({ world, getUser, requireAuth }: AppRouterDeps) {
   return t.router({
     ping: t.procedure.query(() => {}),
     whoami: t.procedure.query(() => getUser()),
-    context: q0(handleContextGet(getEngine)),
-    capture: q(handleCapture(getEngine)),
+    context: q0(handleContextGet(world)),
+    capture: q(handleCapture(world)),
     models: q(handleModels()),
     logs: q(handleLogs()),
     screenshot: q0(handleWindowScreenshot()),

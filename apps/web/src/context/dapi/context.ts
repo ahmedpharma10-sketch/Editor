@@ -2,49 +2,36 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { ChildOf } from "@/components/engine/components";
-import { getAllEntities, hasComponent, Not, Or, query } from "bitecs";
+import { Or } from "koota";
+import {
+  Active, AdjustmentLayer, Computed, Fonts, FrameRate, Geometry, Group,
+  Project, Scene, Selected, Workarea,
+} from "@diffusionstudio/runtime";
 
-import type { Engine, EngineWorld } from "@/components/engine";
-import type { Accessor } from "solid-js";
+import type { World } from "koota";
 
-function selectedNodeIds(world: EngineWorld): number[] {
-  const c = world.components;
-  return [...query(world, [c.Selected, Or(c.Geometry, c.Group, c.AdjustmentLayer), Not(c.Deleted)])];
-}
-
-export function handleContextGet(engine: Accessor<Engine>) {
+/**
+ * What `dapi context` reports: enough of the open project for a caller with
+ * no window onto it to say what to look at next. Entities travel as their
+ * koota values, which is what `capture` takes back.
+ */
+export function handleContextGet(world: World) {
   return async () => {
-    const { world } = engine();
-    const c = world.components;
+    const scenes = [...world.query(Scene)];
+    const active = world.queryFirst(Active) ?? null;
 
-    const scenes = [...query(world, [c.Geometry, c.Scene, Not(ChildOf('*')), Not(c.Deleted)])];
-    const entityCount = getAllEntities(world).filter((eid) => !hasComponent(world, eid, c.Deleted)).length;
-    const activeSceneId = world.selection.scene !== null ? world.selection.scene : null;
-    const currentFrame = activeSceneId !== null ? (c.Computed.localTime[activeSceneId] ?? 0) : 0;
-
-    const fps = world.frameRate;
-    const workarea =
-      activeSceneId !== null && hasComponent(world, activeSceneId, c.Workarea)
-        ? {
-            start: (c.Workarea.start[activeSceneId] ?? 0) / fps,
-            end: (c.Workarea.end[activeSceneId] ?? 0) / fps,
-          }
-        : null;
-
-    const fontFamilies = [...new Set(["Inter", ...world.fonts.map((f) => f.family)])];
-    const projectId = world.projectId;
-    const selection = selectedNodeIds(world);
+    const fps = world.get(FrameRate)?.value ?? 30;
+    const workarea = active?.get(Workarea);
 
     return {
-      projectId,
-      entityCount,
+      projectId: world.get(Project)?.id ?? '',
+      entityCount: world.entities.length,
       scenes,
-      activeSceneId,
-      currentFrame,
-      workarea,
-      fontFamilies,
-      selection,
+      activeSceneId: active,
+      currentFrame: active?.get(Computed)?.localTime ?? 0,
+      workarea: workarea ? { start: workarea.start / fps, end: workarea.end / fps } : null,
+      fontFamilies: [...new Set(["Inter", ...(world.get(Fonts)?.list ?? []).map((f) => f.family)])],
+      selection: [...world.query(Selected, Or(Geometry, Group, AdjustmentLayer))],
     };
   }
 }

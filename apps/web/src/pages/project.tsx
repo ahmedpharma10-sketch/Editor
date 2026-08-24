@@ -7,15 +7,13 @@ import { Navigate, useNavigate } from '@solidjs/router';
 import { EditorPage } from './editor';
 import { LayoutProvider } from "@/context/layout";
 import { PromptInputProvider } from "@/context/prompt-input";
-import { EngineProvider } from '@/context/engine';
 import { EditorApiProvider } from '@/context/dapi';
 import { ExportProvider } from '@/context/export';
 import { ProjectProvider } from '@/context/project';
 import { projectRoute, useProjectRef } from '@/hooks/use-project-route';
 import { resolveProject } from '@/projects';
-import { ECSProvider } from '@/context/ecs';
 import { TimelineProvider } from '@/context/timeline';
-import { EngineProvider as KootaEngineProvider } from '@/engine';
+import { EngineProvider } from '@/engine';
 
 /** `/projects/*ref` — the editor, with the project `ref` names loaded. */
 export function ProjectPage() {
@@ -56,23 +54,19 @@ export function ProjectPage() {
       <Show when={project()} keyed fallback={<Navigate href="/" />}>
         {(found) => (
           <ProjectProvider project={found}>
-            <KootaEngineProvider projectId={found.id}>
-              <EngineProvider projectId={found.id}>
-                <EditorApiProvider>
-                  <TimelineProvider>
-                    <ECSProvider>
-                      <ExportProvider>
-                        <PromptInputProvider>
-                          <LayoutProvider>
-                            <EditorPage />
-                          </LayoutProvider>
-                        </PromptInputProvider>
-                      </ExportProvider>
-                    </ECSProvider>
-                  </TimelineProvider>
-                </EditorApiProvider>
-              </EngineProvider>
-            </KootaEngineProvider>
+            <EngineProvider projectId={found.id}>
+              <EditorApiProvider>
+                <TimelineProvider>
+                  <ExportProvider>
+                    <PromptInputProvider>
+                      <LayoutProvider>
+                        <EditorPage />
+                      </LayoutProvider>
+                    </PromptInputProvider>
+                  </ExportProvider>
+                </TimelineProvider>
+              </EditorApiProvider>
+            </EngineProvider>
           </ProjectProvider>
         )}
       </Show>

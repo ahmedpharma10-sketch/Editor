@@ -9,8 +9,8 @@ import type { ExtractStore, Trait, World } from 'koota';
 const registered = new WeakMap<World, WeakSet<Trait>>();
 
 /**
- * Direct SoA store access for hot paths (bitecs-style array indexing by
- * entity.id(), no snapshots, no change events). koota registers a trait's
+ * Direct SoA store access for hot paths (array indexing by entity.id(), no
+ * snapshots, no change events). koota registers a trait's
  * store lazily on first add/query and bare getStore throws before that, so
  * this wrapper registers the trait once per world.
  */

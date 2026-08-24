@@ -15,7 +15,7 @@ import {
 import { useNavigate } from "@solidjs/router";
 import { For, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
-import { forgetProjectBundle, generateProjectName } from "@/components/engine/db";
+import { forgetProjectBundle, generateProjectName } from "@/lib/db";
 import { createProject, deleteProject, duplicateProject, ensureProjectsRoot } from "@/projects";
 import { AssetId, ChildOf, Name, Root, Scene, getAssetFile, getActiveEntity, sortByItemIndex } from "@diffusionstudio/runtime";
 import { assetName } from "@diffusionstudio/assets";

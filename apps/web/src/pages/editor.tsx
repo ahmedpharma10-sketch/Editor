@@ -18,7 +18,7 @@ import { getDocumentEditor } from '@/engine/editor';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
 import { attachAi } from '@/utils/gen-ai';
 import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
-import { loadProjectBundle, rememberProjectBundle } from '@/components/engine/db';
+import { loadProjectBundle, rememberProjectBundle } from '@/lib/db';
 import { isCacheFile } from '@diffusionstudio/assets';
 import { createEditWriter } from '@/projects/edits';
 import { compileProject, watchProject } from '@/projects/host';

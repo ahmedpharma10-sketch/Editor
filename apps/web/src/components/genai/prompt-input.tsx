@@ -56,7 +56,7 @@ import type {
   VideoGenerationConfig,
   VoiceGenerationConfig,
   AudioGenerationConfig,
-} from "@/components/engine/db";
+} from "./schemas";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
 import { useLibrary } from "@/engine/library";
 import { useEditor } from "@/engine/hooks";

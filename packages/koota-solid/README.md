@@ -1,6 +1,6 @@
 # @diffusionstudio/koota-solid
 
-Solid bindings for [koota](https://github.com/pmndrs/koota): a port of `@koota/react` used while migrating the editor from bitecs to koota. The API mirrors `@koota/react` one to one, adapted to Solid's reactivity model.
+Solid bindings for [koota](https://github.com/pmndrs/koota): a port of `@koota/react`. The API mirrors `@koota/react` one to one, adapted to Solid's reactivity model.
 
 ## Usage
 

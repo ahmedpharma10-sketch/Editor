@@ -5,9 +5,10 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { pickInformativeTimes } from './frame-triage';
 import { trpc } from '@/lib/trpc';
-import { uploadBlob, composeSheet, planSheet, planSheetSizes, sheetTimecode } from '@/components/engine';
+import { uploadBlob } from '@/lib/uploads';
+import { composeSheet, planSheet, planSheetSizes, sheetTimecode } from '@diffusionstudio/encoder';
 import { assert } from '@/utils';
-import { startResumableSession, uploadResumableStream } from '@/components/engine';
+import { startResumableSession, uploadResumableStream } from '@/lib/uploads';
 import { filmstripAsset, formatTimecode, getAsset, getAssetFile, getLibrary, Project, transcodeForAnalysis, transcodeForTranscription, waveformAsset } from '@diffusionstudio/runtime';
 import { assetName } from '@diffusionstudio/assets';
 
@@ -226,7 +227,7 @@ export function handleMediaFrame(world: World) {
         const to = from + sizes[sheet];
         result[sheet] = {
           timecode: sheetTimecode(cells.slice(from, to)),
-          base64: composeSheet(
+          base64: await composeSheet(
             canvases.slice(from, to).map((canvas, k) => ({ image: canvas!, label: cells[from + k].timecode })),
             plans[sheet],
           ),

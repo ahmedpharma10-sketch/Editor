@@ -4,7 +4,7 @@
 
 import { createContext, createSignal, useContext } from "solid-js";
 import type { JSX } from "solid-js";
-import type { GenerationConfig } from "@/components/engine/db";
+import type { GenerationConfig } from "@/components/genai/schemas";
 
 type PromptInputContextValue = {
   openPromptInput: (config: GenerationConfig) => void;

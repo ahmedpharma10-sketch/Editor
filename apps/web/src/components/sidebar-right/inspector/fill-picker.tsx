@@ -92,8 +92,7 @@ export function getFillTab(paint: PaintType): FillTab {
  * property write but a swap: the new element is inserted where the old one
  * stood and the old one removed. The picker therefore hands its caller the
  * entity it ends up with, and what a swap carries over is what the new kind's
- * defaults say — the same values the bitecs panel seeded, since a color is
- * not a gradient and neither is a picture.
+ * defaults say, since a color is not a gradient and neither is a picture.
  */
 export function FillPicker(props: FillPickerProps) {
   const world = useWorld();

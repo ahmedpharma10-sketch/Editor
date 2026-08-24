@@ -11,10 +11,6 @@ import type { AssetLibrary } from '@diffusionstudio/assets';
 import type { GenAi } from '../ai';
 import type { Quad } from '../math/aabb';
 
-// Singleton state attached to the world itself (world.get/world.set).
-// Replaces the bitecs createWorld({...}) context bag. Only headless runtime
-// state lives here; editor state (input, HUD, history, persistence, asset
-// stores) is layered on by the app as its own world traits.
 
 export const Project = trait({ id: '' });
 

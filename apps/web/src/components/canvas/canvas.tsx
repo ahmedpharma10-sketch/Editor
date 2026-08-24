@@ -16,8 +16,6 @@ import { ASSET_DRAG_TYPE } from "@/components/sidebar-left/folder-item";
 
 import type { Asset } from "@diffusionstudio/assets";
 
-export const MAIN_CANVAS_ID = 'engine-canvas';
-
 export function Canvas() {
   const world = useWorld();
 
@@ -83,12 +81,6 @@ export function Canvas() {
         <SceneInitOverlay />
         <EngineCanvas />
         <CameraController />
-
-        {/** Deprecated bitecs canvas */}
-        <canvas
-          id={MAIN_CANVAS_ID}
-          class="absolute inset-0 opacity-0 pointer-events-none"
-        />
       </div>
     </div>
   );

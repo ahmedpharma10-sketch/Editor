@@ -68,7 +68,7 @@ export function findActiveGroup(groups: WordGroup[], relativeTime: number): numb
 
 /**
  * Playhead-driven caption text: a raw store write, no change events, so the
- * app never persists per-frame caption content (bitecs wrote the array too).
+ * app never persists per-frame caption content.
  */
 export function setChars(world: World, entity: Entity, text: string) {
 	if (!entity.has(Chars)) entity.add(Chars);

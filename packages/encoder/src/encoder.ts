@@ -466,8 +466,8 @@ export async function resolverSystem(world: World) {
 /**
  * Refresh every entity's accumulated delay + time bounds after raw store
  * rewrites. propagateTimeRangeDown recomputes top-down and then re-derives
- * each parent after its children (bitecs used a two-pass Hierarchy(ChildOf)
- * walk; koota has no hierarchy-ordered queries).
+ * each parent after its children, since koota has no hierarchy-ordered
+ * queries to walk in one pass.
  */
 export function recomputeAllTimeRanges(world: World): void {
 	const stage = world.get(Root)!;

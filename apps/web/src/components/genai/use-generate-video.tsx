@@ -15,7 +15,7 @@ import { useEditor } from "@/engine/hooks";
 import { ASPECT_RATIO_DIMENSIONS } from "./config";
 import { insertGenerated, randomSeed } from "./insert";
 
-import type { VideoGenerationConfig } from "@/components/engine/db";
+import type { VideoGenerationConfig } from "./schemas";
 
 export function useGenerateVideo() {
   const world = useWorld();

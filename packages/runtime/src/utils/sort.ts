@@ -6,8 +6,6 @@ import { ItemIndex, Computed, Keyframe } from '../traits';
 
 import type { Entity } from 'koota';
 
-// Plain comparators (the bitecs versions were world-bound factories; koota
-// entities carry their world, so these pass to sort() directly).
 
 export function sortByItemIndex(a: Entity, b: Entity): number {
 	return (a.get(ItemIndex)?.value ?? 0) - (b.get(ItemIndex)?.value ?? 0);

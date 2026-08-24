@@ -25,7 +25,7 @@ import { useModifiers } from "./use-modifiers";
 import { createDefaultConfig } from "./prompt-input";
 import { toast } from "somoto";
 
-import type { GenerationConfig } from "@/components/engine/db";
+import type { GenerationConfig } from "./schemas";
 
 interface ActionBarProps {
   openPromptInput?(config: GenerationConfig): void;

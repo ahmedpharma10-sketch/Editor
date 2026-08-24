@@ -2,20 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Runtime-owned invariants as koota event subscriptions (was the runtime half
-// of api/observers.ts): cache upkeep on ChildOf changes, authored-to-Computed
-// mirrors, and time-range reactions. Registered by createRuntimeWorld, so
-// deserialization and clones prime Cache/Computed through the same path as
-// actions. App-side duties of the bitecs observers (persistence, timeline
-// index, interactive state, selection styling, drag origins) and media
-// disposal hooks are layered on by their owners.
-//
-// Keyframe auto-sync on authored edits deliberately did not move here: koota
-// change events don't say which field changed, and syncing every field of a
-// trait would mint spurious keyframes on untouched properties. Editing
-// surfaces keep the track of the property they changed in step themselves —
-// in an app, through whatever owns the document, since a keyframe minted in
-// the world alone would never reach the project it was authored in.
 
 import { store } from './store';
 import {
@@ -279,8 +265,8 @@ export function observeWorld(world: World): () => void {
 	});
 
 	// Size flows into Computed via propagation (descendants owning a Size
-	// re-derive too). bitecs restored sizes through resizeEntity; deserialize
-	// is a plain set now, so the propagation rides on the event instead.
+	// re-derive too). Deserialize is a plain set, so the propagation rides on
+	// the event rather than on whatever restored the size.
 	mirror(Size, (entity) => {
 		propagateSize(world, entity);
 	}, false);

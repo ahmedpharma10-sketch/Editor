@@ -27,7 +27,7 @@ import {
 	createRuntimeWorld, disposeDecoders, getParentNode, removeChild, resetCamera,
 } from '@diffusionstudio/runtime';
 
-import { loadProjectBundle } from '@/components/engine/db';
+import { loadProjectBundle } from '@/lib/db';
 
 import type { RuntimeMode } from '@diffusionstudio/runtime';
 import type { Entity, World } from 'koota';

@@ -9,8 +9,7 @@
     ".": "./src/index.ts",
     "./traits": "./src/traits/index.ts",
     "./systems": "./src/systems/index.ts",
-    "./media": "./src/media/index.ts",
-    "./capture": "./src/capture/index.ts"
+    "./media": "./src/media/index.ts"
   },
   "scripts": {
     "check": "tsc --noEmit"

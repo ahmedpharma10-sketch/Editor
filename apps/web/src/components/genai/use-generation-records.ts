@@ -16,7 +16,7 @@ import {
   PROMPT_INPUT_VOICE_MODEL,
   PROMPT_INPUT_VOICE_OPTIONS,
 } from "./config";
-import { generationConfigSchema, type GenerationConfig } from "@/components/engine/db";
+import { generationConfigSchema, type GenerationConfig } from "./schemas";
 
 import type { AssetInput, AssetSpecInput } from "@diffusionstudio/jsx";
 import type { AssetLibrary } from "@diffusionstudio/assets";

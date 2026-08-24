@@ -19,7 +19,7 @@ import {
   PROMPT_INPUT_VOICE_OPTIONS,
 } from "@/components/genai/config";
 import { assert } from "@/utils";
-import { uploadBlob } from "@/components/engine";
+import { uploadBlob } from "@/lib/uploads";
 import { track } from "@/lib/analytics";
 import { trpc } from "@/lib/trpc";
 import { toast } from "somoto";

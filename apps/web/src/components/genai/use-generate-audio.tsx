@@ -12,7 +12,7 @@ import { useEditor } from "@/engine/hooks";
 import { AUDIO_SIZE } from "@/engine/insert-asset";
 import { insertGenerated, randomSeed } from "./insert";
 
-import type { AudioGenerationConfig } from "@/components/engine/db";
+import type { AudioGenerationConfig } from "./schemas";
 
 export function useGenerateAudio() {
   const world = useWorld();

@@ -18,13 +18,13 @@ import { createSignal } from 'solid-js';
 
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { mainBridge } from '@/lib/ipc';
-import { lastUsedProjectRoot, rememberProjectRoot } from '@/components/engine/db';
+import { lastUsedProjectRoot, rememberProjectRoot } from '@/lib/db';
 
 import type { CompileResult, ProjectInfo, SourceEdit, WriteResult } from '@desktop/main-channels';
 
 export type { CompileResult, ProjectInfo, SourceEdit, WriteResult };
 
-// The roots live in the app's IndexedDB (see @/components/engine/db) as a list
+// The roots live in the app's IndexedDB (see @/lib/db) as a list
 // keyed by path. The app works against one of them — the one used last — but
 // the store is already the list several roots will need, so growing into them
 // is UI rather than a migration.

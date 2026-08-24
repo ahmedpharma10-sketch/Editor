@@ -29,7 +29,7 @@ import type { Entity, World } from 'koota';
 
 // This system writes derived per-frame data (LocalTransform, WorldTransform,
 // WorldBounds, Computed group bounds) straight into trait stores: no
-// snapshots, no change events, matching the bitecs SoA hot path.
+// snapshots, no change events.
 
 /**
  * Compute the local 2D affine matrix from Offset, Rotation, Scale,

@@ -17,7 +17,7 @@ import { useEditor } from "@/engine/hooks";
 import { ASPECT_RATIO_DIMENSIONS } from "./config";
 import { insertGenerated, randomSeed } from "./insert";
 
-import type { ImageGenerationConfig } from "@/components/engine/db";
+import type { ImageGenerationConfig } from "./schemas";
 
 export function useGenerateImage() {
   const world = useWorld();
