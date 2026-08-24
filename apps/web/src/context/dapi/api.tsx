@@ -86,7 +86,7 @@ function createAppRouter({ world, project, getUser, requireAuth }: AppRouterDeps
   return t.router({
     whoami: t.procedure.query(() => getUser()),
     context: q0(handleContextGet(world, project)),
-    capture: q(handleCapture(world)),
+    capture: q(handleCapture(world, project)),
     models: q(handleModels()),
     logs: q(handleLogs()),
     screenshot: q0(handleWindowScreenshot()),

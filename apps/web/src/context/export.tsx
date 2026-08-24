@@ -78,7 +78,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
     const startedAt = performance.now();
 
     try {
-      const result = await renderScene(engine, { scene, target, config });
+      const result = await renderScene(engine, { scene, target, config, dir: project.dir() });
 
       if (result.type === "error") {
         console.error("Export failed:", result.error);

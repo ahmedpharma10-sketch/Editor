@@ -16,6 +16,7 @@ import { createCapture } from "@/engine/capture";
 
 import type { CaptureRequest, CaptureResult, TimecodedImage } from "@diffusionstudio/cli/channels";
 import type { Entity, World } from "koota";
+import type { ProjectContextValue } from "@/context/project";
 
 // Scenes are nodes too, so capture accepts them alongside geometry, groups,
 // and adjustment layers.
@@ -41,7 +42,7 @@ function resolveNode(world: World, id: number): Entity {
 // Ceiling on the height a sheet cell renders a node at.
 const SHEET_CAPTURE_HEIGHT = 1080;
 
-export function handleCapture(world: World) {
+export function handleCapture(world: World, project: ProjectContextValue) {
   return async ({ id, frames, combine = true, perSheet }: CaptureRequest): Promise<CaptureResult> => {
     const node = resolveNode(world, id);
 
@@ -53,7 +54,7 @@ export function handleCapture(world: World) {
 
     // The project re-rendered into a world of its own, reduced to this node:
     // the same arrangement an export runs against, and the encoder's to draw.
-    const capture = await createCapture(world, node);
+    const capture = await createCapture(world, node, { dir: project.dir() });
 
     try {
       const encoder = await createImageEncoder(capture.world, {

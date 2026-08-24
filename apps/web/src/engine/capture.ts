@@ -28,6 +28,7 @@ import {
 } from '@diffusionstudio/runtime';
 
 import { loadProjectBundle } from '@/lib/db';
+import { compileProject, isDesktop } from '@/projects';
 
 import type { RuntimeMode } from '@diffusionstudio/runtime';
 import type { Entity, World } from 'koota';
@@ -37,6 +38,27 @@ export interface CaptureOptions {
 	frameRate?: number;
 	/** What is being encoded. Audio-only skips nothing, it just draws nothing. */
 	mode?: RuntimeMode;
+	/** The project's folder, to compile it fresh; the remembered bundle otherwise. */
+	dir?: string;
+}
+
+/**
+ * The code an encode mounts. Compiled fresh when the project's folder is
+ * known: an element the editor inserted reaches the file without a recompile
+ * (its own writes are kept from the watcher), so the bundle the last mount
+ * remembered may predate it — and an encode of it would come up empty. The
+ * remembered bundle answers off the desktop, where there is no compiler.
+ */
+async function bundleFor(source: World, dir?: string): Promise<string> {
+	if (dir && isDesktop()) {
+		const result = await compileProject(dir);
+		if (!result.ok) throw new Error(result.error);
+		return result.code;
+	}
+
+	const code = await loadProjectBundle(source.get(Project)?.id ?? '');
+	if (!code) throw new Error('There is no project to render');
+	return code;
 }
 
 export interface Capture {
@@ -51,13 +73,13 @@ export interface Capture {
 /**
  * Builds the capture world for an encode of `node`, an entity of `source` —
  * the editor's world. A scene, for a render of the composition; any node for
- * an image capture of it alone. Throws when there is no project to render,
- * when the node has no source stamp yet (an element the writer has not put in
- * the file), or when rendering the project produces nothing for that stamp.
+ * an image capture of it alone. Throws when there is no project to render (or
+ * it no longer compiles), when the node has no source stamp yet (an element
+ * the writer has not put in the file), or when rendering the project produces
+ * nothing for that stamp.
  */
 export async function createCapture(source: World, node: Entity, options: CaptureOptions = {}): Promise<Capture> {
-	const code = await loadProjectBundle(source.get(Project)?.id ?? '');
-	if (!code) throw new Error('There is no project to render');
+	const code = await bundleFor(source, options.dir);
 
 	// The stamp, not the entity: the two worlds hand out ids of their own, and
 	// the stamp is the same element in both.
