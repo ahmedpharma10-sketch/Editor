@@ -2,11 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Putting an asset on the canvas: an element in the project's JSX whose
-// `src` is the asset's library path, inserted the way every drawn element
-// is (see DocumentEditor.insertElement), so it lands in the file too.
 
-import { Audio, Captions, Image, Video } from '@diffusionstudio/reconciler';
+import { Audio, Captions, ImagePaint, Rect, VideoPaint } from '@diffusionstudio/reconciler';
 import { Computed, getActiveEntity, getNextName, Root, Source, store } from '@diffusionstudio/runtime';
 import { assetName } from '@diffusionstudio/assets';
 
@@ -50,9 +47,17 @@ export function insertAsset(world: World, asset: Asset, options: InsertAssetOpti
 		switch (asset.type) {
 			case 'VIDEO':
 			case 'SEQUENCE':
-				return <Video name={name} src={src} {...position} {...size} {...timing} />;
+				return (
+					<Rect name={name} {...position} {...size} {...timing}>
+						<VideoPaint src={src} />
+					</Rect>
+				);
 			case 'IMAGE':
-				return <Image name={name} src={src} {...position} {...size} {...timing} />;
+				return (
+					<Rect name={name} {...position} {...size} {...timing}>
+						<ImagePaint src={src} />
+					</Rect>
+				);
 			case 'AUDIO':
 				return <Audio name={name} src={src} {...position} {...size} {...timing} />;
 			case 'TRANSCRIPT':

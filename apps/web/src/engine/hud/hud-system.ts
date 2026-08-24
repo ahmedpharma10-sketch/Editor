@@ -2,19 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/**
- * Everything drawn over the document rather than in it: snap guides, hover
- * outlines, scene headers, the selection mask with its handles, and the
- * marquee. Runs after the render system, on the same canvas and in device
- * pixels (the transform is reset per piece, so nothing here inherits the
- * camera).
- *
- * Drawing is also where the HUD's hit regions come from: a control is pushed
- * with the handler it answers to right after it is painted, so the regions
- * come out in paint order, on top of the entity regions the render system
- * left, and the input system can test them back to front next frame.
- */
-
 import { Not, Or } from 'koota';
 import {
 	Active, Computed, Culled, FrameRate, Generating, Geometry, Group, Hidden,
@@ -54,7 +41,7 @@ export function hudSystem(world: World): void {
 	drawSnapLines(world, ctx, resolution);
 	drawHoverOutlines(world, ctx, resolution);
 
-	for (const entity of world.query(Or(Name, Generating, SourceError), ChildOf(world.get(Root)!), Not(Culled), Not(Hidden))) {
+	for (const entity of world.query(ChildOf(world.get(Root)!), Not(Culled), Not(Hidden), Name)) {
 		drawHeader(world, ctx, entity, resolution);
 	}
 
@@ -119,9 +106,10 @@ function drawHoverOutlines(world: World, ctx: Ctx2D, resolution: number): void {
  * It sits in the node's own rotation, one line above its top edge.
  */
 function drawHeader(world: World, ctx: Ctx2D, entity: Entity, resolution: number): void {
-	const failure = entity.get(SourceError)?.value;
-	const generating = entity.has(Generating);
-	const label = failure || (generating ? 'Generating...' : entity.get(Name)?.value);
+	const errored = world.query(ChildOf(entity), SourceError);
+	const generating = world.query(ChildOf(entity), Generating);
+	const failure = errored.at(0)?.get(SourceError)?.value;
+	const label = failure || (generating.length ? 'Generating...' : entity.get(Name)?.value);
 	if (!label) return;
 
 	const header = getHeaderLayout(world, entity, resolution);

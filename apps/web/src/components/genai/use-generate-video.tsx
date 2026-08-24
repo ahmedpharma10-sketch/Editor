@@ -2,13 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Video generation, declared rather than performed: the prompt box writes a
-// `generate.video` source and inserts a <Video> consuming it (see ./insert).
-// The frames a model animates between are library assets, named by path, so
-// the call in the file says what it was made from as well as what to make.
-
 import { generate } from "@diffusionstudio/jsx";
-import { Video } from "@diffusionstudio/reconciler";
+import { Rect, VideoPaint } from "@diffusionstudio/reconciler";
 import { Library } from "@diffusionstudio/runtime";
 import { useWorld } from "@diffusionstudio/koota-solid";
 import { useEditor } from "@/engine/hooks";
@@ -41,7 +36,9 @@ export function useGenerateVideo() {
     });
 
     insertGenerated(world, editor, dims, (box) => (
-      <Video src={src} x={box.x} y={box.y} width={box.width} height={box.height} />
+      <Rect x={box.x} y={box.y} width={box.width} height={box.height}>
+        <VideoPaint src={src} />
+      </Rect>
     ));
   };
 

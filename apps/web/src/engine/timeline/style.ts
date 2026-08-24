@@ -13,7 +13,6 @@ import {
 	isMask,
 	isScene,
 	isText,
-	SourceError,
 } from '@diffusionstudio/runtime';
 
 import { COLORS } from './constants';
@@ -24,12 +23,11 @@ import type { Entity, World } from 'koota';
 export type ClipStyle = {
 	background: string;
 	foreground: string;
-	/** The colour of what is drawn inside: a waveform, a group's children. */
 	primary?: string;
 };
 
-export function getClipStyle(entity: Entity, asset: Asset | null): ClipStyle {
-	if (entity.has(SourceError) && !entity.has(AssetId)) return COLORS.clip.failed;
+export function getClipStyle(entity: Entity, asset: Asset | null, errored = false): ClipStyle {
+	if (errored && !entity.has(AssetId)) return COLORS.clip.failed;
 	if (isCaption(entity)) return COLORS.clip.caption;
 	if (isText(entity)) return COLORS.clip.text;
 	if (isScene(entity)) return COLORS.clip.scene;

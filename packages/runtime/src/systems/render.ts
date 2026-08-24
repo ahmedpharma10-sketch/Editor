@@ -16,7 +16,7 @@ import {
 	TransitionType,
 } from '../constants';
 import {
-	AssetId, ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
+	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
 	SourceError,
 	BlendMode, Effect, Transition, MixedCornerRadius,
@@ -580,11 +580,13 @@ function renderStrokes(world: World, entity: Entity): void {
  * The pulse a node waiting on a generation is filled with
  */
 function renderGenerating(world: World, entity: Entity): void {
-	const failed = entity.has(SourceError) && !entity.has(AssetId);
-	if (!failed && !entity.has(Generating)) return;
+	const invariants = world.query(ChildOf(entity), SourceError, Generating);
+	const errored = invariants.find(invariant => invariant.get(SourceError));
+	const generating = invariants.find(invariant => invariant.get(Generating));
+	if (!errored && !generating) return;
 
 	const ctx = getCtx(world);
-	ctx.fillStyle = failed ? FAILED_COLOR : getGeneratingColor(world);
+	ctx.fillStyle = errored ? FAILED_COLOR : getGeneratingColor(world);
 	ctx.fill();
 }
 

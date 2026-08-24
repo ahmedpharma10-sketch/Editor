@@ -2,15 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Image generation as the runtime means it: the prompt box declares a
-// `generate.image` source per variant and inserts an <Image> consuming it,
-// the way any drawn element is inserted. The asset system resolves the
-// declaration through the world's Ai (see `EditorGenAi`), and the element
-// lands in the project file with the `generate.image({...})` call that
-// reproduces it — same spec, same asset, this session and the next.
 
 import { generate } from "@diffusionstudio/jsx";
-import { Image } from "@diffusionstudio/reconciler";
+import { ImagePaint, Rect } from "@diffusionstudio/reconciler";
 import { Library } from "@diffusionstudio/runtime";
 import { useWorld } from "@diffusionstudio/koota-solid";
 import { useEditor } from "@/engine/hooks";
@@ -45,7 +39,9 @@ export function useGenerateImage() {
     }));
 
     insertGenerated(world, editor, dims, (box, index) => (
-      <Image src={sources[index]} x={box.x} y={box.y} width={box.width} height={box.height} />
+      <Rect x={box.x} y={box.y} width={box.width} height={box.height}>
+        <ImagePaint src={sources[index]} />
+      </Rect>
     ), config.count);
   };
 

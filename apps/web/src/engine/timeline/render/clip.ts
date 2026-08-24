@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Caption, CaptionType, Chars, ClipDragOrigin, Computed, Generating, Hidden, Name, Selected, SourceError, TrimDragOrigin, fitsChildren, getGeneratingColor, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
+import { Caption, CaptionType, Chars, ChildOf, ClipDragOrigin, Computed, Generating, Hidden, Name, Selected, SourceError, TrimDragOrigin, fitsChildren, getGeneratingColor, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../../editor';
 import {
@@ -56,8 +56,8 @@ export function renderClip(
 	pointer.scope(String(entity.id()));
 
 	const asset = getClipAsset(world, entity);
-	const failed = entity.has(SourceError);
-	const style = getClipStyle(entity, asset);
+	const error = world.query(ChildOf(entity), SourceError).at(0)?.get(SourceError)?.value;
+	const style = getClipStyle(entity, asset, !!error?.length);
 
 	handleBody(world, surface, entity, left, width, row, resolution);
 
@@ -67,7 +67,7 @@ export function renderClip(
 		left = framesToPixels(computed.start[entity.id()] ?? 0, resolution);
 	}
 
-	const generating = entity.has(Generating);
+	const generating = world.query(ChildOf(entity), Generating).length > 0;
 
 	ctx.save();
 	ctx.beginPath();
@@ -76,11 +76,42 @@ export function renderClip(
 	ctx.fill();
 	ctx.restore();
 
-	if (!generating && !failed) {
+	if (!generating && !error) {
 		renderContent(world, scene, surface, entity, asset, style, row);
 	}
 
-	renderLabel(world, scene, surface, entity, style.foreground, left, width, row);
+
+	// Render the label
+	{
+		let label = entity.get(Name)?.value ?? '';
+
+		if (error) label = error;
+		if (generating) label = 'Generating...';
+		if (isCaption(entity)) label = label || `${CAPTION_PRESETS[entity.get(Caption)?.type ?? CaptionType.CLASSIC]} Captions`;
+		if (isText(entity)) label = entity.get(Chars)?.value ?? label ?? '';
+
+		const [viewportLeft] = getViewport(world, scene, surface.layout.width);
+		const x = Math.max(left, viewportLeft);
+		const maxWidth = left + width - x - 2 * CLIP_LABEL_X;
+
+		ctx.save();
+		ctx.translate(x, 0);
+
+		ctx.fillStyle = style.foreground;
+		ctx.fontStretch = 'ultra-condensed';
+		ctx.font = CLIP_FONT;
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+
+		const fitted = truncateText(ctx, label, maxWidth, CLIP_FONT);
+		if (fitted) {
+			// Tall enough for the label to sit at the top of the clip; below that
+			// there is only the middle.
+			ctx.fillText(fitted, CLIP_LABEL_X, row.height >= CLIP_BREAKPOINTS.xs ? CLIP_LABEL_Y : row.height / 2);
+		}
+
+		ctx.restore();
+	}
 
 	// Last, so it sits over whatever the clip drew inside itself.
 	const selected = entity.has(Selected);
@@ -236,57 +267,6 @@ function handleBody(
 	else editor.select(entity);
 }
 
-/**
- * The clip's name, or what a text clip says. Pinned to the left edge of the
- * viewport while the clip runs off it, so a clip longer than the screen is
- * still labelled.
- */
-function renderLabel(
-	world: World,
-	scene: Entity,
-	surface: TimelineSurfaceState,
-	entity: Entity,
-	color: string,
-	left: number,
-	width: number,
-	row: RowCursor,
-): void {
-	const ctx = surface.ctx!;
-
-	// A caption's row is mostly its words; below a certain height the label
-	// would be all there is room for, so the words win. One still generating
-	// (or one that failed) has no words yet, so there is nothing for the label
-	// to crowd out.
-	if (
-		isCaption(entity) && !entity.has(Generating) && !entity.has(SourceError)
-		&& row.height < CLIP_BREAKPOINTS.sm
-	) return;
-
-	const label = clipLabel(entity);
-	if (!label) return;
-
-	const [viewportLeft] = getViewport(world, scene, surface.layout.width);
-	const x = Math.max(left, viewportLeft);
-	const maxWidth = left + width - x - 2 * CLIP_LABEL_X;
-
-	ctx.save();
-	ctx.translate(x, 0);
-
-	ctx.fillStyle = color;
-	ctx.fontStretch = 'ultra-condensed';
-	ctx.font = CLIP_FONT;
-	ctx.textAlign = 'left';
-	ctx.textBaseline = 'middle';
-
-	const fitted = truncateText(ctx, label, maxWidth, CLIP_FONT);
-	if (fitted) {
-		// Tall enough for the label to sit at the top of the clip; below that
-		// there is only the middle.
-		ctx.fillText(fitted, CLIP_LABEL_X, row.height >= CLIP_BREAKPOINTS.xs ? CLIP_LABEL_Y : row.height / 2);
-	}
-
-	ctx.restore();
-}
 
 const CAPTION_PRESETS: Record<CaptionType, string> = {
 	[CaptionType.CLASSIC]: 'Classic',
@@ -298,28 +278,6 @@ const CAPTION_PRESETS: Record<CaptionType, string> = {
 	[CaptionType.STARK]: 'Stark',
 };
 
-/**
- * What the clip calls itself. A plain text clip goes by what it says, and a
- * caption that has not been named goes by its preset — read here rather than
- * written to the entity, which is what the old timeline did: a renderer
- * naming the thing it is drawing is an edit nobody asked for.
- */
-function clipLabel(entity: Entity): string {
-	const failure = entity.get(SourceError)?.value;
-	if (failure) return failure;
-
-	if (entity.has(Generating)) return 'Generating...';
-
-	const name = entity.get(Name)?.value;
-
-	if (isCaption(entity)) {
-		return name || `${CAPTION_PRESETS[entity.get(Caption)?.type ?? CaptionType.CLASSIC]} Captions`;
-	}
-
-	if (isText(entity)) return entity.get(Chars)?.value ?? name ?? '';
-
-	return name ?? '';
-}
 
 /** Whether a clip is drawn faded: hidden nodes still take up their row. */
 export function getClipAlpha(entity: Entity): number {
