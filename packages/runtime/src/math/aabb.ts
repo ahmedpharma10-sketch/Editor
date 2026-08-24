@@ -99,13 +99,26 @@ export function pointInQuad(px: number, py: number, q: Quad): boolean {
 	return inside;
 }
 
-/** Test whether two quads intersect (vertex containment check). */
+/** 
+ * Test whether two quads intersect (vertex containment check).
+ */
 export function quadsIntersect(a: Quad, b: Quad): boolean {
 	for (let i = 0; i < 4; i++) {
 		if (pointInQuad(a[i].x, a[i].y, b)) return true;
 		if (pointInQuad(b[i].x, b[i].y, a)) return true;
 	}
 	return false;
+}
+
+/** 
+ * Test whether `outer` wholly contains `inner`. Quads are transformed rects,
+ * so both are convex and corner containment is containment.
+ */
+export function quadContainsQuad(outer: Quad, inner: Quad): boolean {
+	for (let i = 0; i < 4; i++) {
+		if (!pointInQuad(inner[i].x, inner[i].y, outer)) return false;
+	}
+	return true;
 }
 
 /** Center point of a quad. */

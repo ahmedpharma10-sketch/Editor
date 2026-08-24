@@ -24,7 +24,8 @@ import {
 	entityOffset, entityQuad, entityWorldMat, enterEntity,
 	findKeyframeTrackEntity, getParentEntity, getParentNode, getSceneAncestor,
 	getSelection, getSelectionMask, identity2D, invert2D, isPointerInEntity,
-	multiply2D, quadCenter, quadsIntersect, rectToQuad, rotate2D, scale2D,
+	multiply2D, quadCenter, quadContainsQuad, quadsIntersect, rectToQuad,
+	rotate2D, scale2D,
 	store, syncInteractiveState, transformPoint, translate2D,
 } from '@diffusionstudio/runtime';
 import { Not, Or } from 'koota';
@@ -200,8 +201,26 @@ export function handleCanvasInteraction(world: World, event: DispatchedPointerEv
 		const marquee = getMarqueeQuad(world);
 
 		if (marquee) {
-			editor.select([...world.query(Interactive, Or(Geometry, Group), Not(Culled))]
-				.filter((entity) => quadsIntersect(marquee, entityQuad(world, entity))));
+			const computed = store(world, Computed);
+
+			const scenes = world.query(Scene, ChildOf(world.get(Root)!), Not(Interactive), Not(Culled))
+				.filter((scene) => quadContainsQuad(marquee, entityQuad(world, scene)));
+
+			const inCoveredScene = (entity: Entity): boolean => {
+				for (let scene = getSceneAncestor(entity); scene !== null; scene = getSceneAncestor(scene)) {
+					if (scenes.includes(scene)) return true;
+				}
+				return false;
+			};
+
+			const nodes = world.query(Interactive, Or(Geometry, Group), Not(Culled))
+				.filter((entity) => (
+					computed.visibility[entity.id()] !== 0
+					&& quadsIntersect(marquee, entityQuad(world, entity))
+					&& !inCoveredScene(entity)
+				));
+
+			editor.select([...scenes, ...nodes]);
 		}
 
 		updateCursor(world, getToolCursor(world));
