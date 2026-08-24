@@ -32,6 +32,7 @@ import { Not, Or } from 'koota';
 
 import { zoomBy, zoomTo, zoomToFit, zoomToSelection } from '../camera';
 import { getDocumentEditor } from '../editor';
+import { groupSelection, ungroupSelection } from '../group';
 import { getEditHistory } from '../history';
 import { splitAtPlayhead } from '../split';
 import { Keys, MODIFIER_KEYS, Pointer } from '../traits';
@@ -386,6 +387,8 @@ const PRESSED_SHORTCUTS: readonly Shortcut[] = [
 	{ keys: ['backspace'], action: deleteSelection },
 	{ keys: ['delete'], action: deleteSelection },
 	{ keys: ['d', 'mod', '!shift'], action: duplicateSelection },
+	{ keys: ['g', 'mod', '!shift'], action: groupSelection },
+	{ keys: ['g', 'mod', 'shift'], action: ungroupSelection },
 	{ keys: ['b', 'mod'], action: splitAtPlayhead },
 	{ keys: ['c', 'mod'], action: copySelection },
 	{ keys: ['v', 'mod'], action: pasteSelection },

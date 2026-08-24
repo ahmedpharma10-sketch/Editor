@@ -6,7 +6,7 @@ import { For, Show, createSignal } from "solid-js";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
 import { useWorld } from "@diffusionstudio/koota-solid";
-import { Scene } from "@diffusionstudio/reconciler";
+import { Scene, SolidPaint } from "@diffusionstudio/reconciler";
 import { Root, Source, Tool, ToolType, getNextName, getViewport, screenToWorld } from "@diffusionstudio/runtime";
 import { useEditor } from "@/engine/hooks";
 
@@ -29,7 +29,9 @@ export function SceneTemplatePanel() {
     const y = Math.round(center.y - preset.height / 2);
 
     const [scene] = editor.insertElement(root, () => (
-      <Scene name={name} x={x} y={y} width={preset.width} height={preset.height} fill="#000000" />
+      <Scene name={name} x={x} y={y} width={preset.width} height={preset.height}>
+        <SolidPaint color="#000000" />
+      </Scene>
     ));
     if (scene) {
       editor.activate(scene);
