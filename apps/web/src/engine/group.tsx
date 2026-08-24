@@ -2,18 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/**
- * Grouping and ungrouping a selection, both without anything moving on the
- * canvas. Grouping needs no rewriting: a fresh `<group>` carries the identity
- * transform, so the members' coordinates mean the same thing inside it that
- * they meant beside it. Ungrouping does the inverse of whatever the group has
- * accumulated since: its local matrix is composed onto each child's and
- * decomposed back into the props the source can spell, the same bake a group
- * resize runs through `resizeNode` — so a child of a moved, rotated or scaled
- * group steps out standing exactly where it was drawn.
- */
-
-import { Group as GroupElement } from '@diffusionstudio/reconciler';
+import { Group as GroupElement, Sequence as SequenceElement } from '@diffusionstudio/reconciler';
 import {
 	AdjustmentLayer,
 	Computed,
@@ -24,6 +13,7 @@ import {
 	Group,
 	IsMask,
 	Selected,
+	Sequential,
 	Skew,
 	Start,
 	computeLocalMatrix,
@@ -45,6 +35,7 @@ import { Not, Or } from 'koota';
 import { getDocumentEditor } from './editor';
 import { editTransform } from './input/interactions';
 import { syncKeyframe } from './keyframes';
+import { resolveNewSequenceOverlaps } from './overlap';
 
 import type { TransformWrite } from './input/interactions';
 import type { Mat2D } from '@diffusionstudio/runtime';
@@ -83,6 +74,27 @@ export function groupSelection(world: World): void {
 }
 
 /**
+ * Puts the selection into a new sequence where it stands, the wrap `split`
+ * makes for a cut clip's halves. A sequence has no space or time of its own,
+ * so the members keep both their position and their start; what it does have
+ * is the rule that its children cannot overlap in time, so members that did
+ * are settled the way a sequence that has just been made is always settled —
+ * the earlier clip keeps what it has and the later one gives way (see
+ * `resolveNewSequenceOverlaps`). The selection moves to the sequence.
+ */
+export function wrapSelectionInSequence(world: World): void {
+	const editor = getDocumentEditor(world);
+	const selected = [...world.query(Selected, NODES, Not(IsMask))];
+	if (!selected.length) return;
+
+	const sequence = editor.wrap(selected, () => <SequenceElement name={getNextName(world, 'Sequence')} />);
+	if (!sequence) return;
+
+	resolveNewSequenceOverlaps(world, sequence);
+	editor.select(sequence);
+}
+
+/**
  * How far the group's own timeline sits from its parent's, in frames: what
  * has to be added to a child's authored times for it to play at the same
  * moment once the group is gone. Zero for any group that was never slid
@@ -93,27 +105,41 @@ function timelineShift(world: World, group: Entity): number {
 }
 
 /**
- * Dissolves every selected group: the children move out into the group's
- * parent, in front of where the group stood and in the order they were in,
- * and the group goes away. Whatever transform the group had is baked into
- * each child first — composed onto the child's local matrix and decomposed
- * back into `x`/`y`/`rotation`/`scale`, the way `resizeNode` spells a scaled
- * child — so the canvas shows the same picture without the group. A shear the
- * bake produces (a rotated child in a non-uniformly scaled group) has no JSX
- * spelling; like the resize gesture, it goes to the `Skew` trait alone. A
- * group slid along the timeline hands its offset to the children's times the
- * same way. The selection moves to the released children.
+ * Dissolves every selected group, sequences included: a sequence is a group
+ * without spatial identity of its own (see the Sequential observer), so the
+ * one bake covers both — for a sequence it finds the identity and writes
+ * nothing.
  */
 export function ungroupSelection(world: World): void {
-	const editor = getDocumentEditor(world);
-	const groups = [...world.query(Selected, Group)];
-	if (!groups.length) return;
+	dissolveContainers(world, [...world.query(Selected, Group)]);
+}
 
+/** Dissolves only the selected sequences, the inverse of the wrap above. */
+export function unwrapSequenceSelection(world: World): void {
+	dissolveContainers(world, [...world.query(Selected, Sequential)]);
+}
+
+/**
+ * Dissolves each container: the children move out into the container's
+ * parent, in front of where it stood and in the order they were in, and the
+ * container goes away. Whatever transform it had is baked into each child
+ * first — composed onto the child's local matrix and decomposed back into
+ * `x`/`y`/`rotation`/`scale`, the way `resizeNode` spells a scaled child —
+ * so the canvas shows the same picture without it. A shear the bake produces
+ * (a rotated child in a non-uniformly scaled group) has no JSX spelling;
+ * like the resize gesture, it goes to the `Skew` trait alone. A container
+ * slid along the timeline hands its offset to the children's times the same
+ * way. The selection moves to the released children.
+ */
+function dissolveContainers(world: World, containers: Entity[]): void {
+	if (!containers.length) return;
+
+	const editor = getDocumentEditor(world);
 	const computed = store(world, Computed);
 	const flip = store(world, Flip);
 	const released: Entity[] = [];
 
-	for (const group of groups) {
+	for (const group of containers) {
 		if (!group.isAlive()) continue;
 		const parent = getParentEntity(group);
 		if (!parent) continue;
