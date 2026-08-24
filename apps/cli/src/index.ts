@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +11,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
 import { version } from "../../../package.json";
 import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
-import { editor, errnoCode, GENERATE_TIMEOUT_MS } from "./cli-client";
+import { editor, errnoCode, GENERATE_TIMEOUT_MS, waitForCliSocket } from "./cli-client";
 import { listLocalFonts } from "./fonts";
 import { buildIssueBody, createIssue } from "./report";
 import { fetchVideo } from "./ytdlp";
@@ -315,6 +316,35 @@ async function captureNode(id: string, opts: CaptureOptions): Promise<void> {
   }
 }
 
+type OpenOptions = { background?: boolean };
+
+/** `open -a` on a running app only activates it, so this is safe to always run. */
+function launchApp(background: boolean): Promise<boolean> {
+  const args = background ? ["-g", "-a", APP_NAME, "--args", "--hidden"] : ["-a", APP_NAME];
+  return new Promise((res) => execFile("open", args, (err) => res(!err)));
+}
+
+async function openProject(path: string | undefined, opts: OpenOptions): Promise<void> {
+  // Launching is macOS's job; elsewhere (and when the app is not installed,
+  // e.g. a dev checkout run from the terminal) fall through to the socket,
+  // which answers if the app is running and errors usefully if not.
+  const launched = process.platform === "darwin" && (await launchApp(opts.background ?? false));
+
+  try {
+    // A cold launch needs the renderer up before the app can answer; when
+    // nothing was launched there is nothing to wait for, so fail fast.
+    if (launched) await waitForCliSocket();
+    else await editor.ping.query();
+
+    if (path !== undefined) {
+      const result = await editor.open.mutate({ dir: resolve(path) });
+      console.log(JSON.stringify(result));
+    }
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
 async function context(): Promise<void> {
   try {
     const result = await editor.context.query();
@@ -567,6 +597,15 @@ Analyze video/audio/images, generate them with AI, and compose assets.
 Use for any media analysis, media generation, or video editing task. No ffmpeg needed.`,
   )
   .version(version);
+
+program
+  .command("open")
+  .description(
+    `Launch ${APP_NAME} (or surface the running instance) and, given a path, open that folder as a project.`,
+  )
+  .argument("[path]", "project folder to open or create (default: none — just launch the app)")
+  .option("-b, --background", "launch or keep the app in the background, without raising a window")
+  .action((path: string | undefined, opts: OpenOptions) => openProject(path, opts));
 
 program
   .command("context")

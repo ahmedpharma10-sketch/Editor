@@ -19,6 +19,7 @@ import {
   deleteProject,
   duplicateProject,
   getProject,
+  initProject,
   listProjects,
   pickRoot,
   renameProject,
@@ -273,6 +274,7 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_PICK_ROOT, () => pickRoot(mainWindow));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_LIST, ({ root }) => listProjects(root));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_GET, ({ dir }) => getProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_INIT, ({ dir }) => initProject(dir));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_RESOLVE, ({ root, ref }) => resolveProject(root, ref));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, displayName }) =>
     createProject(root, displayName),

@@ -28,6 +28,7 @@ How the surface is divided:
 
 ### Document
 
+- [`dapi open`](./open.md): launch the app and open (or create) a project folder, anywhere on disk
 - [`dapi context`](./context.md): which project the app has open, where its playhead sits, and its registered fonts
 - [`dapi capture`](./capture.md): render a node in isolation to a labelled contact sheet, or one PNG per position
 

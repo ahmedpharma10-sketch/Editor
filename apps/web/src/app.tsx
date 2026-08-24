@@ -10,6 +10,7 @@ import { AppContextMenu } from "@/components/app-context-menu";
 
 import { AuthProvider, useAuth } from '@/context/auth';
 import { PersistRoute } from '@/lib/persist-route';
+import { ShellApi } from '@/context/dapi/shell';
 import { UpgradeDialog } from '@/components/upgrade-dialog';
 import { PurchaseSuccess } from '@/components/purchase-success';
 import { ScreenTooSmall } from '@/components/screen-too-small';
@@ -75,6 +76,7 @@ function App() {
           <Toaster />
           <EnvironmentOverlays />
           <PersistRoute />
+          <ShellApi />
         </ColorModeProvider>
       )}
     >

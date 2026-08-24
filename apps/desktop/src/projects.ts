@@ -287,6 +287,7 @@ const SOLID_VERSION = "^1.9.10";
  * subcommands have no top-level namesakes to collide with.
  */
 const SCRIPTS: Record<string, string> = {
+  open: "dapi open .",
   context: "dapi context",
   capture: "dapi capture",
   probe: "dapi media probe",
@@ -437,6 +438,7 @@ All of them talk to the running app, except \`fonts\` and \`fetch\`.
 
 | Script | Command | What it does |
 | ------ | ------- | ------------ |
+| \`open\` | \`dapi open .\` | Launch the app with this project open. |
 | \`context\` | \`dapi context\` | Which project the app has open, where its playhead sits, its fonts. |
 | \`capture\` | \`dapi capture <id>\` | Render one node in isolation to labelled PNG contact sheets. |
 | \`probe\` | \`dapi media probe <id\\|path>\` | Container and per-track metadata, without decoding. |
@@ -515,6 +517,24 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
   if (!(await exists(join(dir, MANIFEST_FILE)))) {
     await writeManifest(dir, EMPTY_MANIFEST);
   }
+}
+
+/**
+ * Makes `dir` openable as a project, writing as little as that takes: the
+ * folder if it does not exist, and — when nothing in it can be an entry — an
+ * `index.tsx` holding an empty stage. Nothing else; a project is its JSX, and
+ * the record, manifest, and the rest of the scaffold appear lazily, each when
+ * something first needs it. A folder that is already a project comes back
+ * untouched. How `dapi open <path>` opens a folder anywhere on disk.
+ */
+export async function initProject(dir: string): Promise<ProjectInfo> {
+  await mkdir(dir, { recursive: true });
+  if (!(await findEntry(dir))) {
+    await writeIfMissing(dir, "index.tsx", STARTER);
+  }
+  const project = await describe(dir);
+  if (!project) throw new Error(noEntryError());
+  return project;
 }
 
 /**

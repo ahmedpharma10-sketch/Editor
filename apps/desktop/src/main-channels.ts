@@ -43,6 +43,7 @@ export const MAIN_CHANNELS = {
   PROJECTS_PICK_ROOT: "projects:pick-root",
   PROJECTS_LIST: "projects:list",
   PROJECTS_GET: "projects:get",
+  PROJECTS_INIT: "projects:init",
   PROJECTS_RESOLVE: "projects:resolve",
   PROJECTS_CREATE: "projects:create",
   PROJECTS_RENAME: "projects:rename",
@@ -141,6 +142,7 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.PROJECTS_PICK_ROOT]: { request: void; response: string | null };
   [MAIN_CHANNELS.PROJECTS_LIST]: { request: { root: string }; response: ProjectInfo[] };
   [MAIN_CHANNELS.PROJECTS_GET]: { request: { dir: string }; response: ProjectInfo | null };
+  [MAIN_CHANNELS.PROJECTS_INIT]: { request: { dir: string }; response: ProjectInfo };
   [MAIN_CHANNELS.PROJECTS_RESOLVE]: {
     request: { root: string; ref: string };
     response: ProjectInfo | null;

@@ -186,6 +186,7 @@ dapi node render -o hero.mp4    # encode the scene to disk
 
 | Command | Purpose |
 | --- | --- |
+| `dapi open` | Launch the app and open (or create) a project folder, anywhere on disk |
 | `dapi context` | Summary of app state |
 | `dapi capture` | Render a node in isolation to a labelled contact sheet, or one PNG per position |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |

@@ -8,6 +8,7 @@ import { Project } from '@diffusionstudio/runtime';
 import { useProject } from '@/context/project';
 import { useAuth } from '@/context/auth';
 import { t, q, q0 } from "@/lib/cli-rpc";
+import type { ShellRouter } from "./shell";
 import { handleContextGet } from "./context";
 import { handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaFilmstrip, handleMediaWaveform, handleMediaListen } from "./media";
 import { handleCapture } from "./capture";
@@ -83,7 +84,6 @@ type AppRouterDeps = {
 
 function createAppRouter({ world, project, getUser, requireAuth }: AppRouterDeps) {
   return t.router({
-    ping: t.procedure.query(() => {}),
     whoami: t.procedure.query(() => getUser()),
     context: q0(handleContextGet(world, project)),
     capture: q(handleCapture(world)),
@@ -102,7 +102,7 @@ function createAppRouter({ world, project, getUser, requireAuth }: AppRouterDeps
   });
 }
 
-export type AppRouter = ReturnType<typeof createAppRouter>;
+export type AppRouter = ShellRouter & ReturnType<typeof createAppRouter>;
 
 export function useEditorApi() {
   const ctx = useContext(EditorApiContext);

@@ -18,7 +18,7 @@ import { createSignal } from 'solid-js';
 
 import { MAIN_CHANNELS } from '@desktop/main-channels';
 import { mainBridge } from '@/lib/ipc';
-import { lastUsedProjectRoot, rememberProjectRoot } from '@/lib/db';
+import { lastUsedProjectRoot, listProjectRoots, rememberProjectRoot } from '@/lib/db';
 
 import type { CompileResult, ProjectInfo, SourceEdit, WriteResult } from '@desktop/main-channels';
 
@@ -91,15 +91,48 @@ export async function createProject(displayName: string): Promise<ProjectInfo> {
 }
 
 /**
- * The project `ref` names under the root: its id, or — for links made before
- * ids existed, and folders opened by name — its folder name. What comes back
- * always carries an id, so the app can put that in the URL.
+ * The project `ref` names: its id, or — for links made before ids existed,
+ * and folders opened by name — its folder name. The active root is searched
+ * first (and hands out ids, so the app can put one in the URL); on a miss,
+ * the single-project roots answer for projects living anywhere else on disk,
+ * matched by id or folder name, most recently used first.
  */
 export async function resolveProject(ref: string): Promise<ProjectInfo | null> {
 	await ready;
+	if (!ref || !isDesktop()) return null;
+
 	const root = projectsRoot();
-	if (!root || !isDesktop()) return null;
-	return mainBridge.call(MAIN_CHANNELS.PROJECTS_RESOLVE, { root, ref });
+	if (root) {
+		const found = await mainBridge.call(MAIN_CHANNELS.PROJECTS_RESOLVE, { root, ref });
+		if (found) return found;
+	}
+
+	for (const single of await listProjectRoots('single')) {
+		const project = await getProject(single.path);
+		if (project && (project.id === ref || project.name === ref)) return project;
+	}
+	return null;
+}
+
+/**
+ * Opens the folder `dir` as a project, making it one first when it is not:
+ * the folder is created if missing and, when nothing in it can be an entry,
+ * given an `index.tsx` holding an empty stage — and nothing else. Remembered
+ * as a single-project root unless it lives under the active root (where the
+ * ordinary resolution already finds it), so it stays reachable by name or id
+ * across relaunches. How `dapi open <path>` lands anywhere on disk.
+ */
+export async function openProjectFolder(dir: string): Promise<ProjectInfo> {
+	await ready;
+	if (!isDesktop()) throw new Error('Opening a project folder requires the desktop app.');
+
+	const project = await mainBridge.call(MAIN_CHANNELS.PROJECTS_INIT, { dir });
+
+	const root = projectsRoot();
+	const underRoot = root !== null && project.dir.startsWith(root.replace(/[\/]+$/, '') + '/');
+	if (!underRoot) await rememberProjectRoot(project.dir, 'single');
+
+	return project;
 }
 
 /** The project in the folder `dir`, or null when there is none. */
