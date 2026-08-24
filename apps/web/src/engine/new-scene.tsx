@@ -8,7 +8,7 @@
 // would otherwise do. The canvas and the timeline share this; they differ
 // only in where the new scene should end up on screen.
 
-import { Scene as SceneElement } from '@diffusionstudio/reconciler';
+import { Scene as SceneElement, SolidPaint } from '@diffusionstudio/reconciler';
 import { focusRect, getCameraMatrix, getNextName, Root, Source } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from './editor';
@@ -59,7 +59,9 @@ export function createScene(world: World, format: Size, options: NewSceneOptions
 	editor.reportEdit(root, 'camera', getCameraMatrix(world));
 
 	const [scene] = editor.insertElement(root, () => (
-		<SceneElement name={name} x={rect.x} y={rect.y} width={rect.width} height={rect.height} fill="#000000" />
+		<SceneElement name={name} x={rect.x} y={rect.y} width={rect.width} height={rect.height}>
+			<SolidPaint color="#000000" />
+		</SceneElement>
 	));
 	if (!scene) return null;
 

@@ -4,7 +4,7 @@
 
 import { Show } from "solid-js";
 import { useWorld } from "@diffusionstudio/koota-solid";
-import { Rect, Scene, Text } from "@diffusionstudio/reconciler";
+import { Rect, Scene, SolidPaint, Text } from "@diffusionstudio/reconciler";
 import {
   Computed,
   findSceneAt,
@@ -215,12 +215,20 @@ export function DrawOverlay() {
 
     const [entity] = editor.insertElement(parent, () => {
       if (cfg.isScene) {
-        return <Scene name={name} x={x} y={y} width={width} height={height} fill={cfg.fillColor} />;
+        return (
+          <Scene name={name} x={x} y={y} width={width} height={height}>
+            <SolidPaint color={cfg.fillColor} />
+          </Scene>
+        );
       }
       if (tool === ToolType.TEXT) {
         return <Text name={name} x={x} y={y} {...size} fontSize={fontSize} color={cfg.fillColor}>Text</Text>;
       }
-      return <Rect name={name} x={x} y={y} {...size} fill={cfg.fillColor} />;
+      return (
+        <Rect name={name} x={x} y={y} {...size}>
+          <SolidPaint color={cfg.fillColor} />
+        </Rect>
+      );
     });
 
     if (entity) {
