@@ -37,8 +37,8 @@ const ABERRATION = /* wgsl */ `
 
 export default function ShaderPaintExample() {
   return (
-    <stage>
-      <scene name="Shader paint" width={1920} height={1080} fill="#000000">
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Shader paint" width={1920} height={1080} fill="#000000" active>
         <video src={`${VIDEOS}/sintel-short.mp4`} width={1920} height={1080}>
           <shaderPaint wgsl={ABERRATION} uniforms={{ strength: 1.5, vignette: 0.6 }} />
         </video>

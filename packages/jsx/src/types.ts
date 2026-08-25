@@ -420,7 +420,13 @@ export type StageProps = {
    * The editor's viewport when the project is opened: `[1, 0, 0, 1, 0, 0]` is
    * the origin at 100%. Not part of the composition — nothing rendered or
    * exported depends on it — so a project that never says where to look opens
-   * at the origin.
+   * at the origin, with most of the frame off screen.
+   *
+   * Give every authored project one, so it opens framed on its composition:
+   * `[s, 0, 0, s, x, y]` for a scene at the origin, `s` sized to fit the frame
+   * in roughly 580×330 screen pixels — `[0.3, 0, 0, 0.3, 85, 150]` for
+   * 1920×1080, `[0.6, 0, 0, 0.6, 85, 150]` for 960×540. The first pan or zoom
+   * overwrites it, so the exact numbers do not matter.
    */
   camera?: CameraMatrix;
   children?: SolidJSX.Element;
@@ -446,6 +452,10 @@ export type SceneProps = IdentityProps & PositionProps & Required<SizeProps> & F
    * rules the runtime holds: at most one element is active, and only a root
    * (a direct child of `<stage>`) can be; a nested `active` is dropped. When
    * a file names more than one, the last one rendered wins.
+   *
+   * Nothing activates on its own: mark one scene of every authored project
+   * `active` — with several, the one it should open on — or it opens on an
+   * empty timeline, with no playhead and no scene to export.
    */
   active?: boolean;
   /**

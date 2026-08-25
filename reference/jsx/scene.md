@@ -3,7 +3,7 @@
 A scene is the **clipped, playable frame** a composition is made in, and the only element allowed directly under [`<stage>`](./stage.md). It clips its children to `width`×`height` and **owns the timeline they are placed on**, so it takes no timing of its own — nothing outside a scene has a clock to be placed against.
 
 ```tsx
-<scene name="Intro" width={1920} height={1080} fill="black">
+<scene name="Intro" width={1920} height={1080} fill="black" active>
   {/* children, placed on this scene's timeline */}
 </scene>
 ```
@@ -28,6 +28,8 @@ A scene also takes paints as children, exactly as a `<rect>` does (see [paints.m
 `active`, `selected`, `x` and `y` are editor concerns rather than part of the composition, but they live in the file for the same reason [`<stage>`](./stage.md)'s `camera` does: the source is the document, so a scene dragged or clicked on the canvas has nowhere else to be written back to. The editor writes the bare attribute and removes it again.
 
 Two rules the runtime holds for `active`: **at most one element is active**, and **only a root** — a direct child of `<stage>` — can be. A nested `active` is dropped, and when a file names more than one the last one rendered wins.
+
+**Mark one scene `active` in every project you author.** Nothing activates on its own, and a project that opens with no active scene opens on an empty timeline: there is no playhead to scrub, `dapi capture` has nothing pointed at it, and an export has no scene to render. One scene, one `active`; with several, the one the project should open on — pair it with the [`<stage>`](./stage.md) `camera` that frames it.
 
 `workarea` is the exception among them: it is carried by the source the way `active` is (the timeline's brackets have nowhere else to go), but it is read wherever the file is, so **what it says is what comes out of a render**. Playback loops within it, and an export is of it and nothing else.
 

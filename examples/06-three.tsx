@@ -111,8 +111,8 @@ export default function ThreeHelmet() {
   });
 
   return (
-    <stage>
-      <scene name="Three helmet" width={960} height={540} fill="#0b0d12">
+    <stage camera={[0.6, 0, 0, 0.6, 85, 150]}>
+      <scene name="Three helmet" width={960} height={540} fill="#0b0d12" active>
         <surface x={0} y={0} width={960} height={540} ref={surfaceRef} />
       </scene>
     </stage>

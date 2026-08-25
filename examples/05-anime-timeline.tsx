@@ -41,8 +41,8 @@ export default function AnimeTimeline() {
   const hue = () => Math.round(v.card.hue);
 
   return (
-    <stage>
-      <scene name="Anime timeline" width={960} height={540} fill="#101014">
+    <stage camera={[0.6, 0, 0, 0.6, 85, 150]}>
+      <scene name="Anime timeline" width={960} height={540} fill="#101014" active>
         <rect
           x={v.chip.x}
           y={v.chip.y}

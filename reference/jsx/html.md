@@ -26,8 +26,8 @@ export default function Intro() {
   createEffect(() => tl.seek(time()));
 
   return (
-    <stage>
-      <scene name="Intro" width={800} height={120}>
+    <stage camera={[0.7, 0, 0, 0.7, 90, 270]}>
+      <scene name="Intro" width={800} height={120} active>
         <html x={50} y={5} width={700} height={110} cornerRadius={24} end={32}>
           <div style={`display:flex;align-items:center;gap:16px;height:100%;
                        background:#111;color:#fff;font:500 40px Inter;padding:0 32px;`}>

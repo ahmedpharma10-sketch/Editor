@@ -57,8 +57,8 @@ const ambience = generate.audio({
 
 export default function GenAi() {
   return (
-    <stage>
-      <scene name="GenAI" width={1920} height={1080} fill="black">
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="GenAI" width={1920} height={1080} fill="black" active>
         <sequence name="Generated shots">
           <video src={shot1} width={1920} height={1080} start={0} end={5} transition={{}} />
           <video src={shot2} width={1920} height={1080} start={5} end={10} />

@@ -22,8 +22,8 @@ const heroMotion = generate.video({
 
 export default function Project() {
   return (
-    <stage background="#161616">
-      <scene name="Intro" width={1920} height={1080}>
+    <stage background="#161616" camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Intro" width={1920} height={1080} active>
         <video src={heroMotion} width={1920} height={1080} start={0} end={5} />
         <image src={hero} x={40} y={40} width={200} height={112} />
       </scene>

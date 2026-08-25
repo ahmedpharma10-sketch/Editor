@@ -26,8 +26,8 @@ import { useTicker } from "@diffusionstudio/jsx";
 export default function Project() {
   const { time, frame } = useTicker();
   return (
-    <stage>
-      <scene name="HUD" width={1920} height={1080}>
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="HUD" width={1920} height={1080} active>
         <text width={600} height={100} fontSize={80} color="#FFFFFF">{`frame ${frame()}`}</text>
         <rect x={860 + Math.sin(time() * 4) * 200} y={490} width={100} height={100} fill="#f43" />
       </scene>

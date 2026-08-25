@@ -588,8 +588,8 @@ as a prop on the element it was authored as.
 \`\`\`tsx
 export default function Project() {
   return (
-    <stage background="#161616">
-      <scene name="Intro" width={1920} height={1080} fill="black">
+    <stage background="#161616" camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Intro" width={1920} height={1080} fill="black" active>
         <video src="b-roll/drone.mp4" start={0} end={6} width={1920} height={1080} />
         <text y={860} width={1920} textAlign="center" fontFamily="Inter" fontSize={96} start={1} end={5}>
           Hello
@@ -605,6 +605,12 @@ export default function Project() {
 - \`<stage>\` is the root, and holds one \`<scene>\` per frame you cut in. A scene
   owns the timeline its children sit on; nothing outside a scene has a clock to
   be placed against.
+- One scene carries \`active\` — the one the playhead, the timeline and an export
+  are pointed at — and the stage carries the \`camera\` the canvas opens on, a
+  \`[scale, 0, 0, scale, x, y]\` matrix (\`0.3\` fits a 1920×1080 frame). Both are
+  editor state: the app writes them back as the view is panned or a scene is
+  clicked, but a project that ships without them opens on an empty timeline,
+  looking at the corner of nothing.
 - Position and size are explicit, in pixels. There is no layout pass and no CSS.
 - \`start\` / \`end\` place a clip on that timeline, \`sourceIn\` / \`sourceOut\` choose
   the part of the media that plays. Times are seconds (\`1.5\`), frames (\`45f\`) or
@@ -701,6 +707,9 @@ never edit it, and trust it over memory.
 - Verify visually with \`npm run capture -- <id>\`: it renders a node exactly
   as the viewer gets it. Do not export a video to check work.
 - Position and size are explicit, in pixels. There is no layout pass and no CSS.
+- A composition you author from scratch marks one scene \`active\` and gives
+  \`<stage>\` a \`camera\` framing it, or the project opens on an empty timeline
+  with the frame off screen.
 - Times are seconds (\`1.5\`), frames (\`"45f"\`), or \`"MM:SS"\`.
 - Types are stripped at compile time, never checked: run \`npx tsc --noEmit\`.
 `;

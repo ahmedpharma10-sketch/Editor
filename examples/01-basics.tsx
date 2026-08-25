@@ -48,8 +48,8 @@ function Title(props: { text: string; start: Time; end: Time }) {
 
 export default function Basics() {
   return (
-    <stage>
-      <scene name="Basics" width={1920} height={1080} fill="black">
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Basics" width={1920} height={1080} fill="black" active>
         <sequence name="A-roll">
           <video
             src={`${VIDEOS}/sintel-short.mp4`}

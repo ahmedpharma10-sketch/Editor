@@ -11,8 +11,8 @@ The markup is **pseudo-SVG**: elements like `<rect>`, `<text>`, `<linearGradient
 ```tsx
 export default function Project() {
   return (
-    <stage background="#161616">
-      <scene name="Intro" width={1920} height={1080} fill="black">
+    <stage background="#161616" camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Intro" width={1920} height={1080} fill="black" active>
         <video src="b-roll/drone.mp4" start={0} end={6} width={1920} height={1080} />
         <text y={860} width={1920} textAlign="center" fontFamily="Inter" fontSize={96} start={1} end={5}>
           Hello

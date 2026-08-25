@@ -26,8 +26,8 @@ export default function Ticker() {
   const eased = createMemo(() => 0.5 - Math.cos(angle()) / 2); // 0..1..0, smooth
 
   return (
-    <stage>
-      <scene name="Ticker" width={1920} height={1080} fill="#101014">
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Ticker" width={1920} height={1080} fill="#101014" active>
         {/* center square: rotation and corner radius both derive from progress */}
         <rect
           x={860}

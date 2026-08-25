@@ -5,8 +5,8 @@ A project is a folder: a real npm package whose entry file (`package.json` `main
 ```tsx
 export default function Project() {
   return (
-    <stage background="#161616">
-      <scene name="Intro" width={1920} height={1080} fill="black">
+    <stage background="#161616" camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Intro" width={1920} height={1080} fill="black" active>
         {/* ... */}
       </scene>
     </stage>

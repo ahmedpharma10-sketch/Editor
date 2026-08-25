@@ -25,8 +25,8 @@ export default function PromptBox() {
   const cursorOn = createMemo(() => Math.floor(time() * 2) % 2 === 0);
 
   return (
-    <stage>
-      <scene name="Prompt box" width={1920} height={1080} fill="#0b0d12">
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Prompt box" width={1920} height={1080} fill="#0b0d12" active>
         {/* An <html> box takes DOM children only, so the animation — a
             composition element — goes on a rect carrying the same paint the
             <html> shorthand carries. */}
