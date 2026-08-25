@@ -4,8 +4,6 @@
 
 import { trait, type Entity, type World } from 'koota';
 
-import { createLiveMounts } from '../utils/live-mounts';
-
 import type { FontSource } from '../fonts/types';
 import type { AssetLibrary } from '@diffusionstudio/assets';
 import type { GenAi } from '../ai';
@@ -72,8 +70,11 @@ export const Library = trait(() => null as AssetLibrary | null);
 // without one, such sources stay pending and never resolve.
 export const Ai = trait(() => null as GenAi | null);
 
-// Live JSX mount registry; running graphs advance once per frame.
-export const Mounts = trait(() => createLiveMounts());
+// Per-tick callbacks. A mounted project adds one to feed its `useTicker`
+// clock; the playback system fires the set once per tick, after playheads
+// advance. Held on the world so anything that runs the systems (the editor
+// loop, the encoder) drives the mounts without knowing them.
+export const Tickers = trait(() => new Set<() => void>());
 
 // Async barrier for offline capture: systems push decoder/host readiness
 // promises here; the encoder awaits and clears them before sampling a frame.

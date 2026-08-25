@@ -17,7 +17,7 @@ import {
 	Sequential, Transition, Playback, Workarea,
 	AudioPlayback, Computed,
 	AudioDecoderHandle, AudioBusHandle, Host,
-	Mode, FrameRate, Time, AudioEngine, FramePromises, Mounts,
+	Mode, FrameRate, Time, AudioEngine, FramePromises, Tickers,
 	Root,
 } from '../traits';
 import { getParentNode } from '../queries/hierarchy';
@@ -436,5 +436,5 @@ export function playbackSystem(world: World): void {
 		}
 	}
 
-	world.get(Mounts)?.advance();
+	for (const tick of world.get(Tickers) ?? []) tick();
 }

@@ -19,7 +19,7 @@ import {
 	Fonts,
 	Library,
 	Ai,
-	Mounts,
+	Tickers,
 	FramePromises,
 	HitRegions,
 } from '../traits/world';
@@ -42,7 +42,7 @@ export function createRuntimeWorld(projectId: string) {
 		Fonts,
 		Library,
 		Ai,
-		Mounts,
+		Tickers,
 		FramePromises,
 		HitRegions,
 		Tool,

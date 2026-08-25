@@ -4,7 +4,6 @@ export * from './async';
 export * from './color';
 export * from './generating';
 export * from './text';
-export * from './live-mounts';
 export * from './sort';
 export * from './stroke';
 export * from './text-motion';

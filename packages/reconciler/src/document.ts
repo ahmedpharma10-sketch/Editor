@@ -3,8 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, Computed, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, getActiveEntity, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
+import { createSignal } from 'solid-js';
 import { SVGElements } from 'solid-js/web';
 import { IsExcluded } from 'koota';
 
@@ -12,7 +13,7 @@ import type { CameraMatrix, PropertyPath, SceneNode } from '@diffusionstudio/run
 import type { AnimatableProperty, AssetRef } from '@diffusionstudio/jsx';
 
 import type { Entity, World } from 'koota';
-import type { ProjectDocument } from './host';
+import type { ProjectDocument, ProjectTick } from './host';
 
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
@@ -1569,6 +1570,52 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 
 		this.destroySubtree(node);
+	}
+
+	// The timeline clock behind `useTicker`. One Solid signal per document;
+	// the equality check keeps a paused scene from propagating at all.
+	private readonly ticker = createSignal<ProjectTick>(
+		{ time: 0, frame: 0, delta: 0, playing: false },
+		{ equals: (a, b) => a.time === b.time && a.frame === b.frame && a.delta === b.delta && a.playing === b.playing },
+	);
+	private lastTickTime: number | null = null;
+
+	public tick(): ProjectTick {
+		return this.ticker[0]();
+	}
+
+	/**
+	 * Reads the playhead into the ticker signal. Called by the playback system
+	 * once per tick (through the world's `Tickers` set — see `mount`), so
+	 * a project's memos re-run before motion and render look at the world.
+	 */
+	public advanceTicker(): void {
+		const target = this.tickTarget();
+		const computed = target?.get(Computed);
+		const time = computed?.localTimeInSeconds ?? 0;
+		const delta = this.lastTickTime === null ? 0 : time - this.lastTickTime;
+		this.lastTickTime = time;
+		this.ticker[1]({
+			time,
+			frame: computed?.localTime ?? 0,
+			delta,
+			playing: target?.get(Playback)?.playing ?? false,
+		});
+	}
+
+	/**
+	 * The entity whose playhead the ticker reads: the nearest Playback carrier
+	 * at or above the active scene. Resolved per tick rather than cached — the
+	 * active scene changes with the view, and a capture world (which activates
+	 * nothing) answers with its one Playback root instead.
+	 */
+	private tickTarget(): Entity | null {
+		let current = getActiveEntity(this.world);
+		while (current?.isAlive()) {
+			if (current.has(Playback)) return current;
+			current = getParentEntity(current);
+		}
+		return this.world.queryFirst(Playback) ?? null;
 	}
 
 	public getParentNode(node: SceneNode): SceneNode | undefined {
