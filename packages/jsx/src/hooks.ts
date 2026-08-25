@@ -19,6 +19,7 @@ export type Ticker = {
   frame: Accessor<number>;
   delta: Accessor<number>;
   playing: Accessor<boolean>;
+  hold: (work: Promise<unknown>) => void;
 };
 
 function hostOnly(name: string): never {
@@ -34,6 +35,13 @@ function hostOnly(name: string): never {
  * nothing and `frame()` consumers update at most once per frame. Values move
  * while the reactive graph is alive: a mount stays live, and export, capture,
  * and reload each re-execute the module and drive the ticker themselves.
+ *
+ * `hold` is the other half of that: because a mount of its own is what an
+ * export or a capture draws, a project's own async work (a mesh, a texture,
+ * a fetch a layout is decided by) races the first frames, which are sampled
+ * as soon as the module has rendered. Handing the promise to `hold` keeps
+ * those frames waiting for it. Live playback collects nothing, so a held
+ * promise costs the editor nothing.
  */
 export function useTicker(): Ticker {
   return hostOnly("useTicker");

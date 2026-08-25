@@ -8,10 +8,12 @@
  * detached canvas; onMount a WebGPU context takes it over, and the engine
  * samples the bitmap into the node's box every frame. Device setup is async,
  * so the draw effect is created synchronously in the component body and a
- * signal wakes it once the pipeline exists. Composition time feeds a uniform
- * and the fragment
- * shader derives the colors from it (a phase-shifted cosine palette), so the
- * playhead is the only clock: scrubbing and exports stay frame-accurate.
+ * signal wakes it once the pipeline exists — and `hold` keeps an export from
+ * writing the frames that setup hasn't finished for, since a capture or an
+ * export mounts the module again and sets up a device of its own.
+ * Composition time feeds a uniform and the fragment shader derives the colors
+ * from it (a phase-shifted cosine palette), so the playhead is the only
+ * clock: scrubbing and exports stay frame-accurate.
  * Fails with a console error where WebGPU is unavailable.
  */
 
@@ -54,12 +56,12 @@ type Gpu = {
 };
 
 export default function WebgpuTriangle() {
-  const { time } = useTicker();
+  const { time, hold } = useTicker();
   const [gpu, setGpu] = createSignal<Gpu>();
 
   let surfaceRef: SceneNode | undefined;
 
-  onMount(async () => {
+  const setup = async () => {
     const el = surfaceRef!.element;
     if (!el) return;
 
@@ -89,7 +91,10 @@ export default function WebgpuTriangle() {
     });
 
     setGpu({ device, context, pipeline, uniforms, bindGroup });
-  });
+  };
+
+  // Held, so the frames wait for the pipeline instead of being sampled empty.
+  onMount(() => hold(setup()));
 
   createEffect(() => {
     const g = gpu();

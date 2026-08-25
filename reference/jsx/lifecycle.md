@@ -44,9 +44,33 @@ Call it in a component body. It returns accessors for the playhead of the scene 
 | `frame()` | Playhead in frames (30 fps) |
 | `delta()` | Seconds advanced since the previous engine tick: 0 while paused, negative on a backward scrub or loop |
 | `playing()` | Whether the scene is playing |
+| `hold(work)` | Holds the frames an export or a capture is sampling until `work` settles — see [below](#hold) |
 
 The values respect play, pause, scrubbing, looping, and playback speed, which wall-clock timers do not. Each accessor only propagates when its value changes, so a paused scene re-runs nothing and `frame()` consumers update at most once per frame. Ticker-driven drawing follows the playhead in the editor **and in exports and captures**; wall-clock timers (`setInterval`, `requestAnimationFrame`) render live but do not appear in the output.
 
 `useTicker` is host-bound: it only works inside a mounted project, and throws with a message saying so anywhere else.
 
-> **Status:** the runtime document does not provide a timeline clock yet, so `useTicker()` currently throws inside a mounted project too (`useTicker: this host does not provide a timeline clock`) — and, being called in a component body, takes the whole mount with it. Until it is wired, drive motion with [`<animation>`](./animations.md) and [`<keyframeTrack>`](./keyframes.md), which run on the same playhead.
+## `hold`
+
+An export or a capture does not photograph the live mount — it **mounts the module again**, in a world of its own, and starts sampling as soon as that render returns. So a project's own async work races the first frames: a mesh fetched in `onMount`, a WebGPU device, a `fetch` whose answer decides a layout. The picture on the canvas has been there for minutes; the one in the encoder is a few milliseconds old.
+
+`hold` is how a project says that a frame is not ready yet:
+
+```tsx
+const { hold } = useTicker();
+
+onMount(() => {
+  const ready = new GLTFLoader().loadAsync(MODEL_URL).then((gltf) => {
+    scene.add(gltf.scene);
+    setLoaded(true); // wake the draw effect
+  });
+
+  hold(ready); // the encoder waits for the model before sampling a frame
+});
+```
+
+- **Held during the mount**, the promise is awaited before the first frame is written — the same barrier the engine's own decoders and sources wait behind. Nothing later needs to wait for it, since the frame it held did.
+- **Held during a tick** (inside an effect, a draw callback), it is awaited before *that* frame is sampled. Work that is not done once — a texture that streams in, an `ImageBitmap` decode, a readback — is held on every tick it is still pending, the way a decoder that is not ready re-registers its own promise each frame.
+- **Live playback holds nothing.** Nothing in the editor waits for a frame, so `hold` there is a no-op and costs a mounted project nothing.
+- **Holding is not drawing.** The barrier makes the frame wait; something still has to redraw once the work lands — hence the `setLoaded(true)` above, read inside the draw effect. Without it the frame waits and is still sampled blank.
+- A held promise is **settled either way and bounded**: a rejection is logged rather than failing the export, and a promise that never settles is given up on after 30 seconds so a render cannot hang on it.

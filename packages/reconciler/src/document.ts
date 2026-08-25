@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, Computed, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FrameRate, Generating, GenerationRequest, getActiveEntity, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, PendingSync, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SyncRequest, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, Computed, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FramePromises, FrameRate, Generating, GenerationRequest, getActiveEntity, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, PendingSync, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SyncRequest, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createSignal } from 'solid-js';
 import { SVGElements } from 'solid-js/web';
@@ -17,6 +17,14 @@ import type { ProjectDocument, ProjectTick } from './host';
 
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
+
+/**
+ * How long a single `hold` may keep an offline frame waiting. A project's
+ * async work is its own, so a promise that never settles is a real
+ * possibility, and an export that never finishes is worse than one that
+ * misses a picture.
+ */
+const HOLD_TIMEOUT_MS = 30_000;
 
 /** What an element with no `SourceModifiers` trait is asking for: nothing. */
 const NO_MODIFIERS = { removeBackground: false, upscale: 1, addAudio: false };
@@ -1594,6 +1602,40 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	public tick(): ProjectTick {
 		return this.ticker[0]();
+	}
+
+	/**
+	 * The barrier behind `useTicker().hold`: a project's own async work, put
+	 * where the frames in flight wait for it — the same list the decoders push
+	 * their readiness onto, drained by `warmupAssets` before the first frame
+	 * and by the encoder before each one after it. Held during the mount, the
+	 * first frame waits for it; held during a tick, that frame does — hold on
+	 * every tick, as a decoder that is not ready does, for work that is not
+	 * done once.
+	 *
+	 * The list is null in realtime (nothing collects), so a live mount holds
+	 * nothing and pays nothing.
+	 *
+	 * Settled either way and bounded: the decoders' promises are the engine's
+	 * own, this one is a project's, and neither a rejection nor a promise that
+	 * never settles may take an export down with it.
+	 */
+	public hold(work: Promise<unknown>): void {
+		const promises = this.world.get(FramePromises)?.list;
+		if (!promises) return;
+
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const expired = new Promise<void>((resolve) => {
+			timer = setTimeout(() => {
+				console.warn(`[hold] gave up after ${HOLD_TIMEOUT_MS}ms — rendering the frame without it`);
+				resolve();
+			}, HOLD_TIMEOUT_MS);
+		});
+
+		promises.push(
+			Promise.race([Promise.resolve(work).catch((error) => console.error('[hold]', error)), expired])
+				.finally(() => clearTimeout(timer)),
+		);
 	}
 
 	/**

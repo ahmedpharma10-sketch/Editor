@@ -91,6 +91,10 @@ export function use(fn: (target: unknown, arg?: unknown) => void, node: unknown,
  * @diffusionstudio/jsx (see "./runtime"), so a mounted project's import
  * resolves to this one. Each accessor only propagates when its value changes,
  * so a paused scene re-runs nothing.
+ *
+ * `hold` is the host's frame barrier, or a no-op where the host has none:
+ * a project holding work in a document that draws in realtime is not an
+ * error, there is simply nothing there that waits.
  */
 export function useTicker(): Ticker {
   const document = doc();
@@ -99,11 +103,13 @@ export function useTicker(): Ticker {
   }
 
   const tick = document.tick.bind(document);
+  const hold = document.hold?.bind(document) ?? (() => {});
   return {
     time: createMemo(() => tick().time),
     frame: createMemo(() => tick().frame),
     delta: createMemo(() => tick().delta),
     playing: createMemo(() => tick().playing),
+    hold,
   };
 }
 

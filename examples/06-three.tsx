@@ -12,6 +12,10 @@
  * useTicker's composition time seeks the helmet's rotation inside a
  * createEffect, so scrubbing and exports stay frame-accurate, not wall-clock.
  *
+ * An export mounts the module again in a world of its own, so the .glb is
+ * fetched from scratch there and races the first frames — which is what
+ * `hold` is for: the encoder waits for the model before it samples anything.
+ *
  * The "Battle Damaged Sci-Fi Helmet" is the Khronos DamagedHelmet sample, a
  * single-file .glb GLTFLoader fetches directly over the network.
  * RoomEnvironment bakes an in-memory PBR reflection map, so the metal reads
@@ -31,7 +35,7 @@ const MODEL_URL =
 const TURN_SECONDS = 6; // one full revolution per 6s of composition time
 
 export default function ThreeHelmet() {
-  const { time } = useTicker();
+  const { time, hold } = useTicker();
   const [loaded, setLoaded] = createSignal(false);
 
   let surfaceRef: SceneNode | undefined;
@@ -71,7 +75,9 @@ export default function ThreeHelmet() {
     scene.add(pivot);
 
     let disposed = false;
-    new GLTFLoader()
+    // Held, so export and capture wait for the helmet rather than writing the
+    // frames it hasn't arrived for; live playback collects nothing.
+    const ready = new GLTFLoader()
       .loadAsync(MODEL_URL)
       .then((gltf) => {
         if (disposed) return;
@@ -86,6 +92,8 @@ export default function ThreeHelmet() {
         setLoaded(true); // wake the effect so the first frame renders even when paused
       })
       .catch((err) => console.error("Helmet model load failed:", err));
+
+    hold(ready);
 
     // The playhead is the only clock. Reading time() (and loaded()) subscribes
     // the effect, so it re-renders every tick and once the model streams in.
