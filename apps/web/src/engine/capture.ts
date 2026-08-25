@@ -96,15 +96,20 @@ export async function createCapture(source: World, node: Entity, options: Captur
 	// The encoder sizes it once it knows how big the picture is. It sits inside
 	// the viewport, behind the app, not parked off-screen: the browser only
 	// paints layout near the viewport, and drawElementImage draws from that
-	// cached paint — on a canvas at left:-100000px it throws "no cached paint
-	// record" and every HTML paint captures blank. The opacity keeps it from
-	// showing through translucent UI above it (the rendering overlay) while
-	// staying over Chromium's minimum visible opacity (0.0004), under which the
-	// subtree would again not be painted.
+	// cached paint — on a canvas at left:-100000px (or below the fold) it
+	// throws "no cached paint record" and every HTML paint captures blank.
+	// Only the canvas's origin has to intersect the viewport, not its whole
+	// box: a `layoutsubtree` child is paint-contained and records in full, so a
+	// 4K canvas in a small window still captures its far corner.
+	// `opacity:0` alone would not do — Blink skips painting a subtree under its
+	// minimum visible opacity (0.0004) — but `will-change:opacity` keeps the
+	// effect node composited, so the subtree is painted at opacity 0 all the
+	// same and nothing shows through translucent UI above it. Canvas opacity is
+	// not baked into what drawElementImage yields.
 	const canvas = document.createElement('canvas');
 	canvas.width = 2;
 	canvas.height = 2;
-	canvas.style.cssText = 'position:fixed;left:0;top:0;z-index:-9999;opacity:0.001;pointer-events:none;';
+	canvas.style.cssText = 'position:fixed;left:0;top:0;z-index:-9999;opacity:0;will-change:opacity;pointer-events:none;';
 	document.body.appendChild(canvas);
 
 	// Shares the source's assets and generation service — a `src` names the
