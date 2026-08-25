@@ -597,7 +597,7 @@ program
   .command("context")
   .alias("ctx")
   .description(
-    `Print the current app context: which project the app has open (id, display name, folder — or null when none is), where its playhead sits, in seconds, the registered font families, and where its generations stand.`,
+    `Print the current app context: the application root folder (always reported), the folder of the project the app has open (null when none is), where its playhead sits, in seconds, the registered font families, and where its generations stand.`,
   )
   .action(() => context());
 

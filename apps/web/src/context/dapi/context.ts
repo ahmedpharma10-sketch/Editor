@@ -4,6 +4,8 @@
 
 import { AssetId, Computed, Fonts, FrameRate, Generating, getActiveEntity, Library, Name, PendingSource, Source, SourceError } from "@diffusionstudio/runtime";
 
+import { getProjectsRoot } from "@/projects";
+
 import type { Accessor } from "solid-js";
 import type { Entity, World } from "koota";
 import type { EditorSession } from "./session";
@@ -12,25 +14,25 @@ import type { EditorSession } from "./session";
  * What `dapi context` reports: what the project's source cannot say. The JSX is
  * the composition — its scenes, what is selected, which scene is active, the
  * work area are all in the file, and a caller that wants them reads it. What is
- * left over is which project the app has open, where its playhead sits, which
- * font families are actually registered in the world drawing it. With no
- * project open there is none of that to report, and the report says so.
+ * left over is which folder projects live under, which project folder the app
+ * has open, where its playhead sits, which font families are actually
+ * registered in the world drawing it. With no project open only the root is
+ * left to report, and the report says so.
  */
 export function handleContextGet(session: Accessor<EditorSession | null>) {
   return async () => {
+    const rootDir = await getProjectsRoot();
+
     const open = session();
-    if (!open) return { project: null };
+    if (!open) return { rootDir, projectDir: null };
 
     const { world, project } = open;
     const frameRate = world.get(FrameRate)?.value || 30;
     const active = getActiveEntity(world);
 
     return {
-      project: {
-        id: project.id(),
-        name: project.name(),
-        dir: project.dir(),
-      },
+      rootDir,
+      projectDir: project.dir(),
       // Seconds, the unit the source places clips in; null when no scene is
       // active, which is when there is no playhead to report.
       currentTime: active ? (active.get(Computed)?.localTime ?? 0) / frameRate : null,

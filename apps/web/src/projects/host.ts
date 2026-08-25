@@ -55,6 +55,12 @@ const ready = new Promise<void>((resolve) => {
 
 export const isDesktop = (): boolean => !!window.desktop;
 
+/** The projects root, waited for: null off the desktop and until one is picked. */
+export async function getProjectsRoot(): Promise<string | null> {
+	await ready;
+	return projectsRoot();
+}
+
 /** Opens the native folder picker and remembers the chosen root. */
 export async function pickProjectsRoot(): Promise<string | null> {
 	const root = await mainBridge.call(MAIN_CHANNELS.PROJECTS_PICK_ROOT, undefined);

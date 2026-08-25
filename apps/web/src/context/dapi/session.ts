@@ -14,14 +14,12 @@ import type { Accessor } from "solid-js";
 import type { World } from "koota";
 
 /**
- * The open project's identity, as the editor knows it. Structural on purpose:
- * this is the project context's shape, without the handlers having to depend
- * on the Solid context it comes from.
+ * The open project, as the editor knows it. Structural on purpose: this is
+ * the slice of the project context the handlers read, without depending on
+ * the Solid context it comes from.
  */
 export type OpenProject = {
-  id: () => string;
   dir: () => string;
-  name: () => string;
 };
 
 /** What only an open project can offer: the world drawing it, and which project that is. */

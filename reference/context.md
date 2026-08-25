@@ -15,11 +15,8 @@ One JSON object:
 
 ```ts
 {
-  project: {
-    id:         string;   // package.json `projectId`, stable across renames
-    name:       string;   // package.json `displayName`, what the user calls it
-    dir:        string;   // absolute project folder — where the JSX being edited lives
-  };
+  rootDir:      string | null;   // absolute folder projects live under; null until one is picked
+  projectDir:   string | null;   // absolute open project folder — where the JSX being edited lives; null when none is open
   currentTime:  number | null;   // playhead in the active scene, in seconds; null if no scene is active
   fontFamilies: string[];        // families registered in the running world, valid as `fontFamily`
   generations:  {                // every generated source in the project, and where it stands
@@ -33,13 +30,16 @@ One JSON object:
 ```
 
 With no project open (the app sits at the dashboard) the report is just
-`{ project: null }`: there is no playhead, no world, and no fonts to speak of.
-Open one with [`dapi open`](./open.md).
+`{ rootDir, projectDir: null }`: there is no playhead, no world, and no fonts
+to speak of. Open one with [`dapi open`](./open.md).
+
+`rootDir` is reported whether or not a project is open — it is where a caller
+with nothing open goes to create or find one.
 
 `currentTime` is local to the active scene, the same origin a clip's `start`
 and `end` are placed against, and in the same unit.
 
-`project.dir` is the folder the app is editing, which is not necessarily the
+`projectDir` is the folder the app is editing, which is not necessarily the
 one a command was run from: check it before writing to source files.
 
 `fontFamilies` is what text can be drawn with right now — loaded into the world,
