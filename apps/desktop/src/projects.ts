@@ -2,18 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Projects on disk. A project is a plain folder that is a real npm package
-// with a JSX entry file whose default export renders a <stage>. The user picks
-// a root folder; every direct child folder holding an entry file is a project.
-// The package.json is the project record (`projectId`, `displayName`, `main`);
-// there is no registry elsewhere.
-//
-// Compilation bundles the entry with esbuild (which resolves node_modules for
-// us) and runs project sources through babel-preset-solid's universal JSX
-// transform, so the renderer can evaluate the resulting CommonJS bundle
-// against its own solid-js instance and the koota-backed JSX host.
-
 import { app, dialog, shell, type BrowserWindow } from "electron";
+import { execFile } from "node:child_process";
 import { watch, type FSWatcher } from "node:fs";
 import { cp, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -24,6 +14,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { TransformOptions } from "@babel/core";
 import type { BuildOptions, Plugin } from "esbuild";
 
+import { isHeadless } from "./cli-server";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
 import { applyEdits, stampProject } from "./edit";
@@ -158,16 +149,219 @@ async function describe(dir: string): Promise<ProjectInfo | null> {
 
 export const getProject = (dir: string): Promise<ProjectInfo | null> => describe(dir);
 
+/**
+ * The folder projects go in when the user has not picked one. `~/Movies` on
+ * macOS, `Videos` elsewhere — chosen because it is the one media folder the
+ * sync services leave alone: iCloud's "Desktop & Documents Folders" covers
+ * only those two, and OneDrive's Known Folder Move only Desktop, Documents,
+ * and Pictures. It also needs no macOS permission prompt, which Documents and
+ * Desktop do. Created on demand, so a user who never makes a project never
+ * gets the folder.
+ *
+ * Null when it turns out to be synced after all and the user would rather
+ * pick somewhere else — the caller falls back to `pickRoot`.
+ */
+export async function defaultRoot(window: BrowserWindow | null): Promise<string | null> {
+  const dir = join(app.getPath("videos"), "Diffusion Studio");
+  if (!(await confirmCloudLocation(window, dir, "Choose another folder"))) return null;
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
 export async function pickRoot(window: BrowserWindow | null): Promise<string | null> {
   const options: Electron.OpenDialogOptions = {
     title: "Choose projects folder",
+    defaultPath: app.getPath("videos"),
     properties: ["openDirectory", "createDirectory"],
   };
-  const { canceled, filePaths } = window
-    ? await dialog.showOpenDialog(window, options)
-    : await dialog.showOpenDialog(options);
-  if (canceled || !filePaths[0]) return null;
-  return filePaths[0];
+
+  // Declining a synced folder reopens the picker rather than dropping the
+  // user back to the dashboard: they came here to choose one.
+  while (true) {
+    const { canceled, filePaths } = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    if (canceled || !filePaths[0]) return null;
+    if (await confirmCloudLocation(window, filePaths[0], "Choose another folder")) {
+      return filePaths[0];
+    }
+  }
+}
+
+/**
+ * The attribute macOS puts on a folder that a sync service owns. This is what
+ * finding a synced folder comes down to: a synced Desktop or Documents is an
+ * ordinary directory in the ordinary place — not a symlink, not a mount, and
+ * not distinguishable by its path from an unsynced one. The attribute names
+ * the service, so it identifies as well as detects.
+ */
+const FILE_PROVIDER_ATTR = "com.apple.file-provider-domain-id";
+
+/** Domain ids worth naming; any other service syncs under a generic name. */
+const FILE_PROVIDERS: Array<[prefix: string, label: string]> = [
+  ["com.apple.CloudDocs", "iCloud Drive"],
+  ["com.google.drivefs", "Google Drive"],
+  ["com.dropbox", "Dropbox"],
+  ["com.microsoft.OneDrive", "OneDrive"],
+  ["com.box", "Box"],
+];
+
+/**
+ * `path` with its symlinks resolved. The folder itself need not exist — what
+ * gets resolved is the deepest ancestor that does, which is what lets this
+ * answer for a root that is about to be created.
+ */
+async function resolveDeepest(path: string): Promise<string> {
+  let head = resolve(path);
+  const tail: string[] = [];
+
+  while (true) {
+    try {
+      return join(await realpath(head), ...tail);
+    } catch {
+      const parent = dirname(head);
+      if (parent === head) return resolve(path);
+      tail.unshift(basename(head));
+      head = parent;
+    }
+  }
+}
+
+/** `path` and every parent up to the root, deepest first, that exists. */
+async function existingAncestors(path: string): Promise<string[]> {
+  const found: string[] = [];
+  let head = resolve(path);
+
+  while (true) {
+    if (await exists(head)) found.push(head);
+    const parent = dirname(head);
+    if (parent === head) return found;
+    head = parent;
+  }
+}
+
+/**
+ * The File Provider domains owning any of `paths`. The attribute sits on the
+ * folder the service manages and is not inherited by what is inside it, so
+ * the whole ancestor chain is asked at once — a folder deep in a synced
+ * Desktop carries nothing itself. Anything that goes wrong is an absence: no
+ * attribute, no permission to look, and no `xattr` all read the same, which
+ * costs a warning rather than access to the folder.
+ */
+async function fileProviderDomains(paths: string[]): Promise<string[]> {
+  if (process.platform !== "darwin" || !paths.length) return [];
+
+  const stdout = await new Promise<string>((done) => {
+    execFile("/usr/bin/xattr", ["-p", FILE_PROVIDER_ATTR, ...paths], (_error, out) =>
+      done(out ?? ""),
+    );
+  });
+
+  const domains: string[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    // One path answers with the bare value, several with `<path>: <value>`.
+    if (paths.length === 1) {
+      domains.push(line.trim());
+      continue;
+    }
+    const owner = paths.find((candidate) => line.startsWith(candidate + ": "));
+    if (owner) domains.push(line.slice(owner.length + 2).trim());
+  }
+  return domains;
+}
+
+/**
+ * Whether macOS is syncing the home Desktop and Documents folders. Those two
+ * are both the common case and the awkward one: reading their attribute needs
+ * a permission the app may not have been granted, and the read fails silently
+ * without it. iCloud's own copies of the folders answer the same question,
+ * and looking at those needs no permission at all.
+ */
+async function desktopAndDocumentsSynced(): Promise<boolean> {
+  const cloud = join(app.getPath("home"), "Library", "Mobile Documents", "com~apple~CloudDocs");
+  return (await exists(join(cloud, "Desktop"))) || (await exists(join(cloud, "Documents")));
+}
+
+/** The sync service `path` sits under, or null when it is on plain local disk. */
+export async function cloudSyncKind(path: string): Promise<string | null> {
+  const real = await resolveDeepest(path);
+  const home = app.getPath("home");
+
+  // iCloud Drive itself, and the per-app containers beside it: the one synced
+  // thing macOS leaves unmarked, so the only one that goes by path.
+  const mobile = await resolveDeepest(join(home, "Library", "Mobile Documents"));
+  if (real === mobile || real.startsWith(mobile + sep)) return "iCloud Drive";
+
+  // Windows has no File Provider to ask.
+  if (process.platform === "win32") {
+    const roots: Array<[string, string]> = [[join(home, "iCloudDrive"), "iCloud Drive"]];
+    for (const key of ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"]) {
+      const dir = process.env[key];
+      if (dir) roots.push([dir, "OneDrive"]);
+    }
+    for (const [dir, label] of roots) {
+      const root = resolve(dir);
+      if (real === root || real.startsWith(root + sep)) return label;
+    }
+  }
+
+  // The home Desktop and Documents, before the attribute is asked for: it is
+  // the one the app is most likely to be unable to read.
+  const under = async (name: "desktop" | "documents") => {
+    const root = await resolveDeepest(app.getPath(name));
+    return real === root || real.startsWith(root + sep);
+  };
+  if (((await under("desktop")) || (await under("documents"))) && (await desktopAndDocumentsSynced())) {
+    return "iCloud Drive";
+  }
+
+  // Everything else: every service with a folder under `Library/CloudStorage`,
+  // and anything else macOS hands to a File Provider.
+  for (const domain of await fileProviderDomains(await existingAncestors(real))) {
+    const known = FILE_PROVIDERS.find(([prefix]) => domain.startsWith(prefix));
+    return known ? known[1] : "a cloud sync service";
+  }
+  return null;
+}
+
+/**
+ * Whether to go ahead with `path`: true when nothing syncs it, and when the
+ * user has been told what syncing does to a project and wants it anyway.
+ * Headless runs are never asked — there is nobody to ask — and proceed with
+ * the warning in the log.
+ */
+async function confirmCloudLocation(
+  window: BrowserWindow | null,
+  path: string,
+  declineLabel: string,
+): Promise<boolean> {
+  const kind = await cloudSyncKind(path);
+  if (!kind) return true;
+
+  if (isHeadless()) {
+    console.warn(`[projects] ${path} is synced by ${kind}; projects there may misbehave`);
+    return true;
+  }
+
+  const options: Electron.MessageBoxOptions = {
+    type: "warning",
+    title: "This folder is synced",
+    message: `${kind} syncs this folder.`,
+    detail:
+      `Projects here are not supported. ` +
+      `Expect glitches: edits reappearing after you change them, work lost to ` +
+      `a conflicting copy, or the project failing to build.\n\n` +
+      `Somewhere on local disk avoids all of this.`,
+    buttons: [declineLabel, "Use anyway"],
+    defaultId: 0,
+    cancelId: 0,
+  };
+
+  const { response } = window
+    ? await dialog.showMessageBox(window, options)
+    : await dialog.showMessageBox(options);
+  return response === 1;
 }
 
 /** Direct child folders of `root` that could hold a project, in a stable order. */
@@ -640,7 +834,11 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
  * something first needs it. A folder that is already a project comes back
  * untouched. How `dapi open <path>` opens a folder anywhere on disk.
  */
-export async function initProject(dir: string): Promise<ProjectInfo> {
+export async function initProject(window: BrowserWindow | null, dir: string): Promise<ProjectInfo> {
+  if (!(await confirmCloudLocation(window, dir, "Cancel"))) {
+    throw new Error("Cancelled: that folder is synced.");
+  }
+
   await mkdir(dir, { recursive: true });
   if (!(await findEntry(dir))) {
     await writeIfMissing(dir, "index.tsx", STARTER);

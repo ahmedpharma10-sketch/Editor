@@ -16,6 +16,7 @@ import { MAIN_CHANNELS } from "./main-channels";
 import {
   compileProject,
   createProject,
+  defaultRoot,
   deleteProject,
   duplicateProject,
   getProject,
@@ -272,9 +273,10 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.HEADLESS_GET_MODE, () => isHeadless());
   mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_PICK_ROOT, () => pickRoot(mainWindow));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_DEFAULT_ROOT, () => defaultRoot(mainWindow));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_LIST, ({ root }) => listProjects(root));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_GET, ({ dir }) => getProject(dir));
-  mainBridge.handle(MAIN_CHANNELS.PROJECTS_INIT, ({ dir }) => initProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_INIT, ({ dir }) => initProject(mainWindow, dir));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_RESOLVE, ({ root, ref }) => resolveProject(root, ref));
   mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, displayName }) =>
     createProject(root, displayName),

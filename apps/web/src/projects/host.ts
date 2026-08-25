@@ -3,10 +3,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Renderer half of on-disk projects. Projects live as folders under a root
-// the user picks once (persisted); each project's package.json is its record
-// (`projectId`, `displayName`, `main`). The desktop main process scans,
-// scaffolds, renames, copies, trashes, compiles, and watches them. Desktop
-// only for now: without the bridge every call rejects and the root is null.
+// (persisted) — a default one until the user picks another; each project's
+// package.json is its record (`projectId`, `displayName`, `main`). The
+// desktop main process scans, scaffolds, renames, copies, trashes, compiles,
+// and watches them. Desktop only for now: without the bridge every call
+// rejects and the root is null.
 //
 // A project is addressed by its folder — an absolute path, which is what main
 // takes — and identified by its id, which is what the app's URLs carry and
@@ -66,13 +67,25 @@ export async function pickProjectsRoot(): Promise<string | null> {
 
 /**
  * The root to work against, waited for and — when there is none to wait for —
- * asked of the user. Null when they decline, or off the desktop, where there
- * is no folder to pick.
+ * defaulted to. Null off the desktop, where there is no folder at all, and
+ * when the user is asked where to put projects and declines to say.
  */
 export async function ensureProjectsRoot(): Promise<string | null> {
 	if (!isDesktop()) return null;
 	await ready;
-	return projectsRoot() ?? pickProjectsRoot();
+
+	const current = projectsRoot();
+	if (current) return current;
+
+	// Nothing picked yet: the default folder, so a first project costs a click
+	// rather than a trip through the folder picker. The picker is still there
+	// for anyone who wants to say — and for when the default will not do.
+	const root = await mainBridge.call(MAIN_CHANNELS.PROJECTS_DEFAULT_ROOT, undefined);
+	if (!root) return pickProjectsRoot();
+
+	await rememberProjectRoot(root);
+	setProjectsRoot(root);
+	return root;
 }
 
 export async function listProjects(): Promise<ProjectInfo[]> {

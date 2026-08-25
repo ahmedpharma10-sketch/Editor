@@ -41,6 +41,7 @@ export const MAIN_CHANNELS = {
   HEADLESS_GET_MODE: "headless:get-mode",
   LOGS_GET: "logs:get",
   PROJECTS_PICK_ROOT: "projects:pick-root",
+  PROJECTS_DEFAULT_ROOT: "projects:default-root",
   PROJECTS_LIST: "projects:list",
   PROJECTS_GET: "projects:get",
   PROJECTS_INIT: "projects:init",
@@ -140,6 +141,7 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.HEADLESS_GET_MODE]: { request: void; response: boolean };
   [MAIN_CHANNELS.LOGS_GET]: { request: void; response: LogEntry[] };
   [MAIN_CHANNELS.PROJECTS_PICK_ROOT]: { request: void; response: string | null };
+  [MAIN_CHANNELS.PROJECTS_DEFAULT_ROOT]: { request: void; response: string | null };
   [MAIN_CHANNELS.PROJECTS_LIST]: { request: { root: string }; response: ProjectInfo[] };
   [MAIN_CHANNELS.PROJECTS_GET]: { request: { dir: string }; response: ProjectInfo | null };
   [MAIN_CHANNELS.PROJECTS_INIT]: { request: { dir: string }; response: ProjectInfo };
