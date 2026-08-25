@@ -796,7 +796,7 @@ function hasPositionKeyframes(world: World, entity: Entity): boolean {
  * request to nest anything in it, and without a wait a quick pass would
  * re-home the node twice, once each way, writing both to the file.
  */
-const DROP_DWELL_MS = 350;
+const DROP_DWELL_MS = 250;
 
 /** What the pointer is over, and since when. */
 const dwell = { target: null as Entity | null, since: 0 };
