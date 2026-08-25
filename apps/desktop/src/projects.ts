@@ -336,9 +336,10 @@ const TSCONFIG = `{
 }
 `;
 
-/** What a project folder produces but should not check in: installs, and derived data (thumbnails, waveforms). */
+/** What a project folder produces but should not check in: installs, derived data (thumbnails, waveforms), and the app-owned docs. */
 const GITIGNORE = `node_modules/
 cache/
+.diffusion/
 `;
 
 const STARTER = `export default function Project() {
@@ -379,6 +380,8 @@ on the canvas.
 | \`assets.yml\` | The asset library: for every asset its library path, where its bytes are, and what it was found to be. Written by the app; hand edits are read on the next load. |
 | \`assets/\` | Files the app produced itself, generations under \`assets/generated/\`. Media imported from elsewhere on disk is linked where it lies, never copied. |
 | \`cache/\` | Derived data (thumbnails, waveforms). Disposable, and not checked in. |
+| \`AGENTS.md\` | The agent entry point: what to read in \`.diffusion/docs/\` and how to work here. |
+| \`.diffusion/\` | App-owned. \`docs/\` is the authoring reference and examples for the installed app version; the app regenerates it, and it is not checked in. |
 
 ## Authoring
 
@@ -464,6 +467,106 @@ All of them talk to the running app, except \`fonts\` and \`fetch\`.
 - [Examples](https://github.com/diffusionstudio/editor/tree/main/examples): runnable compositions to read
 `;
 
+/**
+ * The agent entry point, written once like the README: the file coding agents
+ * load without being asked, and therefore the one place a project is reliably
+ * discovered from. Loaded into context whole, so it stays a thin index into
+ * `.diffusion/docs` rather than the docs themselves — and being the author's
+ * file after the first write, an agent can append project conventions to it
+ * while the paths it points at stay put.
+ */
+const AGENTS = `# Authoring this project
+
+A Diffusion Studio project: a video composition authored as code. The entry
+(\`index.tsx\`) default-exports a Solid component that renders a \`<stage>\`;
+the app compiles it and renders every element into an editable node on the
+canvas. The source is the document in both directions: saving recompiles and
+remounts the project, and edits made in the app land back in the JSX as props
+on the element they were authored as.
+
+## Docs
+
+\`.diffusion/docs/\` holds the authoring reference and runnable examples for
+the installed app version. The app regenerates it on version changes: read it,
+never edit it, and trust it over memory.
+
+| Read | For |
+| ---- | --- |
+| \`.diffusion/docs/reference/jsx/README.md\` | The JSX contract — elements, props, pipeline. Start here. |
+| \`.diffusion/docs/reference/jsx/timing.md\` | \`start\`/\`end\`/\`sourceIn\`/\`sourceOut\`, and the time formats. |
+| \`.diffusion/docs/reference/jsx/generate.md\` | Declaring AI-generated assets (\`generate.*\`). |
+| \`.diffusion/docs/reference/README.md\` | Every dapi command, its options and its output. |
+| \`.diffusion/docs/examples/\` | Complete compositions, basics through shaders. |
+
+## Working here
+
+- Every dapi command is an npm script: \`npm run\` lists them, and
+  \`npm run <name> -- <args>\` runs one.
+- \`npm run context\` reports what the app has open, where its playhead sits,
+  and where generations stand.
+- Verify visually with \`npm run capture -- <id>\`: it renders a node exactly
+  as the viewer gets it. Do not export a video to check work.
+- Position and size are explicit, in pixels. There is no layout pass and no CSS.
+- Times are seconds (\`1.5\`), frames (\`"45f"\`), or \`"MM:SS"\`.
+- Types are stripped at compile time, never checked: run \`npx tsc --noEmit\`.
+`;
+
+// ---------------------------------------------------------------------------
+// Authoring docs
+
+/**
+ * The project-relative folder the app owns outright. Everything else the
+ * scaffold writes is written once and is the author's from then on; this
+ * folder is regenerated wholesale, which is why it gets a namespace of its
+ * own instead of files among the author's.
+ */
+const APP_DIR = ".diffusion";
+
+/** Repo housekeeping that has no business in a project's copy of the docs. */
+const DOCS_SKIP = new Set(["tsconfig.json", ".DS_Store"]);
+
+/**
+ * Where the shipped docs come from: staged app resources when packaged (see
+ * scripts/stage-docs.mjs), the repo checkout in development. Both lay the
+ * tree out as the repo does — `reference/` beside `examples/` — so the
+ * relative links between the pages keep resolving after the copy.
+ */
+function docsSources(): string {
+  return app.isPackaged ? join(process.resourcesPath, "docs") : join(app.getAppPath(), "..", "..");
+}
+
+/**
+ * Copies the authoring reference and examples into `.diffusion/docs`, stamped
+ * with the app version and refreshed whenever the stamp stops matching. Docs
+ * that outlive the app they sit next to would lie about it, so unlike the
+ * rest of the scaffold this is rewritten, not written once. The stamp only
+ * moves with a release; in development a refresh is forced by deleting the
+ * folder. This runs on every compile, so the up-to-date case is one read.
+ */
+async function syncDocs(dir: string): Promise<void> {
+  const docsDir = join(dir, APP_DIR, "docs");
+  const stampFile = join(docsDir, ".version");
+  const version = app.getVersion();
+  try {
+    if ((await readFile(stampFile, "utf8")).trim() === version) return;
+  } catch {
+    // No stamp: never synced, or a copy that did not finish. Full copy below.
+  }
+  const source = docsSources();
+  await rm(docsDir, { recursive: true, force: true });
+  await mkdir(docsDir, { recursive: true });
+  for (const name of ["reference", "examples"]) {
+    const src = join(source, name);
+    if (!(await exists(src))) continue;
+    await cp(src, join(docsDir, name), {
+      recursive: true,
+      filter: (path) => !DOCS_SKIP.has(basename(path)),
+    });
+  }
+  // Written last, so a copy that died refuses to pass for a synced one.
+  await writeFile(stampFile, version + "\n", "utf8");
+}
+
 async function writeIfMissing(dir: string, name: string, content: string): Promise<void> {
   const path = join(dir, name);
   if (await exists(path)) return;
@@ -514,6 +617,15 @@ export async function scaffold(dir: string, displayName = basename(dir)): Promis
   await writeIfMissing(dir, "tsconfig.json", TSCONFIG);
   await writeIfMissing(dir, ".gitignore", GITIGNORE);
   await writeIfMissing(dir, "README.md", readme(displayName));
+  await writeIfMissing(dir, "AGENTS.md", AGENTS);
+
+  // The docs are auxiliary: a project must still open and compile without
+  // them, so a failed sync is a warning rather than a failed scaffold.
+  try {
+    await syncDocs(dir);
+  } catch (error) {
+    console.warn(`projects: could not sync the authoring docs into ${dir}`, error);
+  }
 
   if (!(await exists(join(dir, MANIFEST_FILE)))) {
     await writeManifest(dir, EMPTY_MANIFEST);
@@ -886,6 +998,8 @@ export function watchProject(window: BrowserWindow | null, dir: string): void {
     // Project-relative and `/`-separated; installs churn node_modules constantly.
     const path = filename.split(sep).join("/");
     if (path.startsWith("node_modules/") || path === "node_modules") return;
+    // The app's folder: a docs refresh writes the whole tree in one burst.
+    if (path.startsWith(`${APP_DIR}/`) || path === APP_DIR) return;
     if (isSelfWrite(dir, path)) return;
     mainBridge.emit(window, MAIN_CHANNELS.PROJECTS_CHANGED, { dir, path });
   });
