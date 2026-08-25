@@ -17,8 +17,8 @@
  */
 
 import {
-	AudioEngine, ChildOf, Computed, Culled, Geometry, Group, Hovering,
-	Interactive, KeepAspectRatio, Playback, RenderSurface, Root, Scene,
+	ChildOf, Computed, Culled, Geometry, Group, Hovering,
+	Interactive, KeepAspectRatio, RenderSurface, Root, Scene,
 	Selected, Skew, Time,
 	computeGroupBounds, computeLocalMatrix, decompose2D, entityAnchor,
 	entityOffset, entityQuad, entityWorldMat, enterEntity,
@@ -26,7 +26,7 @@ import {
 	getSelection, getSelectionMask, identity2D, invert2D, isPointerInEntity,
 	multiply2D, quadCenter, quadContainsQuad, quadsIntersect, rectToQuad,
 	rotate2D, scale2D,
-	store, syncInteractiveState, transformPoint, translate2D,
+	store, syncInteractiveState, togglePlayback, transformPoint, translate2D,
 } from '@diffusionstudio/runtime';
 import { Not, Or } from 'koota';
 
@@ -248,20 +248,15 @@ export function handleCanvasInteraction(world: World, event: DispatchedPointerEv
 	}
 }
 
-/** The play/pause button on a scene header. */
+/** The play/pause button on a header: a scene's, or a stage-level video/audio's. */
 export function handlePlayInteraction(world: World, event: DispatchedPointerEvent): void {
 	if (event.type !== 'click' || event.target.kind !== 'hud') return;
 
 	// The region is a frame old, so what it points at may be gone.
 	const entity = event.target.entity;
-	const playback = entity?.isAlive() ? entity.get(Playback) : undefined;
-	if (!entity || !playback) return;
+	if (!entity?.isAlive()) return;
 
-	entity.set(Playback, { playing: !playback.playing, speed: 1 });
-
-	// Audio is gated until the context has seen a gesture; this is one.
-	const context = world.get(AudioEngine)?.context;
-	if (context instanceof AudioContext) void context.resume();
+	togglePlayback(world, entity);
 }
 
 /** The name on a scene header: selects, renames on double-click, drags the node. */

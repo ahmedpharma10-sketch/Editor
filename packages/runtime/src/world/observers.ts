@@ -16,6 +16,7 @@ import {
 } from '../traits';
 import { getParentEntity } from '../queries/hierarchy';
 import { evictFromCaches, rebuildCaches, refileMask } from '../actions/cache';
+import { syncStagePlayback } from '../actions/playback';
 import { disposeDecoders, disconnectAudioBus } from '../media/dispose';
 import {
 	reactToChildAttached, reactToChildDetached, reactToAssetChange,
@@ -43,6 +44,8 @@ export function observeWorld(world: World): () => void {
 		resolveConstraintOffsets(world, child);
 		disconnectAudioBus(world, child);
 		reactToChildAttached(world, child);
+		syncStagePlayback(child);
+		syncStagePlayback(parent);
 	}));
 
 	// On re-target (and destroy) the remove event fires while the child is
@@ -58,6 +61,7 @@ export function observeWorld(world: World): () => void {
 		rebuildCaches(world, child, parent, child);
 		evictFromCaches(world, child, parent);
 		reactToChildDetached(world, child);
+		syncStagePlayback(parent);
 	}));
 
 	// Live media handles are released with their trait. Destroy removes every
