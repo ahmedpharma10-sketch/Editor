@@ -257,6 +257,10 @@ type DrawElementContext = Ctx2D & {
 };
 
 
+// Roots whose last drawElementImage threw, so a persistent failure logs once
+// rather than flooding the console; drawing again clears the entry.
+const failedHtmlRoots = new WeakSet<HTMLElement>();
+
 function renderHtmlFill(world: World, entity: Entity, source: Entity): void {
 	const root = source.get(Host)?.element;
 	const surface = world.get(RenderSurface);
@@ -278,7 +282,10 @@ function renderHtmlFill(world: World, entity: Entity, source: Entity): void {
 	try {
 		(ctx as DrawElementContext).drawElementImage(root, 0, 0, width, height);
 	} catch (error) {
-		console.error(`Error drawing <HtmlPaint> content: ${error instanceof Error ? `${error.name}: ${error.message}` : error}`);
+		if (!failedHtmlRoots.has(root)) {
+			failedHtmlRoots.add(root);
+			console.error(`Error drawing <HtmlPaint> content: ${error instanceof Error ? `${error.name}: ${error.message}` : error}`);
+		}
 	}
 
 	ctx.restore();

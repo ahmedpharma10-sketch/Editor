@@ -68,7 +68,10 @@ export default function AnimeTimeline() {
             <div style={{ "font-size": "34px", "font-weight": "700", color: `hsl(${hue()} 90% 65%)` }}>
               DOM, meet timeline
             </div>
-            <div style={{ "font-size": "18px", opacity: 0.7, margin: "6px 0 24px" }}>
+            {/* Dimmed via alpha colors, not opacity: a fractional opacity here
+                would nest under the wrapper's animated one, which blanks the
+                subtree mid-fade (see reference/jsx/html.md limitations). */}
+            <div style={{ "font-size": "18px", color: "rgba(255,255,255,0.7)", margin: "6px 0 24px" }}>
               anime.js seeked from the playhead at t = {time().toFixed(2)}s
             </div>
             <div style={{ height: "14px", "border-radius": "7px", background: "#ffffff22" }}>
@@ -81,7 +84,7 @@ export default function AnimeTimeline() {
                 }}
               />
             </div>
-            <div style={{ "font-size": "16px", opacity: 0.6, "margin-top": "10px" }}>
+            <div style={{ "font-size": "16px", color: "rgba(255,255,255,0.6)", "margin-top": "10px" }}>
               {Math.round(v.card.progress)}% through the loop
             </div>
           </div>

@@ -93,11 +93,18 @@ export async function createCapture(source: World, node: Entity, options: Captur
 
 	// Created before the world is filled: the DOM-backed paints (`<html>`,
 	// `<htmlPaint>`) attach their layout roots to it as their element is made.
-	// The encoder sizes it once it knows how big the picture is.
+	// The encoder sizes it once it knows how big the picture is. It sits inside
+	// the viewport, behind the app, not parked off-screen: the browser only
+	// paints layout near the viewport, and drawElementImage draws from that
+	// cached paint — on a canvas at left:-100000px it throws "no cached paint
+	// record" and every HTML paint captures blank. The opacity keeps it from
+	// showing through translucent UI above it (the rendering overlay) while
+	// staying over Chromium's minimum visible opacity (0.0004), under which the
+	// subtree would again not be painted.
 	const canvas = document.createElement('canvas');
 	canvas.width = 2;
 	canvas.height = 2;
-	canvas.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none;';
+	canvas.style.cssText = 'position:fixed;left:0;top:0;z-index:-9999;opacity:0.001;pointer-events:none;';
 	document.body.appendChild(canvas);
 
 	// Shares the source's assets and generation service — a `src` names the
