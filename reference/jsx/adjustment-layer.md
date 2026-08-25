@@ -3,8 +3,8 @@
 A layer that draws nothing of its own and transforms **the clip below it**. While the layer's clip lasts, its transform composes onto that of the sibling directly beneath it in the stack, so a punch-in, a drift or a keyframed zoom is authored once, in a row of its own, and trimmed and slid along the timeline without the clip it acts on being touched.
 
 ```tsx
-<scene width={1920} height={1080}>
-  <video src="interview.mp4" />
+<scene name="Interview" width={1920} height={1080}>
+  <video src="a-roll/interview.mp4" />
   <adjustmentLayer start={2} end={6} scale={1.4} />
 </scene>
 ```
@@ -37,7 +37,7 @@ Inside a [`<sequence>`](./sequences.md) the layer acts on what sits below the *s
 | `scaleX`, `scaleY` | `number` | `1` | Per-axis scale. |
 | `width`, `height` | `number` | `1920` × `1080` | **Never drawn**: the box the transform pivots around. Set them to the scene's own size on a frame shaped otherwise, so `rotation` and `scale` turn about its middle. |
 | `hidden` | `boolean` | absent | Excludes the layer without removing it: the clip below is left alone and the layer keeps its place in the timeline. |
-| `start`, `end`, `sourceIn`, `sourceOut` | `Time` | see [timing.md](./timing.md) | When the layer acts. |
-| `name` | `string` | none | Human-readable node name. |
+| `start`, `end` | `Time` | see [timing.md](./timing.md) | When the layer acts. A layer is sourceless, so with no `end` it takes the 16-second default. |
+| `id`, `name` | `string` | see [elements.md](./elements.md#common-props) | Address and label. |
 
 It has no `fill`, no `opacity` and no `blendMode`: it has no pixels of its own to give them to. Its children are [`<animation>`](./animations.md) and [`<keyframeTrack>`](./keyframes.md) elements — what the layer's transform is animated with.

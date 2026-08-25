@@ -14,17 +14,6 @@ import type { AnimatableProperty, AssetRef } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 import type { ProjectDocument } from './host';
 
-/**
- * The node a `<surface>` or `<surfacePaint>` element creates: what its `ref`
- * receives, like any other element's ref receives its node. `canvas` is the
- * backing canvas (on the geometry for a `<surface>`, whose surface is its
- * intrinsic paint; on the paint sub-entity for a `<surfacePaint>`), allocated
- * with the element and sized to the holder's box; null without a DOM.
- */
-export interface SurfaceNode extends SceneNode {
-	readonly canvas: HTMLCanvasElement | null;
-}
-
 /** Props that address or wire an element rather than describe it. */
 const UNAUTHORED_PROPS: ReadonlySet<string> = new Set([SOURCE_ATTR, LOOP_ATTR, 'children', 'ref']);
 
@@ -85,14 +74,14 @@ export function isSceneNode(node: SceneNode | undefined): node is SceneNode {
 	return typeof node === 'object' && node !== null && 'entity' in node;
 }
 
-function isDomText(node: SceneNode | undefined): node is SceneNode & { readonly domNode: Text } {
-	return typeof Text !== 'undefined' && node?.domNode instanceof Text;
+function isDomText(node: SceneNode | undefined): node is SceneNode & { readonly element: Text } {
+	return typeof Text !== 'undefined' && node?.element instanceof Text;
 }
 
 /**
  * The text nodes among `node`'s children, in order; empty when it holds none.
  */
-function textParts(node: SceneNode): (SceneNode & { readonly domNode: Text })[] {
+function textParts(node: SceneNode): (SceneNode & { readonly element: Text })[] {
 	return node.children.filter(isDomText);
 }
 
@@ -105,7 +94,7 @@ function syncChars(node: SceneNode): void {
 	const { entity } = node;
 	if (!entity.isAlive() || !isText(entity)) return;
 	entity.add(Chars);
-	entity.set(Chars, { value: textParts(node).map((part) => part.domNode.data).join('') });
+	entity.set(Chars, { value: textParts(node).map((part) => part.element.data).join('') });
 }
 
 /**
@@ -367,7 +356,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			props: {},
 			parent: null,
 			children: [],
-			domNode: null,
+			element: null,
 		};
 		root.add(Host);
 		root.set(Host, this.stage);
@@ -391,7 +380,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			props: {},
 			parent: null,
 			children: [],
-			domNode: null,
+			element: null,
 		};
 		entity.add(Host);
 		entity.set(Host, node);
@@ -412,7 +401,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			if (tag === 'canvas') {
 				throw new Error('<canvas> is not supported as HTML content; use <surface> for custom drawing');
 			}
-			const domNode = SVGElements.has(tag)
+			const element = SVGElements.has(tag)
 				? document.createElementNS('http://www.w3.org/2000/svg', tag)
 				: document.createElement(tag);
 			const entity = createEntity(this.world);
@@ -423,7 +412,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				props: {},
 				parent: null,
 				children: [],
-				domNode,
+				element,
 			};
 			entity.add(Host);
 			entity.set(Host, node);
@@ -432,7 +421,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 		const name = tag.charAt(0).toLowerCase() + tag.slice(1);
 		let entity: Entity;
-		let domNode: Element | null = null;
+		let element: Element | null = null;
 
 		switch (name) {
 			case 'stage':
@@ -557,7 +546,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				if (name === 'solidPaint') entity.add(Color);
 				if (name === 'shaderPaint') entity.add(Shader);
 				if (name === 'surfacePaint') {
-					domNode = document.createElement('canvas');
+					element = document.createElement('canvas');
 				}
 				if (name === 'htmlPaint') {
 					const root = document.createElement('div');
@@ -569,7 +558,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 					canvas.toggleAttribute('layoutsubtree', true);
 					canvas.appendChild(root);
 
-					domNode = root;
+					element = root;
 				}
 				break;
 			}
@@ -590,7 +579,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				canvas.toggleAttribute('layoutsubtree', true);
 				canvas.appendChild(root);
 
-				domNode = root;
+				element = root;
 				resizeEntity(this.world, entity, { width: 100, height: 100 });
 				break;
 			}
@@ -604,7 +593,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				entity.set(Position, { x: 0, y: 0 });
 				entity.add(Paint);
 				entity.set(Paint, { value: PaintType.SURFACE });
-				domNode = document.createElement('canvas');
+				element = document.createElement('canvas');
 				resizeEntity(this.world, entity, { width: 100, height: 100 });
 				break;
 			}
@@ -672,16 +661,8 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			props: {},
 			parent: null,
 			children: [],
-			domNode,
+			element,
 		};
-
-		if (name === 'surface' || name === 'surfacePaint') {
-			Object.assign(node, {
-				get canvas() {
-					return node.domNode instanceof HTMLCanvasElement ? node.domNode : null;
-				},
-			});
-		}
 
 		entity.add(Host);
 		entity.set(Host, node);
@@ -697,7 +678,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			props: {},
 			parent: null,
 			children: [],
-			domNode: document.createTextNode(text),
+			element: document.createTextNode(text),
 		};
 		entity.add(Host);
 		entity.set(Host, node);
@@ -706,7 +687,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 
 	public replaceText(node: SceneNode, text: string): void {
 		if (!isDomText(node)) return;
-		node.domNode.data = text;
+		node.element.data = text;
 		const owner = node.parent;
 		if (owner) syncChars(owner);
 	}
@@ -734,7 +715,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 
 		for (const [index, part] of parts.entries()) {
-			part.domNode.data = index === 0 ? text : '';
+			part.element.data = index === 0 ? text : '';
 		}
 		syncChars(node);
 	}
@@ -742,8 +723,8 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	public setProperty(node: SceneNode, name: string, value: unknown): void {
 		if (!isSceneNode(node)) return;
 
-		if (!node.native && node.domNode instanceof Element) {
-			setDomProperty(node.domNode, name, value);
+		if (!node.native && node.element instanceof Element) {
+			setDomProperty(node.element, name, value);
 		}
 
 		const { entity } = node;
@@ -1473,7 +1454,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 
 		const candidate = (!parent.native || parent.tag === 'html' || parent.tag === 'htmlPaint')
-			? parent.domNode
+			? parent.element
 			: null;
 		const domContainer = candidate instanceof Element ? candidate : null;
 
@@ -1485,20 +1466,20 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			node.parent = parent;
 
 			if (domContainer) {
-				const domAnchor = anchor?.domNode;
+				const domAnchor = anchor?.element;
 				domContainer.insertBefore(
-					node.domNode,
+					node.element,
 					domAnchor?.parentNode === domContainer ? domAnchor : null,
 				);
 			} else {
-				node.domNode.remove();
+				node.element.remove();
 			}
 			syncChars(parent);
 			return;
 		}
 
 		if (domContainer) {
-			if (node.native || !(node.domNode instanceof Element)) {
+			if (node.native || !(node.element instanceof Element)) {
 				throw new Error('A composition element cannot be HTML content.');
 			}
 
@@ -1508,8 +1489,8 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			else parent.children.splice(at, 0, node);
 			node.parent = parent;
 
-			const domAnchor = anchor?.domNode;
-			domContainer.insertBefore(node.domNode, domAnchor?.parentNode === domContainer ? domAnchor : null);
+			const domAnchor = anchor?.element;
+			domContainer.insertBefore(node.element, domAnchor?.parentNode === domContainer ? domAnchor : null);
 			return;
 		}
 
@@ -1563,7 +1544,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		}
 		node.children.length = 0;
 		node.parent = null;
-		node.domNode?.remove();
+		node.element?.remove();
 
 		if (node.entity.isAlive() && node.entity !== this.stage.entity) {
 			attempt(() => node.entity.destroy());
@@ -1609,12 +1590,12 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	public dispose(): void {
 		for (const entity of this.world.entities) {
 			if (!entity.isAlive() || entity.has(IsExcluded) || entity === this.stage.entity) continue;
-			const domNode = entity.get(Host)?.domNode;
+			const element = entity.get(Host)?.element;
 
-			if (domNode instanceof HTMLImageElement) {
-				attempt(() => URL.revokeObjectURL(domNode.src));
+			if (element instanceof HTMLImageElement) {
+				attempt(() => URL.revokeObjectURL(element.src));
 			}
-			attempt(() => domNode?.remove());
+			attempt(() => element?.remove());
 			attempt(() => entity.destroy());
 		}
 

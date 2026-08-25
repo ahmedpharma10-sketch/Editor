@@ -60,16 +60,16 @@ export function resizeEntity(world: World, entity: Entity, params: ResizeParams)
 	});
 
 	// handle DOM nodes
-	const domNode = entity.get(Host)?.domNode;
+	const element = entity.get(Host)?.element;
 
-	if (domNode instanceof HTMLCanvasElement) {
-		domNode.width = width ?? domNode.width;
-		domNode.height = height ?? domNode.height;
+	if (element instanceof HTMLCanvasElement) {
+		element.width = width ?? element.width;
+		element.height = height ?? element.height;
 	}
 
-	if (domNode instanceof HTMLElement) {
-		domNode.style.width = `${width ?? domNode.style.width.replace('px', '')}px`;
-		domNode.style.height = `${height ?? domNode.style.height.replace('px', '')}px`;
+	if (element instanceof HTMLElement) {
+		element.style.width = `${width ?? element.style.width.replace('px', '')}px`;
+		element.style.height = `${height ?? element.style.height.replace('px', '')}px`;
 	}
 
 	// The Size observer propagates Computed sizes; constraints resolve here.

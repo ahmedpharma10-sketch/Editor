@@ -13,7 +13,7 @@ const INVERT = /* wgsl */ `
   }
 `;
 
-<video src="/Movies/clip.mp4" width={1920} height={1080}>
+<video src="b-roll/clip.mp4" width={1920} height={1080}>
   <shaderPaint wgsl={INVERT} />
 </video>
 ```
@@ -78,27 +78,25 @@ Value mapping: a `number` binds to `f32`, an array of 2-4 numbers to `vec2f`/`ve
 | ---- | ---- | ------- | ------- |
 | `wgsl` | `string` | **required** | Fragment-stage WGSL source (entry point `main`). |
 | `uniforms` | `Record<string, number \| number[] \| string>` | `{}` | Values for the shader's `@group(1)` uniforms, by name. |
-| `opacity` | `Animatable<number>` | `1` | Paint opacity, `0`-`1`. |
+| `opacity` | `number` | `1` | Paint opacity, `0`–`1`. |
 
 Like all paints it stacks with siblings in document order; `<shaderPaint>` takes no children.
 
-## Patching
+## Changing a shader live
 
-Shader paints are live entities: find the paint id under the element with `dapi node tree`, then patch `dapi node patch`:
+Shader paints are live entities, and a project stays mounted, so a `uniforms` value driven by a signal is a hot update — no recompile, no reload:
 
-```bash
-# tweak parameters (hot update, no recompile)
-dapi node patch '[{ "id": 42, "uniforms": { "strength": 2 } }]'
+```tsx
+const [strength, setStrength] = createSignal(0.5);
 
-# swap the shader (async recompile; the media shows unshaded until it lands)
-dapi node patch '[{ "id": 42, "wgsl": "..." }]'
+<shaderPaint wgsl={TINT} uniforms={{ strength: strength(), tint: "#FF0055" }} />
 ```
 
-Attach one to an existing video with `dapi node insert` (`node insert <videoId> '<shaderPaint wgsl={...} />'`).
+Swapping `wgsl` recompiles the pipeline asynchronously; the media shows unshaded until the new one lands. Editing the file itself remounts the project, which is the same thing at a coarser grain.
 
 ## Errors and limitations
 
-- WGSL compile errors are reported on the app console (`dapi logs`) with line numbers relative to your source; the paint renders as passthrough until a fix lands.
+- WGSL compile errors are reported on the app console ([`dapi logs`](../logs.md)) with line numbers relative to your source; the paint renders as passthrough until a fix lands.
 - Pipeline compilation is asynchronous. Live playback may show the first frames unshaded; exports wait for compilation, so rendered output is always shaded.
 - One shader reads one media paint; shaders do not chain and do not read solid/gradient/html/surface paints or the composited stack (over those the shader runs procedurally and stacks on top).
 - For full custom pipelines (own vertex stage, WebGL, three.js) use [`<surface>`](./surface-paint.md), which owns its canvas outright.

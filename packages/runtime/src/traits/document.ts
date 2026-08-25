@@ -4,27 +4,19 @@
 
 import { trait } from 'koota';
 
-import type { Entity } from 'koota';
+import type { SceneNode as AuthoredSceneNode } from '@diffusionstudio/jsx';
 
 /** The real DOM node owned by a scene node. */
 export type DomNode = Element | Text;
 
 /**
- * One element of the document, and its place in it. `parent` and `children`
- * are the tree the reconciler reads back: text nodes and element nodes in the
- * one order they were inserted in, which is what the document answers
- * `getFirstChild` and `getNextSibling` from.
+ * One element of the document, and its place in it: the authoring `SceneNode`
+ * (see @diffusionstudio/jsx) instantiated with the DOM node type the document
+ * manages. `parent` and `children` are the tree the reconciler reads back:
+ * text nodes and element nodes in the one order they were inserted in, which
+ * is what the document answers `getFirstChild` and `getNextSibling` from.
  */
-export interface SceneNode {
-	readonly entity: Entity;
-	/** Native composition elements participate in the Koota scene graph. */
-	readonly native: boolean;
-	tag: string;
-	props: Record<string, unknown>;
-	parent: SceneNode | null;
-	children: SceneNode[];
-	readonly domNode: DomNode | null;
-}
+export type SceneNode = AuthoredSceneNode<DomNode>;
 
 // The document node an entity was rendered from, on the entity itself: the
 // one object the document and the renderer both hold for it, so `===` between

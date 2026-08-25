@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import type { JSX as SolidJSX } from "solid-js";
+import type { Entity } from "koota";
 import type { AssetRef } from "./generate";
 
 /**
@@ -390,12 +391,15 @@ type TrackChildren = {
 };
 
 /**
- * What every composition element accepts on top of its own props. Read by the
- * compile step and never seen by a host: an id is not a property of the
- * composition, it is how the source addresses the element.
+ * What every composition element accepts on top of its own props: the props
+ * that address or wire the element rather than describe it. `id` is read by
+ * the compile step and never seen by a host — it is how the source addresses
+ * the element.
  */
 export type SourceProps = {
   id?: string;
+  /** Callback or variable ref, SolidJS-style; receives the element's `SceneNode` when it is created. */
+  ref?: SceneNode | ((node: SceneNode) => void);
 };
 
 /**
@@ -682,24 +686,44 @@ export type ShaderPaintProps = PaintProps & {
 };
 
 /**
- * What a `<surface>` / `<surfacePaint>` ref receives: the element's node, as
- * every ref does, with the paint's backing canvas on it. Draw to `canvas` with
- * any context type (2d, webgl, webgpu); the engine samples the bitmap every
- * frame and stretches it into the holder's box. The canvas is allocated with
- * the element and sized to the holder's `width`/`height` (a same-size set is a
- * no-op, so `renderer.setSize` from your own code is not clobbered); null
- * where the host has no DOM. Both ref forms work: `ref={(s) => ...}` and
- * `let s: SurfaceHandle; <surface ref={s} />`.
+ * One element of the mounted document, and its place in it: what an element's
+ * `ref` receives, and the one object the document and the renderer both hold
+ * for the entity, so `===` between two of them means what it says. Both ref
+ * forms work, as in SolidJS: `ref={(node) => ...}` and
+ * `let surfaceRef: SceneNode | undefined; <surface ref={surfaceRef} />`.
+ *
+ * `E` is what `element` holds. It defaults to the backing canvas — the main
+ * consumer, a `<surface>` / `<surfacePaint>` ref — and the runtime document
+ * instantiates it with the DOM node type it manages.
  */
-export type SurfaceHandle = { readonly canvas: HostCanvas | null };
+export interface SceneNode<E = HostCanvas> {
+  /** The Koota entity the element rendered into; `entity.get`/`set` reach the runtime traits. */
+  readonly entity: Entity;
+  /** Native composition elements participate in the Koota scene graph. */
+  readonly native: boolean;
+  /** The camelCase tag the element was authored as. */
+  tag: string;
+  props: Record<string, unknown>;
+  parent: SceneNode<E> | null;
+  children: SceneNode<E>[];
+  /**
+   * The real DOM node backing the element, null where there is none — typed
+   * for the main consumer, a `<surface>` / `<surfacePaint>`'s backing canvas.
+   * Draw to it with any context type (2d, webgl, webgpu); the engine samples
+   * the bitmap every frame and stretches it into the holder's box. The canvas
+   * is allocated with the element and sized to the holder's `width`/`height`
+   * (a same-size set is a no-op, so `renderer.setSize` from your own code is
+   * not clobbered). Purely-native elements (rects, text, scenes) carry no DOM
+   * node, and an `<html>` subtree's is really its root element.
+   */
+  readonly element: E | null;
+}
 
-export type SurfacePaintProps = PaintProps & {
-  /** Callback or variable ref; receives a `SurfaceHandle`. */
-  ref?: SurfaceHandle | ((surface: SurfaceHandle) => void);
-};
+/** `<surfacePaint>` — a canvas the element's `ref` draws into (`element` on the received node). Takes no children. */
+export type SurfacePaintProps = PaintProps;
 
-/** `<Surface>` — a rectangle carrying a `<SurfacePaint>` with the given ref. */
-export type SurfaceProps = CommonProps & Pick<SurfacePaintProps, "ref">;
+/** `<Surface>` — a rectangle carrying a `<SurfacePaint>`; its `ref`'s `element` is the canvas. */
+export type SurfaceProps = CommonProps;
 
 /**
  * `<audio>` — a clip with a sound and no picture. It draws nothing inside a

@@ -202,7 +202,7 @@ function forwardAudioDecoder(world: World, scene: Entity, entity: Entity, audioS
 
 function forwardHtmlHost(world: World, scene: Entity, entity: Entity, fill: Entity): void {
 	const computed = store(world, Computed);
-	const root = fill.get(Host)?.domNode;
+	const root = fill.get(Host)?.element;
 	if (world.get(Mode)?.value === 'realtime'
 		|| computed.visibility[entity.id()] !== 1
 		|| !(root instanceof HTMLElement)) return;

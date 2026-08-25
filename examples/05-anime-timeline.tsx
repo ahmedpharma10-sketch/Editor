@@ -1,7 +1,8 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Anime.js timeline scrubbed by the playhead: one clock, two render worlds.
  *
- *   dapi mount examples/05-anime-timeline.tsx
+ *   cp examples/05-anime-timeline.tsx ~/Projects/anime-timeline/index.tsx
+ *   dapi open ~/Projects/anime-timeline
  *
  * Needs the html-in-canvas API (see 04-html-in-canvas.tsx). A paused anime.js
  * timeline tweens plain-object targets; a createEffect seeks it to the
@@ -40,50 +41,52 @@ export default function AnimeTimeline() {
   const hue = () => Math.round(v.card.hue);
 
   return (
-    <rect scene="example-anime" name="Anime timeline" width={960} height={540} fill="#101014">
-      <rect
-        x={v.chip.x}
-        y={v.chip.y}
-        width={160}
-        height={160}
-        rotation={v.chip.rotation}
-        cornerRadius={v.chip.cornerRadius}
-        opacity={v.chip.opacity}
-        fill={`hsl(${hue()} 90% 60%)`}
-        end={3.25}
-      />
+    <stage>
+      <scene name="Anime timeline" width={960} height={540} fill="#101014">
+        <rect
+          x={v.chip.x}
+          y={v.chip.y}
+          width={160}
+          height={160}
+          rotation={v.chip.rotation}
+          cornerRadius={v.chip.cornerRadius}
+          opacity={v.chip.opacity}
+          fill={`hsl(${hue()} 90% 60%)`}
+          end={3.25}
+        />
 
-      <html x={380} y={120} width={500} height={300} end={3.25}>
-        <div
-          style={{
-            "font-family": "Inter",
-            color: "white",
-            padding: "28px 32px",
-            transform: `translateY(${v.card.rise}px)`,
-            opacity: v.card.opacity,
-          }}
-        >
-          <div style={{ "font-size": "34px", "font-weight": "700", color: `hsl(${hue()} 90% 65%)` }}>
-            DOM, meet timeline
+        <html x={380} y={120} width={500} height={300} end={3.25}>
+          <div
+            style={{
+              "font-family": "Inter",
+              color: "white",
+              padding: "28px 32px",
+              transform: `translateY(${v.card.rise}px)`,
+              opacity: v.card.opacity,
+            }}
+          >
+            <div style={{ "font-size": "34px", "font-weight": "700", color: `hsl(${hue()} 90% 65%)` }}>
+              DOM, meet timeline
+            </div>
+            <div style={{ "font-size": "18px", opacity: 0.7, margin: "6px 0 24px" }}>
+              anime.js seeked from the playhead at t = {time().toFixed(2)}s
+            </div>
+            <div style={{ height: "14px", "border-radius": "7px", background: "#ffffff22" }}>
+              <div
+                style={{
+                  width: `${v.card.progress}%`,
+                  height: "100%",
+                  "border-radius": "7px",
+                  background: `linear-gradient(90deg, hsl(${hue() - 40} 90% 55%), hsl(${hue()} 90% 65%))`,
+                }}
+              />
+            </div>
+            <div style={{ "font-size": "16px", opacity: 0.6, "margin-top": "10px" }}>
+              {Math.round(v.card.progress)}% through the loop
+            </div>
           </div>
-          <div style={{ "font-size": "18px", opacity: 0.7, margin: "6px 0 24px" }}>
-            anime.js seeked from the playhead at t = {time().toFixed(2)}s
-          </div>
-          <div style={{ height: "14px", "border-radius": "7px", background: "#ffffff22" }}>
-            <div
-              style={{
-                width: `${v.card.progress}%`,
-                height: "100%",
-                "border-radius": "7px",
-                background: `linear-gradient(90deg, hsl(${hue() - 40} 90% 55%), hsl(${hue()} 90% 65%))`,
-              }}
-            />
-          </div>
-          <div style={{ "font-size": "16px", opacity: 0.6, "margin-top": "10px" }}>
-            {Math.round(v.card.progress)}% through the loop
-          </div>
-        </div>
-      </html>
-    </rect>
+        </html>
+      </scene>
+    </stage>
   );
 }

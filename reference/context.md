@@ -1,6 +1,9 @@
 # `dapi context`
 
-Summary of app state. Alias: `ctx`.
+Summary of app state: what the project's source cannot say. The composition
+itself — its scenes, what is selected, which scene is active, the work area —
+is all in the JSX, and a caller that wants any of it reads the file. Alias:
+`ctx`.
 
 ## Input
 
@@ -19,6 +22,13 @@ One JSON object:
   };
   currentTime:  number | null;   // playhead in the active scene, in seconds; null if no scene is active
   fontFamilies: string[];        // families registered in the running world, valid as `fontFamily`
+  generations:  {                // every generated source in the project, and where it stands
+    element: string | null;      // the element's source stamp, `<file>:<id>`; null for an entity no element produced
+    name:    string | null;      // the element's `name`, when it has one
+    state:   "generating" | "failed" | "done";
+    error?:  string;             // what it failed with, on `failed` rows
+    asset?:  string;             // the library path it landed as, on `done` rows
+  }[];
 }
 ```
 
@@ -35,3 +45,11 @@ one a command was run from: check it before writing to source files.
 `fontFamilies` is what text can be drawn with right now — loaded into the world,
 not merely named in the source — and always includes the editor default. For
 every family installed on the machine, see [`dapi fonts`](./fonts.md).
+
+`generations` is how a caller waits for `generate.*` declarations without
+blocking: generation is asynchronous, so poll this until nothing is
+`generating`. A `done` row's `asset` is a library path, ready for
+[`dapi media probe`](./media/probe.md) and its siblings; a `failed` row's
+`error` is the same message the element carries as its `error` prop, which is
+what keeps it from being generated again (see
+[jsx/errors.md](./jsx/errors.md#failed-sources)).

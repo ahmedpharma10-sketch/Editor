@@ -3,7 +3,7 @@
 `<animation>` declares one **preset in/out animation** on the clip holding it: it plays over the clip's head (`"in"`) or tail (`"out"`), between the node's static state and the preset's start/end state. For hand-authored motion on individual props, use [keyframes](./keyframes.md); the two compose on distinct properties.
 
 ```tsx
-<video src="/Movies/intro.mp4" width={1920} height={1080} start={0} end={8}>
+<video src="b-roll/intro.mp4" width={1920} height={1080} start={0} end={8}>
   <animation type="fade" duration="15f" />
   <animation type="slideUp" phase="out" duration={0.5} delay={0.2} />
 </video>
@@ -16,7 +16,7 @@
 | `duration` | `Time` | 1 second | Length of the animation. |
 | `delay` | `Time` | `0` | Gap between the clip edge and the animation: after the head for `"in"`, before the tail for `"out"`. |
 
-Valid under any node (`<rect>`, `<text>`, `<video>`, `<image>`, `<audio>`, `<group>`, `<captions>`). An `<animation>` is an element like any other: it has an `id`, the editor writes changes back to it, and it is copied with its node.
+Valid under any node (`<rect>`, `<text>`, `<video>`, `<image>`, `<audio>`, `<group>`, `<captions>`, `<adjustmentLayer>`). An `<animation>` is an element like any other: it has an `id`, the editor writes changes back to it, and it is copied with its node.
 
 ## Types
 

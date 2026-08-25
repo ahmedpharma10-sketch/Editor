@@ -2,10 +2,12 @@
 /* The everyday composition: sequenced A-roll, an image overlay, data-driven
  * titles via <For>, and a music bed under everything.
  *
- *   dapi mount examples/01-basics.tsx
+ *   cp examples/01-basics.tsx ~/Projects/basics/index.tsx
+ *   dapi open ~/Projects/basics
  *
  * Sources are remote URLs so the example mounts anywhere; `src` equally takes
- * local paths ("/Movies/clip.mp4") and asset ids (see `dapi asset ls`).
+ * local paths ("/Movies/clip.mp4"), library paths ("b-roll/drone.mp4") and
+ * asset ids.
  * A <sequence> does not place its children: each clip gets an explicit
  * `start`, the next clip starts where the previous one ends, and the
  * dissolve declared on the outgoing clip is centered on that cut.
@@ -30,52 +32,53 @@ function Title(props: { text: string; start: Time; end: Time }) {
       height={1080}
       textAlign="center"
       textBaseline="middle"
+      color="#FFFFFF"
       fontFamily="Inter"
       fontSize={120}
       fontWeight="bold"
       start={props.start}
       end={props.end}
-      animations={[
-        { type: "fade", duration: 0.5 },
-        { type: "fade", phase: "out", duration: 0.5 },
-      ]}
     >
       {props.text}
+      <animation type="fade" duration={0.5} />
+      <animation type="fade" phase="out" duration={0.5} />
     </text>
   );
 }
 
 export default function Basics() {
   return (
-    <rect scene="example-basics" name="Basics" width={1920} height={1080} fill="black">
-      <sequence name="A-roll">
-        <video
-          src={`${VIDEOS}/sintel-short.mp4`}
-          start={0}
-          end={6}
-          sourceIn={10}
-          volume={-6}
-          transition={{ type: "dissolve" }}
-          height={1080}
-          width={1920}
-        />
-        <video
-          src={`${VIDEOS}/tears-of-steel-battle-clip-medium.mp4`}
-          start={6}
-          end={12}
-          sourceIn={2}
-          volume={-6}
-          height={1080}
-          width={1920}
-        />
-      </sequence>
+    <stage>
+      <scene name="Basics" width={1920} height={1080} fill="black">
+        <sequence name="A-roll">
+          <video
+            src={`${VIDEOS}/sintel-short.mp4`}
+            start={0}
+            end={6}
+            sourceIn={10}
+            volume={-6}
+            transition={{ type: "dissolve" }}
+            height={1080}
+            width={1920}
+          />
+          <video
+            src={`${VIDEOS}/tears-of-steel-battle-clip-medium.mp4`}
+            start={6}
+            end={12}
+            sourceIn={2}
+            volume={-6}
+            height={1080}
+            width={1920}
+          />
+        </sequence>
 
-      {/* picture-in-picture overlay; media covers its box by default */}
-      <image src={STILL} x={1400} y={64} width={440} height={248} cornerRadius={24} start={0} end={12} />
+        {/* picture-in-picture overlay; media covers its box by default */}
+        <image src={STILL} x={1400} y={64} width={440} height={248} cornerRadius={24} start={0} end={12} />
 
-      <For each={TITLES}>{(t) => <Title {...t} />}</For>
+        <For each={TITLES}>{(t) => <Title {...t} />}</For>
 
-      <audio name="Music bed" src={MUSIC} start={0} end={12} volume={-16} />
-    </rect>
+        <audio name="Music bed" src={MUSIC} start={0} end={12} volume={-16} />
+      </scene>
+    </stage>
   );
 }

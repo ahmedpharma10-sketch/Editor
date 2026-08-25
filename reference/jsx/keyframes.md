@@ -3,7 +3,7 @@
 A `<keyframeTrack>` animates one prop of the element holding it over the node's local time; its `<keyframe>` children are the values along the way:
 
 ```tsx
-<image src="/photo.jpg" start={0} end={5}>
+<image src="stills/photo.jpg" start={0} end={5}>
   <keyframeTrack property="x">
     <keyframe time={0} value={-400} easing="easeOut" />
     <keyframe time={1} value={200} />
@@ -20,7 +20,7 @@ A `<keyframeTrack>` animates one prop of the element holding it over the node's 
 | `<keyframeTrack>` | `property` (**required**) | The prop of the holding element it drives, by name. One track per prop. |
 | `<keyframe>` | `time` (**required**), `value` (**required**), `easing` | One keyframe: node-local time in any [time format](./timing.md#time-formats), the value at that time (a number, or any CSS color on a `color` track), and the easing into the next keyframe. |
 
-Animatable props (`property`): `x`, `y`, `offsetX`, `offsetY`, `width`, `height`, `rotation`, `scale`, `scaleX`, `scaleY`, `opacity`, `cornerRadius`, `cornerRadiusTopLeft`, `cornerRadiusTopRight`, `cornerRadiusBottomRight`, `cornerRadiusBottomLeft`, `volume`, `color`, `offset`, `blur`, `value`. Whose prop is the track's holder's: a track under a [paint or color stop](./paints.md) animates the paint (`color`, `opacity`, `offset`), under a `<stroke>` the stroke (`width` is the line width), under a `<shadow>` the shadow (`blur`, `offsetX`, `offsetY`), under an `<effect>` its `value`. For preset in/out effects (fade, slides, text reveals, ...) use [`<animation>`](./animations.md) instead.
+Animatable props (`property`): `x`, `y`, `offsetX`, `offsetY`, `width`, `height`, `rotation`, `scale`, `scaleX`, `scaleY`, `opacity`, `cornerRadius`, `cornerRadiusTopLeft`, `cornerRadiusTopRight`, `cornerRadiusBottomRight`, `cornerRadiusBottomLeft`, `volume`, `color`, `offset`, `blur`, `value`. Whose prop is the track's holder's: a track under a [paint or color stop](./paints.md) animates the paint (`color`, `opacity`, `offset`), and one under a [`<stroke>`, `<shadow>` or `<effect>`](./styles.md) that style's own — `width` is a stroke's line width, `blur`/`offsetX`/`offsetY` a shadow's, `value` an effect's amount. For preset in/out effects (fade, slides, text reveals, ...) use [`<animation>`](./animations.md) instead.
 
 ## Semantics
 

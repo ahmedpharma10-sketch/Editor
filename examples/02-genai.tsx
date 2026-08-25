@@ -2,7 +2,8 @@
 /* Multi-stage generation: text-to-image keyframes, image-to-video motion,
  * a text-to-speech voiceover, generated ambience, and captions on top.
  *
- *   dapi mount examples/02-genai.tsx
+ *   cp examples/02-genai.tsx ~/Projects/genai/index.tsx
+ *   dapi open ~/Projects/genai
  *
  * `generate.*` declarations are pure values; nothing generates until commit.
  * Refs form a dependency graph (keyframe -> matching second keyframe -> two
@@ -56,16 +57,18 @@ const ambience = generate.audio({
 
 export default function GenAi() {
   return (
-    <rect scene="example-genai" name="GenAI" width={1920} height={1080} fill="black">
-      <sequence name="Generated shots">
-        <video src={shot1} width={1920} height={1080} start={0} end={5} transition={{}} />
-        <video src={shot2} width={1920} height={1080} start={5} end={10} />
-      </sequence>
+    <stage>
+      <scene name="GenAI" width={1920} height={1080} fill="black">
+        <sequence name="Generated shots">
+          <video src={shot1} width={1920} height={1080} start={0} end={5} transition={{}} />
+          <video src={shot2} width={1920} height={1080} start={5} end={10} />
+        </sequence>
 
-      <audio name="Voiceover" src={voiceover} start={1} />
-      <audio name="Ambience" src={ambience} start={0} end={10} volume={-18} />
+        <audio name="Voiceover" src={voiceover} start={1} />
+        <audio name="Ambience" src={ambience} start={0} end={10} volume={-18} />
 
-      <captions preset="spotlight" verticalAlign="bottom" />
-    </rect>
+        <captions preset="spotlight" verticalAlign="bottom" />
+      </scene>
+    </stage>
   );
 }

@@ -116,12 +116,12 @@ function resolve(world: World, entity: Entity, promise: Promise<Asset>, generati
 
 function isDomImage(entity: Entity): boolean {
 	return typeof HTMLImageElement !== 'undefined'
-		&& entity.get(Host)?.domNode instanceof HTMLImageElement;
+		&& entity.get(Host)?.element instanceof HTMLImageElement;
 }
 
 function pointDomImageAt(entity: Entity, source: string | null): void {
 	const node = entity.get(Host);
-	const image = node?.domNode;
+	const image = node?.element;
 	if (typeof HTMLImageElement === 'undefined' || !(image instanceof HTMLImageElement) || !node) return;
 
 	releaseDomImageSource(image);
@@ -145,7 +145,7 @@ async function bindDomImage(entity: Entity, asset: Asset, token: object): Promis
 	}
 
 	pointDomImageAt(entity, url);
-	const image = entity.get(Host)?.domNode;
+	const image = entity.get(Host)?.element;
 	if (typeof HTMLImageElement !== 'undefined' && image instanceof HTMLImageElement) {
 		await image.decode().catch(() => undefined);
 	}

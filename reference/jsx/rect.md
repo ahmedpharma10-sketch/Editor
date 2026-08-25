@@ -1,6 +1,6 @@
 # `<rect>`
 
-A filled rectangle. Takes [paint children](./paints.md), plus `<stroke>`, `<shadow>`, `<effect>`, `<animation>` and `<keyframeTrack>`; use `cornerRadius` for rounded corners.
+A rectangle. Takes [paint children](./paints.md), plus [`<stroke>`, `<shadow>`, `<effect>`](./styles.md), [`<animation>`](./animations.md) and [`<keyframeTrack>`](./keyframes.md); use `cornerRadius` for rounded corners.
 
 ```tsx
 <rect x={40} y={40} width={640} height={360} cornerRadius={24} fill="#FF0055" />
@@ -12,8 +12,10 @@ All [common props](./elements.md#common-props), plus:
 
 | Prop | Type | Default | Meaning |
 | ---- | ---- | ------- | ------- |
-| `fill` | `string` | light gray | Any CSS color; alpha is ignored (use `opacity`). Shorthand for a solid paint child. |
+| `fill` | `string` | none | Any CSS color; alpha is ignored (use `opacity`). Shorthand for a solid paint child, drawn beneath any paint children. |
 | `mask` | `boolean` | `false` | Makes the rect a mask of its parent instead of a drawn shape — see below. |
+
+A rect with neither `fill` nor a paint child draws nothing; it is still a box that clips masks, carries children and takes up its place in the timeline. Without `width`/`height` a rect is 100×100.
 
 ## Masks
 

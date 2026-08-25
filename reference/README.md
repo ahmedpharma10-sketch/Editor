@@ -4,6 +4,8 @@ Reference for `dapi`, the Diffusion Studio CLI. Every canvas and project command
 
 Each feature command has its own file (linked below). The JSX code syntax specified in [jsx/](./jsx/README.md) is **pseudo-SVG**, mirroring SVG's shape-and-paint model with the editor's own tags and props rather than the SVG spec.
 
+A project is a folder of that JSX, and **the source is the document**: the app compiles the entry file and renders every element into an editable node, and edits made on the canvas are written back to the element that authored them. So the loop is `dapi open <dir>` once, then edit the files — there is no command that pushes content into the app. What the commands do is read the running app ([`context`](./context.md), [`capture`](./capture.md), [`logs`](./logs.md)), inspect media, and list what a declaration may name.
+
 ## Groups
 
 **Top-level:** [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`report`](./report.md), [`context`](./context.md) (alias `ctx`), [`capture`](./capture.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
@@ -29,7 +31,7 @@ How the surface is divided:
 ### Document
 
 - [`dapi open`](./open.md): launch the app and open (or create) a project folder, anywhere on disk
-- [`dapi context`](./context.md): which project the app has open, where its playhead sits, and its registered fonts
+- [`dapi context`](./context.md): which project the app has open, where its playhead sits, its registered fonts, and where its generations stand
 - [`dapi capture`](./capture.md): render a node in isolation to a labelled contact sheet, or one PNG per position
 
 ### Media
@@ -59,6 +61,7 @@ How the surface is divided:
 ```ts
 Asset = { id: string; path: string; type: string }  // asset ids are content hashes; `path` is the library path
 Time  = number | `${number}f` | "MM:SS"              // seconds, frames at 30 fps ("45f"), or a clock string; see jsx/timing.md
+NodeId = string                                     // an element's `id` in the project's JSX; `file:id` when two files collide
 ```
 
 Time inputs take the `Time` format unless noted otherwise. Times in **outputs** are plain seconds.

@@ -1,12 +1,26 @@
 # Media source resolution
 
-`src` (on [`<video>`](./video.md), [`<image>`](./image.md), [`<audio>`](./audio.md), and the DOM [`<img>`](./html.md#images) inside `<html>`) accepts:
+`src` (on [`<video>`](./video.md), [`<image>`](./image.md), [`<audio>`](./audio.md), the [media paints](./paints.md#media-paints), [`<captions>`](./captions.md), and the DOM [`<img>`](./html.md#images) inside `<html>`) accepts:
 
-- **Library path**: e.g. `"b-roll/drone.mp4"`, an asset of the project's library by its path there (folder + name, as shown in the asset panel and recorded in the project's `assets.yml`). The preferred form: it is portable and survives the file being relinked. A directory of numbered images is an image sequence and plays on `<video>` or `<image>`.
+- **Library path**: e.g. `"b-roll/drone.mp4"`, an asset of the project's library by its path there (folder + name, as shown in the asset panel and recorded in the project's `assets.yml`). The preferred form: it is portable and survives the file being relinked.
 - **Asset id**: e.g. `"9f3a2c1d7e4b8a01"`, the content hash of a library asset (`assets.yml` lists them).
 - **Global path**: e.g. `"/Movies/video.mp4"`, resolved against the user's OS. Not added to the library.
 - **Remote URL**: e.g. `"https://my.videoarchive.com/audio/clip.wav"`, fetched on mount. Not added to the library.
-- **`AssetRef`**: the value returned by a `generate.*` declaration (see [generate.md](./generate.md)). The node is inserted immediately as a placeholder and its paint is attached once the asset has generated; the result is stored under the library's `generated/` folder.
+- **`AssetRef`**: the value returned by a `generate.*` declaration (see [generate.md](./generate.md)). The node is mounted immediately as a placeholder and its paint is attached once the asset has generated; the result is stored under the library's `generated/` folder.
+
+Resolution is **asynchronous and non-blocking**: the element is on the canvas as soon as the project mounts, showing a generating state until its source lands. A source that never lands leaves the element carrying an [`error`](./errors.md#failed-sources).
+
+## Image sequences
+
+A path naming a **directory of numbered frames** (`shot_001.png`, `shot_002.png`, …) is an image sequence, and plays on `<video>` or `<image>` exactly as footage does.
+
+A folder of pictures has a count, not a duration, so `frameRate` is what says how long the clip runs: 600 frames at 24 is 25 seconds, at 60 is 10. Default 30. There is nothing for encoded video or a still to read it against — a file carries its own rate, and neither has a frame count to divide.
+
+```tsx
+<video src="renders/beauty-pass" frameRate={24} width={1920} height={1080} />
+```
+
+`frameRate` is not [`playbackRate`](./timing.md#playback-rate), which retimes a source against the timeline whatever its natural speed is; this is what that natural speed *is*. It is unrelated to the composition's own frame rate, which the export sets.
 
 ## Source modifiers
 
@@ -16,7 +30,7 @@
 | ---- | -- | ------- |
 | `removeBackground` | `<image>` | Cuts the subject out, leaving the rest transparent. |
 | `upscale` | both | Resolution multiplier — `upscale={2}` asks for twice the pixels. Enlarges the source, not the box. |
-| `addAudio` | `<video>` | Scores footage that has no sound. |
+| `addAudio` | `<video>` | Scores footage that has no sound. Independent of `volume` and `muted`, which mix whatever track the clip ends up with. |
 
 ```tsx
 <image src="footage/fox.png" removeBackground upscale={2} width={800} height={450} />
@@ -28,8 +42,6 @@ Modifiers compose with declarations: `<image src={generate.image({ prompt: "a re
 
 ## The library
 
-A project's assets are recorded in `assets.yml` next to its entry file: for each asset, its library `path`, where its bytes are (`source`: the absolute path of a file imported from disk — imports never move or copy files — or a project-relative path under `assets/` for files the app produced), and what it was found to be. Folders are virtual: they are the prefixes of the paths. Renaming or moving an asset in the panel rewrites the `src` props that named it. Files placed under `assets/` by hand are taken into the library on the next load.
+A project's assets are recorded in `assets.yml` next to its entry file: for each asset, its library `path`, where its bytes are (`source`: the absolute path of a file imported from disk — imports never move or copy files — or a project-relative path under `assets/` for files the app produced), and what it was found to be. Folders are listed too, so an empty one survives a reload. Renaming or moving an asset in the panel rewrites the `src` props that named it. Files placed under `assets/` by hand are taken into the library on the next load.
 
-An `<img>` additionally takes a `data:` or `blob:` URL, which goes to the browser as it is.
-
-To read a source's raw bytes inside an effect (rather than mount it as a node), pass the same input to [`useFile`](./lifecycle.md#usefile), which resolves it to a `File`.
+An `<img>` inside [`<html>`](./html.md) additionally takes a `data:` or `blob:` URL, which goes to the browser as it is.

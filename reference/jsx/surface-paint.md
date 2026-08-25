@@ -1,45 +1,55 @@
 # `<surface>`
 
-An element backed by a **canvas you draw yourself**. The `ref` callback receives a detached `HTMLCanvasElement`; draw into it with any context type — 2d, webgl, webgpu — and the engine samples the bitmap every frame, stretching it into the parent geometry's box. Use it for procedural graphics and for external renderers (three.js, p5, chart libraries) that want to own a canvas.
+An element backed by a **canvas you draw yourself**. The `ref` receives the element's `SceneNode`, whose `element` is that canvas; draw into it with any context type — 2d, webgl, webgpu — and the engine samples the bitmap every frame, stretching it into the parent geometry's box. Use it for procedural graphics and for external renderers (three.js, p5, chart libraries) that want to own a canvas.
 
 ```tsx
-<surface x={40} y={40} width={640} height={360} cornerRadius={24}
-  ref={(el) => {
-    const ctx = el.getContext("2d")!;
-    ctx.fillStyle = "#111";
-    ctx.fillRect(0, 0, el.width, el.height);
-    ctx.strokeStyle = "#7c9cff";
-    ctx.lineWidth = 6;
-    ctx.strokeRect(40, 40, el.width - 80, el.height - 80);
-  }} />
+let surfaceRef: SceneNode | undefined;
+
+onMount(() => {
+  const el = surfaceRef!.element!;
+  const ctx = el.getContext("2d")!;
+  ctx.fillStyle = "#111";
+  ctx.fillRect(0, 0, el.width, el.height);
+  ctx.strokeStyle = "#7c9cff";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(40, 40, el.width - 80, el.height - 80);
+});
+
+<surface x={40} y={40} width={640} height={360} cornerRadius={24} ref={surfaceRef} />
 ```
 
 `<surfacePaint ref={...}>` is the paint child form, valid inside any filled visual element; `<surface>` is a rectangle carrying one, with all [common props](./elements.md#common-props).
 
-## The ref and the bitmap
+## The ref and the canvas
 
-- The ref runs **once**, when the paint materializes, inside the mount's reactive owner — `createEffect`, `onCleanup`, and [`useTicker`](./lifecycle.md) all work inside it.
-- **Callback form only** (`ref={(el) => ...}`). Variable refs (`let el; <surface ref={el} />`) receive a renderer-internal node, not the canvas.
-- The bitmap is allocated at the element's box size (in composition pixels) **before the ref runs**; after that the engine never touches it — the bitmap belongs to your code. Resize it yourself (`el.width = ...`, or an external renderer's own API) for higher resolution; the bitmap is stretched into the box every frame either way, so an animated box scales pixels rather than re-rasterizing.
+```ts
+import type { SceneNode } from "@diffusionstudio/jsx";
+// { readonly element: HTMLCanvasElement | null, tag, props, parent, children }
+```
+
+- The ref receives the element's **`SceneNode`**, as every ref does. `element` is the paint's backing canvas: on the geometry for a `<surface>` (whose surface is its intrinsic paint), on the paint sub-entity for a `<surfacePaint>`; null where the host has no DOM.
+- **Both SolidJS ref forms work.** The variable form `let surfaceRef: SceneNode | undefined;` + `ref={surfaceRef}` assigns the node when the element is created — read it in `onMount` or an effect, which run after the (synchronous) mount. The callback form `ref={(surface) => …}` runs **once**, when the element is created, inside the mount's reactive owner — `createEffect`, `onCleanup`, and [`useTicker`](./lifecycle.md#useticker) all work inside it.
+- The canvas is allocated with the element and **sized to the holder's `width`/`height`** in composition pixels. A same-size set is a no-op, so a `renderer.setSize` of your own is not clobbered; resize the bitmap yourself for higher resolution, since it is stretched into the box every frame either way, and an animated box scales pixels rather than re-rasterizing.
 - Unlike [`<html>`](./html.md) no flagged browser API is needed, and the sampled pixels render in exports.
 
 ## Reactivity
 
-The engine samples the canvas every frame, so anything you draw shows up on the next frame. A `dapi mount` stays live, so the reactive graph keeps running: create effects in the ref to redraw from signals, or drive frame-accurate motion from the ticker's composition time:
+The engine samples the canvas every frame, so anything you draw shows up on the next frame. A mount stays live, so the reactive graph keeps running: redraw from signals inside effects, or drive frame-accurate motion from the ticker's composition time:
 
 ```tsx
-<surface width={400} height={400}
-  ref={(el) => {
-    const ctx = el.getContext("2d")!;
-    const { time } = useTicker();
-    createEffect(() => {
-      ctx.clearRect(0, 0, el.width, el.height);
-      ctx.beginPath();
-      ctx.arc(200, 200, 60 + 40 * Math.sin(time() * Math.PI), 0, Math.PI * 2);
-      ctx.fillStyle = "#44dd88";
-      ctx.fill();
-    });
-  }} />
+const { time } = useTicker();
+let surfaceRef: SceneNode | undefined;
+
+createEffect(() => {
+  const ctx = surfaceRef!.element!.getContext("2d")!;
+  ctx.clearRect(0, 0, 400, 400);
+  ctx.beginPath();
+  ctx.arc(200, 200, 60 + 40 * Math.sin(time() * Math.PI), 0, Math.PI * 2);
+  ctx.fillStyle = "#44dd88";
+  ctx.fill();
+});
+
+<surface width={400} height={400} ref={surfaceRef} />
 ```
 
 Because the ticker follows the playhead, ticker-driven drawing stays frame-accurate in exports too; wall-clock timers (`setInterval`, `requestAnimationFrame`) render live but ignore the playhead.
@@ -49,21 +59,25 @@ Because the ticker follows the playhead, ticker-driven drawing stays frame-accur
 Anything that accepts an existing canvas plugs in directly; a detached canvas is fine for WebGL:
 
 ```tsx
-<surface width={1280} height={720}
-  ref={(el) => {
-    const renderer = new THREE.WebGLRenderer({
-      canvas: el,
-      preserveDrawingBuffer: true,
-      alpha: true,
-    });
-    renderer.setSize(el.width, el.height, false);
-    const { time } = useTicker();
-    createEffect(() => {
-      mesh.rotation.y = time() * 0.5;
-      renderer.render(scene, camera);
-    });
-    onCleanup(() => renderer.dispose());
-  }} />
+const { time } = useTicker();
+let surfaceRef: SceneNode | undefined;
+
+onMount(() => {
+  const el = surfaceRef!.element!;
+  const renderer = new THREE.WebGLRenderer({
+    canvas: el,
+    preserveDrawingBuffer: true,
+    alpha: true,
+  });
+  renderer.setSize(el.width, el.height, false);
+  createEffect(() => {
+    mesh.rotation.y = time() * 0.5;
+    renderer.render(scene, camera);
+  });
+  onCleanup(() => renderer.dispose());
+});
+
+<surface width={1280} height={720} ref={surfaceRef} />
 ```
 
 - **`preserveDrawingBuffer: true` is effectively required for WebGL** — by default the drawing buffer may be cleared after presentation, so the engine's per-frame sample can read back blank.
@@ -74,17 +88,17 @@ Anything that accepts an existing canvas plugs in directly; a detached canvas is
 
 | Prop | Type | Default | Meaning |
 | ---- | ---- | ------- | ------- |
-| `ref` | `(canvas: HTMLCanvasElement) => void` | **required** | Receives the backing canvas at materialization. |
-| `opacity` | `Animatable<number>` | `1` | Paint opacity, `0`-`1`. |
+| `ref` | `SceneNode` variable or `(surface: SceneNode) => void` | none | The [common `ref`](./elements.md#common-props); `element` on the received node is the backing canvas. |
+| `opacity` | `number` | `1` | Paint opacity, `0`–`1`. |
 
 Like all paints it stacks with siblings in document order and clips to the parent's box (including `cornerRadius`). `<surfacePaint>` takes no children.
 
 ## Persistence and export
 
-The compiled module is persisted with the document, so the drawing is reproducible, not ephemeral: on reload, export, and `dapi capture` the engine re-executes it and redraws into a fresh canvas driven by that context's playhead, so ticker surfaces animate in exports. The bitmap itself is not stored; your code reproduces it. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree; using them inside a draw effect is fine).
+The module is re-executed in every context, so the drawing is reproducible rather than ephemeral: on reload, export, and [`dapi capture`](../capture.md) the engine re-runs your drawing code against a fresh canvas driven by that context's playhead, so ticker surfaces animate in exports. The bitmap itself is not stored; your code reproduces it. This assumes the module's structure is deterministic (`Math.random()`/`Date.now()` must not decide the shape of the tree; using them inside a draw effect is fine).
 
 ## Requirements and limitations
 
 - Duplicating or copy-pasting a mounted surface yields a static copy (the drawing does not re-run for the copy); re-mount to get a fresh animated instance.
 - Only the `ref` attribute form on the element itself is routed; refs inside spread props are not.
-- A real DOM `<canvas>` is not available inside [`<html>`](./html.md) content — its pixels don't survive the html-in-canvas rasterization. Use `<surface>` for hand-drawn graphics instead.
+- A real DOM `<canvas>` is not available inside [`<html>`](./html.md) content — its pixels don't survive the html-in-canvas rasterization, and the tag is rejected. Use `<surface>` for hand-drawn graphics instead.

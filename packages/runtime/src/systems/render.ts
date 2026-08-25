@@ -215,7 +215,7 @@ export function renderIntrinsicFill(world: World, entity: Entity): void {
 
 	const intrinsic = getIntrinsicPaint(entity);
 	if (intrinsic === PaintType.SURFACE) {
-		const canvas = entity.get(Host)?.domNode;
+		const canvas = entity.get(Host)?.element;
 		if (canvas instanceof HTMLCanvasElement) {
 			const ctx = getCtx(world);
 			const computed = store(world, Computed);
@@ -258,7 +258,7 @@ type DrawElementContext = Ctx2D & {
 
 
 function renderHtmlFill(world: World, entity: Entity, source: Entity): void {
-	const root = source.get(Host)?.domNode;
+	const root = source.get(Host)?.element;
 	const surface = world.get(RenderSurface);
 	const ctx = surface?.ctx;
 	if (!(ctx instanceof CanvasRenderingContext2D)) return;
@@ -353,7 +353,7 @@ export function renderFills(world: World, entity: Entity): void {
 		} else if (paint === PaintType.HTML) {
 			renderHtmlFill(world, entity, fill);
 		} else if (paint === PaintType.SURFACE) {
-			const canvas = fill.get(Host)?.domNode;
+			const canvas = fill.get(Host)?.element;
 			if (canvas instanceof HTMLCanvasElement) {
 				ctx.save();
 				ctx.clip();

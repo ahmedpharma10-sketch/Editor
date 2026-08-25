@@ -1,9 +1,11 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Three.js owning a <surface>: a glTF helmet spun by the playhead.
  *
- *   dapi mount examples/06-three.tsx
+ *   cp examples/06-three.tsx ~/Projects/three/index.tsx
+ *   dapi open ~/Projects/three
  *
- * The <surface> ref hands three.js a detached HTMLCanvasElement to render into;
+ * `ref={surfaceRef}` assigns the surface's node, whose `element` is its
+ * detached canvas; onMount three.js takes it over and renders into it;
  * the engine samples that bitmap into the node's box every frame, so a WebGL
  * scene composites like any other paint (needs preserveDrawingBuffer so the
  * per-frame readback doesn't come back blank). One clock drives everything:
@@ -16,8 +18,9 @@
  * without shipping an HDR.
  */
 
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { useTicker } from "@diffusionstudio/jsx";
+import type { SceneNode } from "@diffusionstudio/jsx";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -31,7 +34,11 @@ export default function ThreeHelmet() {
   const { time } = useTicker();
   const [loaded, setLoaded] = createSignal(false);
 
-  const setup = (el: HTMLCanvasElement) => {
+  let surfaceRef: SceneNode | undefined;
+
+  onMount(() => {
+    const el = surfaceRef!.element;
+    if (!el) return;
     const renderer = new THREE.WebGLRenderer({
       canvas: el,
       antialias: true,
@@ -93,11 +100,13 @@ export default function ThreeHelmet() {
       pmrem.dispose();
       renderer.dispose();
     });
-  };
+  });
 
   return (
-    <rect scene="example-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
-      <surface x={0} y={0} width={960} height={540} ref={setup} />
-    </rect>
+    <stage>
+      <scene name="Three helmet" width={960} height={540} fill="#0b0d12">
+        <surface x={0} y={0} width={960} height={540} ref={surfaceRef} />
+      </scene>
+    </stage>
   );
 }

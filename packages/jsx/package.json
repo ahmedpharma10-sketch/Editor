@@ -30,6 +30,9 @@
     "generative-ai",
     "video-editing"
   ],
+  "dependencies": {
+    "koota": "^0.6.6"
+  },
   "peerDependencies": {
     "solid-js": "^1.9.0"
   },

@@ -50,9 +50,9 @@ import type {
 
 /**
  * A component wrapping one host element: creates the node, routes `ref`
- * through the renderer's `use` (so hosts with `applyRef` hand the callback
- * the backing object, e.g. a surface's canvas), and spreads the remaining
- * props and children reactively.
+ * through the renderer's `use` (so the callback receives the node — or, for
+ * hosts with `applyRef`, whatever backing object they hand it), and spreads
+ * the remaining props and children reactively.
  */
 function hostElement<P extends object>(tag: string): (props: P) => SolidJSX.Element {
   return (props) => {
