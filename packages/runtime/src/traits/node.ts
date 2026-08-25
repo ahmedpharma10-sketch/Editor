@@ -101,6 +101,20 @@ export const SourceModifiers = trait({ removeBackground: false, upscale: 1, addA
 // bumping the seed transcribes the scene again. Seed 0 is the default take.
 export const TranscriptionRequest = trait({ seed: 0 });
 
+// On an element authored with `syncTo`: the id of the element to align
+// against by listening instead of arithmetic. The asset system waits for both
+// sides' assets to land, cross-correlates the two recordings, and derives
+// Delay/Trim so they coincide on the timeline. Stands (with PendingSync) as a
+// pending source, so a transcription of the scene waits for the clip to land
+// where it will play. Never serialized, for the same reason the requests
+// above are not.
+export const SyncRequest = trait({ value: '' });
+
+// The syncTo measurement inflight, kept while the asset system correlates, so
+// a result that arrives after the element was pointed at another target (or
+// none) is dropped. The document clears it whenever a new syncTo arrives.
+export const PendingSync = trait(() => ({ value: undefined as unknown }));
+
 // The src whose resolution is inflight, kept while the asset system works,
 // so a resolution that arrives after the element was given another source
 // (or none) is dropped. The document clears it whenever a new src arrives.

@@ -9,15 +9,13 @@
 </scene>
 ```
 
-> **Status:** `syncTo` is part of the authoring surface and typechecks, and the correlation itself is implemented in the runtime, but the mount does not apply it yet — a node carrying `syncTo` is placed by its own `start` (0 by default) as if the prop were absent. Set `start` explicitly until it lands.
-
 ## Semantics
 
 - `syncTo` names the [`id`](./module.md#ids) of another element in the same render. Both sides must carry an audio track; any pairing works (audio-to-video, audio-to-audio, video-to-video).
 - The computed placement is `start = target.start + offset`, where `offset` is the measured source-time offset between the two recordings (positive when this node's recording started after the target's; possibly negative). `syncTo` and `start` are mutually exclusive.
 - `sourceIn`/`sourceOut` keep their normal meaning and remain yours to set. When omitted on a synced node, the window defaults to the intersection of the node's natural extent with the target's window (instead of the usual natural-duration fit), so a lav track simply covers its take.
 - Alignment reads source content: `muted` and `volume` on either side do not affect the measurement. Use `muted` to keep only one side audible, as on the camera track above.
-- Chains resolve in dependency order (A may sync to B while B syncs to C). Unknown ids and cycles are mount errors.
+- Chains resolve in dependency order (A may sync to B while B syncs to C). An unknown id or a cycle is reported on the element like a failed source (see [errors.md](./errors.md)), and the node keeps its default placement.
 
 ## Execution
 
