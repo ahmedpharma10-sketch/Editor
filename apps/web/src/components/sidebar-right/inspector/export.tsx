@@ -28,7 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { SliderInput } from "@/components/ui/slider-input";
 import { formatBytes, formatDuration } from "@/utils/formatters";
 import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
-import { Computed, FrameRate } from "@diffusionstudio/runtime";
+import { Computed, FrameRate, Source } from "@diffusionstudio/runtime";
 import { useDerived } from "@/engine/hooks";
 import { useProjectConfig } from "@/engine/project-config";
 import { useExport } from "@/context/export";
@@ -79,7 +79,11 @@ export function ExportPanel(props: ExportPanelProps) {
 
   const [isInspectorOpen, setIsInspectorOpen] = createSignal(false);
 
-  const settings = () => config()?.exportOf(entity()) ?? undefined;
+  const source = useTrait(() => entity(), Source);
+  const settings = createMemo(() => {
+    source();
+    return config()?.exportOf(entity()) ?? undefined;
+  });
   const frameRate = useTrait(world, FrameRate);
   const duration = useDerived(() => entity().get(Computed)?.duration ?? 0);
   const durationInSeconds = createMemo(() => duration() / (frameRate()?.value ?? 30));

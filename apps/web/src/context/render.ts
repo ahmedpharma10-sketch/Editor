@@ -79,7 +79,7 @@ export async function renderScene(
     const encoder = await createEncoder(capture.world, {
       ...config,
       target,
-      comment: `Made with Diffusion v${version}`,
+      comment: `Made with Diffusion Studio v${version}`,
       onProgress(p) {
         const percent = Math.round((p.progress / p.total) * 100);
         setOverlay((prev) =>

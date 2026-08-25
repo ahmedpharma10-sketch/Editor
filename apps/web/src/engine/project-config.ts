@@ -168,10 +168,15 @@ export class ProjectConfig {
 		this.exports[1](parseExports(this.raw.export));
 	}
 
-	/** How `scene` is exported, or null until it is set up. Reactive. */
+	/**
+	 * How `scene` is exported, or null until it is set up. Reactive: the
+	 * signal is read before the key, so a caller reading this for a scene the
+	 * mount has yet to stamp still hears about the settings when they land.
+	 */
 	public exportOf(scene: Entity): ExportConfig | null {
+		const exports = this.exports[0]();
 		const key = sceneConfigKey(scene);
-		return (key && this.exports[0]()[key]) || null;
+		return (key && exports[key]) || null;
 	}
 
 	/**
