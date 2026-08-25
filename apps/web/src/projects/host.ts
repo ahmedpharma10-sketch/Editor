@@ -142,7 +142,7 @@ export async function openProjectFolder(dir: string): Promise<ProjectInfo> {
 	const project = await mainBridge.call(MAIN_CHANNELS.PROJECTS_INIT, { dir });
 
 	const root = projectsRoot();
-	const underRoot = root !== null && project.dir.startsWith(root.replace(/[\/]+$/, '') + '/');
+	const underRoot = root !== null && project.dir.startsWith(root.replace(/\/+$/, '') + '/');
 	if (!underRoot) await rememberProjectRoot(project.dir, 'single');
 
 	return project;
