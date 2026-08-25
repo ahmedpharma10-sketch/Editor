@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipPortal, TooltipTrigger } from '@/components/ui/tooltip';
 import { useEditor } from '@/engine/hooks';
-import { DEFAULT_CLIP_HEIGHT, MAX_CLIP_HEIGHT, MIN_CLIP_HEIGHT } from '@/engine/timeline';
+import { DEFAULT_CLIP_HEIGHT, MAX_CLIP_HEIGHT, MIN_CLIP_HEIGHT, getClipFallbackName } from '@/engine/timeline';
 import { NESTED_INDENT_PX } from './config';
 import { useLayerContext } from './context';
 import { setRowHover } from './hover';
@@ -69,7 +69,7 @@ export function NodeLayer(props: LayerRowProps) {
   let originalName = '';
 
   const nameTrait = useTrait(entity, Name);
-  const name = createMemo(() => nameTrait()?.value ?? 'Layer');
+  const name = createMemo(() => nameTrait()?.value || getClipFallbackName(world, entity()));
   const icon = createMemo(() => getLayerIcon(world, props.layer));
 
   const toggleMuted = (e?: Event) => {

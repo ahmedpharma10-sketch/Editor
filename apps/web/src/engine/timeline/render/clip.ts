@@ -15,7 +15,7 @@ import {
 	TRIM_HANDLE_WIDTH,
 } from '../config';
 import { applyClipDrag, applyTrim, beginClipDrag, beginTrim } from '../drag';
-import { getClipAsset, getClipStyle } from '../style';
+import { getClipAsset, getClipFallbackName, getClipStyle } from '../style';
 import { truncateText } from '../text';
 import { framesToPixels, getResolution, getViewport } from '../view';
 import { renderCaption } from './caption';
@@ -85,10 +85,11 @@ export function renderClip(
 	{
 		let label = entity.get(Name)?.value ?? '';
 
-		if (error) label = error;
-		if (generating) label = 'Generating...';
 		if (isCaption(entity)) label = label || `${CAPTION_PRESETS[entity.get(Caption)?.type ?? CaptionType.CLASSIC]} Captions`;
 		if (isText(entity)) label = entity.get(Chars)?.value ?? label ?? '';
+		if (!label) label = getClipFallbackName(world, entity);
+		if (generating) label = 'Generating...';
+		if (error) label = error;
 
 		const [viewportLeft] = getViewport(world, scene, surface.layout.width);
 		const x = Math.max(left, viewportLeft);

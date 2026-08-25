@@ -11,7 +11,9 @@ import {
 	isCaption,
 	isGroup,
 	isMask,
+	isRect,
 	isScene,
+	isSequence,
 	isText,
 } from '@diffusionstudio/runtime';
 
@@ -47,6 +49,41 @@ export function getClipStyle(entity: Entity, asset: Asset | null, errored = fals
 		default:
 			return COLORS.clip.shape;
 	}
+}
+
+/**
+ * What to call a clip that was never named. A name is only ever authored —
+ * the reconciler adds `Name` when the JSX asks for one — so most clips have
+ * none, and a column of rows all reading "Layer" says no more than a column
+ * of blank ones does. What a clip is, is the next best thing to what it is
+ * called. This is only what the timeline shows; nothing is written back to
+ * the document, so an unnamed clip stays unnamed.
+ *
+ * The cascade follows `getClipStyle`, so the word and the colour agree on
+ * what the clip is.
+ */
+export function getClipFallbackName(world: World, entity: Entity): string {
+	if (isCaption(entity)) return 'Captions';
+	if (isText(entity)) return 'Text';
+	if (isScene(entity)) return 'Scene';
+	if (isSequence(entity)) return 'Sequence';
+	if (isGroup(entity)) return 'Group';
+	if (isMask(entity)) return 'Mask';
+	if (isAdjustmentLayer(entity)) return 'Adjustment';
+	if (hasHtmlPaint(entity)) return 'HTML';
+	if (hasSurfacePaint(entity)) return 'Surface';
+
+	switch (getClipAsset(world, entity)?.type) {
+		case 'VIDEO':
+		case 'SEQUENCE':
+			return 'Video';
+		case 'IMAGE':
+			return 'Image';
+		case 'AUDIO':
+			return 'Audio';
+	}
+
+	return isRect(entity) ? 'Rectangle' : 'Layer';
 }
 
 /** The asset a clip shows, whether it is the clip's own or one of its fills. */
