@@ -1,10 +1,10 @@
-# `dapi media probe <id|path>`
+# `dapi media probe <path>`
 
 Reads the container and per-track technical metadata of an asset; like `ffprobe`, but demuxed locally with mediabunny. Reports the container format, duration, metadata tags, and every track's codec parameters without decoding any media. Reads locally; no credits.
 
 ## Input
 
-- `<id|path>`: an asset id, or a local file to probe in place without adding it to the library (required). Any asset type is accepted.
+- `<path>`: a local file to probe in place without adding it to the library, or a project library path (required; library paths need an open project). Any asset type is accepted.
 
 ## Output
 
@@ -12,4 +12,4 @@ One JSON object. The shape is **not yet stable**: it reports whatever mediabunny
 
 ## Errors
 
-Exits non-zero if the id is unknown.
+Exits non-zero if the path can't be resolved.

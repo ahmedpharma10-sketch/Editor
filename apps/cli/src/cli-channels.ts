@@ -30,7 +30,7 @@ export type CliReply =
   | { ok: true; data: unknown }
   | { ok: false; error: string };
 
-export type AssetRef = { id: string } | { path: string };
+export type AssetRef = { path: string };
 
 export type MediaProbeRequest = AssetRef;
 

@@ -1,4 +1,4 @@
-# `dapi media waveform <id|path>`
+# `dapi media waveform <path>`
 
 Renders the audio track of a video or audio file as an amplitude **waveform** PNG, written to a file in the system temp directory: loudness over time drawn from decoded audio peaks, with a timestamp ruler. Silent stretches are highlighted in red. Renders locally; no credits. Alias: `wave`.
 
@@ -6,7 +6,7 @@ Tick labels use `HH:MM:SS:FF` timecode (hours, minutes, seconds, frame within th
 
 ## Input
 
-- `<id|path>`: a video or audio asset id, or a local file to preview in place without adding it to the library (required).
+- `<path>`: a local video or audio file to preview in place without adding it to the library, or a project library path (required; library paths need an open project).
 - `-s, --start <time>`: start of the window to preview, a `Time` value in source/content time (optional; default `0`).
 - `-e, --end <time>`: end of the window to preview, a `Time` value (optional; default the asset's duration).
 - `-x, --scale <factor>`: scale factor for the waveform (optional; default `1`, clamped to `0.25`-`4`). The overall canvas size stays fixed, so a smaller scale fits **more rows and columns** (a denser time axis) and a larger scale fits fewer but taller rows.
@@ -25,4 +25,4 @@ One JSON object, the absolute path to the written PNG plus the silent stretches 
 
 ## Errors
 
-Exits non-zero if the id is unknown, the asset has no decodable audio track, `--start`/`--end` fall outside the asset or cross (`--start` >= `--end`), `--scale` isn't a positive number, or `--output` can't be written.
+Exits non-zero if the path can't be resolved, the asset has no decodable audio track, `--start`/`--end` fall outside the asset or cross (`--start` >= `--end`), `--scale` isn't a positive number, or `--output` can't be written.

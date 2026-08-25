@@ -1,4 +1,4 @@
-# `dapi media filmstrip <id|path>`
+# `dapi media filmstrip <path>`
 
 Renders a **filmstrip** of a video to a PNG, written to a file in the system temp directory: a grid of frames sampled at even intervals across the window, each row stamped with a timestamp ruler. Video only; use [`dapi media waveform`](./waveform.md) to inspect the audio track. Renders locally; no credits. Alias: `film`.
 
@@ -6,7 +6,7 @@ Tick labels use `HH:MM:SS:FF` timecode (hours, minutes, seconds, frame within th
 
 ## Input
 
-- `<id|path>`: a video asset id, or a local video file to preview in place without adding it to the library (required).
+- `<path>`: a local video file to preview in place without adding it to the library, or a project library path (required; library paths need an open project).
 - `-s, --start <time>`: start of the window to preview, a `Time` value in source/content time (optional; default `0`).
 - `-e, --end <time>`: end of the window to preview, a `Time` value (optional; default the asset's duration).
 - `-x, --scale <factor>`: scale factor for the thumbnails (optional; default `1`, clamped to `0.25`-`4`). The overall canvas size stays fixed, so smaller thumbnails fit **more rows and columns** (a denser grid sampling more moments) and larger thumbnails fit fewer but show more detail each.
@@ -24,4 +24,4 @@ One JSON object, the absolute path to the written PNG:
 
 ## Errors
 
-Exits non-zero if the id is unknown, the asset isn't a video, `--start`/`--end` fall outside the asset or cross (`--start` >= `--end`), `--scale` isn't a positive number, or `--output` can't be written.
+Exits non-zero if the path can't be resolved, the asset isn't a video, `--start`/`--end` fall outside the asset or cross (`--start` >= `--end`), `--scale` isn't a positive number, or `--output` can't be written.

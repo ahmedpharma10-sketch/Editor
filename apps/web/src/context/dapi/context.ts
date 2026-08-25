@@ -4,28 +4,24 @@
 
 import { AssetId, Computed, Fonts, FrameRate, Generating, getActiveEntity, Library, Name, PendingSource, Source, SourceError } from "@diffusionstudio/runtime";
 
+import type { Accessor } from "solid-js";
 import type { Entity, World } from "koota";
-
-/**
- * The open project's identity, as the editor knows it. Structural on purpose:
- * this is the project context's shape, without the handler having to depend on
- * the Solid context it comes from.
- */
-type OpenProject = {
-  id: () => string;
-  dir: () => string;
-  name: () => string;
-};
+import type { EditorSession } from "./session";
 
 /**
  * What `dapi context` reports: what the project's source cannot say. The JSX is
  * the composition — its scenes, what is selected, which scene is active, the
  * work area are all in the file, and a caller that wants them reads it. What is
  * left over is which project the app has open, where its playhead sits, which
- * font families are actually registered in the world drawing it
+ * font families are actually registered in the world drawing it. With no
+ * project open there is none of that to report, and the report says so.
  */
-export function handleContextGet(world: World, project: OpenProject) {
+export function handleContextGet(session: Accessor<EditorSession | null>) {
   return async () => {
+    const open = session();
+    if (!open) return { project: null };
+
+    const { world, project } = open;
     const frameRate = world.get(FrameRate)?.value || 30;
     const active = getActiveEntity(world);
 

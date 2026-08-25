@@ -9,30 +9,41 @@ import { uploadBlob } from '@/lib/uploads';
 import { composeSheet, planSheet, planSheetSizes, sheetTimecode } from '@diffusionstudio/encoder';
 import { assert } from '@/utils';
 import { startResumableSession, uploadResumableStream } from '@/lib/uploads';
-import { filmstripAsset, formatTimecode, getAsset, getAssetFile, getLibrary, Project, transcodeForAnalysis, transcodeForTranscription, waveformAsset } from '@diffusionstudio/runtime';
-import { assetName } from '@diffusionstudio/assets';
+import { filmstripAsset, formatTimecode, getAssetFile, getLibrary, Project, transcodeForAnalysis, transcodeForTranscription, waveformAsset } from '@diffusionstudio/runtime';
+import { AssetLibrary, assetName, isAbsoluteSource, isUrlSource } from '@diffusionstudio/assets';
+import { createProjectFS } from '@/projects/fs';
 
-import type { World } from 'koota';
+import type { Accessor } from 'solid-js';
 import type { Asset } from '@diffusionstudio/assets';
-import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaFrameResult, TimecodedImage, MediaProbeRequest, AssetRef, MediaTranscribeRequest, MediaTranscribeResult, MediaFilmstripRequest, MediaFilmstripResult, MediaWaveformRequest, MediaWaveformResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+import type { EditorSession } from './session';
+import type { MediaListenRequest, MediaListenResult, MediaFrameRequest, MediaFrameResult, TimecodedImage, MediaProbeRequest, MediaTranscribeRequest, MediaTranscribeResult, MediaFilmstripRequest, MediaFilmstripResult, MediaWaveformRequest, MediaWaveformResult, TranscriptSegment } from "@diffusionstudio/cli/channels";
+
+type ResolveAsset = (path: string) => Promise<Asset>;
 
 /**
- * Resolves a command target: an id (or library path) looks up the project's
- * asset library; a path is described in place through the library without
- * being added to it (a transient asset).
+ * Resolves a command target by path. With a project open, its library answers:
+ * library paths look assets up, absolute paths and URLs are described in place
+ * without being added (transient assets). With none open, a throwaway library
+ * over a project-less FS describes absolute paths and URLs the same way — a
+ * fresh one per request, so nothing is remembered between calls.
  */
-async function resolveAssetRef(world: World, ref: AssetRef): Promise<Asset> {
-  if ("path" in ref) return getLibrary(world).resolve(ref.path);
-  const asset = getAsset(world, ref.id);
-  assert(asset, `Asset ${ref.id} not found.`);
-  return asset;
+export function createAssetResolver(session: Accessor<EditorSession | null>): ResolveAsset {
+  return (path) => {
+    const world = session()?.world;
+    if (world) return getLibrary(world).resolve(path);
+    assert(
+      isAbsoluteSource(path) || isUrlSource(path),
+      `Could not resolve "${path}": with no project open only absolute paths and URLs resolve — run \`dapi open <dir>\` to use library paths.`,
+    );
+    return new AssetLibrary(createProjectFS("")).resolve(path);
+  };
 }
 
 const PROBE_SAMPLE_PACKETS = 200;
 
-export function handleMediaProbe(world: World) {
+export function handleMediaProbe(resolve: ResolveAsset) {
   return async (req: MediaProbeRequest): Promise<unknown> => {
-    const asset = await resolveAssetRef(world, req);
+    const asset = await resolve(req.path);
 
     const blob = await getAssetFile(asset);
     const base = {
@@ -107,11 +118,11 @@ const FRAME_QUALITY_BUDGETS = {
 // Default cap on frames returned by auto selection when `count` is not given.
 const AUTO_MAX_FRAMES = 30;
 
-export function handleMediaFrame(world: World) {
+export function handleMediaFrame(resolve: ResolveAsset) {
   return async (req: MediaFrameRequest): Promise<MediaFrameResult> => {
     const { times, count, start, end, quality, auto } = req;
     const combine = req.combine ?? true;
-    const asset = await resolveAssetRef(world, req);
+    const asset = await resolve(req.path);
     const id = asset.id;
     assert(asset.type === "VIDEO", `Asset ${id} is not a video.`);
 
@@ -244,9 +255,9 @@ export function handleMediaFrame(world: World) {
 
 const transcripts = new Map<string, TranscriptSegment[]>();
 
-export function handleMediaTranscribe(world: World) {
+export function handleMediaTranscribe(resolve: ResolveAsset) {
   return async (req: MediaTranscribeRequest): Promise<MediaTranscribeResult> => {
-    const asset = await resolveAssetRef(world, req);
+    const asset = await resolve(req.path);
     const id = asset.id;
     assert(
       asset.type === "AUDIO" || asset.type === "VIDEO",
@@ -272,29 +283,29 @@ export function handleMediaTranscribe(world: World) {
   };
 }
 
-export function handleMediaFilmstrip(world: World) {
+export function handleMediaFilmstrip(resolve: ResolveAsset) {
   return async (req: MediaFilmstripRequest): Promise<MediaFilmstripResult> => {
-    const asset = await resolveAssetRef(world, req);
+    const asset = await resolve(req.path);
     const { dataUrl, ...rest } = await filmstripAsset(asset, { start: req.start, end: req.end, scale: req.scale });
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
     return { base64, ...rest };
   };
 }
 
-export function handleMediaWaveform(world: World) {
+export function handleMediaWaveform(resolve: ResolveAsset) {
   return async (req: MediaWaveformRequest): Promise<MediaWaveformResult> => {
-    const asset = await resolveAssetRef(world, req);
+    const asset = await resolve(req.path);
     const { dataUrl, ...rest } = await waveformAsset(asset, { start: req.start, end: req.end, scale: req.scale });
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
     return { base64, ...rest };
   };
 }
 
-export function handleMediaListen(world: World) {
+export function handleMediaListen(resolve: ResolveAsset, session: Accessor<EditorSession | null>) {
   return async (req: MediaListenRequest): Promise<MediaListenResult> => {
     const { prompt, start, end } = req;
     let { stripVideo } = req;
-    const asset = await resolveAssetRef(world, req);
+    const asset = await resolve(req.path);
     const id = asset.id;
     assert(
       asset.type === "AUDIO" || asset.type === "VIDEO",
@@ -308,7 +319,7 @@ export function handleMediaListen(world: World) {
       asset.type === "VIDEO" ? (stripVideo ? "audio/ogg" : "video/mp4") : "audio/ogg";
 
     const window = hasWindow ? `-${start ?? 0}-${end ?? "end"}` : "";
-    const uploadId = `${world.get(Project)?.id ?? "project"}-${id}-analyze${stripVideo ? "-audio" : ""}${window}`
+    const uploadId = `${session()?.world.get(Project)?.id ?? "project"}-${id}-analyze${stripVideo ? "-audio" : ""}${window}`
       .replace(/[^A-Za-z0-9._-]/g, "_");
     const { uploadUrl, fileRef } = await trpc.getUploadUrl.mutate({
       action: "resumable",

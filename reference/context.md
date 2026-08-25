@@ -22,6 +22,10 @@ One JSON object:
 }
 ```
 
+With no project open (the app sits at the dashboard) the report is just
+`{ project: null }`: there is no playhead, no world, and no fonts to speak of.
+Open one with [`dapi open`](./open.md).
+
 `currentTime` is local to the active scene, the same origin a clip's `start`
 and `end` are placed against, and in the same unit.
 

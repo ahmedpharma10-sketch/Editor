@@ -39,4 +39,4 @@ A sheet's timecode is the span it covers; a single position's is its own. Sheets
 
 ## Errors
 
-Exits non-zero if the id is unknown, the id is ambiguous (two files use it — pass `file:id`), the id names an element inside a loop (capture its scene instead), the node has no timeline clock of its own (capture its scene instead), the node is not visible at any requested position, `--per-sheet` is outside 1 to 12, or a PNG can't be written.
+Exits non-zero if no project is open (`No project open` — run `dapi open <dir>` first), the id is unknown, the id is ambiguous (two files use it — pass `file:id`), the id names an element inside a loop (capture its scene instead), the node has no timeline clock of its own (capture its scene instead), the node is not visible at any requested position, `--per-sheet` is outside 1 to 12, or a PNG can't be written.

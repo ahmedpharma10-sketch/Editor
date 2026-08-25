@@ -124,19 +124,18 @@ async function mediaFrame(ref: string, opts: MediaFrameOptions): Promise<void> {
 }
 
 /**
- * An asset id, a local file (or frames folder) that exists, or otherwise a
- * library path (`b-roll/clip.mp4`) for the app to look up.
+ * A local file (or frames folder) that exists is sent as its absolute path;
+ * anything else — a URL, or a library path (`b-roll/clip.mp4`) — is passed
+ * through for the app to resolve. Library paths need an open project.
  */
 function resolveAssetRef(ref: string): AssetRef {
-  if (/^[A-Za-z0-9]+$/.test(ref)) return { id: ref };
-
   const absPath = isAbsolute(ref) ? ref : resolve(process.cwd(), ref);
   if (existsSync(absPath)) return { path: absPath };
   if (isAbsolute(ref)) {
     console.error(`File not found: ${absPath}`);
     process.exit(1);
   }
-  return { id: ref };
+  return { path: ref };
 }
 
 async function mediaProbe(ref: string): Promise<void> {
@@ -598,7 +597,7 @@ program
   .command("context")
   .alias("ctx")
   .description(
-    `Print the current app context: which project the app has open (id, display name, folder), where its playhead sits, in seconds, the registered font families, and where its generations stand.`,
+    `Print the current app context: which project the app has open (id, display name, folder — or null when none is), where its playhead sits, in seconds, the registered font families, and where its generations stand.`,
   )
   .action(() => context());
 
@@ -618,7 +617,7 @@ const media = program
   .command("media")
   .alias("m")
   .description(
-    "Inspect a media file by asset id or local path, without adding it to the project: probe metadata, transcribe speech, grab frames, render visual previews, and analyze with multimodal models.",
+    "Inspect a media file by path, without adding it to the project: probe metadata, transcribe speech, grab frames, render visual previews, and analyze with multimodal models. Local files work with or without an open project; library paths need one.",
   );
 
 media
@@ -626,7 +625,7 @@ media
   .description(
     `Read the container and per-track technical metadata of a media file (local read, no credits): container format, duration, tags, and each track's codec params, without decoding. Commonly useful for a quick technical read, e.g. checking codec compatibility or duration before cutting. Packet stats (fps, bitrate) are estimated from a leading sample; images and transcripts report file-level info only.`,
   )
-  .argument("<id|path>", "asset id, or a local file")
+  .argument("<path>", "local file path")
   .action((ref: string) => mediaProbe(ref));
 
 media
@@ -634,7 +633,7 @@ media
   .description(
     `Transcribe the speech in a video or audio file and print the timed transcript, with word-level start/end times in seconds. Commonly useful for footage with speakers (talking head, interview), where the word times let you cut on a line. A transcript marks only speech; the gaps are not necessarily silent (music, score, applause).`,
   )
-  .argument("<id|path>", "video or audio asset id, or a local file")
+  .argument("<path>", "local video or audio file path")
   .action((ref: string) => mediaTranscribe(ref));
 
 media
@@ -643,7 +642,7 @@ media
   .description(
     `Decode frames of a video file and write them as PNGs (local render, no credits). By default the frames are merged into contact sheets: up to 12 per image, each cell labelled with its timecode (\`08s10f\`, zero segments dropped) and drawn as large as fits, so a handful of frames arrives as one high-resolution picture instead of a directory to open one by one (\`--separate\` writes a PNG per frame). Grabs the asset's own pixels, unlike \`capture\` which renders the composited node. The recommended tool for understanding a video at the frame level; past ~12 frames prefer \`media filmstrip\`.`,
   )
-  .argument("<id|path>", "video asset id, or a local video file to grab frames from")
+  .argument("<path>", "local video file path to grab frames from")
   .option("-t, --time <time...>", `one or more timestamps to grab — seconds ("1.5"), frames ("45f"), or "MM:SS"; negatives count back from the end, so -1 is one second before the end and -1f one frame before it (default: 0)`)
   .option("-c, --count <n>", "instead of --time, grab this many frames evenly spaced across the clip (or across the --start/--end window)")
   .option("-a, --auto", "scan the clip at 2fps and keep a frame each time the footage settles into a new visual state (transitions are waited out, so picks stay sharp); returns at most --count frames (default cap: 30), static footage like screen recordings returns far fewer; requires WebGPU")
@@ -662,7 +661,7 @@ media
   .description(
     `Render a grid of thumbnails sampled across the timeline to a PNG (local render, no credits), each row stamped with an HH:MM:SS:FF ruler. A fast, token-efficient video track preview; narrow the window to zoom into a region of interest. Video only (use \`media waveform\` for audio).`,
   )
-  .argument("<id|path>", "video asset id, or a local video file to preview")
+  .argument("<path>", "local video file path to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .option("-x, --scale <factor>", "scale factor for the thumbnails; smaller thumbnails fit more rows and columns, larger fit fewer (default: 1)")
@@ -675,7 +674,7 @@ media
   .description(
     `Render the audio track of a video or audio file as a waveform PNG (local render, no credits) with a timestamp ruler: loudness over time, with silent stretches highlighted in red. A fast, token-efficient audio track preview; the silent spans are also returned as second ranges.`,
   )
-  .argument("<id|path>", "video or audio asset id, or a local file to preview")
+  .argument("<path>", "local video or audio file path to preview")
   .option("-s, --start <time>", `start of the window to preview — seconds, "45f" frames, or "MM:SS" (default: 0)`)
   .option("-e, --end <time>", `end of the window to preview — seconds, "45f" frames, or "MM:SS" (default: asset duration)`)
   .option("-x, --scale <factor>", "scale factor for the waveform; smaller fits more rows and columns, larger fits fewer (default: 1)")
@@ -687,7 +686,7 @@ media
   .description(
     `Prompt a multimodal model for a semantic analysis of an audio track and print its answer. Shines on audio semantics (the name of the music playing, who is speaking, the spoken content with second-granularity timestamps). Accepts an audio file or a video; by default only the audio track is analyzed.`,
   )
-  .argument("<id|path>", "video or audio asset id, or a local file to analyze")
+  .argument("<path>", "local video or audio file path to analyze")
   .option("-p, --prompt <str>", "question or instruction to guide the analysis")
   .option("-s, --start <time>", `start of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: 0); timestamps in the analysis are relative to this point`)
   .option("-e, --end <time>", `end of the segment to analyze — seconds, "45f" frames, or "MM:SS" (default: media duration)`)

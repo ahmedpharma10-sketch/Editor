@@ -143,7 +143,7 @@ export function errnoCode(e: unknown): string | undefined {
 
 // Bridges the cold-start gap after launching the app. Main only delivers the
 // handshake once the renderer has finished loading, and `ping` is answered
-// by the always-mounted auth router, so a single round-trip proves the app is
+// by the always-mounted app router, so a single round-trip proves the app is
 // fully up. The retry loop only handles the brief window before the handshake
 // socket itself binds (ENOENT/ECONNREFUSED).
 export async function waitForCliSocket(timeoutMs = 30000): Promise<void> {

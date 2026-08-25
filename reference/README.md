@@ -10,7 +10,7 @@ Each feature command has its own file (linked below). The JSX code syntax specif
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
-| `media` | `m` | Inspect a media file by asset id or local path, without adding it to the project. |
+| `media` | `m` | Inspect a media file by path, without adding it to the project. Local files and URLs work with or without an open project; library paths need one. |
 
 How the surface is divided:
 
