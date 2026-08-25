@@ -14,7 +14,7 @@ import {
 	Time, FrameRate,
 } from '@diffusionstudio/runtime';
 
-import { resolverSystem, recomputeAllTimeRanges } from './encoder';
+import { resolverSystem, recomputeAllTimeRanges, warmupAssets } from './encoder';
 
 import type { Entity, World } from 'koota';
 import type { AABB } from '@diffusionstudio/runtime';
@@ -52,6 +52,8 @@ export async function createImageEncoder(world: World, config: ImageEncoderConfi
 	// Never started — image capture is video-only; the context is only there
 	// for the lazy audio-bus wiring to have something to bind to.
 	world.set(AudioEngine, { context: new OfflineAudioContext(2, 1, 48000) });
+
+	await warmupAssets(world);
 
 	const frameRate = world.get(FrameRate)?.value ?? 30;
 	const computed = store(world, Computed);
@@ -145,6 +147,8 @@ export async function createImageEncoder(world: World, config: ImageEncoderConfi
 		measure(root, bounds);
 	}
 	assert(Number.isFinite(bounds.minX), 'Entity is not visible at any of the requested frames');
+
+	await resolverSystem(world);
 
 	const boundsWidth = Math.max(1, bounds.maxX - bounds.minX);
 	const boundsHeight = Math.max(1, bounds.maxY - bounds.minY);

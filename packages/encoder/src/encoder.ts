@@ -63,6 +63,8 @@ export async function createEncoder(world: World, config: EncoderConfig) {
 	const computed = store(world, Computed);
 	const playback = store(world, Playback);
 
+	await warmupAssets(world);
+
 	const frameRate = world.get(FrameRate)?.value ?? 30;
 	const sceneWidth = computed.width[sceneId]!;
 	const sceneHeight = computed.height[sceneId]!;
@@ -232,12 +234,6 @@ export async function createEncoder(world: World, config: EncoderConfig) {
 
 	const render = async (): Promise<ExportResult> => {
 		try {
-			// A rendered project starts with every `src` unresolved, and the
-			// decoders the playback system opens are keyed off the asset an
-			// element is bound to. Settle them before the first frame, or
-			// frame zero is drawn against media that is not there yet.
-			await warmupAssets(world);
-
 			await output.start();
 			const start = performance.now();
 			const startTime = start;
@@ -447,7 +443,7 @@ function normalizeSceneTransform(world: World, sceneId: number): void {
  * a transcript that waits for the scene's own sources to land). Bounded, so
  * a source that keeps re-requesting cannot hold an export open forever.
  */
-async function warmupAssets(world: World): Promise<void> {
+export async function warmupAssets(world: World): Promise<void> {
 	for (let pass = 0; pass < 16; pass++) {
 		assetSystem(world);
 		if (!world.get(FramePromises)?.list?.length) return;
