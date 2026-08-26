@@ -211,6 +211,13 @@ type SizeProps = {
   /** Box size, px. Defaults to the parent's size. */
   width?: number;
   height?: number;
+  /**
+   * Locks the box to its authored proportions: a resize of one bound drives
+   * the other, so the editor's handles and layout rows keep the ratio
+   * `width`:`height` has (or, with neither authored, the ratio the box
+   * currently has — a media element locked at its natural size).
+   */
+  keepAspectRatio?: boolean;
 };
 
 type TransformProps = PositionProps & OffsetProps & SizeProps & {
@@ -445,7 +452,7 @@ export type StageProps = {
  * `camera` does: the source is the document, so a scene dragged or clicked on
  * the canvas has nowhere else to be written back to.
  */
-export type SceneProps = IdentityProps & PositionProps & Required<SizeProps> & FillProps & {
+export type SceneProps = IdentityProps & PositionProps & Required<Pick<SizeProps, "width" | "height">> & Pick<SizeProps, "keepAspectRatio"> & FillProps & {
   /**
    * Whether this element is the one the playhead, timeline, and capture
    * operate on. Editor state carried by the source like `selected`, with two

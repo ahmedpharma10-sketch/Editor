@@ -87,6 +87,7 @@ Every node accepts:
 | `x`, `y` | `number` | `0` | Position relative to the parent, px. |
 | `offsetX`, `offsetY` | `number` | `0` | Render-time translation on top of `x`/`y`, px; moves the drawn content without changing the layout box (the channel the slide animations drive). Subpixel values are kept. |
 | `width`, `height` | `number` | per element | Box size, px — see the table above. |
+| `keepAspectRatio` | `boolean` | absent | Locks the box to its authored proportions: resizing one bound (an editor handle, a layout row) drives the other so the ratio `width`:`height` has is kept — or, with neither authored, the ratio the box currently has. |
 | `rotation` | `number` | `0` | Rotation in degrees. |
 | `scale` | `number` | `1` | Uniform scale about the box origin. Overrides `scaleX`/`scaleY` while set. |
 | `scaleX`, `scaleY` | `number` | `1` | Per-axis scale. |

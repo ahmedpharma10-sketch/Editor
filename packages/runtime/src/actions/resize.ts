@@ -18,6 +18,23 @@ import type { Entity, World } from 'koota';
 type ResizeParams = { width?: number; height?: number };
 
 /**
+ * The ratio a locked entity's resize keeps: the pinned dimensions, or — when
+ * the pin is empty because neither bound was authored (see the reconciler's
+ * `syncAspectLock`) — the ratio the box currently has. Undefined without a
+ * lock, or before the box has dimensions to keep.
+ */
+function lockedRatio(entity: Entity): number | undefined {
+	const aspect = entity.get(KeepAspectRatio);
+	if (!aspect) return undefined;
+	if (aspect.width > 0 && aspect.height > 0) return aspect.width / aspect.height;
+
+	const computed = entity.get(Computed);
+	return computed && computed.width > 0 && computed.height > 0
+		? computed.width / computed.height
+		: undefined;
+}
+
+/**
  * Resize an entity. Enforces aspect ratio, writes the final Size, propagates
  * Computed size down the subtree and reapplies sibling constraints.
  * Group/Sequential entities don't own a Size so calling this on one strips
@@ -40,10 +57,8 @@ export function resizeEntity(world: World, entity: Entity, params: ResizeParams)
 	let { width, height } = params;
 
 	// Enforce aspect ratio
-	const aspect = entity.get(KeepAspectRatio);
-	if (aspect && aspect.width > 0 && aspect.height > 0) {
-		const ratio = aspect.width / aspect.height;
-
+	const ratio = lockedRatio(entity);
+	if (ratio !== undefined) {
 		if (width !== undefined && height === undefined) {
 			height = Math.round(width / ratio);
 		} else if (height !== undefined && width === undefined) {
@@ -198,12 +213,8 @@ function resolveConstraintOffsetsAgainst(world: World, entity: Entity, dims: Ent
 		// When the child's aspect ratio is locked, drive the other dimension from
 		// whichever axis resized so the proportion is preserved. Width wins when
 		// both axes resize, mirroring resizeEntity's precedence.
-		const aspect = child.get(KeepAspectRatio);
-		if (
-			aspect && aspect.width > 0 && aspect.height > 0 &&
-			(newChildW !== undefined || newChildH !== undefined)
-		) {
-			const ratio = aspect.width / aspect.height;
+		const ratio = lockedRatio(child);
+		if (ratio !== undefined && (newChildW !== undefined || newChildH !== undefined)) {
 			if (newChildW !== undefined) {
 				newChildH = Math.round(newChildW / ratio);
 			} else if (newChildH !== undefined) {

@@ -71,22 +71,27 @@ export function LayoutPanel(props: LayoutPanelProps) {
     return currentWidth > currentHeight ? "horizontal" : "vertical";
   });
 
-  /** Pins the lock to `width`×`height`, the ratio later edits keep. */
-  const lockAspectRatio = (width: number, height: number) => {
-    if (width <= 0 || height <= 0) return;
-    entity().add(KeepAspectRatio);
-    entity().set(KeepAspectRatio, { width, height });
+  /**
+   * The ratio the lock keeps: the pinned authored box, or — when the pin is
+   * empty because neither bound is authored — the box as currently shown.
+   */
+  const lockedRatio = () => {
+    const aspect = entity().get(KeepAspectRatio);
+    if (!aspect) return undefined;
+    if (aspect.width > 0 && aspect.height > 0) return aspect.width / aspect.height;
+    return width() > 0 && height() > 0 ? width() / height() : undefined;
   };
 
   const resize = (params: { width?: number; height?: number }) => {
     let { width, height } = params;
 
-    const aspect = entity().get(KeepAspectRatio);
-    if (aspect && aspect.width > 0 && aspect.height > 0) {
-      const ratio = aspect.width / aspect.height;
-      if (width !== undefined) {
+    // One bound given, the lock drives the other; both given is a size
+    // chosen outright (a preset, an orientation swap) the lock follows.
+    const ratio = lockedRatio();
+    if (ratio !== undefined) {
+      if (width !== undefined && height === undefined) {
         height = Math.round(width / ratio);
-      } else if (height !== undefined) {
+      } else if (height !== undefined && width === undefined) {
         width = Math.round(height * ratio);
       }
     }
@@ -112,13 +117,7 @@ export function LayoutPanel(props: LayoutPanelProps) {
   };
 
   const toggleAspectRatio = () => {
-    if (keepAspectRatio()) {
-      entity().remove(KeepAspectRatio);
-      return;
-    }
-
-    // Lock: snapshot current absolute dimensions
-    lockAspectRatio(width(), height());
+    editor.editProperty(entity(), "keepAspectRatio", !keepAspectRatio());
   };
 
   const aspectIcon = () => {
@@ -145,11 +144,12 @@ export function LayoutPanel(props: LayoutPanelProps) {
     return "Square";
   };
 
-  /** A size chosen outright (orientation swap, preset): the lock follows it rather than fighting it. */
+  /**
+   * A size chosen outright (orientation swap, preset): the lock follows it
+   * rather than fighting it — both bounds are written, and the reconciler
+   * re-pins the lock to the authored box on each.
+   */
   const setSize = (width: number, height: number) => {
-    if (keepAspectRatio()) {
-      lockAspectRatio(width, height);
-    }
     resize({ width, height });
   };
 

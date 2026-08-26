@@ -13,6 +13,7 @@ A scene is the **clipped, playable frame** a composition is made in, and the onl
 | Prop | Type | Default | Meaning |
 | ---- | ---- | ------- | ------- |
 | `width`, `height` | `number` | **required** | Composition size in pixels — the frame that is rendered and exported. Required by the type; a scene that somehow reaches the runtime without them is 1920×1080. |
+| `keepAspectRatio` | `boolean` | absent | Locks the frame to its authored proportions: resizing one bound in the editor drives the other. |
 | `x`, `y` | `number` | `0` | Where the frame sits on the infinite canvas. Scenes without one all sit at the origin. |
 | `fill` | `string` | none | Background fill, any CSS color; alpha is ignored. A scene without one is transparent, and exports with alpha. |
 | `name` | `string` | none | Human-readable node name; what labels the scene in the editor. Recommended. |
