@@ -86,7 +86,7 @@ export function renderClip(
 		let label = entity.get(Name)?.value ?? '';
 
 		if (isCaption(entity)) label = label || `${CAPTION_PRESETS[entity.get(Caption)?.type ?? CaptionType.CLASSIC]} Captions`;
-		if (isText(entity)) label = entity.get(Chars)?.value ?? label ?? '';
+		else if (isText(entity)) label = entity.get(Chars)?.value ?? label ?? '';
 		if (!label) label = getClipFallbackName(world, entity);
 		if (generating) label = 'Generating...';
 		if (error) label = error;
