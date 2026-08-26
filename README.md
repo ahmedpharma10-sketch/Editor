@@ -189,6 +189,7 @@ dapi node render -o hero.mp4    # encode the scene to disk
 | `dapi open` | Launch the app and open (or create) a project folder, anywhere on disk |
 | `dapi context` | Summary of app state |
 | `dapi capture` | Render a node in isolation to a labelled contact sheet, or one PNG per position |
+| `dapi check` | Check a node's subtree for structural mistakes (black-frame gaps, never-visible nodes, failed sources) and report subtree stats |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
 | `dapi screenshot` / `dapi logs` | The app itself: capture the window, read recent console output |

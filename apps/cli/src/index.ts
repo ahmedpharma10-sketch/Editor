@@ -302,6 +302,17 @@ async function captureNode(id: string, opts: CaptureOptions): Promise<void> {
   }
 }
 
+async function checkNode(id: string): Promise<void> {
+  try {
+    const result = await editor.check.query({ id });
+    console.log(JSON.stringify(result));
+    // Linter convention: issues found is a different failure than "could not run".
+    if (result.issues.some((issue) => issue.severity === "error")) process.exitCode = 1;
+  } catch (e) {
+    handleSocketError(e);
+  }
+}
+
 type OpenOptions = { background?: boolean };
 
 /** `open -a` on a running app only activates it, so this is safe to always run. */
@@ -612,6 +623,14 @@ program
   .option("--per-sheet <n>", "positions per contact sheet, 1-12; fewer means a larger cell each (default: as many as fit)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((id: string, opts: CaptureOptions) => captureNode(id, opts));
+
+program
+  .command("check")
+  .description(
+    `Check a node's subtree for obvious structural mistakes, without rendering (local analysis, no credits): spans where no visual is scheduled (likely black frames), children that never become visible, zero-duration or fully transparent nodes, and assets that failed to load or generate — plus subtree stats (node count by kind, nesting depth, played duration). Prints one JSON object; times in issue ranges are seconds relative to the node's start, the same clock \`capture --time\` uses. Exits 1 when an error-severity issue is found. Structural only: a scheduled clip can still render black (dark footage, content smaller than the canvas), so confirm suspicious spans visually with \`capture\`.`,
+  )
+  .argument("<id>", 'node id to check or `file:id` when two files use the same id')
+  .action((id: string) => checkNode(id));
 
 const media = program
   .command("media")

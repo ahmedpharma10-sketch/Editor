@@ -83,6 +83,42 @@ export type MediaWaveformResult = {
 export type MediaListenRequest = AssetRef & { prompt?: string; start?: number; end?: number; stripVideo?: boolean };
 export type MediaListenResult = { result?: string; start?: number; end?: number };
 
+export type CheckRequest = { id: string };
+
+export type CheckIssueCode =
+  | "black-frames"
+  | "no-visuals"
+  | "never-visible"
+  | "zero-duration"
+  | "transparent"
+  | "source-error";
+
+/**
+ * One structural finding. `ranges` (where present) are seconds relative to
+ * the checked node's start — the same clock `capture --time` uses.
+ */
+export type CheckIssue = {
+  code: CheckIssueCode;
+  severity: "error" | "warning";
+  message: string;
+  /** Source stamp of the offending node; absent when the issue is about the subtree as a whole. */
+  node?: string;
+  ranges?: Array<{ start: number; end: number }>;
+};
+
+export type CheckResult = {
+  stats: {
+    /** Nodes in the subtree, the checked node included. */
+    nodes: number;
+    byKind: Record<string, number>;
+    /** Deepest nesting level below the checked node (0 = no children). */
+    depth: number;
+    /** Seconds the checked node plays (its workarea, when one is set). */
+    duration: number;
+  };
+  issues: CheckIssue[];
+};
+
 export type GeneratedAsset = { id: string; name: string; type: string };
 
 export type ModelsRequest = { type?: "image" | "video" | "audio" };

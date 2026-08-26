@@ -13,6 +13,7 @@ import { editorSession, requireEditorSession, setEditorSession } from "./session
 import { handleContextGet } from "./context";
 import { createAssetResolver, handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaFilmstrip, handleMediaWaveform, handleMediaListen } from "./media";
 import { handleCapture } from "./capture";
+import { handleCheck } from "./check";
 import { handleLogs } from "./logs";
 import { handleModels } from "./models";
 import { handleVoices } from "./voices";
@@ -115,6 +116,7 @@ function createAppRouter({ navigate, getUser, requireAuth }: AppRouterDeps) {
     whoami: t.procedure.query(() => getUser()),
     context: q0(handleContextGet(editorSession)),
     capture: q(handleCapture(requireEditorSession)),
+    check: q(handleCheck(requireEditorSession)),
     models: q(handleModels()),
     logs: q(handleLogs()),
     screenshot: q0(handleWindowScreenshot()),
