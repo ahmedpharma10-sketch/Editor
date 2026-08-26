@@ -4,14 +4,7 @@
 
 import { createMemo } from "solid-js";
 import { Captions, authoredElement } from "@diffusionstudio/reconciler";
-import {
-  Caption,
-  Computed,
-  FrameRate,
-  framesToSeconds,
-  getEntityTree,
-  isScene,
-} from "@diffusionstudio/runtime";
+import { Caption, getEntityTree, isScene } from "@diffusionstudio/runtime";
 import { useWorld } from "@diffusionstudio/koota-solid";
 import { useEditor, useSelection } from "@/engine/hooks";
 import { toast } from "somoto";
@@ -26,21 +19,9 @@ export function useAutoCaptions() {
   const scenes = createMemo(() => nodes().filter(isScene));
   const hasScene = () => scenes().length > 0;
 
-  /**
-   * The scene's own length in seconds, for the caption element's `end`. A
-   * fresh <Captions> has no source to take a length from, so without one it
-   * runs for the 16s default and stretches the very scene it captions.
-   */
-  const sceneSpan = (scene: Entity) => {
-    const computed = scene.get(Computed);
-    const frames = computed?.duration ?? 0;
-    if (frames <= 0) return undefined;
-    return framesToSeconds(frames, world.get(FrameRate)?.value ?? 30);
-  };
-
   const insertFresh = (scene: Entity) => {
     const [entity] = editor.insertElement(scene, () => (
-      <Captions end={sceneSpan(scene)} seed={Date.now()} />
+      <Captions seed={Date.now()} />
     ));
     if (!entity) {
       toast.error("Could not add captions", {

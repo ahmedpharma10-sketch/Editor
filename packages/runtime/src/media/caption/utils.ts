@@ -112,6 +112,40 @@ export function splitSequence(sequence: WordGroup): [WordGroup, WordGroup] {
 }
 
 
+// Transcript lengths already read, by asset id — a content hash, so an entry
+// can never go stale. Timing recomputes are synchronous while reading a
+// transcript is not; this is the seam between the two (see the caption
+// branches in actions/timing.ts).
+const transcriptDurations = new Map<string, number>();
+
+/**
+ * How long the transcript runs, in seconds: its last word's end. Null until
+ * `primeTranscriptDuration` has read the asset, and null for a transcript
+ * with no words — a caption without one takes its span from its parent
+ * instead.
+ */
+export function getTranscriptDuration(asset: Asset): number | null {
+	const duration = transcriptDurations.get(asset.id);
+	return duration === undefined || duration <= 0 ? null : duration;
+}
+
+/**
+ * Reads the transcript and caches its length, so `getTranscriptDuration` can
+ * answer synchronously from then on.
+ */
+export async function primeTranscriptDuration(asset: Asset): Promise<void> {
+	if (transcriptDurations.has(asset.id)) return;
+
+	const transcript = await resolveTranscript(asset);
+	let end = 0;
+	for (const segment of transcript) {
+		for (const word of segment.words) {
+			if (word.end > end) end = word.end;
+		}
+	}
+	transcriptDurations.set(asset.id, end);
+}
+
 /**
  * Resolve a transcript from any asset type that can carry one.
  */

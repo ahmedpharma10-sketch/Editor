@@ -10,11 +10,14 @@ import { store } from '../world/store';
 import { DEFAULT_DURATION_FRAMES } from '../constants';
 import {
 	Geometry, Group, AdjustmentLayer, Paint, Caption, Cache, Computed,
-	Delay, Trim, PlaybackRate, CaptionDecoderHandle,
+	Delay, Trim, PlaybackRate, CaptionDecoderHandle, AssetId, FrameRate,
+	FramePromises,
 } from '../traits';
 import { isGroupLike } from '../queries/predicates';
 import { getParentNode } from '../queries/hierarchy';
-import { findAssetDuration, getSourceFrameAt, isPaintEntity } from '../utils/time';
+import { findAssetDuration, getSourceFrameAt, isPaintEntity, secondsToFrames } from '../utils/time';
+import { getAsset } from './assets';
+import { getTranscriptDuration, primeTranscriptDuration } from '../media/caption/utils';
 
 import type { Entity, World } from 'koota';
 import type { Ignorable, TimeTrait } from '../utils/time';
@@ -58,6 +61,59 @@ function resolveSourceOut(
 	if (out === Infinity) out = DEFAULT_DURATION_FRAMES;
 
 	return Math.max(trimStart, out);
+}
+
+/**
+ * The caption's transcript length in project frames, or null while the
+ * transcript hasn't been read (see `primeTranscriptDuration`) or has no words.
+ */
+function findTranscriptDuration(world: World, entity: Entity, ignore?: Ignorable): number | null {
+	if (ignore === AssetId) return null;
+
+	const asset = getAsset(world, entity.get(AssetId)?.value ?? '');
+	if (!asset) return null;
+
+	const duration = getTranscriptDuration(asset);
+	if (duration === null) return null;
+
+	return secondsToFrames(duration, world.get(FrameRate)?.value ?? 30);
+}
+
+/**
+ * Where a caption's source window closes, in source frames. Unlike media, the
+ * transcript is a fallback length rather than a cap — an authored end wins
+ * outright, then the transcript's last word. Null when the caption has no
+ * length of its own at all: it follows its parent (see `resolveParentSpan`).
+ */
+function resolveCaptionSourceOut(
+	world: World,
+	entity: Entity,
+	trimStart: number,
+	trimEnd: number | null,
+	ignore?: Ignorable,
+): number | null {
+	if (trimEnd !== null) return Math.max(trimStart, trimEnd);
+
+	const duration = findTranscriptDuration(world, entity, ignore);
+	if (duration !== null) return Math.max(trimStart, duration);
+
+	return null;
+}
+
+/**
+ * How far a length-less caption's source runs, in source frames: the span its
+ * parent last computed. This is an initial value, not a live derivation — it
+ * is read when the caption's range happens to be recomputed and stands until
+ * then, which is all it needs to be: the length a fresh caption has while its
+ * transcript is still being made. The parent's fit already contains the
+ * caption's previous span, so the read is a fixed point, never a runaway.
+ */
+function resolveParentSpan(world: World, entity: Entity, origin: number, playbackRate: number): number {
+	const parent = getParentNode(entity);
+	const end = parent === null ? -Infinity : store(world, Computed).end[parent.id()] ?? -Infinity;
+
+	const span = (end - origin) * playbackRate;
+	return Number.isFinite(span) && span > 0 ? span : DEFAULT_DURATION_FRAMES;
 }
 
 /**
@@ -114,7 +170,13 @@ export function recomputeEntityTimeRange(world: World, entity: Entity, ignore?: 
 		return;
 	}
 
-	const sourceOut = resolveSourceOut(world, entity, trimStart, trim?.end ?? null, ignore);
+	let sourceOut = resolveSourceOut(world, entity, trimStart, trim?.end ?? null, ignore);
+
+	if (entity.has(Caption)) {
+		sourceOut = resolveCaptionSourceOut(world, entity, trimStart, trim?.end ?? null, ignore)
+			?? resolveParentSpan(world, entity, origin, playbackRate)
+	}
+
 	const end = Math.max(start, Math.round(origin + sourceOut / playbackRate));
 
 	computed.start[eid] = start;
@@ -214,6 +276,22 @@ export function reactToAssetChange(world: World, entity: Entity, ignore?: Ignora
 			entity.get(CaptionDecoderHandle)?.dispose();
 			entity.set(CaptionDecoderHandle, null);
 		}
+
+		// The transcript is the caption's fallback length: recompute against
+		// what is known now, and once the new transcript's words are read
+		// (a file read, so async) recompute again with its actual end.
+		recomputeEntityTimeRange(world, entity, ignore);
+		bubbleTimeRangeUp(world, entity);
+
+		const asset = ignore === AssetId ? undefined : getAsset(world, entity.get(AssetId)?.value ?? '');
+		if (asset && getTranscriptDuration(asset) === null) {
+			const done = primeTranscriptDuration(asset).then(() => {
+				if (!entity.isAlive() || entity.get(AssetId)?.value !== asset.id) return;
+				recomputeEntityTimeRange(world, entity);
+				bubbleTimeRangeUp(world, entity);
+			}).catch(() => undefined);
+			world.get(FramePromises)?.list?.push(done);
+		}
 	} else if (entity.has(Geometry)) {
 		// A geometry's own asset backs its intrinsic paint (a video's footage)
 		// or, on an audio clip, its recording: a new one is a new source length.
@@ -276,6 +354,10 @@ export function reactToChildDetached(world: World, child: Entity) {
 	if (child.has(Paint)) {
 		const parent = getParentNode(child);
 		if (parent === null || !parent.has(Geometry)) return;
+		// A caption's length comes from its transcript or parent, never from
+		// its fills; pinning here would freeze that derived length into a
+		// trim whenever a preset's styling children are cleared.
+		if (parent.has(Caption)) return;
 		// Pin the current duration before recomputing; otherwise the geometry
 		// would silently fall back to the 16s default after losing its paint.
 		pinTrimToCurrentBounds(world, parent);
