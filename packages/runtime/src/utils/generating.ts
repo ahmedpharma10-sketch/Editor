@@ -19,9 +19,9 @@
 
 import { cubicBezier } from 'animejs';
 
-import { Time } from '../traits';
+import { Cache, Generating, SourceError, Time } from '../traits';
 
-import type { World } from 'koota';
+import type { Entity, World } from 'koota';
 
 const generatingEase = cubicBezier(0.52, 0.18, 0.56, 0.88);
 
@@ -32,6 +32,34 @@ const GEN_CYCLE = GEN_DURATION * 2; // full forward+reverse cycle
 // Colors: #1c1c1c → rgb(28,28,28) and #292929 → rgb(41,41,41)
 const GEN_FROM_R = 28, GEN_FROM_G = 28, GEN_FROM_B = 28;
 const GEN_TO_R = 41, GEN_TO_G = 41, GEN_TO_B = 41;
+
+/**
+ * Whether the node is waiting on a generation. The wait sits wherever the
+ * src does: on the node itself where the paint is intrinsic (`<image>`,
+ * `<video>`, `<audio>`, `<captions>`), or on one of its paints where it is
+ * authored as a child (`<rect><imagePaint src /></rect>`).
+ */
+export function isGenerating(entity: Entity): boolean {
+	if (entity.has(Generating)) return true;
+	for (const fill of entity.get(Cache)?.fills ?? []) {
+		if (fill.has(Generating)) return true;
+	}
+	return false;
+}
+
+/**
+ * The reason the node's source failed, from wherever the src sits — the
+ * counterpart of `isGenerating`, and what a still red fill is drawn for.
+ */
+export function getSourceFailure(entity: Entity): string | undefined {
+	const own = entity.get(SourceError)?.value;
+	if (own) return own;
+	for (const fill of entity.get(Cache)?.fills ?? []) {
+		const failure = fill.get(SourceError)?.value;
+		if (failure) return failure;
+	}
+	return undefined;
+}
 
 /** Where the pulse stands on the world's clock: 0 at rest, 1 fully lit. */
 function generatingFactor(world: World): number {

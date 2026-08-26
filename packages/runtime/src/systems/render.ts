@@ -16,9 +16,8 @@ import {
 	TransitionType,
 } from '../constants';
 import {
-	ChildOf, Hidden, Culled, Generating, Interactive, IsMask,
+	ChildOf, Hidden, Culled, Interactive, IsMask,
 	ClipsContent, Geometry, Group, Paint, Color, Caption, ScaleMode, Shader,
-	SourceError,
 	BlendMode, Effect, Transition, MixedCornerRadius,
 	LocalTransform, WorldTransform, Computed, Cache,
 	Host,
@@ -29,7 +28,7 @@ import {
 import { getParentNode } from '../queries/hierarchy';
 import { getViewMatrix } from '../queries/camera';
 import { colorToHex } from '../utils/color';
-import { FAILED_COLOR, getGeneratingColor } from '../utils/generating';
+import { FAILED_COLOR, getGeneratingColor, getSourceFailure, isGenerating } from '../utils/generating';
 import { applyStrokeStyle } from '../utils/stroke';
 import { renderText } from '../utils/text';
 import { getTransitionWindow } from '../utils/transition';
@@ -587,10 +586,8 @@ function renderStrokes(world: World, entity: Entity): void {
  * The pulse a node waiting on a generation is filled with
  */
 function renderGenerating(world: World, entity: Entity): void {
-	const invariants = world.query(ChildOf(entity), SourceError, Generating);
-	const errored = invariants.find(invariant => invariant.get(SourceError));
-	const generating = invariants.find(invariant => invariant.get(Generating));
-	if (!errored && !generating) return;
+	const errored = getSourceFailure(entity) !== undefined;
+	if (!errored && !isGenerating(entity)) return;
 
 	const ctx = getCtx(world);
 	ctx.fillStyle = errored ? FAILED_COLOR : getGeneratingColor(world);

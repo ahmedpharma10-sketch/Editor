@@ -4,10 +4,11 @@
 
 import { Not, Or } from 'koota';
 import {
-	Active, Computed, Culled, FrameRate, Generating, Geometry, Group, Hidden,
+	Active, Computed, Culled, FrameRate, Geometry, Group, Hidden,
 	HitRegions, Hovering, Name, Playback, RenderSurface, Root, Selected,
-	Sequential, SourceError, ChildOf,
-	entityQuad, entityWorldMat, getMaskSelection, getSelectionMask, invert2D,
+	Sequential, ChildOf,
+	entityQuad, entityWorldMat, getMaskSelection, getSelectionMask, getSourceFailure,
+	invert2D, isGenerating,
 	multiply2D, rectToQuad, rotate2D, scale2D, store, transformPoint,
 	translate2D,
 } from '@diffusionstudio/runtime';
@@ -106,10 +107,8 @@ function drawHoverOutlines(world: World, ctx: Ctx2D, resolution: number): void {
  * It sits in the node's own rotation, one line above its top edge.
  */
 function drawHeader(world: World, ctx: Ctx2D, entity: Entity, resolution: number): void {
-	const errored = world.query(ChildOf(entity), SourceError);
-	const generating = world.query(ChildOf(entity), Generating);
-	const failure = errored.at(0)?.get(SourceError)?.value;
-	const label = failure || (generating.length ? 'Generating...' : entity.get(Name)?.value);
+	const failure = getSourceFailure(entity);
+	const label = failure || (isGenerating(entity) ? 'Generating...' : entity.get(Name)?.value);
 	if (!label) return;
 
 	const header = getHeaderLayout(world, entity, resolution);

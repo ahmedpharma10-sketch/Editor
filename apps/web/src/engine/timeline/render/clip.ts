@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Caption, CaptionType, Chars, ChildOf, ClipDragOrigin, Computed, Generating, Hidden, Name, Selected, SourceError, TrimDragOrigin, fitsChildren, getGeneratingColor, isCaption, isGroup, isText, store } from '@diffusionstudio/runtime';
+import { Caption, CaptionType, Chars, ClipDragOrigin, Computed, Hidden, Name, Selected, TrimDragOrigin, fitsChildren, getGeneratingColor, getSourceFailure, isCaption, isGenerating, isGroup, isText, store } from '@diffusionstudio/runtime';
 
 import { getDocumentEditor } from '../../editor';
 import {
@@ -56,7 +56,7 @@ export function renderClip(
 	pointer.scope(String(entity.id()));
 
 	const asset = getClipAsset(world, entity);
-	const error = world.query(ChildOf(entity), SourceError).at(0)?.get(SourceError)?.value;
+	const error = getSourceFailure(entity);
 	const style = getClipStyle(entity, asset, !!error?.length);
 
 	handleBody(world, surface, entity, left, width, row, resolution);
@@ -67,7 +67,7 @@ export function renderClip(
 		left = framesToPixels(computed.start[entity.id()] ?? 0, resolution);
 	}
 
-	const generating = world.query(ChildOf(entity), Generating).length > 0;
+	const generating = isGenerating(entity);
 
 	ctx.save();
 	ctx.beginPath();
