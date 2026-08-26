@@ -891,18 +891,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				return;
 			}
 			case 'keepAspectRatio': {
-				const { entity, props } = node;
-				if (props.keepAspectRatio !== true) {
-					entity.remove(KeepAspectRatio);
-					return;
-				}
-
-				const size = entity.get(Size);
-				entity.add(KeepAspectRatio);
-				entity.set(KeepAspectRatio, {
-					width: toNumber(props.width) ?? size?.width ?? 0,
-					height: toNumber(props.height) ?? size?.height ?? 0,
-				});
+				this.syncAspectLock(node);
 				return;
 			}
 			case 'hidden': {
@@ -979,6 +968,11 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 					}
 					return;
 				}
+				// The lock pins the authored bounds, and this is one of them.
+				if (node.props.keepAspectRatio === true) {
+					this.syncAspectLock(node);
+				}
+
 				resizeEntity(this.world, entity, { [name]: size });
 				return;
 			}
@@ -1449,6 +1443,29 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 	private resolveTrackProperty(track: Entity, property: unknown): void {
 		const path = typeof property === 'string' ? trackPropertyPath(getParentEntity(track), property) : undefined;
 		track.set(KeyframeTrack, { property: path ?? '' });
+	}
+
+	/**
+	 * Derives `KeepAspectRatio` from the props as authored: the lock pins the
+	 * authored bounds, or stays empty when neither is authored so a resize
+	 * keeps the ratio the box currently has (see `lockedRatio` in the
+	 * runtime's resize action). Re-derived on `keepAspectRatio` and on either
+	 * bound, so the order Solid sets them in does not matter — never seeded
+	 * from the entity's current `Size`, which before the bounds apply is only
+	 * the element's default box.
+	 */
+	private syncAspectLock(node: SceneNode): void {
+		const { entity, props } = node;
+		if (props.keepAspectRatio !== true) {
+			entity.remove(KeepAspectRatio);
+			return;
+		}
+
+		entity.add(KeepAspectRatio);
+		entity.set(KeepAspectRatio, {
+			width: toNumber(props.width) ?? 0,
+			height: toNumber(props.height) ?? 0,
+		});
 	}
 
 	/**
