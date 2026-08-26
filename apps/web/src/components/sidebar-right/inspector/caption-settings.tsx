@@ -15,12 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import {
   FloatingInspector,
   FloatingInspectorContent,
   FloatingInspectorHeader,
@@ -28,11 +22,10 @@ import {
 } from "@/components/ui/floating-inspector";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SegmentedIconTabs } from "@/components/ui/segmented-icon-tabs";
 import { ColorOpacityRow } from "@/components/ui/color-opacity-row";
 import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
 import { useTrait } from "@diffusionstudio/koota-solid";
-import { Caption, CaptionAlign, colorToHex } from "@diffusionstudio/runtime";
+import { Caption, colorToHex } from "@diffusionstudio/runtime";
 import { useEditor } from "@/engine/hooks";
 import {
   CAPTION_PRESET_OPTIONS,
@@ -47,23 +40,10 @@ type CaptionSettingsProps = {
   selection: Entity[];
 };
 
-const VERTICAL_ALIGN_TABS = [
-  { value: 'top', label: 'Align top', icon: 'vertical-align-top' },
-  { value: 'center', label: 'Align center', icon: 'vertical-align-center' },
-  { value: 'bottom', label: 'Align bottom', icon: 'vertical-align-bottom' },
-];
-
-/** The prop's spelling for a `CaptionAlign`, for the tabs to compare against. */
-const ALIGN_NAMES: Record<CaptionAlign, string> = {
-  [CaptionAlign.TOP]: 'top',
-  [CaptionAlign.CENTER]: 'center',
-  [CaptionAlign.BOTTOM]: 'bottom',
-};
-
 /**
  * What a `<captions>` element says for itself: which preset draws it
- * (`preset`), the colors filling that preset's slots (`colors`) and where the
- * block sits (`verticalAlign`). Everything else about a caption's look — the
+ * (`preset`) and the colors filling that preset's slots (`colors`).
+ * Everything else about a caption's look — the
  * font, the box, the paints and shadows it is drawn with — is the preset's,
  * authored onto the entity by its decoder and not in the file at all, which
  * is why this panel is as short as it is.
@@ -78,13 +58,6 @@ export function CaptionSettings(props: CaptionSettingsProps) {
   const preset = createMemo(() => captionPresetOption(caption()?.type));
   const slots = () => preset().slots;
   const colors = () => caption()?.colors ?? [];
-  const align = () => caption()?.verticalAlign;
-  // No tab is active while the placement is the preset's own, which is not one
-  // of the three the prop can say.
-  const alignName = () => {
-    const current = align();
-    return current === undefined ? '' : ALIGN_NAMES[current];
-  };
 
   const [openSlot, setOpenSlot] = createSignal<number | null>(null);
 
@@ -111,10 +84,6 @@ export function CaptionSettings(props: CaptionSettingsProps) {
   const setSlotColor = (index: number, next: number) => {
     const values = slots().map((_, i) => colorToHex(i === index ? next : slotColor(i)));
     editor.editProperty(entity(), "colors", values);
-  };
-
-  const handleAlignChange = (name: string) => {
-    editor.editProperty(entity(), "verticalAlign", name);
   };
 
   return (
@@ -145,24 +114,6 @@ export function CaptionSettings(props: CaptionSettingsProps) {
           </SelectPortal>
         </Select>
       </ControlRow>
-
-      <ContextMenu>
-        <ContextMenuTrigger<typeof ControlRow> as={ControlRow} label="Align">
-          <SegmentedIconTabs
-            value={alignName}
-            onChange={handleAlignChange}
-            items={VERTICAL_ALIGN_TABS}
-          />
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            disabled={align() === undefined}
-            onSelect={() => editor.editProperty(entity(), "verticalAlign", false)}
-          >
-            Reset to Default
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
 
       <For each={slots()}>
         {(slot, index) => (

@@ -54,7 +54,7 @@ export class SpotlightCaptionDecoder implements CaptionDecoder {
 		entity.set(TextStyle, {
 			fontFamily: 'The Bold Font',
 			fontWeight: '500',
-			fontStyle: FontStyle.ITALIC,
+			fontStyle: FontStyle.NORMAL,
 			fontSize: 70,
 			textAlign: TextAlign.CENTER,
 			textBaseline: TextBaseline.MIDDLE,

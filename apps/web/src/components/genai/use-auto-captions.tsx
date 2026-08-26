@@ -33,13 +33,15 @@ export function useAutoCaptions() {
    */
   const sceneSpan = (scene: Entity) => {
     const computed = scene.get(Computed);
-    const frames = (computed?.end ?? 0) - (computed?.origin ?? 0);
+    const frames = computed?.duration ?? 0;
     if (frames <= 0) return undefined;
     return framesToSeconds(frames, world.get(FrameRate)?.value ?? 30);
   };
 
   const insertFresh = (scene: Entity) => {
-    const [entity] = editor.insertElement(scene, () => <Captions end={sceneSpan(scene)} />);
+    const [entity] = editor.insertElement(scene, () => (
+      <Captions end={sceneSpan(scene)} seed={Date.now()} />
+    ));
     if (!entity) {
       toast.error("Could not add captions", {
         description: "The scene has no source to write the element into.",
@@ -69,10 +71,8 @@ export function useAutoCaptions() {
         return;
       }
 
-      // A new take: bumping the seed re-transcribes the scene.
-      const seed = authored?.props.seed;
-      const next = (typeof seed === "number" && Number.isFinite(seed) ? Math.trunc(seed) : 0) + 1;
-      editor.editProperty(existing, "seed", next);
+      // A new take: a fresh seed re-transcribes the scene.
+      editor.editProperty(existing, "seed", Date.now());
       editor.select(existing);
     }
   };

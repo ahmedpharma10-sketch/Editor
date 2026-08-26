@@ -179,11 +179,21 @@ export class EditorGenAi extends GenAi {
     );
 
     const blob = new Blob([JSON.stringify(transcript)], { type: "application/json" });
-    return this.library.store(blob, {
+    const asset = await this.library.store(blob, {
       name: `${this.nextCaptionsName()}.json`,
       folder: GENERATED_DIR,
       generation: { key },
     });
+
+    // A re-take of unchanged speech comes back byte-identical, and the library
+    // dedups by content: `store` then hands back the earlier take still keyed
+    // by its old seed. Re-key it, or the authored seed misses the cache and
+    // transcribes again on every load.
+    if (asset.generation?.key !== key) {
+      this.library.update(asset, { generation: { key } });
+    }
+
+    return asset;
   }
 
   private nextCaptionsName(): string {
