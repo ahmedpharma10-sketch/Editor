@@ -75,8 +75,8 @@ type ResolvedSpec =
   | { type: "audio"; model: string; prompt: string; duration?: number; seed?: number };
 
 /** Creates the project's GenAi over `library` and attaches it as the world's Ai. */
-export function attachAi(world: World, library: AssetLibrary): EditorGenAi {
-  const ai = new EditorGenAi(library, world.get(Project)?.id ?? "project");
+export function attachAi(world: World, library: AssetLibrary, dir?: string): EditorGenAi {
+  const ai = new EditorGenAi(library, world.get(Project)?.id ?? "project", dir);
   world.set(Ai, ai);
   return ai;
 }
@@ -85,6 +85,8 @@ export class EditorGenAi extends GenAi {
   private readonly library: AssetLibrary;
   /** Prefixes upload keys, so referenced assets land project-unique in the bucket. */
   private readonly projectId: string;
+  /** The project's folder, so a transcription's capture compiles the sources as they are now. */
+  private readonly dir?: string;
 
   /**
    * Declarations already resolved, keyed by ref identity — a ref consumed by
@@ -96,10 +98,11 @@ export class EditorGenAi extends GenAi {
   /** In-flight generations and transcriptions keyed by `generationKey`. */
   private readonly inflight = new Map<string, Promise<Asset>>();
 
-  public constructor(library: AssetLibrary, projectId: string) {
+  public constructor(library: AssetLibrary, projectId: string, dir?: string) {
     super();
     this.library = library;
     this.projectId = projectId;
+    this.dir = dir;
   }
 
   /** Identical concurrent declarations collapse to one request. */
@@ -148,7 +151,7 @@ export class EditorGenAi extends GenAi {
 
     // The scene's own capture world: the project rendered again, reduced to
     // this scene, with nothing drawn — see `createCapture`.
-    const capture = await createCapture(world, scene, { mode: "offline-audio" });
+    const capture = await createCapture(world, scene, { mode: "offline-audio", dir: this.dir });
     let result: ExportResult;
     try {
       const encoder = await createEncoder(capture.world, {
