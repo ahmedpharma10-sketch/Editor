@@ -28,7 +28,7 @@ export function useGenerateVoice() {
 
     insertGenerated(world, editor, AUDIO_SIZE, (box) => (
       <Audio src={src} x={box.x} y={box.y} width={box.width} height={box.height} />
-    ));
+    ), 1, [src]);
   };
 
   return { generate: run } as const;

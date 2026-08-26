@@ -39,7 +39,7 @@ export function useGenerateVideo() {
       <Rect keepAspectRatio x={box.x} y={box.y} width={box.width} height={box.height}>
         <VideoPaint src={src} />
       </Rect>
-    ));
+    ), 1, [src]);
   };
 
   return { generate: run } as const;

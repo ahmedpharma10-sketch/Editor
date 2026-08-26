@@ -42,7 +42,7 @@ export function hudSystem(world: World): void {
 	drawSnapLines(world, ctx, resolution);
 	drawHoverOutlines(world, ctx, resolution);
 
-	for (const entity of world.query(ChildOf(world.get(Root)!), Not(Culled), Not(Hidden), Name)) {
+	for (const entity of world.query(ChildOf(world.get(Root)!), Not(Culled), Not(Hidden))) {
 		drawHeader(world, ctx, entity, resolution);
 	}
 

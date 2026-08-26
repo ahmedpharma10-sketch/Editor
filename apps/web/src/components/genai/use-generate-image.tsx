@@ -42,7 +42,7 @@ export function useGenerateImage() {
       <Rect keepAspectRatio x={box.x} y={box.y} width={box.width} height={box.height}>
         <ImagePaint src={sources[index]} />
       </Rect>
-    ), config.count);
+    ), config.count, sources);
   };
 
   return { generate: run } as const;

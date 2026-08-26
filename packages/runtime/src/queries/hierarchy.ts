@@ -94,7 +94,8 @@ export function getNodeLocalFrame(node: Entity): number {
 
 export function getNextName(world: World, prefix: string): string {
 	let max = 0;
-	const pattern = new RegExp(`^${prefix} (\\d+)$`);
+
+	const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)$`);
 
 	for (const entity of world.query(Name)) {
 		const match = entity.get(Name)!.value.match(pattern);
