@@ -810,9 +810,10 @@ export function renderNode(world: World, entity: Entity): void {
 		ctx.clip();
 	}
 
-	// Opacity and blend mode
+	// Opacity and blend mode. The store slot may hold a destroyed entity's
+	// value (ids are recycled), so it is only readable behind has().
 	ctx.globalAlpha *= computed.opacity[eid]!;
-	const bi = store(world, BlendMode).value[eid] ?? 0;
+	const bi = entity.has(BlendMode) ? store(world, BlendMode).value[eid] ?? 0 : 0;
 	if (bi !== 0) ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[bi]!;
 
 	const effects = buildEffects(world, entity);

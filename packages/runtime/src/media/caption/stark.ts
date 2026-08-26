@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { BlendModeType, CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, BlendMode, TextStyle } from '../../traits';
+import { Paint, Color, BlendMode } from '../../traits';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, resolveTranscript, setChars } from './utils';
@@ -13,15 +13,30 @@ import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
-import type { CaptionDecoder } from './types';
+import type { CaptionDecoder, CaptionPresetStyle } from './types';
 
 const WIDTH = 700;
 const HEIGHT = 100;
+
+// The preset's base TextStyle; the document writes it and authored style
+// props overwrite it (see CAPTION_PRESET_STYLES).
+export const STARK_TEXT_STYLE = {
+	fontFamily: 'Figtree',
+	fontWeight: '800',
+	fontSize: 70,
+	textAlign: TextAlign.CENTER,
+	textBaseline: TextBaseline.MIDDLE,
+	textCase: TextCase.UPPER,
+	fontStyle: FontStyle.NORMAL,
+	leading: 1,
+	letterSpacing: undefined,
+} as const satisfies CaptionPresetStyle;
 
 export class StarkCaptionDecoder implements CaptionDecoder {
 	public readonly type = CaptionType.STARK;
 	public groups: ReturnType<typeof groupBy> = [];
 	public ready = false;
+	public styled = false;
 
 	private readonly asset: Asset;
 	private currentGroupIndex = -1;
@@ -42,20 +57,8 @@ export class StarkCaptionDecoder implements CaptionDecoder {
 		return placeCaption(world, entity, { width: WIDTH, height: HEIGHT, defaultAlign: CaptionAlign.CENTER });
 	}
 
-	public applyStyles(world: World, entity: Entity): void {
-		if (!this.reposition(world, entity)) return;
-
-		entity.add(TextStyle);
-		entity.set(TextStyle, {
-			fontFamily: 'Figtree',
-			fontWeight: '800',
-			fontSize: 70,
-			textAlign: TextAlign.CENTER,
-			textBaseline: TextBaseline.MIDDLE,
-			textCase: TextCase.UPPER,
-			fontStyle: FontStyle.NORMAL,
-			leading: 1,
-		});
+	public applyStyles(world: World, entity: Entity): boolean {
+		if (!this.reposition(world, entity)) return false;
 
 		const fill = createEntity(world);
 		fill.add(Paint);
@@ -66,7 +69,8 @@ export class StarkCaptionDecoder implements CaptionDecoder {
 		fill.set(BlendMode, { value: BlendModeType.DIFFERENCE });
 		appendChild(world, fill, entity);
 
-		loadWebFont(world, 'Figtree');
+		loadWebFont(world, STARK_TEXT_STYLE.fontFamily);
+		return true;
 	}
 
 	public seekTo(world: World, entity: Entity, relativeTime: number): void {

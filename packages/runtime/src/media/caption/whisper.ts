@@ -2,26 +2,38 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, TextStyle } from '../../traits';
+import { CaptionAlign, CaptionType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, resolveTranscript, setChars } from './utils';
 import { placeCaption } from './position';
-import { createEntity } from '../../actions/entities';
-import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
-import type { CaptionDecoder } from './types';
+import type { CaptionDecoder, CaptionPresetStyle } from './types';
 
 const WIDTH = 1000;
 const HEIGHT = 100;
+
+// The preset's base TextStyle; the document writes it and authored style
+// props overwrite it (see CAPTION_PRESET_STYLES).
+export const WHISPER_TEXT_STYLE = {
+	fontFamily: 'Montserrat',
+	fontWeight: '400',
+	fontSize: 40,
+	textAlign: TextAlign.CENTER,
+	textBaseline: TextBaseline.MIDDLE,
+	textCase: TextCase.ORIGINAL,
+	leading: 1.4,
+	fontStyle: FontStyle.NORMAL,
+	letterSpacing: undefined,
+} as const satisfies CaptionPresetStyle;
 
 export class WhisperCaptionDecoder implements CaptionDecoder {
 	public readonly type = CaptionType.WHISPER;
 	public groups: ReturnType<typeof groupBy> = [];
 	public ready = false;
+	public styled = false;
 
 	private readonly asset: Asset;
 	private currentGroupIndex = -1;
@@ -43,29 +55,11 @@ export class WhisperCaptionDecoder implements CaptionDecoder {
 		return placeCaption(world, entity, { width: WIDTH, height: HEIGHT, defaultAlign: CaptionAlign.BOTTOM });
 	}
 
-	public applyStyles(world: World, entity: Entity): void {
-		if (!this.reposition(world, entity)) return;
+	public applyStyles(world: World, entity: Entity): boolean {
+		if (!this.reposition(world, entity)) return false;
 
-		entity.add(TextStyle);
-		entity.set(TextStyle, {
-			fontFamily: 'Montserrat',
-			fontWeight: '400',
-			fontSize: 40,
-			textAlign: TextAlign.CENTER,
-			textBaseline: TextBaseline.MIDDLE,
-			textCase: TextCase.ORIGINAL,
-			leading: 1.4,
-			fontStyle: FontStyle.NORMAL,
-		});
-
-		const fill = createEntity(world);
-		fill.add(Paint);
-		fill.set(Paint, { value: PaintType.SOLID });
-		fill.add(Color);
-		fill.set(Color, { value: 0xFFFFFF });
-		appendChild(world, fill, entity);
-
-		loadWebFont(world, 'Montserrat');
+		loadWebFont(world, WHISPER_TEXT_STYLE.fontFamily);
+		return true;
 	}
 
 	public seekTo(world: World, entity: Entity, relativeTime: number): void {

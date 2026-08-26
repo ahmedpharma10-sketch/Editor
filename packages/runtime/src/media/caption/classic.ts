@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, Shadow, Opacity, Blur, Offset, TextStyle } from '../../traits';
+import { CaptionAlign, CaptionType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
+import { Color, Shadow, Opacity, Blur, Offset } from '../../traits';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, resolveTranscript, setChars } from './utils';
@@ -13,15 +13,30 @@ import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
-import type { CaptionDecoder } from './types';
+import type { CaptionDecoder, CaptionPresetStyle } from './types';
 
 export const CLASSIC_PRESET_WIDTH = 600;
 export const CLASSIC_PRESET_HEIGHT = 100;
+
+// The preset's base TextStyle; the document writes it and authored style
+// props overwrite it (see CAPTION_PRESET_STYLES).
+export const CLASSIC_TEXT_STYLE = {
+	fontFamily: 'Urbanist',
+	fontWeight: '600',
+	fontSize: 62,
+	textAlign: TextAlign.CENTER,
+	textBaseline: TextBaseline.MIDDLE,
+	textCase: TextCase.LOWER,
+	fontStyle: FontStyle.NORMAL,
+	leading: 1,
+	letterSpacing: undefined,
+} as const satisfies CaptionPresetStyle;
 
 export class ClassicCaptionDecoder implements CaptionDecoder {
 	public readonly type = CaptionType.CLASSIC;
 	public groups: ReturnType<typeof groupBy> = [];
 	public ready = false;
+	public styled = false;
 
 	private readonly asset: Asset;
 	private currentGroupIndex = -1;
@@ -46,27 +61,8 @@ export class ClassicCaptionDecoder implements CaptionDecoder {
 		});
 	}
 
-	public applyStyles(world: World, entity: Entity): void {
-		if (!this.reposition(world, entity)) return;
-
-		entity.add(TextStyle);
-		entity.set(TextStyle, {
-			fontFamily: 'Urbanist',
-			fontWeight: '600',
-			fontSize: 62,
-			textAlign: TextAlign.CENTER,
-			textBaseline: TextBaseline.MIDDLE,
-			textCase: TextCase.LOWER,
-			fontStyle: FontStyle.NORMAL,
-			leading: 1,
-		});
-
-		const fill = createEntity(world);
-		fill.add(Paint);
-		fill.set(Paint, { value: PaintType.SOLID });
-		fill.add(Color);
-		fill.set(Color, { value: 0xFFFFFF });
-		appendChild(world, fill, entity);
+	public applyStyles(world: World, entity: Entity): boolean {
+		if (!this.reposition(world, entity)) return false;
 
 		const shadow = createEntity(world);
 		shadow.add(Shadow);
@@ -80,7 +76,8 @@ export class ClassicCaptionDecoder implements CaptionDecoder {
 		shadow.set(Offset, { x: 0, y: 5 });
 		appendChild(world, shadow, entity);
 
-		loadWebFont(world, 'Urbanist');
+		loadWebFont(world, CLASSIC_TEXT_STYLE.fontFamily);
+		return true;
 	}
 
 	public seekTo(world: World, entity: Entity, relativeTime: number): void {

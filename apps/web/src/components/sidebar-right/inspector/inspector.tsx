@@ -131,7 +131,7 @@ export function Inspector() {
             <TransformSettings selection={nodes()} />
           </Show>
 
-          <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "mask")}>
+          <Show when={includesTarget("shape", "text", "audio", "scene", "mask")}>
             <LayoutPanel selection={nodes()} />
           </Show>
 
@@ -147,11 +147,11 @@ export function Inspector() {
             <TextPanel selection={nodes()} />
           </Show>
 
-          <Show when={includesTarget("shape", "text", "scene", "caption")}>
+          <Show when={includesTarget("shape", "text", "scene")}>
             <FillsSettings selection={nodes()} />
           </Show>
 
-          <Show when={includesTarget("shape")}>
+          <Show when={includesTarget("shape", "caption")}>
             <SourceSettings selection={nodes()} />
           </Show>
 
@@ -159,7 +159,7 @@ export function Inspector() {
             <StrokesSettings selection={nodes()} />
           </Show>
 
-          <Show when={includesTarget("shape", "text", "scene", "caption")}>
+          <Show when={includesTarget("shape", "text", "scene")}>
             <ShadowsSettings selection={nodes()} />
           </Show>
 

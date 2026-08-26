@@ -4,7 +4,7 @@
 
 import { store } from '../../world/store';
 import { CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, Caption, TextRange, TextStyle } from '../../traits';
+import { Paint, Color, Caption, TextRange } from '../../traits';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, clearTextRanges, resolveTranscript, setChars } from './utils';
@@ -14,17 +14,32 @@ import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
-import type { CaptionDecoder } from './types';
+import type { CaptionDecoder, CaptionPresetStyle } from './types';
 
 
 const WIDTH = 700;
 const HEIGHT = 100;
 const HIGHLIGHT_COLOR = 0x24D5FF;
 
+// The preset's base TextStyle; the document writes it and authored style
+// props overwrite it (see CAPTION_PRESET_STYLES).
+export const SPOTLIGHT_TEXT_STYLE = {
+	fontFamily: 'The Bold Font',
+	fontWeight: '500',
+	fontStyle: FontStyle.NORMAL,
+	fontSize: 70,
+	textAlign: TextAlign.CENTER,
+	textBaseline: TextBaseline.MIDDLE,
+	textCase: TextCase.ORIGINAL,
+	leading: 1,
+	letterSpacing: undefined,
+} as const satisfies CaptionPresetStyle;
+
 export class SpotlightCaptionDecoder implements CaptionDecoder {
 	public readonly type = CaptionType.SPOTLIGHT;
 	public groups: ReturnType<typeof groupBy> = [];
 	public ready = false;
+	public styled = false;
 
 	private readonly asset: Asset;
 	private currentGroupIndex = -1;
@@ -47,29 +62,11 @@ export class SpotlightCaptionDecoder implements CaptionDecoder {
 		return placeCaption(world, entity, { width: WIDTH, height: HEIGHT, defaultAlign: CaptionAlign.CENTER });
 	}
 
-	public applyStyles(world: World, entity: Entity): void {
-		if (!this.reposition(world, entity)) return;
+	public applyStyles(world: World, entity: Entity): boolean {
+		if (!this.reposition(world, entity)) return false;
 
-		entity.add(TextStyle);
-		entity.set(TextStyle, {
-			fontFamily: 'The Bold Font',
-			fontWeight: '500',
-			fontStyle: FontStyle.NORMAL,
-			fontSize: 70,
-			textAlign: TextAlign.CENTER,
-			textBaseline: TextBaseline.MIDDLE,
-			textCase: TextCase.ORIGINAL,
-			leading: 1,
-		});
-
-		const fill = createEntity(world);
-		fill.add(Paint);
-		fill.set(Paint, { value: PaintType.SOLID });
-		fill.add(Color);
-		fill.set(Color, { value: 0xFFFFFF });
-		appendChild(world, fill, entity);
-
-		loadWebFont(world, 'The Bold Font');
+		loadWebFont(world, SPOTLIGHT_TEXT_STYLE.fontFamily);
+		return true;
 	}
 
 	public seekTo(world: World, entity: Entity, relativeTime: number): void {

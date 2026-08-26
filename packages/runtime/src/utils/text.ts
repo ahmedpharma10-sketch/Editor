@@ -310,12 +310,14 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				if (shadow.has(Hidden)) continue;
 				const sid = shadow.id();
 
-				ctx.shadowOffsetX = (offsetStore.x[sid] ?? 0) * shadowScale;
-				ctx.shadowOffsetY = (offsetStore.y[sid] ?? 0) * shadowScale;
-				ctx.shadowBlur = (blurStore.value[sid] ?? 0) * shadowScale;
+				// Recycled-id safety: optional traits only behind has().
+				const hasOffset = shadow.has(Offset);
+				ctx.shadowOffsetX = (hasOffset ? offsetStore.x[sid] ?? 0 : 0) * shadowScale;
+				ctx.shadowOffsetY = (hasOffset ? offsetStore.y[sid] ?? 0 : 0) * shadowScale;
+				ctx.shadowBlur = (shadow.has(Blur) ? blurStore.value[sid] ?? 0 : 0) * shadowScale;
 				ctx.shadowColor = colorToHex(colorStore.value[sid] ?? 0x000000);
 				ctx.fillStyle = colorToHex(colorStore.value[sid] ?? 0x000000);
-				ctx.globalAlpha = savedAlpha * (opacityStore.value[sid] ?? 1);
+				ctx.globalAlpha = savedAlpha * (shadow.has(Opacity) ? opacityStore.value[sid] ?? 1 : 1);
 
 				if (widest !== null) {
 					ctx.strokeText(word.chars, word.x, word.y);
@@ -353,12 +355,13 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				if (stroke.has(Hidden)) continue;
 				const sid = stroke.id();
 
+				// Recycled-id safety: optional traits only behind has().
 				const savedCO = ctx.globalCompositeOperation;
-				const blendMode = blendStore.value[sid] ?? 0;
+				const blendMode = stroke.has(BlendMode) ? blendStore.value[sid] ?? 0 : 0;
 				if (blendMode !== 0) {
 					ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[blendMode]!;
 				}
-				ctx.globalAlpha = savedAlpha * (opacityStore.value[sid] ?? 1);
+				ctx.globalAlpha = savedAlpha * (stroke.has(Opacity) ? opacityStore.value[sid] ?? 1 : 1);
 				applyStrokeStyle(ctx, world, stroke);
 
 				const paintType = paintStore.value[sid];
@@ -404,12 +407,14 @@ function renderTokens(ctx: Ctx, world: World, entity: Entity): void {
 				if (fill.has(Hidden)) continue;
 				const fid = fill.id();
 
+				// Store slots outlive destroyed entities and ids are recycled,
+				// so an optional trait's slot is only readable behind has().
 				const savedCO = ctx.globalCompositeOperation;
-				const blendMode = blendStore.value[fid] ?? 0;
+				const blendMode = fill.has(BlendMode) ? blendStore.value[fid] ?? 0 : 0;
 				if (blendMode !== 0) {
 					ctx.globalCompositeOperation = COMPOSITE_OPERATIONS[blendMode]!;
 				}
-				ctx.globalAlpha = savedAlpha * (opacityStore.value[fid] ?? 1);
+				ctx.globalAlpha = savedAlpha * (fill.has(Opacity) ? opacityStore.value[fid] ?? 1 : 1);
 
 				const paintType = paintStore.value[fid];
 				if (paintType === PaintType.LINEAR_GRADIENT) {

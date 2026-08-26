@@ -43,10 +43,10 @@ type CaptionSettingsProps = {
 /**
  * What a `<captions>` element says for itself: which preset draws it
  * (`preset`) and the colors filling that preset's slots (`colors`).
- * Everything else about a caption's look — the
- * font, the box, the paints and shadows it is drawn with — is the preset's,
- * authored onto the entity by its decoder and not in the file at all, which
- * is why this panel is as short as it is.
+ * Everything else about a caption's look is the preset's base coat — the
+ * document writes it onto the entity and lets authored style props (font,
+ * position) overwrite it — and not in the file at all unless the user edits
+ * it, which is why this panel is as short as it is.
  */
 export function CaptionSettings(props: CaptionSettingsProps) {
   const editor = useEditor();

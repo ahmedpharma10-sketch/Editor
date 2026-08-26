@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { CaptionAlign, CaptionType, PaintType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
-import { Paint, Color, TextRange, TextStyle } from '../../traits';
+import { CaptionAlign, CaptionType, FontStyle, TextAlign, TextBaseline, TextCase } from '../../constants';
+import { TextRange, TextStyle } from '../../traits';
 import { renderText } from '../../utils/text';
 import { loadWebFont } from '../../fonts/utils';
 import { groupBy, findActiveGroup, splitSequence, clearTextRanges, resolveTranscript, setChars } from './utils';
@@ -13,15 +13,30 @@ import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
-import type { CaptionDecoder } from './types';
+import type { CaptionDecoder, CaptionPresetStyle } from './types';
 
 const WIDTH = 700;
 const HEIGHT = 200;
+
+// The preset's base TextStyle; the document writes it and authored style
+// props overwrite it (see CAPTION_PRESET_STYLES).
+export const PAPER_TEXT_STYLE = {
+	fontFamily: 'Montserrat',
+	fontWeight: '300',
+	fontSize: 50,
+	textAlign: TextAlign.CENTER,
+	textBaseline: TextBaseline.MIDDLE,
+	textCase: TextCase.ORIGINAL,
+	leading: 0.9,
+	fontStyle: FontStyle.NORMAL,
+	letterSpacing: undefined,
+} as const satisfies CaptionPresetStyle;
 
 export class PaperCaptionDecoder implements CaptionDecoder {
 	public readonly type = CaptionType.PAPER;
 	public groups: ReturnType<typeof groupBy> = [];
 	public ready = false;
+	public styled = false;
 
 	private readonly asset: Asset;
 	private currentGroupIndex = -1;
@@ -43,29 +58,11 @@ export class PaperCaptionDecoder implements CaptionDecoder {
 		return placeCaption(world, entity, { width: WIDTH, height: HEIGHT, defaultAlign: CaptionAlign.CENTER });
 	}
 
-	public applyStyles(world: World, entity: Entity): void {
-		if (!this.reposition(world, entity)) return;
+	public applyStyles(world: World, entity: Entity): boolean {
+		if (!this.reposition(world, entity)) return false;
 
-		entity.add(TextStyle);
-		entity.set(TextStyle, {
-			fontFamily: 'Montserrat',
-			fontWeight: '300',
-			fontSize: 50,
-			textAlign: TextAlign.CENTER,
-			textBaseline: TextBaseline.MIDDLE,
-			textCase: TextCase.ORIGINAL,
-			leading: 0.9,
-			fontStyle: FontStyle.NORMAL,
-		});
-
-		const fill = createEntity(world);
-		fill.add(Paint);
-		fill.set(Paint, { value: PaintType.SOLID });
-		fill.add(Color);
-		fill.set(Color, { value: 0xFFFFFF });
-		appendChild(world, fill, entity);
-
-		loadWebFont(world, 'Montserrat');
+		loadWebFont(world, PAPER_TEXT_STYLE.fontFamily);
+		return true;
 	}
 
 	public seekTo(world: World, entity: Entity, relativeTime: number): void {

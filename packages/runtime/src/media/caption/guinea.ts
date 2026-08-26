@@ -14,10 +14,24 @@ import { appendChild } from '../../actions/hierarchy';
 
 import type { Entity, World } from 'koota';
 import type { Asset } from '@diffusionstudio/assets';
-import type { CaptionDecoder } from './types';
+import type { CaptionDecoder, CaptionPresetStyle } from './types';
 
 const WIDTH = 700;
 const HEIGHT = 200;
+
+// The preset's base TextStyle; the document writes it and authored style
+// props overwrite it (see CAPTION_PRESET_STYLES).
+export const GUINEA_TEXT_STYLE = {
+	fontFamily: 'The Bold Font',
+	fontWeight: '500',
+	fontSize: 62,
+	textAlign: TextAlign.CENTER,
+	textBaseline: TextBaseline.MIDDLE,
+	textCase: TextCase.UPPER,
+	fontStyle: FontStyle.NORMAL,
+	leading: 1,
+	letterSpacing: undefined,
+} as const satisfies CaptionPresetStyle;
 
 const HIGHLIGHT_COLOR_0 = 0xF55353;
 const HIGHLIGHT_COLOR_1 = 0xFEB139;
@@ -29,6 +43,7 @@ export class GuineaCaptionDecoder implements CaptionDecoder {
 	public readonly type = CaptionType.GUINEA;
 	public groups: ReturnType<typeof groupBy> = [];
 	public ready = false;
+	public styled = false;
 
 	private readonly asset: Asset;
 	private currentGroupIndex = -1;
@@ -52,29 +67,11 @@ export class GuineaCaptionDecoder implements CaptionDecoder {
 		return placeCaption(world, entity, { width: WIDTH, height: HEIGHT, defaultAlign: CaptionAlign.CENTER });
 	}
 
-	public applyStyles(world: World, entity: Entity): void {
-		if (!this.reposition(world, entity)) return;
+	public applyStyles(world: World, entity: Entity): boolean {
+		if (!this.reposition(world, entity)) return false;
 
-		entity.add(TextStyle);
-		entity.set(TextStyle, {
-			fontFamily: 'The Bold Font',
-			fontWeight: '500',
-			fontSize: 62,
-			textAlign: TextAlign.CENTER,
-			textBaseline: TextBaseline.MIDDLE,
-			textCase: TextCase.UPPER,
-			fontStyle: FontStyle.NORMAL,
-			leading: 1,
-		});
-
-		const fill = createEntity(world);
-		fill.add(Paint);
-		fill.set(Paint, { value: PaintType.SOLID });
-		fill.add(Color);
-		fill.set(Color, { value: 0xFFFFFF });
-		appendChild(world, fill, entity);
-
-		loadWebFont(world, 'The Bold Font');
+		loadWebFont(world, GUINEA_TEXT_STYLE.fontFamily);
+		return true;
 	}
 
 	public seekTo(world: World, entity: Entity, relativeTime: number): void {

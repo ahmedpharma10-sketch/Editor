@@ -4,7 +4,7 @@
 
 import { store } from '../../world/store';
 import { CaptionAlign } from '../../constants';
-import { Caption, Position, Computed } from '../../traits';
+import { Caption, Position, Computed, Host } from '../../traits';
 import { getParentNode } from '../../queries/hierarchy';
 import { resizeEntity } from '../../actions/resize';
 
@@ -14,11 +14,25 @@ import type { Entity, World } from 'koota';
 export const CAPTION_MARGIN = 100;
 
 /**
- * Sizes the caption box and places it within its parent. Horizontal placement
- * belongs to the preset (centered unless a fixed `x` is given); vertical
- * placement follows the entity's `Caption.verticalAlign`, falling back to the
- * preset's default. Returns false when the entity has no parent to place
- * against.
+ * A numeric authored prop's value, or undefined for none. A boolean is none:
+ * `false` is how an editor unsets a prop (see the reconciler's `toNumber`).
+ */
+function authoredNumber(value: unknown): number | undefined {
+	if (value === undefined || value === null || typeof value === 'boolean') {
+		return undefined;
+	}
+
+	const number = Number(value);
+	return Number.isFinite(number) ? number : undefined;
+}
+
+/**
+ * Sizes the caption box and places it within its parent. An authored `x`/`y`
+ * is the author's own placement and wins; the preset only places the axes the
+ * file does not say. Horizontal placement belongs to the preset (centered
+ * unless a fixed `x` is given); vertical placement follows the entity's
+ * `Caption.verticalAlign`, falling back to the preset's default. Returns
+ * false when the entity has no parent to place against.
  */
 export function placeCaption(
 	world: World,
@@ -33,6 +47,10 @@ export function placeCaption(
 
 	resizeEntity(world, entity, { width: preset.width, height: preset.height });
 
+	const props = entity.get(Host)?.props;
+	const authoredX = authoredNumber(props?.x);
+	const authoredY = authoredNumber(props?.y);
+
 	const align = entity.get(Caption)?.verticalAlign ?? preset.defaultAlign;
 	const y = align === CaptionAlign.TOP
 		? CAPTION_MARGIN
@@ -42,8 +60,8 @@ export function placeCaption(
 
 	entity.add(Position);
 	entity.set(Position, {
-		x: preset.x ?? (parentWidth - preset.width) / 2,
-		y,
+		x: authoredX ?? preset.x ?? (parentWidth - preset.width) / 2,
+		y: authoredY ?? y,
 	});
 	return true;
 }

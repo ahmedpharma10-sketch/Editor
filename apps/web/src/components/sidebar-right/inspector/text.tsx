@@ -252,13 +252,15 @@ export function TextPanel(props: TextPanelProps) {
         />
       </ControlRow>
 
-      <ControlRow label="Grow">
-        <SegmentedIconTabs
-          value={resizeMode}
-          onChange={handleResizeModeChange}
-          items={RESIZE_MODE_ITEMS}
-        />
-      </ControlRow>
+      <Show when={textSelected()}>
+        <ControlRow label="Grow">
+          <SegmentedIconTabs
+            value={resizeMode}
+            onChange={handleResizeModeChange}
+            items={RESIZE_MODE_ITEMS}
+          />
+        </ControlRow>
+      </Show>
 
       <ControlRow label="Align" contentClass="flex gap-2">
         <SegmentedIconTabs

@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CaptionType, Chars, ClipHeight, ClipsContent, Computed, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FramePromises, FrameRate, Generating, GenerationRequest, getActiveEntity, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, KeepAspectRatio, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, PendingSync, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SyncRequest, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
+import { Active, AdjustmentLayer, Animation, AnimationPhase, AnimationType, appendChild, AssetId, Audio, Background, bindAsset, BlendMode, BlendModeType, Blur, Caption, CaptionAlign, CAPTION_PRESET_FILLS, CAPTION_PRESET_STYLES, CaptionType, Chars, ClipHeight, ClipsContent, Computed, CornerRadius, createEntity, DEFAULT_BACKGROUND, Color, ColorStop, Delay, Effect, EffectType, Expanded, FontStyle, FramePromises, FrameRate, Generating, GenerationRequest, getActiveEntity, Loop, LoadRequest, Geometry, GeometryType, getEntityTree, getParentEntity, getParentNode, Hidden, Host, IsMask, isText, ItemIndex, KeepAspectRatio, Keyframe, KeyframeTrack, MixedCornerRadius, Muted, Name, Offset, Opacity, Paint, PaintType, parseColor, PendingSource, PendingSync, Playback, PlaybackRate, Position, removeChild, RenderSurface, resizeEntity, Scale, ScaleMode, ScaleModeType, secondsToFrames, getAsset, getEntityChildren, Group, Sequential, Shader, Size, Stage, Root, Rotation, Scene, Selected, Shadow, Source, SourceError, SourceFrameRate, SourceModifiers, hasModifier, setCameraMatrix, Stroke, StrokeCap, StrokeJoin, StrokeStyle, SyncRequest, TextAlign, TextBaseline, TextCase, TextRange, TextStyle, TranscriptionRequest, Transition, TransitionType, Trim, UniformScale, Volume, Workarea } from '@diffusionstudio/runtime';
 import { LOOP_ATTR, parseTime, SOURCE_ATTR } from '@diffusionstudio/jsx';
 import { createSignal } from 'solid-js';
 import { SVGElements } from 'solid-js/web';
@@ -328,6 +328,23 @@ const FONT_WEIGHTS: Record<string, string> = {
 	bold: '700',
 };
 
+// The authored props that overwrite a caption preset's base coat (its
+// TextStyle and its intrinsic `fill`). The `preset` handler re-runs them
+// after writing the preset's defaults: props are not applied in authored
+// order, so some may have landed before it.
+const CAPTION_OVERRIDE_PROPS = [
+	'fontSize',
+	'fontFamily',
+	'fontWeight',
+	'fontStyle',
+	'textAlign',
+	'textBaseline',
+	'textCase',
+	'letterSpacing',
+	'leading',
+	'fill',
+] as const;
+
 
 /**
  * A numeric prop's value, or undefined for none. A boolean is none, not 0
@@ -470,6 +487,10 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 				entity.add(Chars);
 				entity.add(Caption);
 				entity.add(TranscriptionRequest);
+				entity.add(TextStyle);
+				entity.set(TextStyle, CAPTION_PRESET_STYLES[CaptionType.CLASSIC]);
+				entity.add(Color);
+				entity.set(Color, { value: CAPTION_PRESET_FILLS[CaptionType.CLASSIC]! });
 				break;
 			}
 			case 'adjustmentLayer': {
@@ -1264,7 +1285,25 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 			case 'preset': {
 				if (!entity.has(Caption)) return;
 				const preset = typeof value === 'string' ? CAPTION_PRESETS[value] : undefined;
-				entity.set(Caption, { type: preset ?? CaptionType.CLASSIC });
+				const type = preset ?? CaptionType.CLASSIC;
+				entity.set(Caption, { type });
+
+				// The preset is the caption's base coat: write its styles and
+				// its intrinsic fill, then re-run the authored overrides that
+				// may already have been applied before this prop was.
+				entity.add(TextStyle);
+				entity.set(TextStyle, CAPTION_PRESET_STYLES[type]);
+				const fill = CAPTION_PRESET_FILLS[type];
+				if (fill === undefined) {
+					entity.remove(Color);
+				} else {
+					entity.add(Color);
+					entity.set(Color, { value: fill });
+				}
+				for (const prop of CAPTION_OVERRIDE_PROPS) {
+					const authored = node.props[prop];
+					if (authored !== undefined) this.setProperty(node, prop, authored);
+				}
 				return;
 			}
 			case 'colors': {
