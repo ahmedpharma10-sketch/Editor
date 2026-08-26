@@ -18,7 +18,7 @@ import {
   PROMPT_INPUT_VOICE_MODEL,
   PROMPT_INPUT_VOICE_OPTIONS,
 } from "@/components/genai/config";
-import { assert } from "@/utils";
+import { assert, mimeTypeToExtension } from "@/utils";
 import { uploadBlob } from "@/lib/uploads";
 import { track } from "@/lib/analytics";
 import { trpc } from "@/lib/trpc";
@@ -396,7 +396,7 @@ export class EditorGenAi extends GenAi {
 
   /**
    * Downloads what a model returned and files it in the library. The name is
-   * the model's, the extension the URL's — what came back decides what the
+   * the model's, the extension the result's — what came back decides what the
    * file is called, not what was asked for.
    */
   private async store(url: string, name: string, generation: { key: string; id?: string | null }): Promise<Asset> {
@@ -404,10 +404,11 @@ export class EditorGenAi extends GenAi {
     assert(response.ok, `Failed to fetch the generated asset: ${response.status}`);
     const blob = await response.blob();
 
-    const extension = url.split(/[?#]/)[0].split(".").pop();
-    const fileName = extension && extension.length <= 5 ? `${name}.${extension}` : name;
-
-    return this.library.store(blob, { name: fileName, folder: GENERATED_DIR, generation });
+    return this.library.store(blob, {
+      name: name + resultExtension(url, blob),
+      folder: GENERATED_DIR,
+      generation,
+    });
   }
 
   private requestGeneration(spec: ResolvedSpec) {
@@ -478,6 +479,24 @@ export class EditorGenAi extends GenAi {
 
 /** Whether an asset type is footage, for the calls that only take footage. */
 const isMoving = (type: AssetType): boolean => type === "VIDEO" || type === "SEQUENCE";
+
+/**
+ * What to call a generated result: the extension its type implies, falling
+ * back to the one its URL carries. Neither is guaranteed — some models hand
+ * back a plain slug (`.../files/young-man-city-skyline`), some servers say
+ * only `application/octet-stream` — so this can come back empty, and the
+ * library reads the bytes instead. The name is what the file is identified
+ * by once on disk, so getting it right saves that guess.
+ */
+function resultExtension(url: string, blob: Blob): string {
+  const fromType = blob.type ? mimeTypeToExtension(blob.type) : ".bin";
+  if (fromType !== ".bin") return fromType;
+
+  const fileName = url.split(/[?#]/)[0]!.split("/").pop() ?? "";
+  const dot = fileName.lastIndexOf(".");
+  const fromUrl = dot > 0 ? fileName.slice(dot + 1) : "";
+  return fromUrl && fromUrl.length <= 5 ? `.${fromUrl}` : "";
+}
 
 /**
  * Says what a generation failed with, and hands the error on. The message is

@@ -26,9 +26,11 @@ const TRANSCRIPT_TYPES = new Set(['application/json', 'application/x-subrip', 't
 
 /**
  * The MIME type of a file, or of the resource behind a URL. Subtitle files go
- * by extension (OS registries rarely map .srt); audio and video are sniffed
- * by mediabunny, since a container's declared type is often wrong or empty.
- * Null when the file is not something the library takes.
+ * by extension (OS registries rarely map .srt); images fall back to their
+ * magic bytes when nothing declared a type (a download filed without an
+ * extension has none to go by); audio and video are sniffed by mediabunny,
+ * since a container's declared type is often wrong or empty. Null when the
+ * file is not something the library takes.
  */
 export async function detectMimeType(input: Blob | string): Promise<string | null> {
 	const name = typeof input === 'string' ? input.split(/[?#]/)[0]! : (input as File).name ?? '';
@@ -41,6 +43,11 @@ export async function detectMimeType(input: Blob | string): Promise<string | nul
 	if (mimeType?.startsWith('image/')) return mimeType;
 	if (mimeType?.startsWith('text/html')) return mimeType;
 
+	if (typeof input !== 'string') {
+		const sniffed = await sniffImageType(input);
+		if (sniffed) return sniffed;
+	}
+
 	try {
 		const source = typeof input === 'string' ? new UrlSource(input) : new BlobSource(input);
 		mimeType = await new Input({ formats: ALL_FORMATS, source }).getMimeType();
@@ -49,6 +56,59 @@ export async function detectMimeType(input: Blob | string): Promise<string | nul
 	}
 
 	if (mimeType?.startsWith('audio/') || mimeType?.startsWith('video/')) return mimeType;
+	return null;
+}
+
+/** Image container brands that ride in an ISO base media `ftyp` box. */
+const IMAGE_BRANDS: Record<string, string> = {
+	avif: 'image/avif',
+	avis: 'image/avif',
+	heic: 'image/heic',
+	heix: 'image/heic',
+	heim: 'image/heic',
+	hevc: 'image/heic',
+	mif1: 'image/heic',
+	msf1: 'image/heic',
+};
+
+/**
+ * The image format of a blob, read from its first bytes. Images are the one
+ * kind mediabunny does not sniff, so without this a picture whose name and
+ * declared type say nothing (an extension-less download, an
+ * `application/octet-stream` response) looks like nothing at all.
+ */
+async function sniffImageType(input: Blob): Promise<string | null> {
+	let bytes: Uint8Array;
+	try {
+		bytes = new Uint8Array(await input.slice(0, 64).arrayBuffer());
+	} catch {
+		return null;
+	}
+	if (bytes.length < 12) return null;
+
+	const magic = (offset: number, ...signature: number[]) => signature.every((byte, index) => bytes[offset + index] === byte);
+	const ascii = (offset: number, text: string) => [...text].every((char, index) => bytes[offset + index] === char.charCodeAt(0));
+
+	if (magic(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';
+	if (magic(0, 0xff, 0xd8, 0xff)) return 'image/jpeg';
+	if (ascii(0, 'GIF87a') || ascii(0, 'GIF89a')) return 'image/gif';
+	if (ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'image/webp';
+	if (magic(0, 0x42, 0x4d)) return 'image/bmp';
+	if (magic(0, 0x49, 0x49, 0x2a, 0x00) || magic(0, 0x4d, 0x4d, 0x00, 0x2a)) return 'image/tiff';
+
+	// `....ftyp<brand>` — only the still-image brands; mediabunny takes the rest.
+	if (ascii(4, 'ftyp')) {
+		const brand = String.fromCharCode(...bytes.slice(8, 12)).toLowerCase();
+		return IMAGE_BRANDS[brand] ?? null;
+	}
+
+	// SVG is text: an `<svg>` root, possibly behind an XML declaration or comments.
+	const head = new TextDecoder().decode(bytes).trimStart();
+	if (/^(<\?xml|<!--|<!doctype svg|<svg[\s>])/i.test(head)) {
+		const text = (await input.slice(0, 4096).text()).slice(0, 4096);
+		if (/<svg[\s>]/i.test(text)) return 'image/svg+xml';
+	}
+
 	return null;
 }
 
