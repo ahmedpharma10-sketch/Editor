@@ -572,7 +572,7 @@ on the canvas.
 | \`package.json\` | The project record: \`projectId\` (its identity, kept across renames), \`displayName\` (the name shown in the app), \`main\` (the entry), \`diffusion\` (how each scene is exported), and the dapi commands as scripts. |
 | \`tsconfig.json\` | Types for the composition tags, through \`jsxImportSource\`. |
 | \`assets.yml\` | The asset library: for every asset its library path, where its bytes are, and what it was found to be. Written by the app; hand edits are read on the next load. |
-| \`assets/\` | Files the app produced itself, generations under \`assets/generated/\`. Media imported from elsewhere on disk is linked where it lies, never copied. |
+| \`assets/\` | The library's files: put one here and it is taken in while the app watches, and the app writes its own here too — generations under \`assets/generated/\`. Media imported through the app is linked where it lies instead, never copied. |
 | \`cache/\` | Derived data (thumbnails, waveforms). Disposable, and not checked in. |
 | \`AGENTS.md\` | The agent entry point: what to read in \`.diffusion/docs/\` and how to work here. |
 | \`.diffusion/\` | App-owned. \`docs/\` is the authoring reference and examples for the installed app version; the app regenerates it, and it is not checked in. |

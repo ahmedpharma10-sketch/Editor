@@ -10,6 +10,8 @@
 
 Resolution is **asynchronous and non-blocking**: the element is on the canvas as soon as the project mounts, showing a generating state until its source lands. A source that never lands leaves the element carrying an [`error`](./errors.md#failed-sources).
 
+An `<img>` inside [`<html>`](./html.md) additionally takes a `data:` or `blob:` URL, which goes to the browser as it is.
+
 ## Image sequences
 
 A path naming a **directory of numbered frames** (`shot_001.png`, `shot_002.png`, …) is an image sequence, and plays on `<video>` or `<image>` exactly as footage does.
@@ -42,6 +44,20 @@ Modifiers compose with declarations: `<image src={generate.image({ prompt: "a re
 
 ## The library
 
-A project's assets are recorded in `assets.yml` next to its entry file: for each asset, its library `path`, where its bytes are (`source`: the absolute path of a file imported from disk — imports never move or copy files — or a project-relative path under `assets/` for files the app produced), and what it was found to be. Folders are listed too, so an empty one survives a reload. Renaming or moving an asset in the panel rewrites the `src` props that named it. Files placed under `assets/` by hand are taken into the library on the next load.
+A project's assets are recorded in `assets.yml` next to its entry file: for each asset, its library `path`, where its bytes are (`source`: the absolute path of a file imported from disk — imports never move or copy files — or a project-relative path under `assets/` for files the app produced), and what it was found to be. Folders are listed too, so an empty one survives a reload. Renaming or moving an asset in the panel rewrites the `src` props that named it.
 
-An `<img>` inside [`<html>`](./html.md) additionally takes a `data:` or `blob:` URL, which goes to the browser as it is.
+## Adding an asset
+
+Put the file under the project's `assets/` folder and it is in the library. The app is watching, so it lands while the project is open; a project that is closed takes it in on the next open. Its library path is where it sits under `assets/` — folder and name, so `assets/b-roll/drone.mp4` is `"b-roll/drone.mp4"` and `assets/logo.png` is `"logo.png"`.
+
+```sh
+mkdir -p assets/b-roll && cp ~/Movies/drone.mp4 assets/b-roll/
+```
+
+```tsx
+<video src="b-roll/drone.mp4" width={1920} height={1080} />
+```
+
+A directory of numbered frames is taken in whole, as one [image sequence](#image-sequences), rather than as a file each. [`dapi fetch`](../fetch.md) writes to disk and nothing else, so `-o assets/b-roll/` is how a download becomes an asset; `generate.*` results arrive under `assets/generated/` on their own.
+
+This is the way in from outside the app: there is no command that adds an asset, and `assets.yml` is not an entry point — a record carries the content hash the app computes for it, and a malformed one is dropped on load. Importing *through* the app is what leaves a file where it lies: the asset panel links it rather than copying it, which no amount of writing to the folder can do. A file that should not move and does not need a library path is named by its absolute path in `src` instead, at the cost of the portability a library path has.
