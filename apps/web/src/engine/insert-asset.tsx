@@ -48,13 +48,13 @@ export function insertAsset(world: World, asset: Asset, options: InsertAssetOpti
 			case 'VIDEO':
 			case 'SEQUENCE':
 				return (
-					<Rect name={name} {...position} {...size} {...timing}>
+					<Rect name={name} keepAspectRatio {...position} {...size} {...timing}>
 						<VideoPaint src={src} />
 					</Rect>
 				);
 			case 'IMAGE':
 				return (
-					<Rect name={name} {...position} {...size} {...timing}>
+					<Rect name={name} keepAspectRatio {...position} {...size} {...timing}>
 						<ImagePaint src={src} />
 					</Rect>
 				);

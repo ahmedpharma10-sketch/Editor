@@ -39,7 +39,7 @@ export function useGenerateImage() {
     }));
 
     insertGenerated(world, editor, dims, (box, index) => (
-      <Rect x={box.x} y={box.y} width={box.width} height={box.height}>
+      <Rect keepAspectRatio x={box.x} y={box.y} width={box.width} height={box.height}>
         <ImagePaint src={sources[index]} />
       </Rect>
     ), config.count);

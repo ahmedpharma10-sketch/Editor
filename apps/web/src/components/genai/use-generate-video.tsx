@@ -36,7 +36,7 @@ export function useGenerateVideo() {
     });
 
     insertGenerated(world, editor, dims, (box) => (
-      <Rect x={box.x} y={box.y} width={box.width} height={box.height}>
+      <Rect keepAspectRatio x={box.x} y={box.y} width={box.width} height={box.height}>
         <VideoPaint src={src} />
       </Rect>
     ));
