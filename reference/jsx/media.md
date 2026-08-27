@@ -60,4 +60,6 @@ mkdir -p assets/b-roll && ln -s ~/Movies/drone.mp4 assets/b-roll/
 
 Link rather than copy: the bytes stay where they are, the project holds nothing but a name for them, and the library still gets a portable path to reach them by. Give `ln -s` an absolute target — a relative link is read against the folder the link sits in, so it breaks as soon as the project moves. A directory of numbered frames is taken in whole, as one [image sequence](#image-sequences), rather than as a file each, and a link to that directory does the same. [`dapi fetch`](../fetch.md) writes to disk and nothing else, so `-o assets/b-roll/` is how a download becomes an asset; `generate.*` results arrive under `assets/generated/` on their own.
 
+A link is the project's, and what it points at is not. Deleting a linked asset in the panel removes the link and stops there.
+
 This is the way in from outside the app: there is no command that adds an asset, and `assets.yml` is not an entry point — a record carries the content hash the app computes for it, and a malformed one is dropped on load. The asset panel does the same thing from inside the app: an imported file is linked where it lies, recorded by its absolute path, never copied. A file that should not move and does not need a library path is named by its absolute path in `src` instead, at the cost of the portability a library path has.

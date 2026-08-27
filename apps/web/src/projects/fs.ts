@@ -51,6 +51,7 @@ export function createProjectFS(dir: string): ProjectFS {
 		file: (source) => new ElectronFileHandle(absolute(source)).getFile(),
 		write: (path, blob) => writeBlob(absolute(path), blob),
 		remove: (path) => mainBridge.call(MAIN_CHANNELS.PROJECTS_FS_REMOVE, { dir, path }),
+		realPath: (source) => mainBridge.call(MAIN_CHANNELS.PROJECTS_FS_REAL_PATH, { dir, source }),
 		pathOf: (file) => window.desktop?.getPathForFile(file) || null,
 	};
 }

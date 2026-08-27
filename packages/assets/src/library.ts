@@ -217,9 +217,35 @@ export class AssetLibrary {
 		});
 	}
 
-	/** Registers files under `assets/` that the manifest does not link to. */
+	/**
+	 * Registers files under `assets/` that the manifest does not link to.
+	 *
+	 * A linked folder is walked like any other — linking media in is all it
+	 * takes to have it — but a link can also point back at somewhere the walk
+	 * has already been, and following that would list the same files over and
+	 * over under an ever longer path. So every linked folder is resolved and
+	 * entered once: a second link to the same place is passed over, and one
+	 * that holds `assets/` itself is never entered at all.
+	 */
 	private async scanAssetsDir(): Promise<void> {
 		const known = new Set(this.listNow().map((asset) => asset.source));
+		const entered = new Set<string>();
+		// The library's own place, resolved on the first link that asks for it.
+		let root: string | null | undefined;
+
+		/** Whether a linked folder is one the walk has not been inside already. */
+		const enter = async (dir: string): Promise<boolean> => {
+			const real = await this.fs.realPath?.(dir).catch(() => null);
+			// A host that cannot resolve links has no cycles to report; follow it.
+			if (!real) return true;
+			if (root === undefined) root = (await this.fs.realPath?.(ASSETS_DIR).catch(() => null)) ?? null;
+			const separator = real.includes('\\') ? '\\' : '/';
+			if (root && (root === real || root.startsWith(`${real}${separator}`))) return false;
+			if (entered.has(real)) return false;
+			entered.add(real);
+			return true;
+		};
+
 		const walk = async (dir: string): Promise<void> => {
 			const entries = await this.fs.list(dir);
 			if (dir !== ASSETS_DIR && isSequenceListing(entries.map((entry) => entry.name))) {
@@ -230,6 +256,7 @@ export class AssetLibrary {
 				if (entry.name.startsWith('.')) continue;
 				const source = joinPath(dir, entry.name);
 				if (entry.kind === 'directory') {
+					if (entry.link && !(await enter(source))) continue;
 					await walk(source);
 				} else if (!known.has(source)) {
 					await this.link(source, { folder: dirname(source.slice(ASSETS_DIR.length + 1)) }).catch(() => { });

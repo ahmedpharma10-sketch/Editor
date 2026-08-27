@@ -1132,7 +1132,15 @@ export async function listEntries(dir: string, source: string): Promise<FsEntry[
     try {
       const info = await stat(join(path, entry.name));
       if (!info.isFile() && !info.isDirectory()) return null;
-      return { name: entry.name, kind: info.isDirectory() ? "directory" : "file", size: info.size, mtime: info.mtimeMs };
+      return {
+        name: entry.name,
+        kind: info.isDirectory() ? "directory" : "file",
+        size: info.size,
+        mtime: info.mtimeMs,
+        // What a link points at may be anywhere, including somewhere the
+        // caller is already inside; `realPathEntry` is how it finds out.
+        ...(entry.isSymbolicLink() ? { link: true } : {}),
+      };
     } catch {
       return null;
     }
@@ -1150,11 +1158,50 @@ export async function statEntry(dir: string, source: string): Promise<FsStat | n
   }
 }
 
-/** Removes a file or directory inside the project; missing is fine. */
+/**
+ * Where `source` really is, symlinks resolved; null when it does not exist.
+ * What a scan of `assets/` asks to tell a link that doubles back — one
+ * pointing at a folder the scan is already inside — from an ordinary one.
+ */
+export async function realPathEntry(dir: string, source: string): Promise<string | null> {
+  try {
+    return await realpath(sourcePath(dir, source));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Removes a file or directory inside the project; missing is fine.
+ *
+ * A symlink is removed as itself: the link goes and the media it points at
+ * stays, which is what makes taking a linked asset out of the library cost
+ * nothing. What lies *behind* a link is not the project's to delete, though —
+ * the files inside a linked folder are the user's originals, and `rm` would
+ * follow the link and take them off the disk for good. So anything whose real
+ * place is outside the project is refused.
+ */
 export async function removeEntry(dir: string, path: string): Promise<void> {
   if (isAbsolute(path)) throw new Error("Only project files can be removed");
+  const target = sourcePath(dir, path);
+
+  let root: string;
+  let real: string;
+  try {
+    root = await realpath(dir);
+    // The link itself, not what it resolves to: only the folders above it are
+    // followed, so a link inside the project stays inside it.
+    real = join(await realpath(dirname(target)), basename(target));
+  } catch {
+    return; // Nothing holding it, so nothing to remove.
+  }
+  const rel = relative(root, real);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(`Refusing to remove ${path}: it really lives outside the project`);
+  }
+
   markSelfWrite(dir, path.split(sep).join("/"));
-  await rm(sourcePath(dir, path), { recursive: true, force: true });
+  await rm(target, { recursive: true, force: true });
 }
 
 // ---------------------------------------------------------------------------

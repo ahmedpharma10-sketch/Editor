@@ -18,6 +18,12 @@ export interface FsEntry {
 	size: number;
 	/** Modification time in ms since the epoch. */
 	mtime: number;
+	/**
+	 * Set when the entry is a symlink. `kind` is still what it points at — a
+	 * link is listed like the file or folder it stands for — but where that
+	 * lies is `realPath`'s to say.
+	 */
+	link?: boolean;
 }
 
 export interface ProjectFS {
@@ -34,6 +40,12 @@ export interface ProjectFS {
 	write(path: string, data: Blob): Promise<void>;
 	/** Removes a file or directory inside the project; missing is fine. */
 	remove(path: string): Promise<void>;
+	/**
+	 * Where a path really is, symlinks resolved; null when it does not exist.
+	 * Optional: a host that has no such notion (a browser) leaves it out, and
+	 * a walk that cannot resolve a link simply follows it.
+	 */
+	realPath?(source: string): Promise<string | null>;
 	/** The absolute location of a project-relative path, when the host has one. */
 	absolute?(path: string): string;
 	/**

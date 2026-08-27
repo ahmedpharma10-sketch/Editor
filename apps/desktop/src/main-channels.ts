@@ -61,6 +61,7 @@ export const MAIN_CHANNELS = {
   PROJECTS_FS_LIST: "projects:fs-list",
   PROJECTS_FS_STAT: "projects:fs-stat",
   PROJECTS_FS_REMOVE: "projects:fs-remove",
+  PROJECTS_FS_REAL_PATH: "projects:fs-real-path",
 
   // Main→Renderer events
   AUTH_CALLBACK: "auth:callback",
@@ -181,9 +182,17 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.PROJECTS_FS_LIST]: { request: { dir: string; source: string }; response: FsEntry[] };
   [MAIN_CHANNELS.PROJECTS_FS_STAT]: { request: { dir: string; source: string }; response: FsStat | null };
   [MAIN_CHANNELS.PROJECTS_FS_REMOVE]: { request: { dir: string; path: string }; response: void };
+  [MAIN_CHANNELS.PROJECTS_FS_REAL_PATH]: { request: { dir: string; source: string }; response: string | null };
 };
 
-export type FsEntry = { name: string; kind: "file" | "directory"; size: number; mtime: number };
+export type FsEntry = {
+  name: string;
+  kind: "file" | "directory";
+  size: number;
+  mtime: number;
+  /** Set when the entry is a symlink; `kind` is what it points at. */
+  link?: boolean;
+};
 export type FsStat = { size: number; mtime: number };
 export type MainRequestChannel = keyof MainRequestMap;
 
