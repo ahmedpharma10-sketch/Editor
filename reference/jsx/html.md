@@ -2,10 +2,10 @@
 
 An element whose children are **real HTML**: the browser lays them out at the element's box size and the result is drawn into the box via the [html-in-canvas](https://github.com/WICG/html-in-canvas) API. The Diffusion Studio app ships with this API enabled, so `<html>` is always available — reach for it liberally. It is the recommended way to build motion graphics, overlays, and any UI-heavy content: styled cards, tables, code blocks, flex/grid layouts — anything painful to assemble from `<rect>` and `<text>`.
 
-Driving the markup with a [GSAP](https://gsap.com) timeline is **recommended** — it keeps the animation frame-accurate: build the timeline paused, then `seek` it from the [`useTicker`](./lifecycle.md#useticker) playhead so it follows scrubbing and exports rather than the wall clock. GSAP works in seconds, so the playhead feeds `seek` directly.
+Driving the markup with an [anime.js](https://animejs.com) timeline is **recommended** — it keeps the animation frame-accurate: build the timeline with `autoplay: false`, then `seek` it from the [`useTicker`](./lifecycle.md#useticker) playhead so it follows scrubbing and exports rather than the wall clock. anime.js works in milliseconds, so the playhead is scaled by 1000 on the way into `seek`.
 
 ```tsx
-import { gsap } from "gsap";
+import { createTimeline, type Timeline } from "animejs";
 import { useTicker } from "@diffusionstudio/jsx";
 import { createEffect, onMount } from "solid-js";
 
@@ -13,17 +13,18 @@ export default function Intro() {
   const { time } = useTicker();
   let index!: HTMLSpanElement;
   let label!: HTMLSpanElement;
-  let tl!: gsap.core.Timeline;
+  let tl!: Timeline;
 
-  // GSAP resolves targets at tween creation and refs are only assigned during
-  // render, so build the timeline in onMount — it runs before the effect below.
+  // anime.js resolves targets at tween creation and refs are only assigned
+  // during render, so build the timeline in onMount — it runs before the
+  // effect below.
   onMount(() => {
-    tl = gsap.timeline({ paused: true })
-      .fromTo(index, { opacity: 0, x: -24 }, { opacity: 1, x: 0, ease: "power1.out", duration: 0.4 })
-      .fromTo(label, { opacity: 0 }, { opacity: 1, ease: "power1.out", duration: 0.4 }, "-=0.2");
+    tl = createTimeline({ autoplay: false })
+      .add(index, { opacity: { from: 0, to: 1 }, x: { from: -24, to: 0 }, ease: "outQuad", duration: 400 }, 0)
+      .add(label, { opacity: { from: 0, to: 1 }, ease: "outQuad", duration: 400 }, 200);
   });
 
-  createEffect(() => tl.seek(time()));
+  createEffect(() => tl.seek(time() * 1000));
 
   return (
     <stage camera={[0.7, 0, 0, 0.7, 90, 270]}>
@@ -41,7 +42,7 @@ export default function Intro() {
 }
 ```
 
-Prefer this timeline over hand-animating styles: keep the markup static and let the paused GSAP timeline own every moving value, so one `seek` keeps the whole host frame-accurate. A static `style` may be a plain string, but one spanning multiple lines has to be a template literal in braces (`style={`…`}`), as above. Reach for a derived style only for values the timeline does not drive, and write it as a **style object** (`style={{ color: c() }}`) rather than interpolating the signal into a style string, so each property updates independently.
+Prefer this timeline over hand-animating styles: keep the markup static and let the paused anime.js timeline own every moving value, so one `seek` keeps the whole host frame-accurate. A static `style` may be a plain string, but one spanning multiple lines has to be a template literal in braces (`style={`…`}`), as above. Reach for a derived style only for values the timeline does not drive, and write it as a **style object** (`style={{ color: c() }}`) rather than interpolating the signal into a style string, so each property updates independently.
 
 The `<html>` box carries all [common props](./elements.md#common-props). Its paint child form, [`<htmlPaint>`](./paints.md), draws the same reactive HTML onto any existing filled geometry; `<html>` is just a `<rect>` that carries one.
 
