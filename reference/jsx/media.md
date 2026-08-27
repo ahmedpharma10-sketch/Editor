@@ -44,20 +44,20 @@ Modifiers compose with declarations: `<image src={generate.image({ prompt: "a re
 
 ## The library
 
-A project's assets are recorded in `assets.yml` next to its entry file: for each asset, its library `path`, where its bytes are (`source`: the absolute path of a file imported from disk — imports never move or copy files — or a project-relative path under `assets/` for files the app produced), and what it was found to be. Folders are listed too, so an empty one survives a reload. Renaming or moving an asset in the panel rewrites the `src` props that named it.
+A project's assets are recorded in `assets.yml` next to its entry file: for each asset, its library `path`, where its bytes are (`source`: the absolute path of a file imported from disk — imports never move or copy files — or a project-relative path under `assets/`, whether the app wrote the bytes there or a symlink points at them), and what it was found to be. Folders are listed too, so an empty one survives a reload. Renaming or moving an asset in the panel rewrites the `src` props that named it.
 
 ## Adding an asset
 
-Put the file under the project's `assets/` folder and it is in the library. The app is watching, so it lands while the project is open; a project that is closed takes it in on the next open. Its library path is where it sits under `assets/` — folder and name, so `assets/b-roll/drone.mp4` is `"b-roll/drone.mp4"` and `assets/logo.png` is `"logo.png"`.
+Symlink the file into the project's `assets/` folder and it is in the library. The app is watching, so it lands while the project is open; a project that is closed takes it in on the next open. Its library path is where the link sits under `assets/` — folder and name, so `assets/b-roll/drone.mp4` is `"b-roll/drone.mp4"` and `assets/logo.png` is `"logo.png"`.
 
 ```sh
-mkdir -p assets/b-roll && cp ~/Movies/drone.mp4 assets/b-roll/
+mkdir -p assets/b-roll && ln -s ~/Movies/drone.mp4 assets/b-roll/
 ```
 
 ```tsx
 <video src="b-roll/drone.mp4" width={1920} height={1080} />
 ```
 
-A directory of numbered frames is taken in whole, as one [image sequence](#image-sequences), rather than as a file each. [`dapi fetch`](../fetch.md) writes to disk and nothing else, so `-o assets/b-roll/` is how a download becomes an asset; `generate.*` results arrive under `assets/generated/` on their own.
+Link rather than copy: the bytes stay where they are, the project holds nothing but a name for them, and the library still gets a portable path to reach them by. Give `ln -s` an absolute target — a relative link is read against the folder the link sits in, so it breaks as soon as the project moves. A directory of numbered frames is taken in whole, as one [image sequence](#image-sequences), rather than as a file each, and a link to that directory does the same. [`dapi fetch`](../fetch.md) writes to disk and nothing else, so `-o assets/b-roll/` is how a download becomes an asset; `generate.*` results arrive under `assets/generated/` on their own.
 
-This is the way in from outside the app: there is no command that adds an asset, and `assets.yml` is not an entry point — a record carries the content hash the app computes for it, and a malformed one is dropped on load. Importing *through* the app is what leaves a file where it lies: the asset panel links it rather than copying it, which no amount of writing to the folder can do. A file that should not move and does not need a library path is named by its absolute path in `src` instead, at the cost of the portability a library path has.
+This is the way in from outside the app: there is no command that adds an asset, and `assets.yml` is not an entry point — a record carries the content hash the app computes for it, and a malformed one is dropped on load. The asset panel does the same thing from inside the app: an imported file is linked where it lies, recorded by its absolute path, never copied. A file that should not move and does not need a library path is named by its absolute path in `src` instead, at the cost of the portability a library path has.

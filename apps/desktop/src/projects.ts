@@ -1126,10 +1126,13 @@ export async function listEntries(dir: string, source: string): Promise<FsEntry[
     return [];
   }
   const entries = await Promise.all(names.map(async (entry): Promise<FsEntry | null> => {
-    if (!entry.isFile() && !entry.isDirectory()) return null;
+    // Symlinks count as whatever they point at, so media linked into `assets/`
+    // is listed like a file that sits there. A broken link stats away to null.
+    if (!entry.isFile() && !entry.isDirectory() && !entry.isSymbolicLink()) return null;
     try {
       const info = await stat(join(path, entry.name));
-      return { name: entry.name, kind: entry.isDirectory() ? "directory" : "file", size: info.size, mtime: info.mtimeMs };
+      if (!info.isFile() && !info.isDirectory()) return null;
+      return { name: entry.name, kind: info.isDirectory() ? "directory" : "file", size: info.size, mtime: info.mtimeMs };
     } catch {
       return null;
     }

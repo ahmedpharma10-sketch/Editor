@@ -26,7 +26,7 @@ The component receives no props. [`dapi open <dir>`](../open.md) opens the folde
 | `package.json` | The project record: `projectId` (its identity, kept across renames), `displayName`, `main`, and the dapi commands as scripts. |
 | `tsconfig.json` | Types for the composition tags, through `jsxImportSource`. |
 | `assets.yml` | The asset library (see [media.md](./media.md#the-library)). |
-| `assets/` | Files the app produced itself, generations under `assets/generated/`. Media imported from elsewhere on disk is linked where it lies, never copied. |
+| `assets/` | The library's files: symlinks to media brought in from elsewhere, plus what the app produced itself, generations under `assets/generated/`. Media imported through the app is linked where it lies, never copied. |
 | `cache/` | Derived data (thumbnails, waveforms). Disposable. |
 | `AGENTS.md` | The agent entry point: what to read in `.diffusion/docs/`. |
 | `.diffusion/docs/` | App-owned copy of this reference and the examples, stamped with the app version and regenerated when it changes. Read it, never edit it. |
