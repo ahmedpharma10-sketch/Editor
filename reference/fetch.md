@@ -2,7 +2,7 @@
 
 Downloads a video with [yt-dlp](https://github.com/yt-dlp/yt-dlp). Does not require the app to be running. yt-dlp is not bundled: install it separately (`brew install yt-dlp`, or `pipx install yt-dlp`). If it is not on `PATH`, the command exits `1` with an install hint; set `YT_DLP_PATH` to point at a specific binary.
 
-This writes the file to disk only. To pull a downloaded file into the open project, add it afterwards: `dapi asset add <path>` (see [asset add](./asset/add.md)).
+This writes the file to disk only; it does not touch the open project.
 
 ## Arguments
 

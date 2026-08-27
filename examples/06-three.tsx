@@ -1,23 +1,30 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* Three.js owning a <surface>: a glTF helmet spun by the playhead.
  *
- *   dapi mount examples/06-three.tsx
+ *   cp examples/06-three.tsx ~/Projects/three/index.tsx
+ *   dapi open ~/Projects/three
  *
- * The <surface> ref hands three.js a detached HTMLCanvasElement to render into;
+ * `ref={surfaceRef}` assigns the surface's node, whose `element` is its
+ * detached canvas; onMount three.js takes it over and renders into it;
  * the engine samples that bitmap into the node's box every frame, so a WebGL
  * scene composites like any other paint (needs preserveDrawingBuffer so the
  * per-frame readback doesn't come back blank). One clock drives everything:
  * useTicker's composition time seeks the helmet's rotation inside a
  * createEffect, so scrubbing and exports stay frame-accurate, not wall-clock.
  *
+ * An export mounts the module again in a world of its own, so the .glb is
+ * fetched from scratch there and races the first frames — which is what
+ * `hold` is for: the encoder waits for the model before it samples anything.
+ *
  * The "Battle Damaged Sci-Fi Helmet" is the Khronos DamagedHelmet sample, a
- * single-file .glb GLTFLoader fetches directly over the network (useFile is the
- * host-resolved route for project-local assets). RoomEnvironment bakes an
- * in-memory PBR reflection map, so the metal reads without shipping an HDR.
+ * single-file .glb GLTFLoader fetches directly over the network.
+ * RoomEnvironment bakes an in-memory PBR reflection map, so the metal reads
+ * without shipping an HDR.
  */
 
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { useTicker } from "@diffusionstudio/jsx";
+import type { SceneNode } from "@diffusionstudio/jsx";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -28,10 +35,14 @@ const MODEL_URL =
 const TURN_SECONDS = 6; // one full revolution per 6s of composition time
 
 export default function ThreeHelmet() {
-  const { time } = useTicker();
+  const { time, hold } = useTicker();
   const [loaded, setLoaded] = createSignal(false);
 
-  const setup = (el: HTMLCanvasElement) => {
+  let surfaceRef: SceneNode | undefined;
+
+  onMount(() => {
+    const el = surfaceRef!.element;
+    if (!el) return;
     const renderer = new THREE.WebGLRenderer({
       canvas: el,
       antialias: true,
@@ -64,7 +75,9 @@ export default function ThreeHelmet() {
     scene.add(pivot);
 
     let disposed = false;
-    new GLTFLoader()
+    // Held, so export and capture wait for the helmet rather than writing the
+    // frames it hasn't arrived for; live playback collects nothing.
+    const ready = new GLTFLoader()
       .loadAsync(MODEL_URL)
       .then((gltf) => {
         if (disposed) return;
@@ -80,6 +93,8 @@ export default function ThreeHelmet() {
       })
       .catch((err) => console.error("Helmet model load failed:", err));
 
+    hold(ready);
+
     // The playhead is the only clock. Reading time() (and loaded()) subscribes
     // the effect, so it re-renders every tick and once the model streams in.
     createEffect(() => {
@@ -93,11 +108,13 @@ export default function ThreeHelmet() {
       pmrem.dispose();
       renderer.dispose();
     });
-  };
+  });
 
   return (
-    <rect scene="example-three" name="Three helmet" width={960} height={540} fill="#0b0d12">
-      <surface x={0} y={0} width={960} height={540} ref={setup} />
-    </rect>
+    <stage camera={[0.6, 0, 0, 0.6, 85, 150]}>
+      <scene name="Three helmet" width={960} height={540} fill="#0b0d12" active>
+        <surface x={0} y={0} width={960} height={540} ref={surfaceRef} />
+      </scene>
+    </stage>
   );
 }

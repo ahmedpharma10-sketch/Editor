@@ -2,14 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Match, Switch, createResource } from "solid-js";
+import { Match, Switch } from "solid-js";
 import { toast } from "somoto";
 
-import { retrieveLastAccessedDirectory } from "@/components/engine/db";
-import { changeAssetDirectory } from "@/components/engine";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { useEngine } from "@/context/engine";
+import { pickProjectsRoot, projectsRoot } from "@/projects";
 import { usePermissionState, type PermissionState } from "@/hooks/use-permission";
 
 import {
@@ -20,12 +18,12 @@ import {
 } from "./shared";
 
 function DashboardProjectsFolderSection() {
-  const engine = useEngine();
-  const [directory, { refetch }] = createResource(() => retrieveLastAccessedDirectory());
-
   const handleChange = async () => {
-    await changeAssetDirectory(engine.world);
-    refetch();
+    try {
+      await pickProjectsRoot();
+    } catch (e) {
+      toast.error("Failed to choose projects folder", { description: (e as Error).message });
+    }
   };
 
   return (
@@ -33,7 +31,7 @@ function DashboardProjectsFolderSection() {
       <DashboardInfoActionRow
         title="Save projects to"
         leading={<Icon name="navigation.folder" class="text-foreground" />}
-        description={directory()?.name ?? "Origin private file system (OPFS)"}
+        description={projectsRoot() ?? "No folder selected"}
         action={
           <Button variant="secondary" onClick={handleChange}>
             Change...

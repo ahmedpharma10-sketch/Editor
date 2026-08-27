@@ -21,21 +21,33 @@
 import type { JSX as SolidJSX } from "solid-js";
 import type { AssetInput } from "./generate";
 import type {
+  AdjustmentLayerProps,
+  AnimationProps,
   AudioProps,
   CaptionsProps,
   ColorStopProps,
+  EffectProps,
   GradientPaintProps,
+  MediaPaintProps,
   GroupProps,
   HtmlPaintProps,
   HtmlProps,
   ImageProps,
+  KeyframeProps,
+  KeyframeTrackProps,
   RectProps,
+  SceneProps,
   SequenceProps,
   ShaderPaintProps,
+  ShadowProps,
   SolidPaintProps,
+  SourceProps,
+  StageProps,
+  StrokeProps,
   SurfacePaintProps,
   SurfaceProps,
   TextProps,
+  TextRangeProps,
   VideoProps,
 } from "./types";
 
@@ -65,22 +77,34 @@ export declare namespace JSX {
 
   export interface IntrinsicElements extends HtmlElementTags, SvgElementTags {
     img: ImgTag;
-    group: GroupProps;
-    rect: RectProps | SolidJSX.SVGElementTags["rect"];
-    video: VideoProps;
-    image: ImageProps | SolidJSX.SVGElementTags["image"];
-    audio: AudioProps;
-    text: TextProps | SolidJSX.SVGElementTags["text"];
-    sequence: SequenceProps;
-    captions: CaptionsProps;
-    solidPaint: SolidPaintProps;
-    linearGradientPaint: GradientPaintProps;
-    radialGradientPaint: GradientPaintProps;
-    colorStop: ColorStopProps;
-    htmlPaint: HtmlPaintProps;
-    html: HtmlProps;
-    shaderPaint: ShaderPaintProps;
-    surfacePaint: SurfacePaintProps;
-    surface: SurfaceProps;
+    stage: StageProps & SourceProps;
+    scene: SceneProps & SourceProps;
+    group: GroupProps & SourceProps;
+    rect: (RectProps & SourceProps) | SolidJSX.SVGElementTags["rect"];
+    video: VideoProps & SourceProps;
+    image: (ImageProps & SourceProps) | SolidJSX.SVGElementTags["image"];
+    audio: AudioProps & SourceProps;
+    text: (TextProps & SourceProps) | SolidJSX.SVGElementTags["text"];
+    textRange: TextRangeProps & SourceProps;
+    sequence: SequenceProps & SourceProps;
+    captions: CaptionsProps & SourceProps;
+    adjustmentLayer: AdjustmentLayerProps & SourceProps;
+    solidPaint: SolidPaintProps & SourceProps;
+    linearGradientPaint: GradientPaintProps & SourceProps;
+    radialGradientPaint: GradientPaintProps & SourceProps;
+    imagePaint: MediaPaintProps & SourceProps;
+    videoPaint: MediaPaintProps & SourceProps;
+    colorStop: ColorStopProps & SourceProps;
+    stroke: StrokeProps & SourceProps;
+    shadow: ShadowProps & SourceProps;
+    effect: EffectProps & SourceProps;
+    animation: AnimationProps & SourceProps;
+    keyframeTrack: KeyframeTrackProps & SourceProps;
+    keyframe: KeyframeProps & SourceProps;
+    htmlPaint: HtmlPaintProps & SourceProps;
+    html: HtmlProps & SourceProps;
+    shaderPaint: ShaderPaintProps & SourceProps;
+    surfacePaint: SurfacePaintProps & SourceProps;
+    surface: SurfaceProps & SourceProps;
   }
 }

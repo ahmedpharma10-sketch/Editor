@@ -17,54 +17,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { createMemo, Show } from "solid-js";
 import { toast } from "somoto";
 
-import { PaintType } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { useUpscaleImage } from "./use-upscale-image";
-import { useUpscaleVideo } from "./use-upscale-video";
-import { useAddAudioToVideo } from "./use-add-audio-to-video";
-import { useRemoveBackground } from "./use-remove-background";
 import { useGenerationRecords } from "./use-generation-records";
 import { useGenerateImage } from "./use-generate-image";
 import { useGenerateVideo } from "./use-generate-video";
 import { useGenerateVoice } from "./use-generate-voice";
 import { useGenerateAudio } from "./use-generate-audio";
-import { useECS } from "@/context/ecs";
+import { useMediaSelection } from "./selection";
+import { useModifiers } from "./use-modifiers";
+
+import type { ModifierName } from "./use-modifiers";
 
 export function PromptInputActions() {
-  const { world } = useEngine();
-  const { selectedNodes } = useECS();
   const { isGenerated, totalCredits, firstConfig } = useGenerationRecords();
+  const { imageNodes, videoNodes } = useMediaSelection();
+  const { isOn, toggle } = useModifiers();
 
-  const { generate: upscaleImage } = useUpscaleImage();
-  const { generate: upscaleVideo } = useUpscaleVideo();
-  const { generate: addAudioToVideo } = useAddAudioToVideo();
-  const { generate: removeBackground } = useRemoveBackground();
   const { generate: generateImage } = useGenerateImage();
   const { generate: generateVideo } = useGenerateVideo();
   const { generate: generateVoice } = useGenerateVoice();
   const { generate: generateAudio } = useGenerateAudio();
 
-  const hasImageSelection = createMemo(() => {
-    const Fills = world.components.Cache.fills;
-    const Paint = world.components.Paint;
-    for (const eid of selectedNodes()) {
-      for (const fid of Fills[eid] ?? []) {
-        if (Paint[fid] === PaintType.IMAGE) return true;
-      }
-    }
-    return false;
-  });
-
-  const hasVideoSelection = createMemo(() => {
-    const Fills = world.components.Cache.fills;
-    const Paint = world.components.Paint;
-    for (const eid of selectedNodes()) {
-      for (const fid of Fills[eid] ?? []) {
-        if (Paint[fid] === PaintType.VIDEO) return true;
-      }
-    }
-    return false;
-  });
+  const hasImageSelection = createMemo(() => imageNodes().length > 0);
+  const hasVideoSelection = createMemo(() => videoNodes().length > 0);
 
   const handleRerun = () => {
     const config = firstConfig();
@@ -146,25 +120,14 @@ export function PromptInputActions() {
                 <Separator class="my-1" />
               </Show>
               <DropdownMenuGroup>
+                <Show when={hasImageSelection() || hasVideoSelection()}>
+                  <ModifierItem name="upscale" icon="arrow-scale" label="Upscale" isOn={isOn} toggle={toggle} />
+                </Show>
                 <Show when={hasImageSelection()}>
-                  <DropdownMenuItem onSelect={upscaleImage}>
-                    <Icon name="arrow-scale" class="mr-2 text-foreground" />
-                    Upscale
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={removeBackground}>
-                    <Icon name="ai-generate" class="mr-2 text-foreground" />
-                    Remove background
-                  </DropdownMenuItem>
+                  <ModifierItem name="removeBackground" icon="ai-generate" label="Remove background" isOn={isOn} toggle={toggle} />
                 </Show>
                 <Show when={hasVideoSelection()}>
-                  <DropdownMenuItem onSelect={upscaleVideo}>
-                    <Icon name="arrow-scale" class="mr-2 text-foreground" />
-                    Upscale
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={addAudioToVideo}>
-                    <Icon name="audio-on" class="mr-2 text-foreground" />
-                    Add audio
-                  </DropdownMenuItem>
+                  <ModifierItem name="addAudio" icon="audio-on" label="Add audio" isOn={isOn} toggle={toggle} />
                 </Show>
               </DropdownMenuGroup>
             </DropdownMenuContent>
@@ -172,5 +135,26 @@ export function PromptInputActions() {
         </DropdownMenu>
       </div>
     </Show>
+  );
+}
+
+type ModifierItemProps = {
+  name: ModifierName;
+  icon: string;
+  label: string;
+  isOn(name: ModifierName): boolean;
+  toggle(name: ModifierName): void;
+};
+
+/** A modifier as a menu row: a check when the selection is asking for it. */
+function ModifierItem(props: ModifierItemProps) {
+  return (
+    <DropdownMenuItem onSelect={() => props.toggle(props.name)}>
+      <Icon name={props.icon} class="mr-2 text-foreground" />
+      <span class="flex-1">{props.label}</span>
+      <Show when={props.isOn(props.name)}>
+        <Icon name="confirm-check" class="ml-2 text-foreground" />
+      </Show>
+    </DropdownMenuItem>
   );
 }

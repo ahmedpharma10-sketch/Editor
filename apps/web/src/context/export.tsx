@@ -4,10 +4,11 @@
 
 import { createContext, useContext, onCleanup, onMount } from "solid-js";
 import { toast } from "somoto";
-import { assert, downloadObject } from "@/utils";
-import { useEngine } from "@/context/engine";
-import { useProjectId } from "@/hooks/use-project-id";
-import { getProjectName } from "@/components/engine/db/global-db";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Computed, FrameRate, getActiveEntity } from "@diffusionstudio/runtime";
+import { assert, downloadObject, isInputTarget } from "@/utils";
+import { useEngineContext } from "@/engine";
+import { useProject } from "@/context/project";
 import { track } from "@/lib/analytics";
 import { ExportProgress, type ExportConfig } from "@/components/sidebar-right/inspector/export-progress";
 import { renderScene, renderOverlay, cancelRender } from "@/context/render";
@@ -16,10 +17,11 @@ import {
   getDefaultExportTemplate,
 } from "@/components/sidebar-right/inspector/export-templates";
 
+import type { Entity } from "koota";
 import type { JSX, Accessor } from "solid-js";
 
 type ExportContextValue = {
-  exportScene: (sceneEid: number, config: ExportConfig) => Promise<void>;
+  exportScene: (scene: Entity, config: ExportConfig) => Promise<void>;
   exportCurrentFrame: () => Promise<void>;
   exporting: Accessor<boolean>;
 };
@@ -27,24 +29,22 @@ type ExportContextValue = {
 const ExportContext = createContext<ExportContextValue>();
 
 export function ExportProvider(props: { children: JSX.Element }) {
-  const engine = useEngine();
-  const { world } = engine;
-  const projectId = useProjectId();
+  const engine = useEngineContext();
+  const world = useWorld();
+  const project = useProject();
 
   const exporting = () => !!renderOverlay();
 
-  const sceneDurationSeconds = (sceneEid: number) =>
-    world.components.Computed.duration[sceneEid] / world.frameRate;
+  const sceneDurationSeconds = (scene: Entity) =>
+    (scene.get(Computed)?.duration ?? 0) / (world.get(FrameRate)?.value || 30);
 
-  const exportScene: ExportContextValue["exportScene"] = async (sceneEid, config) => {
-    if (!sceneEid) return;
+  const exportScene: ExportContextValue["exportScene"] = async (scene, config) => {
+    if (!scene?.isAlive()) return;
 
     const format = config.format ?? "mp4";
     const mimeType = MIME_TYPES[format];
 
-    const name = (await getProjectName(projectId()))
-      .replace(/\s+/g, "-")
-      .toLowerCase();
+    const name = project.name().replace(/\s+/g, "-").toLowerCase();
 
     let target: FileSystemFileHandle;
     try {
@@ -73,12 +73,12 @@ export function ExportProvider(props: { children: JSX.Element }) {
       fps: config.video?.fps,
       video_codec: config.video?.codec,
       audio_codec: config.audio?.codec,
-      scene_duration_s: Math.round(sceneDurationSeconds(sceneEid)),
+      scene_duration_s: Math.round(sceneDurationSeconds(scene)),
     });
     const startedAt = performance.now();
 
     try {
-      const result = await renderScene(engine, { scene: sceneEid, target, config });
+      const result = await renderScene(engine, { scene, target, config, dir: project.dir() });
 
       if (result.type === "error") {
         console.error("Export failed:", result.error);
@@ -98,7 +98,7 @@ export function ExportProvider(props: { children: JSX.Element }) {
           format,
           resolution: config.video?.resolution,
           fps: config.video?.fps,
-          scene_duration_s: Math.round(sceneDurationSeconds(sceneEid)),
+          scene_duration_s: Math.round(sceneDurationSeconds(scene)),
           duration_ms: Math.round(performance.now() - startedAt),
         });
       }
@@ -116,47 +116,41 @@ export function ExportProvider(props: { children: JSX.Element }) {
   };
 
   const exportCurrentFrame: ExportContextValue["exportCurrentFrame"] = async () => {
-    const canvas = engine.world.canvas;
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      toast("Canvas is not ready");
-      return;
-    }
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), "image/png");
-    });
+    const blob = await engine.snapshot();
 
     if (!blob) {
       toast.error("Failed to capture frame");
       return;
     }
 
-    const projectName = (await getProjectName(projectId()))
-      .replace(/\s+/g, "-")
-      .toLowerCase();
+    const projectName = project.name().replace(/\s+/g, "-").toLowerCase();
     await downloadObject(blob, `${projectName}-frame.png`);
   };
 
-  const handleExportSceneEvent = () => {
-    const sid = world.selection.scene;
-    if (sid === null) {
+  const exportActiveScene = () => {
+    const scene = getActiveEntity(world);
+    if (scene === null) {
       return toast("No active scene to export");
     }
-    exportScene(sid, getDefaultExportTemplate());
+    void exportScene(scene, getDefaultExportTemplate());
   };
 
-  const handleExportFrameEvent = () => exportCurrentFrame();
+  /**
+   * Export is the provider's command, so its keys are bound here rather than
+   * in the engine's shortcut table: ⌘E writes the active scene, ⇧⌘E the frame
+   * on screen — the same two the File menu lists.
+   */
+  const handleShortcut = (event: KeyboardEvent) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "e") return;
+    if (isInputTarget(event)) return;
 
-  onMount(() => {
-    // TODO: Event bus would be better here
-    window.addEventListener("engine:export-scene", handleExportSceneEvent);
-    window.addEventListener("engine:export-frame", handleExportFrameEvent);
-  });
+    event.preventDefault();
+    if (event.shiftKey) void exportCurrentFrame();
+    else exportActiveScene();
+  };
 
-  onCleanup(() => {
-    window.removeEventListener("engine:export-scene", handleExportSceneEvent);
-    window.removeEventListener("engine:export-frame", handleExportFrameEvent);
-  });
+  onMount(() => window.addEventListener("keydown", handleShortcut));
+  onCleanup(() => window.removeEventListener("keydown", handleShortcut));
 
   return (
     <ExportContext.Provider value={{ exportScene, exportCurrentFrame, exporting }}>

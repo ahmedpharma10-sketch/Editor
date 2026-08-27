@@ -11,7 +11,7 @@ import type { TRPCLink } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { SOCKET_PATH } from "./protocol";
 import type { CliHandshake, CliHandshakeReply, CliReply, CliRequest } from "./protocol";
-import type { AppRouter } from "../../web/src/context/editor-api";
+import type { AppRouter } from "../../web/src/context/dapi";
 
 const DEFAULT_TIMEOUT_MS = 60000;
 export const GENERATE_TIMEOUT_MS = 600000;
@@ -143,7 +143,7 @@ export function errnoCode(e: unknown): string | undefined {
 
 // Bridges the cold-start gap after launching the app. Main only delivers the
 // handshake once the renderer has finished loading, and `ping` is answered
-// by the always-mounted auth router, so a single round-trip proves the app is
+// by the always-mounted app router, so a single round-trip proves the app is
 // fully up. The retry loop only handles the brief window before the handshake
 // socket itself binds (ENOENT/ECONNREFUSED).
 export async function waitForCliSocket(timeoutMs = 30000): Promise<void> {

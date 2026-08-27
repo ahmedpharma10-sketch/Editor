@@ -4,14 +4,13 @@
 
 import { Assets } from "./assets";
 import { useLayout } from "@/context/layout";
-import { useEditorApi } from "@/context/editor-api";
+import { useEditorApi } from "@/context/dapi";
 import { createSignal, Show } from "solid-js";
+import { toast } from "somoto";
 import { Button } from "../ui/button";
 import { Icon } from "../ui/icon";
 import { ProjectMenu } from "./project-menu";
-import { useProjectId } from "@/hooks/use-project-id";
-import { getProjectName, setProjectName } from "../engine/db";
-import { createResource } from "solid-js";
+import { useProject } from "@/context/project";
 import { cx } from "@/lib/cva";
 
 export function SidebarLeft() {
@@ -50,16 +49,15 @@ type ProjectHeaderProps = {
 }
 
 export function ProjectHeader(props: ProjectHeaderProps) {
-  const projectId = useProjectId();
+  const project = useProject();
   const [projectNameDraft, setProjectNameDraft] = createSignal<string | null>(null);
-  const [projectName, { refetch: refetchProjectName }] = createResource(() => getProjectName(projectId()));
 
   const handleProjectNameInput = (event: InputEvent & { currentTarget: HTMLInputElement }) => {
     setProjectNameDraft(event.currentTarget.value);
   };
 
   const handleFocusNameInput = (event: FocusEvent & { currentTarget: HTMLInputElement }) => {
-    setProjectNameDraft(projectName() ?? null);
+    setProjectNameDraft(project.name());
     event.currentTarget.select();
   };
 
@@ -71,20 +69,23 @@ export function ProjectHeader(props: ProjectHeaderProps) {
     if (event.key === "Enter") {
       const input = event.currentTarget;
       const trimmedName = projectNameDraft()?.trim() ?? "";
-      const currentName = projectName() ?? "";
 
-      if (trimmedName.length > 0 && trimmedName !== currentName) {
-        await setProjectName(projectId(), trimmedName);
+      // The rename the folder follows: the project keeps its id, so the URL
+      // and the open editor are untouched by the move.
+      if (trimmedName.length > 0 && trimmedName !== project.name()) {
+        try {
+          await project.rename(trimmedName);
+        } catch (e) {
+          toast.error("Failed to rename project", { description: (e as Error).message });
+        }
       }
 
-      refetchProjectName();
       setProjectNameDraft(null);
       input.blur();
     }
 
     if (event.key === "Escape") {
       event.currentTarget.blur();
-      refetchProjectName();
       setProjectNameDraft(null);
     }
   };
@@ -95,7 +96,7 @@ export function ProjectHeader(props: ProjectHeaderProps) {
       <div class="flex items-center w-full">
         <input
           type="text"
-          value={projectNameDraft() ?? projectName() ?? ""}
+          value={projectNameDraft() ?? project.name()}
           onInput={handleProjectNameInput}
           onFocus={handleFocusNameInput}
           onBlur={handleBlurNameInput}

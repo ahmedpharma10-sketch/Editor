@@ -12,8 +12,25 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { isGroupLike, isSequence } from "@diffusionstudio/runtime";
+import {
+  groupSelection,
+  ungroupSelection,
+  unwrapSequenceSelection,
+  useSelection,
+  wrapSelectionInScene,
+  wrapSelectionInSequence,
+} from "@/engine";
 
 export function ObjectMenu() {
+  const world = useWorld();
+  const { nodes } = useSelection();
+  const hasSelection = () => nodes().length > 0;
+
+  const hasContainer = () => nodes().some((node) => isGroupLike(node) || isSequence(node));
+  const hasSequence = () => nodes().some(isSequence);
+
   return (
     <>
       <DropdownMenuGroup>
@@ -30,9 +47,45 @@ export function ObjectMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!hasSelection()}
+          onSelect={() => groupSelection(world)}
+        >
+          Group
+          <DropdownMenuShortcut>⌘G</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!hasContainer()}
+          onSelect={() => ungroupSelection(world)}
+        >
+          Ungroup
+          <DropdownMenuShortcut>⇧⌘G</DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuGroup>
+
+      <DropdownMenuSeparator />
+
+      <DropdownMenuGroup>
+        <DropdownMenuItem
+          disabled={!hasSelection()}
+          onSelect={() => wrapSelectionInScene(world)}
+        >
           Wrap in scene
-          <DropdownMenuShortcut>⌘⌥↩︎</DropdownMenuShortcut>
+          <DropdownMenuShortcut>⌘↩︎</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!hasSelection()}
+          onSelect={() => wrapSelectionInSequence(world)}
+        >
+          Wrap in sequence
+          <DropdownMenuShortcut>⌥⌘↩︎</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!hasSequence()}
+          onSelect={() => unwrapSequenceSelection(world)}
+        >
+          Unwrap sequence
+          <DropdownMenuShortcut>⌥⇧⌘↩︎</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuGroup>
 

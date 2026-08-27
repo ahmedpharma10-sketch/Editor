@@ -13,24 +13,28 @@ import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
 import { ColorOpacityRow } from "@/components/ui/color-opacity-row";
-import { useEngine } from "@/context/engine";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createSignal } from "solid-js";
-import { DEFAULT_BACKGROUND, persistWorldState, useWorldState } from "@/components/engine";
+import { Background, DEFAULT_BACKGROUND, Root, colorToHex } from "@diffusionstudio/runtime";
+import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { useEditor } from "@/engine/hooks/use-editor";
 
 export function BackgroundSettings() {
-  const { world } = useEngine();
+  const world = useWorld();
+  const editor = useEditor();
 
   const [isPickerOpen, setIsPickerOpen] = createSignal(false);
-  const color = useWorldState(w => w.background, DEFAULT_BACKGROUND);
+  const background = useTrait(world.get(Root)!, Background);
+  const color = () => background()?.value ?? DEFAULT_BACKGROUND;
 
 
   let anchorRef: HTMLDivElement | undefined;
 
-  const assignColor = (next: number) => {
-    world.background = next;
-    persistWorldState(world);
+  const assignColor = (value: number) => {
+    const root = world.get(Root)!;
+    const color = colorToHex(value);
+    editor.editProperty(root, "background", color);
   };
 
   return (
@@ -69,8 +73,6 @@ export function BackgroundSettings() {
             color={color()}
             opacity={1}
             onColorChange={assignColor}
-            onBeginChange={(label) => world.history.startTransaction(label)}
-            onEndChange={() => world.history.commitTransaction()}
             withoutOpacity
           />
         </FloatingInspectorContent>

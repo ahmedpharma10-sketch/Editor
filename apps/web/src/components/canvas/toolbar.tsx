@@ -14,21 +14,21 @@ import {
   DropdownMenuPortal,
   DropdownMenuShortcut,
 } from "@/components/ui/dropdown-menu";
-import { useEngine } from "@/context/engine";
 import { PromptInput } from "../genai/prompt-input";
 import { ActionBar } from "../genai/action-bar";
 import { Show } from "solid-js";
-import { ToolType } from "../engine/components";
-import { useECS } from "@/context/ecs";
+import { Tool, ToolType } from "@diffusionstudio/runtime";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { useTool } from "@/engine";
 import { usePromptInput } from "@/context/prompt-input";
 
 export function Toolbar() {
-  const { world } = useEngine();
+  const world = useWorld();
   const { promptInputOpen, promptInputConfig, openPromptInput, setPromptInputOpen } = usePromptInput();
-  const { selectedTool } = useECS();
+  const selectedTool = useTool();
 
   const handleToolChange = (tool: ToolType) => {
-    world.selection.tool = tool;
+    world.set(Tool, { value: tool });
   }
 
   return (

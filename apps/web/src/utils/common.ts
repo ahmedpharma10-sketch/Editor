@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import type { Asset } from "@/components/engine/db";
+import type { Asset } from "@diffusionstudio/assets";
 
 /**
  * clip assert replacement for the browser
@@ -75,12 +75,12 @@ export class AsyncMutex {
  * @param asset - The asset to format.
  * @returns The formatted duration string, or null if the asset is not a video.
  */
-export function formatAssetDuration(asset: Asset | null | undefined): string | null {
+export function formatAssetDuration(asset: Pick<Asset, 'type'> & { duration?: number } | null | undefined): string | null {
   if (asset?.type != "VIDEO" && asset?.type != "AUDIO" && asset?.type != "SEQUENCE") {
     return null;
   }
 
-  const seconds = asset.duration;
+  const seconds = asset.duration ?? NaN;
   if (!Number.isFinite(seconds)) return "0:00";
 
   const totalSeconds = Math.max(0, Math.floor(seconds));

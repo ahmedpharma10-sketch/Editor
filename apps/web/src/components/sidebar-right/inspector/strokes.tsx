@@ -2,80 +2,85 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { For, createMemo, createSignal, Show } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ControlRow } from "@/components/ui/control-group";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Icon } from "@/components/ui/icon";
+import { ItemRow } from "@/components/ui/item-row";
 import { PanelSection } from "@/components/ui/panel-section";
-import { ControlledTextField } from "@/components/ui/text-field";
-import { SegmentedIconTabs } from "@/components/ui/segmented-icon-tabs";
-import { Keyframe } from "@/components/ui/keyframe";
-import { useEngine } from "@/context/engine";
-import { StrokeJoin, useEntityState, createEntity, deleteEntity, getSiblingEntities, addComponent, appendChild, setComponent } from "@/components/engine";
-import { FillRow } from "./fill-row";
-import { FillPicker } from "./fill-picker";
+import { useHas } from "@diffusionstudio/koota-solid";
+import { Stroke as StrokeElement } from "@diffusionstudio/reconciler";
+import { Cache, Computed, Hidden, colorToHex } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { StrokeInspector } from "./stroke-inspector";
 
+import type { Entity } from "koota";
 
-const STROKE_JOIN_SEGMENTS = [
-  { value: String(StrokeJoin.MITER), icon: 'line-join-miter', label: "Miter" },
-  { value: String(StrokeJoin.BEVEL), icon: 'line-join-bevel', label: "Bevel" },
-  { value: String(StrokeJoin.ROUND), icon: 'line-join-round', label: "Round" },
-];
+/** What "Add stroke" authors; `<stroke>`'s own default color. */
+const DEFAULT_COLOR = "#000000";
+
+// Stable identity, so a node without strokes does not resample every tick.
+const NO_STROKES: Entity[] = [];
 
 type StrokesSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
+/**
+ * The `<stroke>` children of the selected node, in paint order (the list is
+ * shown topmost first, so the last element in the file is the first row).
+ * A row opens the stroke's own inspector; what it shows is the color, since
+ * that is the one thing a stroke always says. The line style
+ * (`width`/`join`/`miterLimit`) is the stroke's own and not the node's, so it
+ * lives in that inspector rather than under every row.
+ */
 export function StrokesSettings(props: StrokesSettingsProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
+
   let anchorRef!: HTMLDivElement;
 
-  const eid = () => props.selection.values().next().value!;
+  const [picked, setPicked] = createSignal<Entity>();
 
-  const strokeEids = useEntityState(c.Cache.strokes, eid, []);
-  const lineJoinId = useEntityState(c.StrokeStyle.join, eid, 0);
-  const strokeWidth = useEntityState(c.Computed.strokeWidth, eid, 1);
-  const strokeMiterLimit = useEntityState(c.StrokeStyle.miterLimit, eid, 3);
-  const [selectedStroke, setSelectedStroke] = createSignal<number>();
-
-  const lineJoin = createMemo(() => String(lineJoinId()));
+  // Cache is derived state, written without change events.
+  const strokes = useDerived(() => entity().get(Cache)?.strokes ?? NO_STROKES);
 
   const handleAppendStroke = () => {
-    world.history.transaction('Append stroke', () => {
-      const solid = createEntity(world);
-      addComponent(world, solid, c.Stroke);
-      setComponent(world, solid, c.Color, 0x000000);
-      appendChild(world, solid, eid());
-    });
+    const [stroke] = editor.insertElement(entity(), () => (
+      <StrokeElement color={DEFAULT_COLOR} />
+    ));
+    if (stroke) setPicked(stroke);
   };
 
-  const handleStrokeWidthChange = (value: number) => {
-    setComponent(world, eid(), c.StrokeStyle, { width: value });
-  };
+  // Read back off the list, so removing a stroke closes the inspector on it.
+  const editing = createMemo(() => {
+    const stroke = picked();
+    return stroke !== undefined && strokes().includes(stroke) ? stroke : undefined;
+  });
 
-  const handleLineJoinChange = (value: string) => {
-    setComponent(world, eid(), c.StrokeStyle, { join: Number(value) });
-  };
+  /**
+   * Swaps `stroke` with its neighbour, later in the file (`direction` 1, on
+   * top) or earlier. Written as a swap because a move needs an anchor:
+   * `reparent` appends without one, and refuses an append into the parent the
+   * element already has.
+   */
+  const handleReorderStroke = (stroke: Entity, direction: number) => {
+    const siblings = strokes();
+    const index = siblings.indexOf(stroke);
+    const target = index + direction;
+    if (index === -1 || target < 0 || target >= siblings.length) return;
 
-  const handleMiterLimitChange = (value: number) => {
-    setComponent(world, eid(), c.StrokeStyle, { miterLimit: value });
-  };
-
-  const handleClosePicker = () => setSelectedStroke(undefined);
-  const handleSelectStroke = (strokeEid: number) => setSelectedStroke(strokeEid);
-  const handleRemoveStroke = (strokeEid: number) => deleteEntity(world, strokeEid);
-
-  const handleReorderStroke = (strokeEid: number, direction: number) => {
-    const strokes = getSiblingEntities(world, strokeEid, c.Stroke);
-    const index = strokes.indexOf(strokeEid);
-    const newIndex = index + direction;
-    if (newIndex >= 0 && newIndex < strokes.length) {
-      strokes.splice(newIndex, 0, strokes.splice(index, 1)[0]);
-      for (const [idx, eid] of strokes.entries()) {
-        setComponent(world, eid, c.ItemIndex, idx);
-      }
+    if (direction > 0) {
+      editor.reparent(siblings[target]!, entity(), stroke);
+    } else {
+      editor.reparent(stroke, entity(), siblings[target]!);
     }
   };
 
@@ -99,64 +104,82 @@ export function StrokesSettings(props: StrokesSettingsProps) {
           </Tooltip>
         }
       >
-        <For each={strokeEids().toReversed()}>
-          {(strokeEid) => (
-            <FillRow
-              nodeEid={eid()}
-              fillEid={strokeEid}
-              onSelect={() => handleSelectStroke(strokeEid)}
-              onRemove={() => handleRemoveStroke(strokeEid)}
-              onMoveUp={() => handleReorderStroke(strokeEid, 1)}
-              onMoveDown={() => handleReorderStroke(strokeEid, -1)}
+        <For each={strokes().toReversed()}>
+          {(stroke) => (
+            <StrokeRow
+              stroke={stroke}
+              onSelect={() => setPicked(stroke)}
+              onRemove={() => editor.remove(stroke)}
+              onMoveUp={() => handleReorderStroke(stroke, 1)}
+              onMoveDown={() => handleReorderStroke(stroke, -1)}
             />
           )}
         </For>
-
-        <Show when={strokeEids().length > 0}>
-          <ControlRow label="Weight">
-            <ControlledTextField
-              value={strokeWidth()}
-              onNumber={handleStrokeWidthChange}
-              step={1}
-              min={0}
-              autoSelect
-              limitEvents
-              keyframe={<Keyframe target={eid()} property="stroke.width" />}
-            />
-          </ControlRow>
-
-          <ControlRow label="Join">
-            <SegmentedIconTabs
-              value={lineJoin}
-              onChange={handleLineJoinChange}
-              items={STROKE_JOIN_SEGMENTS}
-              buttonClass="transition-colors"
-              iconClass="size-3.5 text-muted-foreground"
-            />
-          </ControlRow>
-
-          <ControlRow label="Miter">
-            <ControlledTextField
-              value={strokeMiterLimit()}
-              onNumber={handleMiterLimitChange}
-              step={1}
-              min={1}
-              autoSelect
-              limitEvents
-            />
-          </ControlRow>
-        </Show>
       </PanelSection>
-      <Show when={selectedStroke()}>
-        <FillPicker
-          nodeEid={eid()}
-          fillEid={selectedStroke()!}
+
+      <Show when={editing() !== undefined}>
+        <StrokeInspector
+          stroke={editing()!}
           anchorRef={anchorRef}
-          open={!!selectedStroke()}
-          onClose={handleClosePicker}
-          tabs={['solid', 'gradient']}
+          onClose={() => setPicked(undefined)}
         />
       </Show>
     </>
+  );
+}
+
+type StrokeRowProps = {
+  stroke: Entity;
+  onSelect(): void;
+  onRemove(): void;
+  onMoveUp(): void;
+  onMoveDown(): void;
+};
+
+function StrokeRow(props: StrokeRowProps) {
+  const editor = useEditor();
+
+  const color = useDerived(() => props.stroke.get(Computed)?.color ?? 0);
+  const hidden = useHas(() => props.stroke, Hidden);
+
+  const toggleHidden = () => {
+    editor.editProperty(props.stroke, "hidden", !hidden());
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <ItemRow
+          label="Stroke"
+          value={colorToHex(color()).replace("#", "")}
+          icon={<Icon name="rectangle-small" />}
+          onClick={props.onSelect}
+          disabled={hidden()}
+        >
+          <Tooltip>
+            <TooltipTrigger
+              as={Button}
+              size="icon"
+              variant="ghost"
+              class="text-muted-foreground"
+              onClick={props.onRemove}
+            >
+              <Icon name="close-remove-small" />
+            </TooltipTrigger>
+            <TooltipContent>Remove stroke</TooltipContent>
+          </Tooltip>
+        </ItemRow>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={props.onMoveUp}>Move Up</ContextMenuItem>
+        <ContextMenuItem onSelect={props.onMoveDown}>Move Down</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={toggleHidden}>
+          {hidden() ? "Unhide" : "Hide"}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={props.onRemove}>Remove</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

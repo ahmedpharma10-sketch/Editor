@@ -10,22 +10,6 @@ import { Icon } from "@/components/ui/icon";
 import { IncrementDecrementControl } from "@/components/ui/increment-decrement-control";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ControlledTextField } from "@/components/ui/text-field";
-import { useEngine } from "@/context/engine";
-import {
-  useEntityState,
-  useEntityTag,
-  PaintType,
-  computeTrimStart,
-  computeTrimEnd,
-  setComponent,
-  removeComponent,
-  isScene,
-  isGroup,
-  resolveSequentialOverlaps,
-  useAssets,
-  saveAsset,
-} from "@/components/engine";
-import { secondsToFrames } from "@/components/engine/utils/time";
 import {
   Checkbox,
   CheckboxControl,
@@ -46,8 +30,25 @@ import {
 } from "@/components/ui/context-menu";
 import { createStoredSignal } from "@/lib/store";
 import { store } from "@/init";
-import { hasComponent } from "bitecs";
+import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import {
+  Computed,
+  FrameRate,
+  Geometry,
+  PlaybackRate,
+  SourceFrameRate,
+  Trim,
+  findGeometryAsset,
+  findGeometryAssetSource,
+  getSequenceFrameRate,
+  isGroupLike,
+  isScene,
+  secondsToFrames,
+} from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { editTime, trimIn, trimOut } from "@/engine/timing";
 
+import type { Entity } from "koota";
 
 type TimeAddon = "inOut" | "playbackRate";
 type TimeAddons = Partial<Record<TimeAddon, boolean>>;
@@ -92,125 +93,102 @@ function parseTimeInput(value: string) {
 }
 
 type TimeSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
+/**
+ * Where the node sits on the timeline and for how long. Edits are time props
+ * (`start`/`end`/`sourceIn`/`sourceOut`/`playbackRate`) written through the
+ * editor; the resolved bounds are read from Computed, which the systems
+ * write, hence `useDerived`.
+ */
 export function TimeSettings(props: TimeSettingsProps) {
-  const { world } = useEngine();
-  const assets = useAssets(world);
-  const c = world.components;
-  const eid = () => props.selection.values().next().value!;
+  const world = useWorld();
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
   const [addons, setAddons] = createStoredSignal(
     store.define<TimeAddons>("time.addons", {})
   );
 
-  const playbackRate = useEntityState(c.PlaybackRate, eid, 1);
-  const trimStart = useEntityState(c.Trim.start, eid, 0);
-  const start = useEntityState(c.Computed.start, eid, 0);
-  const end = useEntityState(c.Computed.end, eid, 0);
-  const fillEids = useEntityState(c.Cache.fills, eid, []);
+  const frameRate = useTrait(world, FrameRate);
+  const fps = () => frameRate()?.value ?? 30;
 
-  const isContainer = createMemo(() => isScene(world, eid()) || isGroup(world, eid()));
-  const hasTrim = useEntityTag(c.Trim, eid);
+  const playbackRate = useTrait(entity, PlaybackRate);
+  const trim = useTrait(entity, Trim);
+  const start = useDerived(() => entity().get(Computed)?.start ?? 0);
+  const end = useDerived(() => entity().get(Computed)?.end ?? 0);
 
-  const playbackRatePercent = createMemo(() => Math.round(playbackRate() * 100));
+  const isContainer = createMemo(() => isGroupLike(entity()));
+  // A container whose trim closes spans that rather than fitting its children.
+  const hasTrim = () => (trim()?.end ?? null) !== null;
 
-  const startSeconds = createMemo(() => start() / world.frameRate);
-  const endSeconds = createMemo(() => end() / world.frameRate);
+  const playbackRatePercent = createMemo(() => Math.round((playbackRate()?.value ?? 1) * 100));
+
+  const startSeconds = createMemo(() => start() / fps());
+  const endSeconds = createMemo(() => end() / fps());
   const durationSeconds = createMemo(() => endSeconds() - startSeconds());
 
-  const supportsPlaybackRate = createMemo(() => hasComponent(world, eid(), c.Geometry) && !isScene(world, eid()));
+  const supportsPlaybackRate = createMemo(() => entity().has(Geometry) && !isScene(entity()));
 
-  const sequenceAsset = createMemo(() => {
-    for (const fid of fillEids() ?? []) {
-      if (c.Paint[fid] !== PaintType.SEQUENCE) continue;
-      const id = c.AssetId[fid];
-      if (!id) continue;
-      const asset = assets.get(id);
-      if (asset?.type === 'SEQUENCE') return asset;
-    }
-    return null;
+  // The frames directory the node shows, if any, and the element carrying it:
+  // the clip itself for a <video>, the paint for a <rect> with a fill.
+  const sequenceAsset = useDerived(() => {
+    const asset = findGeometryAsset(world, entity());
+    return asset?.type === 'SEQUENCE' ? asset : null;
+  });
+  const sequenceSource = useDerived(() => findGeometryAssetSource(world, entity()));
+  // The element's own rate when it sets one, else the asset's. Both are
+  // sampled: the trait is what the prop writes, the asset what it falls back to.
+  const authoredFrameRate = useTrait(sequenceSource, SourceFrameRate);
+  const sequenceFrameRate = createMemo(() => {
+    const asset = sequenceAsset();
+    const source = sequenceSource();
+    if (!asset || !source) return null;
+
+    return authoredFrameRate()?.value || getSequenceFrameRate(source, asset);
   });
 
   const handleAddAddon = (addon: TimeAddon) => setAddons({ ...addons(), [addon]: true });
   const handleRemoveAddon = (addon: TimeAddon) => setAddons({ ...addons(), [addon]: false });
 
-  // Apply a timing edit as one undo step, then trim/remove/split any sibling it
-  // now overlaps inside a Sequential container (no-op elsewhere).
-  const commitTimeChange = (label: string, mutate: () => void) => {
-    world.history.transaction(label, () => {
-      mutate();
-      resolveSequentialOverlaps(world, [eid()]);
-    });
-  };
-
-  const assignPlaybackRate = (newRate: number) => {
-    const newDelay = Math.round(start() - trimStart() / newRate);
-
-    commitTimeChange("Set speed", () => {
-      setComponent(world, eid(), c.PlaybackRate, newRate);
-      setComponent(world, eid(), c.Delay, newDelay);
-    });
+  // The rate scales the source window onto the timeline around the node's
+  // start, so the start stays put on its own; 1 is the default, so it is unset.
+  const assignPlaybackRate = (rate: number) => {
+    editor.editProperty(entity(), 'playbackRate', rate === 1 ? false : rate);
   };
 
   const handleInChange = (event: Event & { currentTarget: HTMLInputElement }) => {
     const parsed = parseTimeInput(event.currentTarget.value);
     if (parsed === null) return;
-
-    const parsedFrame = secondsToFrames(parsed);
-    const start = computeTrimStart(world, eid(), parsedFrame);
-    commitTimeChange("Set in point", () => setComponent(world, eid(), c.Trim, { start }));
+    trimIn(world, entity(), secondsToFrames(parsed, fps()));
   };
 
   const handleOutChange = (event: Event & { currentTarget: HTMLInputElement }) => {
     const parsed = parseTimeInput(event.currentTarget.value);
     if (parsed === null) return;
-
-    const parsedFrame = secondsToFrames(parsed);
-    const end = computeTrimEnd(world, eid(), parsedFrame);
-    commitTimeChange("Set out point", () => setComponent(world, eid(), c.Trim, { end }));
+    trimOut(world, entity(), secondsToFrames(parsed, fps()));
   };
 
   const handleLengthChange = (durationSec: number) => {
-    const newEnd = start() + secondsToFrames(durationSec);
-
-    const end = computeTrimEnd(world, eid(), newEnd);
-    commitTimeChange("Set length", () => setComponent(world, eid(), c.Trim, { end }));
-  }
+    trimOut(world, entity(), start() + secondsToFrames(durationSec, fps()));
+  };
 
   const toggleTrim = (checked: boolean) => {
-    commitTimeChange("Toggle trim", () => {
-      if (checked) {
-        // Seed the explicit window with the current computed bounds so enabling
-        // the trim doesn't visibly resize the container.
-        const trimStart = computeTrimStart(world, eid(), start());
-        const trimEnd = computeTrimEnd(world, eid(), end());
-        setComponent(world, eid(), c.Trim, { start: trimStart, end: trimEnd });
-      } else {
-        removeComponent(world, eid(), c.Trim);
-      }
-    });
+    if (checked) {
+      trimIn(world, entity(), start());
+    } else {
+      editTime(world, entity(), 'end', null);
+    }
   };
 
   const handleFrameRateChange = (newRate: number) => {
     const asset = sequenceAsset();
-    if (!asset) return;
+    const source = sequenceSource();
+    if (!asset || !source) return;
 
     const clamped = Math.max(1, Math.min(240, Math.round(newRate)));
-    if (clamped === asset.frameRate) return;
-
-    // The persisted asset stores duration + fps; the frame count is implied.
-    // Re-derive it so the new duration covers exactly the same frames.
-    const frameCount = Math.max(1, Math.round(asset.duration * asset.frameRate));
-    const newDurationInSeconds = frameCount / clamped;
-
-    saveAsset(world, { ...asset, frameRate: clamped, duration: newDurationInSeconds });
-
-    const newDuration = secondsToFrames(newDurationInSeconds);
-    if ((c.Trim.end[eid()] ?? 0) > newDuration) {
-      commitTimeChange("Set frame rate", () => setComponent(world, eid(), c.Trim, { end: newDuration }));
-    }
+    editor.editProperty(source, 'frameRate', clamped === asset.frameRate ? false : clamped);
   };
 
   return (
@@ -302,8 +280,6 @@ export function TimeSettings(props: TimeSettingsProps) {
         </ContextMenu>
       </Show>
 
-
-
       <Show when={addons().inOut}>
         <ContextMenu>
           <ContextMenuTrigger<typeof ControlRow>
@@ -330,11 +306,11 @@ export function TimeSettings(props: TimeSettingsProps) {
         </ContextMenu>
       </Show>
 
-      <Show when={sequenceAsset()}>
-        {(asset) => (
+      <Show when={sequenceFrameRate()}>
+        {(rate) => (
           <ControlRow label="Frame Rate">
             <ControlledTextField
-              value={Math.round(asset().frameRate)}
+              value={Math.round(rate())}
               min={1}
               max={240}
               step={1}

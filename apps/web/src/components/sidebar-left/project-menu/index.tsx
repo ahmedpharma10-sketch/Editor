@@ -9,15 +9,17 @@ import {
   DropdownMenuItem,
   DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { useSearchParams } from "@solidjs/router";
-import { Show } from "solid-js";
-import { useEditorApi } from "@/context/editor-api";
+import { useNavigate } from "@solidjs/router";
+import { Show, onCleanup, onMount } from "solid-js";
+import { isInputTarget } from "@/utils";
+import { useEditorApi } from "@/context/dapi";
 import { downloadDesktopApp } from "@/lib/desktop-app";
 import { FileMenu } from "./file-menu";
 import { EditMenu } from "./edit-menu";
@@ -27,18 +29,35 @@ import { AiCreditsMenu } from "./ai-credits-menu";
 import { HelpMenu } from "./help-menu";
 
 export function ProjectMenu() {
-  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const { isDesktop } = useEditorApi();
 
   const handleOpenDashboard = () => {
     (document.activeElement as HTMLElement)?.blur?.();
-    setParams({ dashboard: "projects" }, { replace: true });
+    navigate("/?dashboard=projects");
   };
 
   const handleOpenAccount = () => {
     (document.activeElement as HTMLElement)?.blur?.();
-    setParams({ dashboard: "account" }, { replace: true });
+    navigate("/?dashboard=account");
   };
+
+  /**
+   * Leaving the editor is the app's command rather than the runtime's, so its
+   * key is bound here, with the item that offers it.
+   */
+  const handleShortcut = (event: KeyboardEvent) => {
+    if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return;
+    if (event.key.toLowerCase() !== "d" || isInputTarget(event)) return;
+
+    event.preventDefault();
+    handleOpenDashboard();
+  };
+
+  onMount(() => {
+    window.addEventListener("keydown", handleShortcut);
+    onCleanup(() => window.removeEventListener("keydown", handleShortcut));
+  });
 
   return (
     <>
@@ -58,6 +77,7 @@ export function ProjectMenu() {
             <DropdownMenuGroup>
               <DropdownMenuItem onSelect={handleOpenDashboard}>
                 Go to dashboard
+                <DropdownMenuShortcut>⇧⌘D</DropdownMenuShortcut>
               </DropdownMenuItem>
             </DropdownMenuGroup>
 

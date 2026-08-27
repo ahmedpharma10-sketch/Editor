@@ -12,31 +12,30 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "@/components/ui/context-menu";
-import { useEngine } from "@/context/engine";
-import { useEntityState, setComponent } from "@/components/engine";
-import { Keyframe } from "@/components/ui/keyframe";
+import { Computed, Skew } from "@diffusionstudio/runtime";
+import { useDerived } from "@/engine/hooks";
 
+import type { Entity } from "koota";
 
 export type SkewRowProps = {
-  nodeEid: number;
+  node: Entity;
   onRemoveAddon(): void;
 };
 
+/**
+ * `Skew` has no JSX spelling, so this writes the trait alone and a skew is
+ * gone on the next recompile. It also has no keyframe diamonds: a track can
+ * only name a prop, and there is none to name.
+ */
 export function SkewRow(props: SkewRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const skewX = useDerived(() => props.node.get(Computed)?.skewX ?? 0);
+  const skewY = useDerived(() => props.node.get(Computed)?.skewY ?? 0);
 
-  const skewX = useEntityState(c.Computed.skewX, props.nodeEid, 0);
-  const skewY = useEntityState(c.Computed.skewY, props.nodeEid, 0);
+  const isDefault = createMemo(() => skewX() === 0 && skewY() === 0);
 
-  const isDefault = createMemo(() => (skewX() === 0 && skewY() === 0));
-
-  const updateSkewX = (x: number) => {
-    setComponent(world, props.nodeEid, c.Skew, { x });
-  };
-
-  const updateSkewY = (y: number) => {
-    setComponent(world, props.nodeEid, c.Skew, { y });
+  const updateSkew = (axis: 'x' | 'y', value: number) => {
+    props.node.add(Skew);
+    props.node.set(Skew, { [axis]: value });
   };
 
   return (
@@ -49,32 +48,30 @@ export function SkewRow(props: SkewRowProps) {
         <ControlledTextField
           icon={<Icon name="prop-x-position" />}
           value={skewX()}
-          onNumber={updateSkewX}
+          onNumber={(value) => updateSkew('x', value)}
           step={1}
           unit="°"
           autoSelect
           sliderEnabled
           limitEvents
-          keyframe={<Keyframe target={props.nodeEid} property="skew.x" />}
         />
         <ControlledTextField
           icon={<Icon name="prop-y-position" />}
           value={skewY()}
-          onNumber={updateSkewY}
+          onNumber={(value) => updateSkew('y', value)}
           step={1}
           unit="°"
           autoSelect
           sliderEnabled
           limitEvents
-          keyframe={<Keyframe target={props.nodeEid} property="skew.y" />}
         />
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem
           disabled={isDefault()}
           onSelect={() => {
-            updateSkewX(0);
-            updateSkewY(0);
+            updateSkew('x', 0);
+            updateSkew('y', 0);
           }}
         >
           Reset to Default

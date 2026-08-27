@@ -2,15 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {
-  deleteProject,
-  duplicateProject,
-  listRecentProjects,
-  setProjectName,
-  setProjectThumbnail,
-  DEFAULT_PROJECT_ID,
-  type ProjectEntry,
-} from "@/components/engine/db";
+import { forgetProjectBundle, generateProjectName } from "@/lib/db";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -20,9 +12,18 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { TextField, TextFieldInput } from "@/components/ui/text-field";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "somoto";
-import { For, Show, batch, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
-import { useSearchParams } from "@solidjs/router";
+import { For, Show, batch, createMemo, createResource, createSignal, onCleanup } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 
 import {
   Select,
@@ -39,23 +40,37 @@ import {
   DashboardViewSection,
 } from "./shared";
 import { DashboardSearchPanel } from "./search-bar";
-import { useProjectId } from "@/hooks/use-project-id";
-import { captureCanvasThumbnail } from "../engine/thumbnail";
-import { MAIN_CANVAS_ID } from "../canvas";
+import { DashboardProjectsFolderBar } from "./projects-folder-bar";
+import { projectRoute } from "@/hooks/use-project-route";
 import { Icon } from "../ui/icon";
-import { nanoid } from "nanoid";
 import { track } from "@/lib/analytics";
+import {
+  createProject,
+  deleteProject,
+  duplicateProject,
+  ensureProjectsRoot,
+  isDesktop,
+  listProjects,
+  projectKey,
+  projectCoverKey,
+  projectsRoot,
+  readProjectCover,
+  renameProject,
+  type ProjectInfo,
+} from "@/projects";
 
 import type { ProjectSortOption } from "./types";
 
 export function DashboardProjectsView() {
-  const projectId = useProjectId();
-  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = createSignal("");
   const [sort, setSort] = createSignal<ProjectSortOption>("last-viewed");
-  const [projects, { refetch: refetchProjects }] = createResource(() => listRecentProjects(32));
-  const [contextMenuProjectId, setContextMenuProjectId] = createSignal<string | null>(null);
-  const [renamingProjectId, setRenamingProjectId] = createSignal<string | null>(null);
+  const [projects, { refetch: refetchProjects }] = createResource(projectsRoot, () => listProjects());
+  const [selectedProject, setSelectedProject] = createSignal<string | null>(null);
+  const [creating, setCreating] = createSignal(false);
+  const [pendingDelete, setPendingDelete] = createSignal<ProjectInfo | null>(null);
+  const [deleting, setDeleting] = createSignal(false);
+  const [renamingProject, setRenamingProject] = createSignal<string | null>(null);
   const [renameDraft, setRenameDraft] = createSignal("");
 
   const selectedSortOption = () =>
@@ -63,23 +78,12 @@ export function DashboardProjectsView() {
 
   const normalizedSearch = createMemo(() => search().trim().toLowerCase());
 
-  onMount(async () => {
-    if (projectId() == DEFAULT_PROJECT_ID) return;
-
-    const canvas = document.getElementById(MAIN_CANVAS_ID) as HTMLCanvasElement;
-    const blob = await captureCanvasThumbnail(canvas);
-    if (blob) {
-      setProjectThumbnail(projectId(), blob);
-      refetchProjects();
-    };
-  })
-
   const filteredProjects = createMemo(() => {
     const query = normalizedSearch();
     const entries = projects() ?? [];
     if (!query) return entries;
 
-    return entries.filter((project) => project.name.toLowerCase().includes(query));
+    return entries.filter((project) => project.displayName.toLowerCase().includes(query));
   });
 
   const sortedProjects = createMemo(() => {
@@ -87,7 +91,7 @@ export function DashboardProjectsView() {
     const entries = [...filteredProjects()];
 
     if (sortMode === "alphabetical") {
-      entries.sort((a, b) => a.name.localeCompare(b.name));
+      entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
       return entries;
     }
 
@@ -96,41 +100,56 @@ export function DashboardProjectsView() {
       return entries;
     }
 
-    entries.sort((a, b) => parseTimestamp(b.lastAccessedAt) - parseTimestamp(a.lastAccessedAt));
+    entries.sort((a, b) => parseTimestamp(b.modifiedAt) - parseTimestamp(a.modifiedAt));
     return entries;
   });
 
-  const openProject = (projectId: string) => {
-    if (renamingProjectId() === projectId) return;
+  const openProject = (project: ProjectInfo) => {
+    if (renamingProject() === project.dir) return;
 
     track('project_opened');
-    setParams({ project: projectId, dashboard: undefined }, { replace: true });
+    navigate(projectRoute(projectKey(project)));
   };
 
-  const startRenaming = (project: ProjectEntry) => {
+  const startRenaming = (project: ProjectInfo) => {
     batch(() => {
-      setRenameDraft(project.name);
-      setRenamingProjectId(project.id);
+      setRenameDraft(project.displayName);
+      setRenamingProject(project.dir);
     });
   };
 
-  const handleDelete = async (project: ProjectEntry) => {
+  const handleDelete = async (project: ProjectInfo) => {
     try {
-      await deleteProject(project.id);
+      await deleteProject(project.dir);
+      forgetProjectBundle(project.id);
       track('project_deleted');
+      setSelectedProject((current) => (current === project.dir ? null : current));
       refetchProjects();
-    } catch {
-      toast.error("Failed to delete project");
+    } catch (e) {
+      toast.error("Failed to delete project", { description: (e as Error).message });
     }
   };
 
-  const handleDuplicate = async (project: ProjectEntry) => {
+  const confirmDelete = async () => {
+    const project = pendingDelete();
+    if (!project || deleting()) return;
+
+    setDeleting(true);
     try {
-      await duplicateProject(project.id);
+      await handleDelete(project);
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
+  };
+
+  const handleDuplicate = async (project: ProjectInfo) => {
+    try {
+      await duplicateProject(project.dir);
       track('project_duplicated');
       refetchProjects();
-    } catch {
-      toast.error("Failed to duplicate project");
+    } catch (e) {
+      toast.error("Failed to duplicate project", { description: (e as Error).message });
     }
   };
 
@@ -138,25 +157,30 @@ export function DashboardProjectsView() {
     setRenameDraft(event.currentTarget.value);
   };
 
-  const handleFocusRenameInput = (event: FocusEvent & { currentTarget: HTMLInputElement }) => {
-    event.currentTarget.select();
+  // The input mounts from a context-menu selection, which restores focus to
+  // the trigger on close — so the input must claim focus itself, after that.
+  const handleRenameInputRef = (el: HTMLInputElement) => {
+    queueMicrotask(() => {
+      el.focus();
+      el.select();
+    });
   };
 
   const handleBlurRenameInput = () => {
     batch(() => {
-      setRenamingProjectId(null);
+      setRenamingProject(null);
       setRenameDraft("");
     });
     refetchProjects();
   };
 
-  const handleKeyDownRenameInput = async (event: KeyboardEvent, projectId: string) => {
+  const handleKeyDownRenameInput = async (event: KeyboardEvent, project: ProjectInfo) => {
     const input = event.currentTarget as HTMLInputElement;
     const trimmedName = renameDraft()?.trim() ?? "";
 
     if (event.key === "Escape") {
       refetchProjects();
-      setRenamingProjectId(null);
+      setRenamingProject(null);
       setRenameDraft("");
 
       event.preventDefault();
@@ -168,24 +192,49 @@ export function DashboardProjectsView() {
       event.preventDefault();
       event.stopPropagation();
 
-      if (trimmedName.length > 0 && projectId === renamingProjectId()) {
-        await setProjectName(projectId, trimmedName);
+      // The folder moves with the name, so the list is refetched below
+      // rather than patched: every path in it has just changed.
+      if (trimmedName.length > 0 && project.dir === renamingProject()) {
+        try {
+          await renameProject(project.dir, trimmedName);
+        } catch (e) {
+          toast.error("Failed to rename project", { description: (e as Error).message });
+        }
       }
 
       refetchProjects();
-      setRenamingProjectId(null);
+      setRenamingProject(null);
       setRenameDraft("");
 
       input.blur();
     };
   };
 
-  const handleCreateProject = () => {
-    track('project_created');
-    setParams({
-      project: nanoid(),
-      dashboard: undefined
-    }, { replace: true });
+  // New project is the one card a single click still acts on, so a double
+  // click lands on it as two clicks — the guard keeps that from creating two
+  // projects.
+  const handleCreateProject = async () => {
+    if (creating()) return;
+    setCreating(true);
+
+    try {
+      if (!isDesktop()) {
+        toast.error("Projects on disk are only available in the desktop app");
+        return;
+      }
+      // Waits for the roots to come back from the database, and asks for one
+      // when there is none to wait for.
+      if (!(await ensureProjectsRoot())) return;
+
+      const project = await createProject(generateProjectName());
+      track('project_created');
+      refetchProjects();
+      openProject(project);
+    } catch (e) {
+      toast.error("Failed to create project", { description: (e as Error).message });
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -197,32 +246,35 @@ export function DashboardProjectsView() {
       <DashboardViewSection
         class="pb-4"
         title="Recent projects"
+        onBackgroundClick={() => setSelectedProject(null)}
         controls={
-          <Select<(typeof SORT_OPTIONS)[number]>
-            options={SORT_OPTIONS}
-            value={selectedSortOption()}
-            onChange={(option) => option && setSort(option.id)}
-            optionValue="id"
-            optionTextValue="label"
-            itemComponent={(itemProps) => (
-              <SelectItem item={itemProps.item}>
-                {itemProps.item.rawValue.label}
-              </SelectItem>
-            )}
-          >
-            <SelectTrigger aria-label="Sort projects">
-              <SelectValue<(typeof SORT_OPTIONS)[number]>>
-                {(state) => state.selectedOption()?.label}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectPortal>
-              <SelectContent />
-            </SelectPortal>
-          </Select>
+          <>
+            <Select<(typeof SORT_OPTIONS)[number]>
+              options={SORT_OPTIONS}
+              value={selectedSortOption()}
+              onChange={(option) => option && setSort(option.id)}
+              optionValue="id"
+              optionTextValue="label"
+              itemComponent={(itemProps) => (
+                <SelectItem item={itemProps.item}>
+                  {itemProps.item.rawValue.label}
+                </SelectItem>
+              )}
+            >
+              <SelectTrigger aria-label="Sort projects">
+                <SelectValue<(typeof SORT_OPTIONS)[number]>>
+                  {(state) => state.selectedOption()?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent />
+              </SelectPortal>
+            </Select>
+          </>
         }
       >
         <DashboardCardButton onClick={handleCreateProject}>
-          <DashboardCardPreview class="bg-accent/50 group-hover:bg-accent group-hover:border-input">
+          <DashboardCardPreview class="bg-overlay-soft group-hover:bg-overlay">
             <Icon
               name="plus-add"
               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground"
@@ -230,32 +282,32 @@ export function DashboardProjectsView() {
           </DashboardCardPreview>
           <DashboardCardMeta title="New project" />
         </DashboardCardButton>
-        <For each={sortedProjects().filter(project => project.id !== DEFAULT_PROJECT_ID).slice(0, MAX_VISIBLE_PROJECTS)}>
+        <For each={sortedProjects().slice(0, MAX_VISIBLE_PROJECTS)}>
           {(project) => (
             <ContextMenu
               modal={false}
               onOpenChange={(open) => {
-                setContextMenuProjectId((current) => {
-                  if (open) return project.id;
-                  return current === project.id ? null : current;
-                });
+                if (open) setSelectedProject(project.dir);
               }}
             >
               <ContextMenuTrigger as="div" class="contents">
                 <DashboardCardButton
-                  active={contextMenuProjectId() === project.id}
-                  onClick={() => openProject(project.id)}
+                  active={selectedProject() === project.dir}
+                  onClick={() => setSelectedProject(project.dir)}
+                  onDoubleClick={() => openProject(project)}
+                  onEscape={() => setSelectedProject(null)}
+                  onDelete={() => setPendingDelete(project)}
                 >
                   <DashboardCardPreview>
-                    <ProjectThumbnail thumbnail={project.thumbnail} />
+                    <ProjectThumbnail dir={project.dir} />
                   </DashboardCardPreview>
                   <div class="flex flex-col gap-1 px-2">
                     <div class="relative h-4 w-full">
                       <Show
-                        when={renamingProjectId() === project.id}
+                        when={renamingProject() === project.dir}
                         fallback={
                           <p class="min-w-0 truncate text-xs text-foreground">
-                            {project.name}
+                            {project.displayName}
                           </p>
                         }
                       >
@@ -263,27 +315,27 @@ export function DashboardProjectsView() {
                           <TextFieldInput
                             uiSize="compact"
                             type="text"
+                            ref={handleRenameInputRef}
                             value={renameDraft()}
                             onInput={handleRenameInput}
-                            onFocus={handleFocusRenameInput}
                             onBlur={handleBlurRenameInput}
-                            onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project.id)}
+                            onKeyDown={(e: KeyboardEvent) => handleKeyDownRenameInput(e, project)}
                             placeholder="Project name"
                             aria-label="Project name"
-                            class="absolute left-1/2 top-1/2 h-5 w-56 -translate-x-1/2 -translate-y-1/2 border border-ring bg-input px-1 py-0 ring-1 ring-inset ring-ring"
+                            class="absolute inset-x-0 top-1/2 h-5 w-full -translate-y-1/2 border border-ring bg-input px-1 py-0 ring-1 ring-inset ring-ring"
                           />
                         </TextField>
                       </Show>
                     </div>
                     <p class="min-w-0 truncate text-xs text-muted-foreground">
-                      {formatEditedAt(project.lastAccessedAt)}
+                      {formatEditedAt(project.modifiedAt)}
                     </p>
                   </div>
                 </DashboardCardButton>
               </ContextMenuTrigger>
               <ContextMenuPortal>
                 <ContextMenuContent class="w-45 gap-0">
-                  <ContextMenuItem onSelect={() => openProject(project.id)}>
+                  <ContextMenuItem onSelect={() => openProject(project)}>
                     Open
                   </ContextMenuItem>
                   <ContextMenuSeparator class="my-2" />
@@ -294,7 +346,7 @@ export function DashboardProjectsView() {
                     Duplicate
                   </ContextMenuItem>
                   <ContextMenuSeparator class="my-2" />
-                  <ContextMenuItem onSelect={() => handleDelete(project)}>
+                  <ContextMenuItem onSelect={() => setPendingDelete(project)}>
                     Delete
                   </ContextMenuItem>
                 </ContextMenuContent>
@@ -303,19 +355,56 @@ export function DashboardProjectsView() {
           )}
         </For>
       </DashboardViewSection>
+      <DashboardProjectsFolderBar />
+
+      <AlertDialog
+        open={pendingDelete() !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting()) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`"${pendingDelete()?.displayName ?? ""}" will be moved to the Trash. `}
+              You can restore it from there until the Trash is emptied.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="secondary"
+              disabled={deleting()}
+              onClick={() => setPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting()} onClick={confirmDelete}>
+              {deleting() ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardSearchPanel>
   );
 }
 
-function ProjectThumbnail(props: { thumbnail?: Blob }) {
-  const url = createMemo(() => {
-    if (!props.thumbnail) return null;
-    return URL.createObjectURL(props.thumbnail);
-  });
+function ProjectThumbnail(props: { dir: string }) {
+  const [cover] = createResource(
+    () => projectCoverKey(props.dir),
+    () => readProjectCover(props.dir),
+  );
+
+  // The URL the last cover was under is released as this one takes its place.
+  const url = createMemo<string | null>((previous) => {
+    if (previous) URL.revokeObjectURL(previous);
+    const blob = cover();
+    return blob ? URL.createObjectURL(blob) : null;
+  }, null);
 
   onCleanup(() => {
-    const u = url();
-    if (u) URL.revokeObjectURL(u);
+    const current = url();
+    if (current) URL.revokeObjectURL(current);
   });
 
   return (
@@ -331,7 +420,7 @@ function ProjectThumbnail(props: { thumbnail?: Blob }) {
 }
 
 const SORT_OPTIONS: Array<{ id: ProjectSortOption; label: string }> = [
-  { id: "last-viewed", label: "Last viewed" },
+  { id: "last-viewed", label: "Last modified" },
   { id: "alphabetical", label: "Alphabetical" },
   { id: "date-created", label: "Date created" },
 ];
@@ -343,8 +432,8 @@ function parseTimestamp(value: string): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function formatEditedAt(lastAccessedAt: string): string {
-  const timestamp = parseTimestamp(lastAccessedAt);
+function formatEditedAt(modifiedAt: string): string {
+  const timestamp = parseTimestamp(modifiedAt);
   if (!timestamp) return "Edited just now";
 
   const elapsedMs = Date.now() - timestamp;

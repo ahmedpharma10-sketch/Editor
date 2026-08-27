@@ -2,19 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { useEngine } from "@/context/engine";
-import {
-  useAssets,
-  loadAsset,
-  removeAsset,
-  selectAsset,
-  clearSelectedAssets,
-  useFolders,
-  openFolder,
-  createFolder,
-  assetFolderId,
-  nextFolderName,
-} from "@/components/engine";
+import { basename, dirname } from "@diffusionstudio/assets";
 import { usePromptInput } from "@/context/prompt-input";
 import { createDefaultConfig } from "@/components/genai/prompt-input";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
@@ -28,7 +16,6 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { showFileDialog } from "@/utils";
 import { toast } from "somoto";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -40,26 +27,36 @@ import {
   BreadcrumbsSeparator,
 } from "../ui/breadcrumbs";
 import { LazyAssetItem } from "./asset-item";
-import { FolderItem, handleFolderDrop, ASSET_DRAG_TYPE, FOLDER_DRAG_TYPE } from "./folder-item";
+import { FolderItem, handleFolderDrop, isAssetOrFolderDrag, ASSET_DRAG_TYPE, FOLDER_DRAG_TYPE } from "./folder-item";
+import { useLibrary } from "@/engine/library";
+import { useAssetSelection } from "@/engine/hooks";
+import { droppedFiles, importFiles, pickAndImport } from "@/engine/asset-actions";
+import { isInputTarget } from "@/utils";
 
-import type { EngineWorld } from "@/components/engine";
-import type { ElectronFileHandle } from "@/lib/electron-file-handle";
+import type { AssetLibrary } from "@diffusionstudio/assets";
+
+/** The ancestors of a folder path, root excluded, nearest last. */
+function ancestorsOf(path: string): string[] {
+  const chain: string[] = [];
+  for (let folder = path; folder; folder = dirname(folder)) chain.unshift(folder);
+  return chain;
+}
 
 export function Assets() {
   let root: HTMLDivElement | undefined;
   let dragCounter = 0;
 
-  const { world } = useEngine();
-  const assets = useAssets(world);
-  const folders = useFolders(world);
+  const library = useLibrary();
+  const { id: selectedAssetId, select: setSelectedAssetId } = useAssetSelection();
   const { openPromptInput } = usePromptInput();
   const [query, setQuery] = createSignal("");
   const [assetFilter, setAssetFilter] = createSignal<AssetFilter>("ALL");
   const [isDragging, setIsDragging] = createSignal(false);
-  const [renamingFolderId, setRenamingFolderId] = createSignal<string | null>(null);
+  const [renamingFolder, setRenamingFolder] = createSignal<string | null>(null);
+  const [currentFolder, setCurrentFolder] = createSignal("");
 
-
-  const selectedAssetId = () => assets.selected().keys().next().value ?? null;
+  const allAssets = createMemo(() => library()?.list().filter((asset) => asset.type !== "SCRIPT") ?? []);
+  const allFolders = createMemo(() => [...(library()?.folders() ?? [])].sort());
 
   const activeFilterLabel = () => {
     const value = assetFilter();
@@ -69,46 +66,46 @@ export function Assets() {
 
   const filteredAssets = createMemo(() => {
     const q = query().trim().toLowerCase();
-    const list = assets.all();
     const selectedFilter = assetFilter();
+    const folder = currentFolder();
 
-    return list.filter((asset) => {
-      if (asset.type === "SCRIPT") return false;
+    return allAssets().filter((asset) => {
       if (selectedFilter !== "ALL" && asset.type !== selectedFilter) return false;
-      if (q) return asset.name.toLowerCase().includes(q);
-      return assetFolderId(world, asset) === folders.currentId();
+      if (q) return basename(asset.path).toLowerCase().includes(q);
+      return dirname(asset.path) === folder;
     });
   });
 
   const visibleFolders = createMemo(() => {
     const q = query().trim().toLowerCase();
     if (q) {
-      return folders
-        .all()
-        .filter((folder) => folder.name.toLowerCase().includes(q))
-        .sort((a, b) => a.name.localeCompare(b.name));
+      return allFolders().filter((folder) => basename(folder).toLowerCase().includes(q));
     }
-    return folders.childrenOf(folders.currentId());
+    return library()?.childrenOf(currentFolder()).folders ?? [];
   });
 
-  const panelTitle = createMemo(() => folders.get(folders.currentId() ?? "")?.name ?? "Assets");
+  const panelTitle = createMemo(() => (currentFolder() ? basename(currentFolder()) : "Assets"));
   const itemCount = createMemo(() => visibleFolders().length + filteredAssets().length);
 
   // Deep paths collapse like the breadcrumbs docs example:
   // All assets / … / parent / current, with the hidden folders in a dropdown.
+  const folderPath = createMemo(() => ancestorsOf(currentFolder()));
   const collapsedFolders = createMemo(() => {
-    const path = folders.path();
+    const path = folderPath();
     return path.length > 2 ? path.slice(0, -2) : [];
   });
   const tailFolders = createMemo(() => {
-    const path = folders.path();
+    const path = folderPath();
     return path.length > 2 ? path.slice(-2) : path;
   });
 
+  const openFolder = (path: string) => {
+    setQuery("");
+    setCurrentFolder(path);
+  };
+
   const handleGoToParent = () => {
-    const id = folders.currentId();
-    if (id === null) return;
-    openFolder(world, folders.get(id)?.parentId ?? null);
+    if (currentFolder()) openFolder(dirname(currentFolder()));
   };
 
   const getAssetIdFromTarget = (target: EventTarget | null) => {
@@ -116,34 +113,25 @@ export function Assets() {
     return element?.closest("[data-asset-id]")?.getAttribute("data-asset-id") ?? null;
   };
 
+  // A folder that went away (deleted, moved) closes to the nearest one left.
   createEffect(() => {
-    const selected = selectedAssetId();
-    if (!selected) return;
-    if (!assets.get(selected)) {
-      clearSelectedAssets(world);
-    }
+    const folders = library()?.folders();
+    let folder = currentFolder();
+    if (!folders || !folder || folders.has(folder)) return;
+    while (folder && !folders.has(folder)) folder = dirname(folder);
+    setCurrentFolder(folder);
   });
 
-  const importAssets = async (
-    handles: ReadonlyArray<File | FileSystemFileHandle | ElectronFileHandle | DataTransferItem>,
-  ) => {
-    if (handles.length === 0) return;
-
-    try {
-      await Promise.all(handles.map((handle) => {
-        return loadAsset(world, handle, { folderId: folders.currentId() });
-      }));
-    } catch (e) {
-      toast("Failed to import assets", {
-        description: (e as Error).message,
-      });
+  const withLibrary = (run: (library: AssetLibrary) => void | Promise<void>) => {
+    const lib = library();
+    if (!lib) {
+      toast("No project open", { description: "Open a project to manage its assets." });
+      return;
     }
+    return run(lib);
   };
 
-  const handleImportAssets = async () => {
-    const files = await showFileDialog();
-    await importAssets(files);
-  };
+  const handleImportAssets = () => withLibrary((lib) => pickAndImport(lib, currentFolder()).then(() => {}));
 
   const handleDrop = async (event: DragEvent) => {
     event.preventDefault();
@@ -153,14 +141,10 @@ export function Assets() {
 
     document.body.style.cursor = "default";
 
-    if (await handleFolderDrop(world, event, folders.currentId())) {
-      return;
-    }
-
-    const items = Array.from(event.dataTransfer?.items ?? []).filter(
-      (item) => item.kind === "file"
-    );
-    await importAssets(items);
+    const lib = library();
+    if (!lib) return;
+    if (handleFolderDrop(lib, event, currentFolder())) return;
+    await importFiles(lib, droppedFiles(event), currentFolder());
   };
 
   const handleDragOver = (event: DragEvent) => {
@@ -198,7 +182,7 @@ export function Assets() {
 
 
   const handleSelectAsset = (assetId: string) => {
-    selectAsset(world, assetId);
+    setSelectedAssetId(assetId);
     root?.focus();
   };
 
@@ -222,7 +206,7 @@ export function Assets() {
     const nextId = nextItem?.dataset.assetId;
     if (!nextId) return;
 
-    selectAsset(world, nextId);
+    setSelectedAssetId(nextId);
     nextItem.scrollIntoView({ block: "nearest" });
   };
 
@@ -237,18 +221,18 @@ export function Assets() {
     }
 
     if (event.key === "Backspace" || event.key === "Delete") {
-      const selectedAsset = selectedAssetId();
-      if (selectedAsset) {
+      const selected = selectedAssetId();
+      const asset = selected ? library()?.get(selected) : undefined;
+      if (asset) {
         event.preventDefault();
         event.stopPropagation();
-        removeAsset(world, selectedAsset);
+        void library()?.remove([asset]);
         return;
       }
 
-      const selectedFolder = folders.currentId();
-      if (selectedFolder) {
+      if (currentFolder()) {
         event.preventDefault();
-        openFolder(world, folders.get(selectedFolder)?.parentId ?? null);
+        handleGoToParent();
       }
 
       return;
@@ -270,34 +254,47 @@ export function Assets() {
 
   const handleBackgroundClick = (event: MouseEvent) => {
     if (!getAssetIdFromTarget(event.target)) {
-      clearSelectedAssets(world);
+      setSelectedAssetId(null);
     }
   };
 
-  const hasAssets = () => assets.all().length > 0;
-  const hasContent = () => hasAssets() || folders.all().length > 0;
+  const hasAssets = () => allAssets().length > 0;
+  const hasContent = () => hasAssets() || allFolders().length > 0;
   const isFiltering = () => query().trim().length > 0 || assetFilter() !== "ALL";
   const isEmptyView = () => visibleFolders().length === 0 && filteredAssets().length === 0;
 
-  const handleCreateFolder = async () => {
-    try {
-      const parentId = folders.currentId();
-      const folder = await createFolder(world, nextFolderName(world, parentId), parentId);
-      setRenamingFolderId(folder.id);
-    } catch (e) {
-      toast.error("Failed to create folder", { description: (e as Error).message });
+  const handleCreateFolder = () => withLibrary((lib) => {
+    const parent = currentFolder();
+    const name = lib.uniqueFolderName(parent, "New folder");
+    const folder = lib.createFolder(parent ? `${parent}/${name}` : name);
+    setRenamingFolder(folder);
+  });
+
+  /**
+   * The panel's own keys, the ones its menu advertises. These commands are the
+   * library's rather than the stage's, so they are bound here and not in the
+   * engine's shortcut table, and they act on the folder the panel is showing —
+   * the same folder the buttons import into.
+   */
+  const handleShortcut = (event: KeyboardEvent) => {
+    if (!(event.metaKey || event.ctrlKey) || isInputTarget(event)) return;
+    const key = event.key.toLowerCase();
+
+    if (key === "i" && !event.shiftKey) {
+      event.preventDefault();
+      void handleImportAssets();
+      return;
+    }
+
+    if (key === "n" && event.shiftKey) {
+      event.preventDefault();
+      handleCreateFolder();
     }
   };
 
-  const handleOpenFolder = (folderId: string) => {
-    setQuery("");
-    openFolder(world, folderId);
-  };
-
   onMount(() => {
-    const onCreateFolder = () => handleCreateFolder();
-    window.addEventListener("engine:create-folder", onCreateFolder);
-    onCleanup(() => window.removeEventListener("engine:create-folder", onCreateFolder));
+    window.addEventListener("keydown", handleShortcut);
+    onCleanup(() => window.removeEventListener("keydown", handleShortcut));
   });
 
   return (
@@ -313,7 +310,7 @@ export function Assets() {
     >
       <div class="h-12 shrink-0 flex items-center gap-2 px-4 border-y border-border">
         <div class="flex-1 min-w-0 flex items-center gap-0.5 text-[12px] leading-5 font-strong text-foreground">
-          <Show when={folders.currentId() !== null}>
+          <Show when={currentFolder() !== ""}>
             <Button
               size="icon"
               variant="ghost"
@@ -414,10 +411,10 @@ export function Assets() {
 
       <Show when={hasContent() && !isDragging()}>
         <div class="shrink-0 px-4 pt-4 pb-1 flex flex-col gap-4">
-          <Show when={folders.currentId() !== null}>
+          <Show when={currentFolder() !== ""}>
             <Breadcrumbs separator="/">
               <BreadcrumbList class="text-xs gap-1 sm:gap-1">
-                <BreadcrumbCrumb world={world} label="All assets" folderId={null} />
+                <BreadcrumbCrumb label="All assets" folder="" onOpen={openFolder} />
                 <Show when={collapsedFolders().length > 0}>
                   <BreadcrumbsSeparator />
                   <BreadcrumbsItem>
@@ -432,9 +429,9 @@ export function Assets() {
                             {(folder) => (
                               <DropdownMenuItem
                                 tone="neutral"
-                                onSelect={() => openFolder(world, folder.id)}
+                                onSelect={() => openFolder(folder)}
                               >
-                                <span class="truncate">{folder.name}</span>
+                                <span class="truncate">{basename(folder)}</span>
                               </DropdownMenuItem>
                             )}
                           </For>
@@ -448,10 +445,10 @@ export function Assets() {
                     <>
                       <BreadcrumbsSeparator />
                       <BreadcrumbCrumb
-                        world={world}
-                        label={folder.name}
-                        folderId={folder.id}
-                        current={folder.id === folders.currentId()}
+                        label={basename(folder)}
+                        folder={folder}
+                        current={folder === currentFolder()}
+                        onOpen={openFolder}
                       />
                     </>
                   )}
@@ -530,11 +527,11 @@ export function Assets() {
               <For each={visibleFolders()}>
                 {(folder) => (
                   <FolderItem
-                    folder={folder}
-                    renaming={renamingFolderId() === folder.id}
-                    onRenameStart={() => setRenamingFolderId(folder.id)}
-                    onRenameEnd={() => setRenamingFolderId(null)}
-                    onOpen={() => handleOpenFolder(folder.id)}
+                    path={folder}
+                    renaming={renamingFolder() === folder}
+                    onRenameStart={() => setRenamingFolder(folder)}
+                    onRenameEnd={() => setRenamingFolder(null)}
+                    onOpen={() => openFolder(folder)}
                   />
                 )}
               </For>
@@ -589,10 +586,10 @@ function FilterIconStack(props: FilterIconStackProps) {
 }
 
 type BreadcrumbCrumbProps = {
-  world: EngineWorld;
   label: string;
-  folderId: string | null;
+  folder: string;
   current?: boolean;
+  onOpen(folder: string): void;
 };
 
 /**
@@ -601,25 +598,21 @@ type BreadcrumbCrumbProps = {
  */
 function BreadcrumbCrumb(props: BreadcrumbCrumbProps) {
   const [isDropTarget, setIsDropTarget] = createSignal(false);
-
-  const isInternalDrag = (event: DragEvent) => {
-    const types = event.dataTransfer?.types ?? [];
-    return types.includes(ASSET_DRAG_TYPE) || types.includes(FOLDER_DRAG_TYPE);
-  };
+  const library = useLibrary();
 
   const handleDragOver = (event: DragEvent) => {
-    if (!isInternalDrag(event)) return;
+    if (!isAssetOrFolderDrag(event)) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDropTarget(true);
   };
 
-  const handleDrop = async (event: DragEvent) => {
-    if (!isInternalDrag(event)) return;
+  const handleDrop = (event: DragEvent) => {
+    if (!isAssetOrFolderDrag(event)) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDropTarget(false);
-    await handleFolderDrop(props.world, event, props.folderId);
+    handleFolderDrop(library(), event, props.folder);
   };
 
   return (
@@ -629,7 +622,7 @@ function BreadcrumbCrumb(props: BreadcrumbCrumbProps) {
         current={props.current}
         data-drop-target={isDropTarget()}
         class="max-w-32 truncate rounded px-1 outline-none focus-ring data-[current]:text-muted-foreground hover:text-foreground data-[drop-target=true]:ring-2 data-[drop-target=true]:ring-inset data-[drop-target=true]:ring-ring"
-        onClick={() => openFolder(props.world, props.folderId)}
+        onClick={() => props.onOpen(props.folder)}
         on:dragover={handleDragOver}
         on:dragleave={() => setIsDropTarget(false)}
         on:drop={handleDrop}

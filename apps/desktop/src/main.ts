@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { app, BrowserWindow, nativeImage, session, shell } from "electron";
-import { join } from "node:path";
-import { open, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { mkdir, open, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
 import { updateElectronApp } from "update-electron-app";
@@ -13,12 +13,38 @@ import { trackInstall } from "./analytics";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
+import {
+  compileProject,
+  createProject,
+  defaultRoot,
+  deleteProject,
+  duplicateProject,
+  getProject,
+  initProject,
+  listProjects,
+  pickRoot,
+  renameProject,
+  resolveProject,
+  unwatchAll,
+  listEntries,
+  realPathEntry,
+  markSelfWriteAbsolute,
+  readConfig,
+  readManifest,
+  removeEntry,
+  statEntry,
+  unwatchProject,
+  watchProject,
+  writeConfig,
+  writeManifest,
+  writeProject,
+} from "./projects";
 import type { DeepLinkChannel } from "./main-channels";
 import type { LogEntry } from "@diffusionstudio/cli/protocol";
 
 const DEV_URL = "http://localhost:5173";
 const AUTH_PROTOCOL = "diffusion";
-const MACOS_CORNER_RADIUS = 16;
+const MACOS_CORNER_RADIUS = 18;
 const MACOS_BACKDROP = { blur: 80, red: 0.07, green: 0.07, blue: 0.07, alpha: 0.9 };
 
 app.setName("Diffusion Studio");
@@ -231,6 +257,7 @@ if (app.requestSingleInstanceLock()) {
   });
 
   mainBridge.handle(MAIN_CHANNELS.APP_OPEN_EXTERNAL, ({ url }) => shell.openExternal(url));
+  mainBridge.handle(MAIN_CHANNELS.APP_SHOW_IN_FOLDER, ({ path }) => shell.showItemInFolder(path));
   mainBridge.handle(MAIN_CHANNELS.AUTH_GET_PENDING_CALLBACK, () =>
     takePendingDeepLink(MAIN_CHANNELS.AUTH_CALLBACK),
   );
@@ -246,11 +273,39 @@ if (app.requestSingleInstanceLock()) {
   });
   mainBridge.handle(MAIN_CHANNELS.HEADLESS_GET_MODE, () => isHeadless());
   mainBridge.handle(MAIN_CHANNELS.LOGS_GET, () => logBuffer);
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_PICK_ROOT, () => pickRoot(mainWindow));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_DEFAULT_ROOT, () => defaultRoot(mainWindow));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_LIST, ({ root }) => listProjects(root));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_GET, ({ dir }) => getProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_INIT, ({ dir }) => initProject(mainWindow, dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_RESOLVE, ({ root, ref }) => resolveProject(root, ref));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CREATE, ({ root, displayName }) =>
+    createProject(root, displayName),
+  );
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_RENAME, ({ dir, displayName }) => renameProject(dir, displayName));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_DUPLICATE, ({ dir }) => duplicateProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_DELETE, ({ dir }) => deleteProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_COMPILE, ({ dir }) => compileProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_WRITE, ({ dir, edits }) => writeProject(dir, edits));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_WATCH, ({ dir }, event) =>
+    watchProject(BrowserWindow.fromWebContents(event.sender), dir),
+  );
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_UNWATCH, ({ dir }) => unwatchProject(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_MANIFEST_READ, ({ dir }) => readManifest(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_MANIFEST_WRITE, ({ dir, manifest }) => writeManifest(dir, manifest));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CONFIG_READ, ({ dir }) => readConfig(dir));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_CONFIG_WRITE, ({ dir, config }) => writeConfig(dir, config));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_LIST, ({ dir, source }) => listEntries(dir, source));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_STAT, ({ dir, source }) => statEntry(dir, source));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_REMOVE, ({ dir, path }) => removeEntry(dir, path));
+  mainBridge.handle(MAIN_CHANNELS.PROJECTS_FS_REAL_PATH, ({ dir, source }) => realPathEntry(dir, source));
   mainBridge.handle(MAIN_CHANNELS.FILE_TRANSFER, ({ selector, absolutePath }) =>
     setFileInputFiles(selector, absolutePath),
   );
 
   mainBridge.handle(MAIN_CHANNELS.FILE_WRITE_OPEN, async ({ path, exclusive }) => {
+    await mkdir(dirname(path), { recursive: true });
+    markSelfWriteAbsolute(path);
     const handle = await open(path, exclusive ? "wx" : "w");
     const id = randomUUID();
     openWrites.set(id, { handle, path });
@@ -260,6 +315,7 @@ if (app.requestSingleInstanceLock()) {
   mainBridge.handle(MAIN_CHANNELS.FILE_WRITE_CHUNK, async ({ id, data, position }) => {
     const entry = openWrites.get(id);
     if (!entry) throw new Error(`No open file for write id ${id}`);
+    markSelfWriteAbsolute(entry.path);
     await entry.handle.write(data, 0, data.byteLength, position);
   });
 
@@ -267,6 +323,7 @@ if (app.requestSingleInstanceLock()) {
     const entry = openWrites.get(id);
     if (!entry) return;
     openWrites.delete(id);
+    markSelfWriteAbsolute(entry.path);
     await entry.handle.close();
   });
 
@@ -302,6 +359,7 @@ if (app.requestSingleInstanceLock()) {
   });
 
   app.on("before-quit", () => {
+    unwatchAll();
     stopCliServer();
   });
 

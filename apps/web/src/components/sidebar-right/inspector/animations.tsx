@@ -2,19 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ControlRow } from "@/components/ui/control-group";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuGroupLabel,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   FloatingInspector,
   FloatingInspectorContent,
@@ -29,102 +20,149 @@ import {
   SelectContent,
   SelectItem,
   SelectPortal,
+  SelectSection,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { SliderInput } from "@/components/ui/slider-input";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { Animation as AnimationElement } from "@diffusionstudio/reconciler";
+import {
+  Animation,
+  AnimationPhase,
+  Cache,
+  FrameRate,
+  Paint,
+  PaintType,
+  framesToSeconds,
+  getIntrinsicPaint,
+  isAudio,
+  isText,
+} from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { ANIMATION_GROUPS, DEFAULT_ANIMATION, animationOption } from "./animation-types";
 
-import { useEntityState, AnimationType, AnimationPhase, PaintType, createEntity, deleteEntity, isAudio, isText, appendChild, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { secondsToFrames } from "@/components/engine/utils/time";
+import type { AnimationGroup, AnimationOption } from "./animation-types";
+import type { Entity } from "koota";
 
+/** `<animation>`'s defaults; a control left at one of these unsets its prop. */
+const DEFAULT_DURATION = 1;
+const DEFAULT_DELAY = 0;
+
+// Stable identity, so a node without animations does not resample every tick.
+const NO_ANIMATIONS: Entity[] = [];
+
+const phaseRank = (animation: Entity) =>
+  animation.get(Animation)?.phase === AnimationPhase.OUT ? 1 : 0;
+
+const sameOrder = (a: Entity[], b: Entity[]) =>
+  a.length === b.length && a.every((entity, index) => entity === b[index]);
 
 type AnimationsSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
-const ANIMATION_LABELS: Record<AnimationType, string> = {
-  [AnimationType.FADE]: "Fade",
-  [AnimationType.GAIN]: "Volume",
-  [AnimationType.GROW]: "Grow",
-  [AnimationType.SHRINK]: "Shrink",
-  [AnimationType.BLUR]: "Blur",
-  [AnimationType.SLIDE_LEFT]: "Slide left",
-  [AnimationType.SLIDE_RIGHT]: "Slide right",
-  [AnimationType.SLIDE_UP]: "Slide up",
-  [AnimationType.SLIDE_DOWN]: "Slide down",
-  [AnimationType.SPIN]: "Spin",
-  [AnimationType.TWIST]: "Twist",
-  [AnimationType.APPEAR_WORD]: "Appear word",
-  [AnimationType.APPEAR_CHAR]: "Appear character",
-  [AnimationType.SCRAMBLE]: "Scramble",
-};
+/**
+ * The `<animation>` children of the selected node: the presets it plays over
+ * its head and tail. Rows are the ones playing in first and the ones playing
+ * out after, each in the file's order, which is the order they write in when
+ * two of them drive the same property.
+ *
+ * The plus authors a fade rather than asking which preset first: every
+ * animation is the same three settings under a different name, so which one
+ * it is, is a control in the inspector like the others.
+ */
+export function AnimationsSettings(props: AnimationsSettingsProps) {
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-type AnimationGroupKind = "text" | "audio";
+  let anchorRef!: HTMLDivElement;
 
-const ANIMATION_GROUPS: Array<{ label: string; types: AnimationType[]; kind?: AnimationGroupKind }> = [
-  {
-    label: "Fade",
-    types: [
-      AnimationType.FADE,
-      AnimationType.SLIDE_LEFT,
-      AnimationType.SLIDE_RIGHT,
-      AnimationType.SLIDE_UP,
-      AnimationType.SLIDE_DOWN,
-    ],
-  },
-  {
-    label: "Scale",
-    types: [
-      AnimationType.GROW,
-      AnimationType.SHRINK,
-      AnimationType.SPIN,
-      AnimationType.TWIST,
-    ],
-  },
-  {
-    label: "Blur",
-    types: [AnimationType.BLUR],
-  },
-  {
-    label: "Text",
-    kind: "text",
-    types: [
-      AnimationType.APPEAR_WORD,
-      AnimationType.APPEAR_CHAR,
-      AnimationType.SCRAMBLE,
-    ],
-  },
-  {
-    label: "Audio",
-    kind: "audio",
-    types: [AnimationType.GAIN],
-  },
-];
+  const [picked, setPicked] = createSignal<Entity>();
+
+  // Cache is derived state, written without change events.
+  const animations = useDerived(() => {
+    const list = entity().get(Cache)?.animations ?? NO_ANIMATIONS;
+    // Sorting is stable, so the file's order survives within each phase.
+    return list.length < 2 ? list : [...list].sort((a, b) => phaseRank(a) - phaseRank(b));
+  }, sameOrder);
+
+  const handleAppendAnimation = () => {
+    const [animation] = editor.insertElement(entity(), () => (
+      <AnimationElement type={DEFAULT_ANIMATION.name} />
+    ));
+    // Which preset it is, is the one thing the default cannot answer, so the
+    // inspector opens on the new animation for it to be said.
+    if (animation) setPicked(animation);
+  };
+
+  // Read back off the list, so removing an animation closes the inspector on it.
+  const editing = createMemo(() => {
+    const animation = picked();
+    return animation !== undefined && animations().includes(animation) ? animation : undefined;
+  });
+
+  return (
+    <>
+      <PanelSection
+        title="Animations"
+        ref={anchorRef}
+        actions={
+          <Tooltip>
+            <TooltipTrigger
+              as={Button}
+              size="icon"
+              variant="ghost"
+              class="text-muted-foreground"
+              onClick={handleAppendAnimation}
+            >
+              <Icon name="plus-add" />
+            </TooltipTrigger>
+            <TooltipContent>Add animation</TooltipContent>
+          </Tooltip>
+        }
+      >
+        <For each={animations()}>
+          {(animation) => (
+            <AnimationRow
+              animation={animation}
+              onSelect={() => setPicked(animation)}
+              onRemove={() => editor.remove(animation)}
+            />
+          )}
+        </For>
+      </PanelSection>
+
+      <Show when={editing() !== undefined}>
+        <AnimationInspector
+          animation={editing()!}
+          node={entity()}
+          anchorRef={anchorRef}
+          onClose={() => setPicked(undefined)}
+        />
+      </Show>
+    </>
+  );
+}
 
 type AnimationRowProps = {
-  animEid: number;
-  onInspect(): void;
+  animation: Entity;
+  onSelect(): void;
   onRemove(): void;
 };
 
 function AnimationRow(props: AnimationRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const animation = useTrait(() => props.animation, Animation);
 
-  const animationType = useEntityState(c.Animation.type, props.animEid, 0);
-  const animationPhase = useEntityState(c.Animation.phase, props.animEid, 0);
-
-  const label = createMemo(() => ANIMATION_LABELS[animationType() as AnimationType]);
-  const phaseLabel = createMemo(() => animationPhase() === AnimationPhase.OUT ? "OUT" : "IN");
+  const label = createMemo(() => animationOption(animation()?.type).label);
+  const phase = createMemo(() => (animation()?.phase === AnimationPhase.OUT ? "OUT" : "IN"));
 
   return (
     <ItemRow
+      label={phase()}
       value={label()}
-      label={phaseLabel()}
       icon={<Icon name="preferences-adjust" />}
-      onClick={props.onInspect}
+      onClick={props.onSelect}
     >
       <Tooltip>
         <TooltipTrigger
@@ -142,218 +180,154 @@ function AnimationRow(props: AnimationRowProps) {
   );
 }
 
-export function AnimationsSettings(props: AnimationsSettingsProps) {
-  const { world } = useEngine();
-  const c = world.components;
+/** Whether `node` has anything to hear, which is what a gain animates. */
+function hasAudio(node: Entity): boolean {
+  if (isAudio(node) || getIntrinsicPaint(node) === PaintType.VIDEO) return true;
+  return (node.get(Cache)?.fills ?? []).some((fill) => fill.get(Paint)?.value === PaintType.VIDEO);
+}
 
-  const [inspectingAnimation, setInspectingAnimation] = createSignal<number>();
+type AnimationInspectorProps = {
+  animation: Entity;
+  node: Entity;
+  anchorRef: HTMLElement;
+  onClose(): void;
+};
 
-  let inspectorAnchorRef: HTMLDivElement | undefined;
+/**
+ * One `<animation>`: which preset it is (the select in the header, where a
+ * title would be), whether it plays in or out, how long it takes and how
+ * long after the clip edge it starts. `type` is required and always written;
+ * the other three unset at their defaults.
+ */
+function AnimationInspector(props: AnimationInspectorProps) {
+  const world = useWorld();
+  const editor = useEditor();
 
-  const eid = () => props.selection.values().next().value!;
-  const animations = useEntityState(c.Cache.animations, eid, []);
-  const fillEids = useEntityState(c.Cache.fills, eid, [] as number[]);
+  const animation = useTrait(() => props.animation, Animation);
+  const frameRate = useTrait(world, FrameRate);
 
-  const availableGroups = createMemo(() => {
-    // Captions are also text-geometry, so isText covers both.
-    const isTextNode = isText(world, eid());
-    const isAudioNode = isAudio(world, eid());
-    const hasVideoFill = fillEids().some(fid => c.Paint[fid] === PaintType.VIDEO);
-    const hasAudio = isAudioNode || hasVideoFill;
+  const option = createMemo(() => animationOption(animation()?.type));
+  const fps = () => frameRate()?.value ?? 30;
+  const duration = createMemo(() => framesToSeconds(animation()?.duration ?? 0, fps()));
+  const delay = createMemo(() => framesToSeconds(animation()?.delay ?? 0, fps()));
+  const isOut = createMemo(() => animation()?.phase === AnimationPhase.OUT);
 
-    return ANIMATION_GROUPS.filter(group => {
-      if (group.kind === "text") return isTextNode;
-      if (group.kind === "audio") return hasAudio;
-      return true;
-    });
-  });
-
-  const inAnimEids = createMemo(() =>
-    animations().filter(animEid => c.Animation.phase[animEid] !== AnimationPhase.OUT)
+  /**
+   * The groups this node can play, plus whichever one holds the current
+   * preset: a `gain` authored on a node that has since lost its audio still
+   * has to be shown, or the select would have no value to display.
+   */
+  const groups = createMemo(() =>
+    ANIMATION_GROUPS.filter(
+      (group) =>
+        group.kind === undefined ||
+        (group.kind === "text" ? isText(props.node) : hasAudio(props.node)) ||
+        group.options.includes(option()),
+    ),
   );
-  const outAnimEids = createMemo(() =>
-    animations().filter(animEid => c.Animation.phase[animEid] === AnimationPhase.OUT)
-  );
 
-  const handleAddAnimation = (type: AnimationType) => {
-    world.history.transaction('Add animation', () => {
-      const animEid = createEntity(world);
-      setComponent(world, animEid, c.Animation, {
-        duration: world.frameRate,
-        type,
-        phase: AnimationPhase.IN,
-      });
-      appendChild(world, animEid, eid());
-    });
+  const handleTypeChange = (next: AnimationOption | null) => {
+    if (next === null || next.name === option().name) return;
+    editor.editProperty(props.animation, "type", next.name);
   };
 
-  const handleRemoveAnimation = (aid: number) => deleteEntity(world, aid);
-  const handleInspectAnimation = (aid: number) => setInspectingAnimation(aid);
-
-  // Read inspected animation's data reactively
-  const inspectedPhase = useEntityState(c.Animation.phase, inspectingAnimation, 0);
-  const inspectedDuration = useEntityState(c.Animation.duration, inspectingAnimation, world.frameRate);
-  const inspectedDurationInSeconds = createMemo(() => inspectedDuration() / world.frameRate);
-  const inspectedDelay = useEntityState(c.Animation.delay, inspectingAnimation, 0);
-  const inspectedDelayInSeconds = createMemo(() => inspectedDelay() / world.frameRate);
-
-  const handleDurationChange = (durationSec: number) => {
-    const eid = inspectingAnimation();
-    if (!eid) return;
-    setComponent(world, eid, c.Animation, { duration: secondsToFrames(durationSec) });
+  const handlePhaseChange = (next: boolean) => {
+    editor.editProperty(props.animation, "phase", next ? "out" : false);
   };
 
-  const handleDelayChange = (delaySec: number) => {
-    const eid = inspectingAnimation();
-    if (!eid) return;
-    setComponent(world, eid, c.Animation, { delay: secondsToFrames(delaySec) });
+  const handleDurationChange = (seconds: number) => {
+    const next = Math.round(seconds * 10) / 10;
+    editor.editProperty(props.animation, "duration", next === DEFAULT_DURATION ? false : next);
   };
 
-  const handlePhaseChange = (phase: AnimationPhase) => {
-    const eid = inspectingAnimation();
-    if (!eid) return;
-    setComponent(world, eid, c.Animation, { phase });
+  const handleDelayChange = (seconds: number) => {
+    const next = Math.round(seconds * 10) / 10;
+    editor.editProperty(props.animation, "delay", next === DEFAULT_DELAY ? false : next);
   };
 
   return (
-    <>
-      <PanelSection
-        title="Animations"
-        ref={inspectorAnchorRef}
-        actions={
-          <DropdownMenu placement="bottom-end" modal>
-            <Tooltip>
-              <TooltipTrigger<typeof DropdownMenuTrigger>
-                as={(triggerProps: object) => (
-                  <DropdownMenuTrigger<typeof Button>
-                    {...triggerProps}
-                    as={(buttonProps) => (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        class="text-muted-foreground"
-                        {...buttonProps}
-                      >
-                        <Icon name="plus-add" />
-                      </Button>
-                    )}
-                  />
-                )}
-              />
-              <TooltipContent>Add animation</TooltipContent>
-            </Tooltip>
-            <DropdownMenuPortal>
-              <DropdownMenuContent>
-                <For each={availableGroups()}>
-                  {(group, index) => (
-                    <>
-                      <Show when={index() > 0}>
-                        <DropdownMenuSeparator />
-                      </Show>
-                      <DropdownMenuGroup>
-                        <DropdownMenuGroupLabel>{group.label}</DropdownMenuGroupLabel>
-                        <For each={group.types}>
-                          {(type) => (
-                            <DropdownMenuItem onSelect={() => handleAddAnimation(type)}>
-                              {ANIMATION_LABELS[type]}
-                            </DropdownMenuItem>
-                          )}
-                        </For>
-                      </DropdownMenuGroup>
-                    </>
-                  )}
-                </For>
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenu>
-        }
-      >
-        <For each={inAnimEids()}>
-          {(animEid) => (
-            <AnimationRow
-              animEid={animEid}
-              onInspect={() => handleInspectAnimation(animEid)}
-              onRemove={() => handleRemoveAnimation(animEid)}
-            />
+    <FloatingInspector open anchorRef={props.anchorRef} width={248}>
+      <FloatingInspectorHeader class="items-center justify-between px-2">
+        <Select<AnimationOption, AnimationGroup>
+          value={option()}
+          onChange={handleTypeChange}
+          options={groups()}
+          optionValue="name"
+          optionTextValue="label"
+          optionGroupChildren="options"
+          itemComponent={(itemProps) => (
+            <SelectItem item={itemProps.item}>{itemProps.item.rawValue.label}</SelectItem>
           )}
-        </For>
-
-        <For each={outAnimEids()}>
-          {(animEid) => (
-            <AnimationRow
-              animEid={animEid}
-              onInspect={() => handleInspectAnimation(animEid)}
-              onRemove={() => handleRemoveAnimation(animEid)}
-            />
+          sectionComponent={(sectionProps) => (
+            <SelectSection>{sectionProps.section.rawValue.label}</SelectSection>
           )}
-        </For>
-      </PanelSection>
+        >
+          <SelectTrigger>
+            <SelectValue<AnimationOption>>
+              {(state) => state.selectedOption()?.label}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPortal>
+            <SelectContent />
+          </SelectPortal>
+        </Select>
+        <Tooltip>
+          <TooltipTrigger
+            as={Button}
+            size="icon"
+            variant="ghost"
+            class="text-muted-foreground"
+            onClick={props.onClose}
+          >
+            <Icon name="close-remove" />
+          </TooltipTrigger>
+          <TooltipContent>Close</TooltipContent>
+        </Tooltip>
+      </FloatingInspectorHeader>
+      <FloatingInspectorSeparator />
+      <FloatingInspectorContent class="flex flex-col gap-2 p-4">
+        <ControlRow label="Phase">
+          <Select<boolean>
+            value={isOut()}
+            onChange={(value) => value !== null && handlePhaseChange(value)}
+            options={[false, true]}
+            itemComponent={(itemProps) => (
+              <SelectItem item={itemProps.item}>
+                {itemProps.item.rawValue ? "Out" : "In"}
+              </SelectItem>
+            )}
+          >
+            <SelectTrigger>
+              <SelectValue class="text-xs">{isOut() ? "Out" : "In"}</SelectValue>
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectContent />
+            </SelectPortal>
+          </Select>
+        </ControlRow>
 
-      <Show when={inspectingAnimation()}>
-        <FloatingInspector open anchorRef={inspectorAnchorRef} width={248}>
-          <FloatingInspectorHeader class="items-center justify-between px-2">
-            <Select
-              value={inspectedPhase()}
-              options={[AnimationPhase.IN, AnimationPhase.OUT]}
-              onChange={(value) => value !== null && handlePhaseChange(value)}
-              itemComponent={(itemProps) => (
-                <SelectItem item={itemProps.item}>
-                  {itemProps.item.rawValue === AnimationPhase.OUT ? "Out" : "In"}
-                </SelectItem>
-              )}
-            >
-              <SelectTrigger>
-                <SelectValue>
-                  {inspectedPhase() === AnimationPhase.OUT ? "Out" : "In"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectPortal>
-                <SelectContent />
-              </SelectPortal>
-            </Select>
-            <Tooltip>
-              <TooltipTrigger
-                as={Button}
-                size="icon"
-                variant="ghost"
-                class="text-muted-foreground"
-                onClick={() => setInspectingAnimation(undefined)}
-              >
-                <Icon name="close-remove" />
-              </TooltipTrigger>
-              <TooltipContent>Close</TooltipContent>
-            </Tooltip>
-          </FloatingInspectorHeader>
-          <FloatingInspectorSeparator />
+        <ControlRow label="Duration">
+          <SliderInput
+            value={duration()}
+            onChange={handleDurationChange}
+            min={0.1}
+            max={5}
+            step={0.1}
+            format={(value) => `${value.toFixed(1)}s`}
+          />
+        </ControlRow>
 
-          <FloatingInspectorContent class="p-4 gap-2 flex flex-col">
-            <ControlRow label="Duration">
-              <SliderInput
-                value={inspectedDurationInSeconds()}
-                onChange={handleDurationChange}
-                min={0.1}
-                max={5}
-                step={0.1}
-                format={(v) => `${v.toFixed(1)}s`}
-                onDragStart={() => world.history.startTransaction("Edit animation duration")}
-                onDragEnd={() => world.history.commitTransaction()}
-              />
-            </ControlRow>
-            <ControlRow label="Delay">
-              <SliderInput
-                value={inspectedDelayInSeconds()}
-                onChange={handleDelayChange}
-                min={0}
-                max={5}
-                step={0.1}
-                format={(v) => `${v.toFixed(1)}s`}
-                onDragStart={() => world.history.startTransaction("Edit animation delay")}
-                onDragEnd={() => world.history.commitTransaction()}
-              />
-            </ControlRow>
-          </FloatingInspectorContent>
-        </FloatingInspector>
-      </Show>
-    </>
+        <ControlRow label="Delay">
+          <SliderInput
+            value={delay()}
+            onChange={handleDelayChange}
+            min={0}
+            max={5}
+            step={0.1}
+            format={(value) => `${value.toFixed(1)}s`}
+          />
+        </ControlRow>
+      </FloatingInspectorContent>
+    </FloatingInspector>
   );
 }

@@ -27,8 +27,9 @@ const config: ForgeConfig = {
       !path.startsWith('/dist/') &&
       path !== '/web' &&
       !path.startsWith('/web/'),
-    // Staged by scripts/stage-cli.mjs; ends up at Contents/Resources/cli.
-    extraResource: ['./cli'],
+    // Staged by scripts/stage-cli.mjs and stage-docs.mjs; end up at
+    // Contents/Resources/{cli,docs}.
+    extraResource: ['./cli', './docs'],
     osxSign: process.env.SKIP_SIGN ? undefined : {},
     osxNotarize:
       process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID

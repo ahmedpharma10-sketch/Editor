@@ -2,59 +2,26 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { createMemo } from "solid-js";
-
 import { Icon } from "@/components/ui/icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuPortal,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useWorldState } from "@/components/engine/hooks/use-ecs";
-import { useEngine } from "@/context/engine";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { useCameraScale, zoomBy, zoomTo, zoomToFit } from "@/engine";
 
 export function InspectorHeader() {
-  const { world, camera } = useEngine();
+  const world = useWorld();
 
-  const cameraA = useWorldState(w => w.camera.a, 1);
-  const cameraB = useWorldState(w => w.camera.b, 0);
-
-  const zoom = createMemo(() => {
-    const scale = Math.hypot(cameraA(), cameraB());
-    if (!Number.isFinite(scale)) return null;
-    return scale * 100;
-  });
-
-  const zoomLabel = () => {
-    const value = zoom();
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return `${Math.round(value)}%`;
-    }
-    return "72%";
-  };
-
-  const getCanvasCenter = () => {
-    const canvas = world.canvas;
-    if (!(canvas instanceof HTMLCanvasElement)) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return { x: rect.width / 2, y: rect.height / 2 };
-  };
-
-  const zoomBy = (factor: number) => {
-    const { x, y } = getCanvasCenter();
-    camera.zoom(x, y, factor);
-  };
-
-  const zoomTo = (targetPercent: number) => {
-    const currentScale = Math.hypot(world.camera.a, world.camera.b);
-    if (!currentScale || !Number.isFinite(currentScale)) return;
-    const factor = (targetPercent / 100) / currentScale;
-    const { x, y } = getCanvasCenter();
-    camera.zoom(x, y, factor);
-  };
+  // Every operation here is anchored on the stage itself — its center, or its
+  // content — so the menu needs no canvas geometry of its own.
+  const scale = useCameraScale();
+  const zoomLabel = () => `${Math.round(scale() * 100)}%`;
 
   return (
     <div class="h-12 shrink-0 flex items-center px-4">
@@ -77,19 +44,26 @@ export function InspectorHeader() {
         />
         <DropdownMenuPortal>
           <DropdownMenuContent class="w-40">
-            <DropdownMenuItem onSelect={() => zoomBy(1.25)}>
+            <DropdownMenuItem onSelect={() => zoomBy(world, 1.25)}>
               Zoom in
+              <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomBy(0.8)}>
+            <DropdownMenuItem onSelect={() => zoomBy(world, 0.8)}>
               Zoom out
+              <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomTo(50)}>
+            <DropdownMenuItem onSelect={() => zoomToFit(world)}>
+              Zoom to fit
+              <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => zoomTo(world, 0.5)}>
               Zoom to 50%
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomTo(100)}>
+            <DropdownMenuItem onSelect={() => zoomTo(world, 1)}>
               Zoom to 100%
+              <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => zoomTo(200)}>
+            <DropdownMenuItem onSelect={() => zoomTo(world, 2)}>
               Zoom to 200%
             </DropdownMenuItem>
           </DropdownMenuContent>

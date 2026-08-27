@@ -1,19 +1,25 @@
 /* @jsxImportSource @diffusionstudio/jsx */
 /* WebGPU owning a <surface>: a triangle whose colors cycle with the playhead.
  *
- *   dapi mount examples/07-webgpu.tsx
+ *   cp examples/07-webgpu.tsx ~/Projects/webgpu/index.tsx
+ *   dapi open ~/Projects/webgpu
  *
- * The <surface> ref hands a detached canvas to a WebGPU context; the engine
+ * `ref={surfaceRef}` assigns the surface's node, whose `element` is its
+ * detached canvas; onMount a WebGPU context takes it over, and the engine
  * samples the bitmap into the node's box every frame. Device setup is async,
- * so the ref creates the draw effect synchronously and a signal wakes it once
- * the pipeline exists. Composition time feeds a uniform and the fragment
- * shader derives the colors from it (a phase-shifted cosine palette), so the
- * playhead is the only clock: scrubbing and exports stay frame-accurate.
+ * so the draw effect is created synchronously in the component body and a
+ * signal wakes it once the pipeline exists — and `hold` keeps an export from
+ * writing the frames that setup hasn't finished for, since a capture or an
+ * export mounts the module again and sets up a device of its own.
+ * Composition time feeds a uniform and the fragment shader derives the colors
+ * from it (a phase-shifted cosine palette), so the playhead is the only
+ * clock: scrubbing and exports stay frame-accurate.
  * Fails with a console error where WebGPU is unavailable.
  */
 
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { useTicker } from "@diffusionstudio/jsx";
+import type { SceneNode } from "@diffusionstudio/jsx";
 
 const SHADER = /* wgsl */ `
   @group(0) @binding(0) var<uniform> time: f32;
@@ -50,10 +56,15 @@ type Gpu = {
 };
 
 export default function WebgpuTriangle() {
-  const { time } = useTicker();
+  const { time, hold } = useTicker();
   const [gpu, setGpu] = createSignal<Gpu>();
 
-  const setup = async (el: HTMLCanvasElement) => {
+  let surfaceRef: SceneNode | undefined;
+
+  const setup = async () => {
+    const el = surfaceRef!.element;
+    if (!el) return;
+
     const adapter = await navigator.gpu?.requestAdapter();
     if (!adapter) throw new Error("WebGPU is not available");
     const device = await adapter.requestDevice();
@@ -81,6 +92,9 @@ export default function WebgpuTriangle() {
 
     setGpu({ device, context, pipeline, uniforms, bindGroup });
   };
+
+  // Held, so the frames wait for the pipeline instead of being sampled empty.
+  onMount(() => hold(setup()));
 
   createEffect(() => {
     const g = gpu();
@@ -110,8 +124,10 @@ export default function WebgpuTriangle() {
   onCleanup(() => gpu()?.device.destroy());
 
   return (
-    <rect scene="example-webgpu" name="WebGPU triangle" width={960} height={540} fill="#0b0d12">
-      <surface x={0} y={0} width={960} height={540} ref={setup} />
-    </rect>
+    <stage camera={[0.6, 0, 0, 0.6, 85, 150]}>
+      <scene name="WebGPU triangle" width={960} height={540} fill="#0b0d12" active>
+        <surface x={0} y={0} width={960} height={540} ref={surfaceRef} />
+      </scene>
+    </stage>
   );
 }

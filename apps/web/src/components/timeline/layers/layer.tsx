@@ -4,14 +4,14 @@
 
 import { Index } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
-import { useEngine } from '@/context/engine';
-import { useEntityTag } from '@/components/engine';
+import { useTag } from '@diffusionstudio/koota-solid';
+import { Selected } from '@diffusionstudio/runtime';
 import { KeyframeLayer } from './keyframe';
 import { NodeLayer } from './node';
 import { SubItemLayer } from './sub-item';
 
 import type { Component } from 'solid-js';
-import type { TimelineNode, TimelineNodeKind } from '@/components/engine/api/timeline-index';
+import type { TimelineNode, TimelineNodeKind } from '@diffusionstudio/runtime';
 
 type LayerProps = {
   layer: TimelineNode;
@@ -19,7 +19,7 @@ type LayerProps = {
   ancestorSelected?: boolean;
 }
 
-type LayerRowProps = {
+export type LayerRowProps = {
   layer: TimelineNode;
   depth: number;
   expanded: boolean;
@@ -32,15 +32,14 @@ const LAYER_ROWS: Record<TimelineNodeKind, Component<LayerRowProps>> = {
   'keyframe-track': KeyframeLayer,
 };
 
+/**
+ * One row and everything expanded under it. A row's own kind decides what it
+ * looks like; the nesting is the same whatever that is.
+ */
 export function Layer(props: LayerProps) {
-  const { world } = useEngine();
-
-  const c = world.components;
-  const eid = () => props.layer.eid;
-
   const depth = () => props.depth ?? 0;
   const ancestorSelected = () => props.ancestorSelected ?? false;
-  const selected = useEntityTag(c.Selected, eid);
+  const selected = useTag(() => props.layer.entity, Selected);
 
   return (
     <>
@@ -52,7 +51,13 @@ export function Layer(props: LayerProps) {
         ancestorSelected={ancestorSelected()}
       />
       <Index each={props.layer.children}>
-        {(child) => <Layer layer={child()} depth={depth() + 1} ancestorSelected={ancestorSelected() || selected()} />}
+        {(child) => (
+          <Layer
+            layer={child()}
+            depth={depth() + 1}
+            ancestorSelected={ancestorSelected() || selected()}
+          />
+        )}
       </Index>
     </>
   )

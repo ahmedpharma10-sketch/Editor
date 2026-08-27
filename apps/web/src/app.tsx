@@ -4,20 +4,22 @@
 
 import { Router, HashRouter, Route, useLocation } from '@solidjs/router';
 import { ColorModeProvider } from '@kobalte/core';
-import { Show, type JSX } from 'solid-js';
+import { Show, createEffect, type JSX } from 'solid-js';
 import { Toaster } from "@/components/ui/sonner";
 import { AppContextMenu } from "@/components/app-context-menu";
 
 import { AuthProvider, useAuth } from '@/context/auth';
 import { PersistRoute } from '@/lib/persist-route';
+import { EditorApi } from '@/context/dapi';
 import { UpgradeDialog } from '@/components/upgrade-dialog';
 import { PurchaseSuccess } from '@/components/purchase-success';
 import { ScreenTooSmall } from '@/components/screen-too-small';
 import { UnsupportedBrowser } from '@/components/unsupported-browser';
-import { HomePage } from './pages/home';
-import { LoginPage } from './pages/login';
-import { AuthCallbackPage } from './pages/auth-callback';
-import { NotFoundPage } from './pages/not-found';
+import { ProjectPage } from '@/pages/project';
+import { LoginPage } from '@/pages/login';
+import { AuthCallbackPage } from '@/pages/auth-callback';
+import { NotFoundPage } from '@/pages/not-found';
+import { DashboardPage } from '@/pages/dashboard';
 
 function AuthGate(props: { children: JSX.Element }) {
   const auth = useAuth();
@@ -32,6 +34,17 @@ function AuthGate(props: { children: JSX.Element }) {
       </Show>
     </Show>
   );
+}
+
+function BootSplash() {
+  const auth = useAuth();
+
+  createEffect(() => {
+    if (auth.isLoading()) return;
+    document.getElementById('boot-splash')?.remove();
+  });
+
+  return null;
 }
 
 function EnvironmentOverlays() {
@@ -55,8 +68,10 @@ function App() {
           <AppContextMenu>
             <AuthProvider>
               {props.children}
+              <BootSplash />
               <UpgradeDialog />
               <PurchaseSuccess />
+              <EditorApi />
             </AuthProvider>
           </AppContextMenu>
           <Toaster />
@@ -66,7 +81,8 @@ function App() {
       )}
     >
       <Route path="/auth/callback" component={AuthCallbackPage} />
-      <Route path="/" component={() => <AuthGate><HomePage /></AuthGate>} />
+      <Route path="/" component={() => <AuthGate><DashboardPage /></AuthGate>} />
+      <Route path="/projects/*ref" component={() => <AuthGate><ProjectPage /></AuthGate>} />
       <Route path="*404" component={NotFoundPage} />
     </RouterComponent>
   );

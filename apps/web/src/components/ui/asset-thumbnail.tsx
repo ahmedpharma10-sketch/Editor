@@ -2,126 +2,84 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
-import { Show, For, createResource } from 'solid-js';
+import { Show, For, createResource, onCleanup } from 'solid-js';
 import { cx } from '@/lib/cva';
-import { getAudioPeaksAsync } from '@/components/engine/decoders/audio-peaks';
-import { useEngine } from '@/context/engine';
-import { assetsVersion, getAssetFile } from '@/components/engine';
+import { getAssetFile } from '@diffusionstudio/runtime';
+import { deriveThumbnail, DEFAULT_THUMBNAIL_WIDTH, derivePeaks } from '@diffusionstudio/assets';
 
-import type { AudioAsset, ImageAsset, VideoAsset } from '@/components/engine/db';
-import type { Asset } from '@/components/engine/db';
+import type { Asset as LibraryAsset, AssetCache, AudioAsset, VideoAsset, ImageAsset } from '@diffusionstudio/assets';
 
-const DEFAULT_THUMBNAIL_SIZE = {
-  width: 300,
-  height: 168,
-} as const;
+/**
+ * What a thumbnail needs of an asset: the runtime's `Asset` and the legacy
+ * engine's both qualify.
+ */
+export type ThumbnailAsset = {
+  id: string;
+  type: string;
+  mimeType: string;
+  handle: { getFile(): Promise<File> };
+  width?: number;
+  height?: number;
+  stat?: { mtime: number };
+  lastModified?: number;
+};
+
+type Asset = ThumbnailAsset;
+
+/** Re-renders a thumbnail when the asset, or the file behind it, changes. */
+const keyOf = (asset: Asset): string => `${asset.id}:${asset.stat?.mtime ?? asset.lastModified ?? ''}`;
 
 type ThumbnailSize = {
   width: number;
   height: number;
 };
 
-function ImageThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
-  const engine = useEngine();
-  const [url] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
-    async () => {
-      const objectUrl = URL.createObjectURL(await getAssetFile(props.asset));
-      try {
-        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error('Failed to load image'));
-          img.src = objectUrl;
-        });
+/**
+ * The thumbnail of an image or video: from the library's cache when there is
+ * one (kept in the project's `cache/` across sessions), derived on the spot
+ * otherwise. Scaled to `width` at the asset's own aspect ratio; the
+ * container crops it.
+ */
+function MediaThumbnail(props: { asset: Asset; width: number; cache?: AssetCache }) {
+  let objectUrl: string | undefined;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = props.size.width;
-        canvas.height = props.size.height;
-        const ctx = canvas.getContext('2d')!;
+  const releaseUrl = () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = undefined;
+  };
 
-        const asset = props.asset as ImageAsset;
-        const imgW = image.naturalWidth || asset.width;
-        const imgH = image.naturalHeight || asset.height;
-        const scale = Math.max(props.size.width / imgW, props.size.height / imgH);
-        const scaledW = imgW * scale;
-        const scaledH = imgH * scale;
-        const dx = (props.size.width - scaledW) / 2;
-        const dy = (props.size.height - scaledH) / 2;
+  const key = () => `${keyOf(props.asset)}:${props.width}:${props.cache ? 'cached' : ''}`;
 
-        ctx.drawImage(image, dx, dy, scaledW, scaledH);
-        const url = canvas.toDataURL('image/webp', 0.7);
+  const loadThumbnail = async () => {
+    releaseUrl();
 
-        canvas.width = 0;
-        canvas.height = 0;
+    try {
+      let blob: Blob | null = null;
 
-        return url;
-      } catch {
-        return undefined;
-      } finally {
-        URL.revokeObjectURL(objectUrl);
+      if (props.cache) {
+        blob = await props.cache.thumbnail(props.asset as LibraryAsset, props.width);
+      } else {
+        const file = await getAssetFile(props.asset as unknown as ImageAsset | VideoAsset);
+        blob = await deriveThumbnail(file, props.asset.mimeType, props.width);
       }
+      objectUrl = blob ? URL.createObjectURL(blob) : undefined;
+
+      return objectUrl;
+    } catch {
+      return undefined;
     }
-  );
+  }
+
+  const [url] = createResource(key, loadThumbnail);
+
+  onCleanup(releaseUrl);
 
   return (
     <Show when={url()}>
       <img
         src={url()!}
-        alt={props.asset.name}
-        class="w-full h-full object-cover select-none"
-      />
-    </Show>
-  );
-}
-
-function VideoThumbnail(props: { asset: Asset; size: ThumbnailSize }) {
-  const engine = useEngine();
-  const [src] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
-    async () => {
-      try {
-        const file = await getAssetFile(props.asset);
-
-        const input = new Input({
-          formats: ALL_FORMATS,
-          source: new BlobSource(file),
-        });
-
-        const track = await input.getPrimaryVideoTrack();
-        if (!track) return;
-
-        const sink = new CanvasSink(track, {
-          width: props.size.width,
-          height: props.size.height,
-          fit: 'cover',
-        });
-
-        const ts = await track.getFirstTimestamp();
-        const wrappedCanvas = await sink.getCanvas(ts + 0.3);
-        if (!wrappedCanvas) return;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = wrappedCanvas.canvas.width;
-        canvas.height = wrappedCanvas.canvas.height;
-        canvas.getContext('2d')?.drawImage(wrappedCanvas.canvas, 0, 0);
-        const url = canvas.toDataURL('image/webp', 0.7);
-        canvas.width = 0;
-        canvas.height = 0;
-        return url;
-      } catch {
-        return undefined;
-      }
-    }
-  );
-
-  return (
-    <Show when={src()}>
-      <img
-        src={src()!}
-        alt={props.asset.name}
-        class="w-full h-full object-cover select-none"
+        alt=""
+        class="absolute inset-0 size-full object-cover select-none"
       />
     </Show>
   );
@@ -143,12 +101,19 @@ function TranscriptThumbnail() {
   );
 }
 
-function AudioThumbnail(props: { asset: Asset }) {
-  const engine = useEngine();
-  const [bins] = createResource(
-    () => `${props.asset.id}:${assetsVersion(engine.world)}`,
-    () => getAudioPeaksAsync(props.asset as AudioAsset | VideoAsset),
-  );
+function AudioThumbnail(props: { asset: Asset; cache?: AssetCache }) {
+  const loadPeaks = async () => {
+    if (props.cache) {
+      return props.cache.peaks(props.asset as unknown as AudioAsset | VideoAsset);
+    }
+
+    const file = await getAssetFile(props.asset as unknown as AudioAsset | VideoAsset);
+    return derivePeaks(file);
+  }
+
+  const key = () => keyOf(props.asset);
+
+  const [bins] = createResource(key, loadPeaks);
 
   return (
     <div class="absolute inset-0 pt-7 pb-1 bg-audio-background">
@@ -171,21 +136,19 @@ type AssetThumbnailProps = {
   class?: string;
   draggable?: boolean;
   size?: ThumbnailSize;
+  cache?: AssetCache;
 }
 
 export function AssetThumbnail(props: AssetThumbnailProps) {
-  const size = () => props.size ?? DEFAULT_THUMBNAIL_SIZE;
+  const width = () => props.size?.width ?? DEFAULT_THUMBNAIL_WIDTH;
 
   return (
-    <div class={cx(props.class, 'relative')} draggable={props.draggable}>
-      <Show when={props.asset.mimeType.startsWith('image')}>
-        <ImageThumbnail asset={props.asset} size={size()} />
-      </Show>
-      <Show when={props.asset.mimeType.startsWith('video')}>
-        <VideoThumbnail asset={props.asset} size={size()} />
+    <div class={cx('relative', props.class)} draggable={props.draggable}>
+      <Show when={props.asset.mimeType.startsWith('image') || props.asset.mimeType.startsWith('video')}>
+        <MediaThumbnail asset={props.asset} width={width()} cache={props.cache} />
       </Show>
       <Show when={props.asset.mimeType.startsWith('audio')}>
-        <AudioThumbnail asset={props.asset} />
+        <AudioThumbnail asset={props.asset} cache={props.cache} />
       </Show>
       <Show when={props.asset.type === 'TRANSCRIPT'}>
         <TranscriptThumbnail />

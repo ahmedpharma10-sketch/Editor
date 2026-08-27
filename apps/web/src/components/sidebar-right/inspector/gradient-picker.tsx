@@ -32,28 +32,37 @@ import {
   FloatingInspectorHeader,
   FloatingInspectorTitle,
 } from "@/components/ui/floating-inspector";
+import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
 import { useDrag } from "@/hooks/use-drag";
 import { clamp, mergeColorWithOpacity } from "@/utils";
-import { colorToHex, parseColor } from "@/utils/color";
-import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
-import { ChildOf, PaintType, useEntityState, useEntityStates, useQuery, createEntity, deleteEntity, appendChild, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
-import { Not } from 'bitecs';
+import { useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import { ColorStop as ColorStopElement } from "@diffusionstudio/reconciler";
+import { Computed, Paint, PaintType, colorToHex, parseColor } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
+import { readGradientStops, sameGradientStops, type GradientStop } from "./gradient-stops";
+
+import type { Entity } from "koota";
 
 export type GradientPickerProps = {
-  nodeEid: number;
-  fillEid: number;
+  fill: Entity;
+  /** Swaps the gradient for one of the other kind, which is another element. */
+  onChangeKind(radial: boolean): void;
 };
 
 const GRADIENT_STYLE_OPTIONS = ["Linear", "Radial"] as const;
 type GradientStyleOption = (typeof GRADIENT_STYLE_OPTIONS)[number];
+
+/** `<colorStop>`'s and `<linearGradientPaint>`'s defaults. */
+const DEFAULT_OPACITY = 1;
+const DEFAULT_ROTATION = 0;
 
 function handleInitialInputPointerDown(e: PointerEvent & { currentTarget: HTMLInputElement }) {
   if (document.activeElement === e.currentTarget) return;
   e.preventDefault();
   e.currentTarget.focus();
   e.currentTarget.select();
-};
+}
 
 function getSliderRatio(
   element: HTMLDivElement | undefined,
@@ -63,7 +72,7 @@ function getSliderRatio(
   const rect = element.getBoundingClientRect();
   if (!rect.width) return null;
   return Math.round(clamp((pos.x - rect.left) / rect.width, 0, 1) * 100) / 100;
-};
+}
 
 // Visual position of a stop on the track in [0, 1]. Offsets in [0, 1] map
 // directly so the right edge stays at 100%; offsets > 1 wrap so cycling
@@ -77,90 +86,96 @@ function isPrimaryPointerButton(e: PointerEvent) {
   return e.button === 0 && !e.ctrlKey;
 }
 
+/**
+ * A gradient paint: its stops, its rotation, and which of the two gradient
+ * elements it is. Every stop is a `<colorStop offset color opacity>` of its
+ * own, so adding, moving and deleting one are element edits; the values shown
+ * are `Computed`, which the motion system writes.
+ */
 export function GradientFillPicker(props: GradientPickerProps) {
-  const { world } = useEngine();
-  const c = world.components;
+  const world = useWorld();
+  const editor = useEditor();
 
   let rootRef: HTMLDivElement | undefined;
   let stopTrackRef: HTMLDivElement | undefined;
-  let draggedStopEid: number | null = null;
+  let draggedStop: Entity | null = null;
 
-  const [selectedStopEid, setSelectedStopEid] = createSignal<number | null>(null);
-  const [colorPickerStopEid, setColorPickerStopEid] = createSignal<number | null>(null);
+  const [selectedStop, setSelectedStop] = createSignal<Entity | null>(null);
+  const [colorPickerStop, setColorPickerStop] = createSignal<Entity | null>(null);
 
-  const stopEids = useQuery([c.ColorStop, ChildOf(props.fillEid), Not(c.Deleted)]);
-  const offsets = useEntityStates(c.Computed.stopOffset, stopEids, 0);
-  const colors = useEntityStates(c.Computed.stopColor, stopEids, 0xFFFFFF);
-  const opacities = useEntityStates(c.Computed.stopOpacity, stopEids, 1);
+  const stops = useDerived(() => readGradientStops(world, props.fill), sameGradientStops);
 
-  const stops = createMemo(() => stopEids()
-    .map((eid, idx) => ({
-      eid,
-      offset: offsets()[idx],
-      color: colors()[idx],
-      opacity: opacities()[idx],
-    }))
-    .toSorted((a, b) => a.offset - b.offset)
-  );
+  const paint = useTrait(() => props.fill, Paint);
+  const rotation = useDerived(() => props.fill.get(Computed)?.rotation ?? DEFAULT_ROTATION);
 
-  const rotation = useEntityState(c.Computed.rotation, props.fillEid, 0);
-  const fillType = useEntityState(c.Paint, props.fillEid, PaintType.LINEAR_GRADIENT);
+  const editOffset = (stop: Entity, offset: number) => {
+    editor.editProperty(stop, "offset", offset);
+    syncKeyframe(world, editor, stop, "offset", offset);
+  };
+
+  const editColor = (stop: Entity, color: number) => {
+    const hex = colorToHex(color);
+    editor.editProperty(stop, "color", hex);
+    syncKeyframe(world, editor, stop, "color", hex);
+  };
+
+  const editOpacity = (stop: Entity, opacity: number) => {
+    const value = Math.round(opacity * 100) / 100;
+    editor.editProperty(stop, "opacity", value === DEFAULT_OPACITY ? false : value);
+    syncKeyframe(world, editor, stop, "opacity", value);
+  };
+
+  /** Adds a `<colorStop>` and returns it, or null if the fill has no source yet. */
+  const insertStop = (offset: number, color: number, opacity: number): Entity | null => {
+    const [stop] = editor.insertElement(props.fill, () => (
+      <ColorStopElement
+        offset={offset}
+        color={colorToHex(color)}
+        {...(opacity === DEFAULT_OPACITY ? {} : { opacity })}
+      />
+    ));
+    return stop ?? null;
+  };
 
   const addStop = () => {
     const current = stops();
     const first = current[0];
     const second = current[1];
 
-    const newPosition = 0;
     const adjustedFirstPosition = second
       ? clamp((second.offset ?? 0) / 2, 0, 1)
       : clamp((first?.offset ?? 0) / 2, 0, 1);
 
-    const stopEid = world.history.transaction('Add gradient stop', () => {
-      if (first) {
-        setComponent(world, first.eid, c.ColorStop, { offset: adjustedFirstPosition });
-      }
+    if (first) editOffset(first.entity, adjustedFirstPosition);
+    const stop = insertStop(0, first?.color ?? 0xFFFFFF, first?.opacity ?? DEFAULT_OPACITY);
+    if (stop) spawnColorPicker(stop);
+  };
 
-      const newStopEid = createEntity(world);
-      setComponent(world, newStopEid, c.ColorStop, {
-        offset: newPosition,
-        color: first?.color ?? 0xFFFFFF,
-        opacity: first?.opacity ?? 1,
-      });
-      appendChild(world, newStopEid, props.fillEid);
-      return newStopEid;
-    });
-
-    setSelectedStopEid(stopEid);
+  const removeStop = (stop: Entity) => {
+    editor.remove(stop);
+    if (selectedStop() === stop) setSelectedStop(null);
+    if (colorPickerStop() === stop) setColorPickerStop(null);
   };
 
   const removeSelectedStop = () => {
-    const eid = selectedStopEid();
-    if (eid === null) return;
-    if (stops().length <= 2) return;
-    removeStopEid(eid);
-  };
-
-  const removeStopEid = (eid: number) => {
-    deleteEntity(world, eid);
-    if (selectedStopEid() === eid) setSelectedStopEid(null);
-    if (colorPickerStopEid() === eid) setColorPickerStopEid(null);
+    const stop = selectedStop();
+    if (stop === null || stops().length <= 2) return;
+    removeStop(stop);
   };
 
   const redistributeStopsEvenly = () => {
-    if (stops().length <= 1) return;
+    const current = stops();
+    if (current.length <= 1) return;
 
-    const denom = Math.max(stops().length - 1, 1);
-    world.history.transaction('Redistribute gradient stops', () => {
-      for (const [index, stop] of stops().entries()) {
-        setComponent(world, stop.eid, c.ColorStop, { offset: index / denom });
-      }
-    });
+    const denom = Math.max(current.length - 1, 1);
+    for (const [index, stop] of current.entries()) {
+      editOffset(stop.entity, index / denom);
+    }
   };
 
-  const duplicateStop = (eid: number) => {
+  const duplicateStop = (stop: Entity) => {
     const sorted = stops();
-    const sourceIndex = sorted.findIndex(s => s.eid === eid);
+    const sourceIndex = sorted.findIndex((s) => s.entity === stop);
     const source = sorted[sourceIndex];
     if (!source) return;
 
@@ -173,30 +188,19 @@ export function GradientFillPicker(props: GradientPickerProps) {
       offset = sourceOffset + (clamp(next.offset, 0, 1) - sourceOffset) / 2;
     } else if (prev) {
       offset = clamp(prev.offset, 0, 1) + (sourceOffset - clamp(prev.offset, 0, 1)) / 2;
-    } else {
-      offset = clamp(sourceOffset + 0.01, 0, 1);
     }
     if (offset === sourceOffset) {
       offset = clamp(sourceOffset + 0.01, 0, 1);
     }
 
-    const stopEid = world.history.transaction('Duplicate gradient stop', () => {
-      const newStopEid = createEntity(world);
-      setComponent(world, newStopEid, c.ColorStop, { ...source, offset });
-      appendChild(world, newStopEid, props.fillEid);
-      return newStopEid;
-    });
-    setSelectedStopEid(stopEid);
+    const copy = insertStop(offset, source.color, source.opacity);
+    if (copy) setSelectedStop(copy);
   };
 
   const removeAllStops = () => {
-    world.history.transaction('Remove all gradient stops', () => {
-      for (const stop of stops()) {
-        deleteEntity(world, stop.eid);
-      }
-    });
-    setSelectedStopEid(null);
-    setColorPickerStopEid(null);
+    editor.remove(stops().map((stop) => stop.entity));
+    setSelectedStop(null);
+    setColorPickerStop(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -209,7 +213,7 @@ export function GradientFillPicker(props: GradientPickerProps) {
     ) {
       return;
     }
-    if (selectedStopEid() === null) return;
+    if (selectedStop() === null) return;
 
     // Prevent the event from bubbling up to the document.
     // otherwise the selection would get deleted instead
@@ -224,58 +228,41 @@ export function GradientFillPicker(props: GradientPickerProps) {
 
   // Clear stale selection if the selected stop was deleted.
   createEffect(() => {
-    const eid = selectedStopEid();
-    if (eid === null) return;
-    if (!stopEids().includes(eid)) setSelectedStopEid(null);
+    const stop = selectedStop();
+    if (stop === null) return;
+    if (!stops().some((s) => s.entity === stop)) setSelectedStop(null);
   });
 
   createEffect(() => {
-    const eid = colorPickerStopEid();
-    if (eid === null) return;
-    if (!stopEids().includes(eid)) setColorPickerStopEid(null);
+    const stop = colorPickerStop();
+    if (stop === null) return;
+    if (!stops().some((s) => s.entity === stop)) setColorPickerStop(null);
   });
 
-  const spawnColorPicker = (_anchor: HTMLElement, eid: number) => {
-    setSelectedStopEid(eid);
-    setColorPickerStopEid(eid);
+  const spawnColorPicker = (stop: Entity) => {
+    setSelectedStop(stop);
+    setColorPickerStop(stop);
   };
 
-  const closeStopColorPicker = () => {
-    setColorPickerStopEid(null);
-  };
+  const pickedStop = createMemo(() => stops().find((s) => s.entity === colorPickerStop()) ?? null);
 
-  const colorPickerStop = createMemo(() => {
-    return stops().find(s => s.eid === colorPickerStopEid()) ?? null;
-  });
-
-  const insertStopAtRatio = (ratio: number): number => {
+  const insertStopAtRatio = (ratio: number): Entity | null => {
     const nearest = stops().slice().sort(
       (a, b) => Math.abs(a.offset - ratio) - Math.abs(b.offset - ratio),
     )[0];
 
-    const stopEid = createEntity(world);
-    setComponent(world, stopEid, c.ColorStop, {
-      offset: ratio,
-      color: nearest?.color ?? 0xFFFFFF,
-      opacity: nearest?.opacity ?? 1,
-    });
-    appendChild(world, stopEid, props.fillEid);
-
-    return stopEid;
+    return insertStop(ratio, nearest?.color ?? 0xFFFFFF, nearest?.opacity ?? DEFAULT_OPACITY);
   };
 
   const updateStopDragPosition = (pos: { x: number; y: number }) => {
     const ratio = getSliderRatio(stopTrackRef, pos);
-
-    if (draggedStopEid && ratio !== null) {
-      setComponent(world, draggedStopEid, c.ColorStop, { offset: ratio });
-    }
+    if (draggedStop && ratio !== null) editOffset(draggedStop, ratio);
   };
 
-  const beginStopDrag = (eid: number, e: PointerEvent) => {
+  const beginStopDrag = (stop: Entity, e: PointerEvent) => {
     if (!isPrimaryPointerButton(e)) return;
-    draggedStopEid = eid;
-    setSelectedStopEid(eid);
+    draggedStop = stop;
+    setSelectedStop(stop);
     stopDrag.onPointerDown(e);
   };
 
@@ -284,13 +271,8 @@ export function GradientFillPicker(props: GradientPickerProps) {
     const ratio = getSliderRatio(stopTrackRef, { x: e.clientX, y: e.clientY });
     if (ratio === null) return;
 
-    let insertedEid: number | null = null;
-    world.history.transaction("Insert gradient stop", () => {
-      insertedEid = insertStopAtRatio(ratio);
-    });
-    if (insertedEid !== null) {
-      beginStopDrag(insertedEid, e);
-    }
+    const inserted = insertStopAtRatio(ratio);
+    if (inserted) beginStopDrag(inserted, e);
   };
 
   const stopDrag = useDrag({
@@ -298,38 +280,39 @@ export function GradientFillPicker(props: GradientPickerProps) {
     onDragMove: updateStopDragPosition,
     onDragEnd: (pos) => {
       updateStopDragPosition(pos);
-      draggedStopEid = null;
+      draggedStop = null;
     },
   });
 
-  const rotateGradient = () => {
-    setComponent(world, props.fillEid, c.Rotation, (rotation() + 90) % 360);
+  const editRotation = (value: number) => {
+    const next = ((value % 360) + 360) % 360;
+    editor.editProperty(props.fill, "rotation", next === DEFAULT_ROTATION ? false : next);
+    syncKeyframe(world, editor, props.fill, "rotation", next);
   };
 
+  const rotateGradient = () => editRotation(rotation() + 90);
+
   const flipGradient = () => {
-    world.history.transaction('Flip gradient', () => {
-      for (const stop of stops()) {
-        setComponent(world, stop.eid, c.ColorStop, { offset: 1 - stop.offset });
-      }
-    });
+    for (const stop of stops()) {
+      editOffset(stop.entity, 1 - stop.offset);
+    }
   };
 
   const handleGradientStyleChange = (style: GradientStyleOption | null) => {
-    const value = style === "Radial" ? PaintType.RADIAL_GRADIENT : PaintType.LINEAR_GRADIENT;
-    setComponent(world, props.fillEid, c.Paint, value);
+    if (style === null) return;
+    props.onChangeKind(style === "Radial");
   };
 
   const handleRotationChange = (value: number) => {
-    value = Math.round(value * 100) / 100;
-    setComponent(world, props.fillEid, c.Rotation, ((value % 360) + 360) % 360);
+    editRotation(Math.round(value * 100) / 100);
   };
 
-  const gradientLabel = createMemo(() => {
-    return fillType() === PaintType.RADIAL_GRADIENT ? "Radial" : "Linear";
-  });
+  const gradientLabel = createMemo(() =>
+    paint()?.value === PaintType.RADIAL_GRADIENT ? "Radial" : "Linear",
+  );
 
   const gradientBackground = createMemo(() => {
-    const parts = stops().map(s => {
+    const parts = stops().map((s) => {
       const offset = clamp(s.offset * 100, 0, 100);
       return `${mergeColorWithOpacity(s.color, s.opacity)} ${offset}%`;
     });
@@ -337,7 +320,7 @@ export function GradientFillPicker(props: GradientPickerProps) {
   });
 
   const handleGradientBackgroundClick = () => {
-    setSelectedStopEid(null);
+    setSelectedStop(null);
   };
 
   return (
@@ -346,13 +329,11 @@ export function GradientFillPicker(props: GradientPickerProps) {
         <div class="flex items-center gap-2">
           <Select<GradientStyleOption>
             class="flex-1"
-            value={fillType() === PaintType.RADIAL_GRADIENT ? "Radial" : "Linear"}
+            value={gradientLabel()}
             options={[...GRADIENT_STYLE_OPTIONS]}
             onChange={handleGradientStyleChange}
             itemComponent={(itemProps) => (
-              <SelectItem item={itemProps.item}>
-                {itemProps.item.rawValue}
-              </SelectItem>
+              <SelectItem item={itemProps.item}>{itemProps.item.rawValue}</SelectItem>
             )}
           >
             <SelectTrigger>
@@ -433,13 +414,13 @@ export function GradientFillPicker(props: GradientPickerProps) {
                   <ContextMenuTrigger
                     as="div"
                     class="absolute top-0 touch-none"
-                    classList={{ "opacity-80": selectedStopEid() !== stop.eid }}
+                    classList={{ "opacity-80": selectedStop() !== stop.entity }}
                     style={{
                       filter: "drop-shadow(0px 3px 3px rgba(0,0,0,0.48)) drop-shadow(0px 2px 1px rgba(0,0,0,0.48))",
                       left: `${visualOffset(stop.offset) * 100}%`,
                       transform: "translateX(-50%)",
                     }}
-                    onPointerDown={(e) => beginStopDrag(stop.eid, e)}
+                    onPointerDown={(e) => beginStopDrag(stop.entity, e)}
                   >
                     <svg
                       width="18"
@@ -452,11 +433,11 @@ export function GradientFillPicker(props: GradientPickerProps) {
                         d="M7.48137 1.69753C8.27955 0.766245 9.72025 0.766211 10.5185 1.69746L13.5184 5.19738C13.8291 5.55987 13.9999 6.02154 13.9999 6.49896L13.9999 11.9258C13.9999 13.0304 13.1044 13.9258 11.9999 13.9258L5.99999 13.9258C4.89538 13.9258 3.99993 13.0303 3.99999 11.9257L4.0003 6.49885C4.00033 6.02149 4.17109 5.55989 4.48173 5.19745L7.48137 1.69753Z"
                         fill={colorToHex(stop.color)}
                         stroke={
-                          selectedStopEid() === stop.eid
+                          selectedStop() === stop.entity
                             ? "var(--ring)"
                             : "var(--border-input)"
                         }
-                        stroke-width={selectedStopEid() === stop.eid ? 2 : 1}
+                        stroke-width={selectedStop() === stop.entity ? 2 : 1}
                         stroke-linejoin="round"
                       />
                     </svg>
@@ -470,12 +451,12 @@ export function GradientFillPicker(props: GradientPickerProps) {
                         Redistribute stops evenly
                       </ContextMenuItem>
                       <ContextMenuSeparator />
-                      <ContextMenuItem onSelect={() => duplicateStop(stop.eid)}>
+                      <ContextMenuItem onSelect={() => duplicateStop(stop.entity)}>
                         Duplicate stop
                       </ContextMenuItem>
                       <ContextMenuItem
                         disabled={stops().length <= 2}
-                        onSelect={() => removeStopEid(stop.eid)}
+                        onSelect={() => removeStop(stop.entity)}
                       >
                         Delete stop
                       </ContextMenuItem>
@@ -517,12 +498,12 @@ export function GradientFillPicker(props: GradientPickerProps) {
           <For each={stops()}>
             {(stop) => (
               <GradientStopRow
-                eid={stop.eid}
-                offset={stop.offset}
-                color={stop.color}
-                opacity={stop.opacity}
-                selected={selectedStopEid() === stop.eid}
-                spawnColorPicker={spawnColorPicker}
+                stop={stop}
+                selected={selectedStop() === stop.entity}
+                onEditOffset={(value) => editOffset(stop.entity, value)}
+                onEditColor={(value) => editColor(stop.entity, value)}
+                onEditOpacity={(value) => editOpacity(stop.entity, value)}
+                onPickColor={() => spawnColorPicker(stop.entity)}
               />
             )}
           </For>
@@ -530,7 +511,7 @@ export function GradientFillPicker(props: GradientPickerProps) {
       </div>
 
       <FloatingInspector
-        open={colorPickerStopEid() !== null}
+        open={colorPickerStop() !== null}
         anchorRef={rootRef}
       >
         <FloatingInspectorHeader>
@@ -541,7 +522,7 @@ export function GradientFillPicker(props: GradientPickerProps) {
               size="icon"
               variant="ghost"
               class="text-muted-foreground"
-              onClick={closeStopColorPicker}
+              onClick={() => setColorPickerStop(null)}
             >
               <Icon name="close-remove" />
             </TooltipTrigger>
@@ -549,19 +530,14 @@ export function GradientFillPicker(props: GradientPickerProps) {
           </Tooltip>
         </FloatingInspectorHeader>
         <FloatingInspectorContent class="p-0">
-          <Show when={colorPickerStop()}>
+          <Show when={pickedStop()}>
             {(stop) => (
               <ColorOpacityPicker
                 color={stop().color}
                 opacity={stop().opacity}
-                onColorChange={(next) => {
-                  setComponent(world, stop().eid, c.ColorStop, { color: next });
-                }}
-                onOpacityChange={(next) => {
-                  setComponent(world, stop().eid, c.ColorStop, { opacity: next });
-                }}
-                onBeginChange={(label) => world.history.startTransaction(label)}
-                onEndChange={() => world.history.commitTransaction()}
+                onColorChange={(next) => editColor(stop().entity, next)}
+                onOpacityChange={(next) => editOpacity(stop().entity, next)}
+                keyframeTarget={stop().entity}
               />
             )}
           </Show>
@@ -572,19 +548,16 @@ export function GradientFillPicker(props: GradientPickerProps) {
 }
 
 type GradientStopRowProps = {
-  eid: number;
-  offset: number;
-  color: number;
-  opacity: number;
+  stop: GradientStop;
   selected: boolean;
-  spawnColorPicker(anchor: HTMLElement, eid: number): void;
-}
+  onEditOffset(value: number): void;
+  onEditColor(value: number): void;
+  onEditOpacity(value: number): void;
+  onPickColor(): void;
+};
 
 function GradientStopRow(props: GradientStopRowProps) {
-  const { world } = useEngine();
-  const c = world.components;
-
-  const colorText = createMemo(() => colorToHex(props.color).replace("#", ""));
+  const colorText = createMemo(() => colorToHex(props.stop.color).replace("#", ""));
   const [colorDraft, setColorDraft] = createSignal(colorText());
 
   createEffect(() => {
@@ -598,7 +571,7 @@ function GradientStopRow(props: GradientStopRowProps) {
       return;
     }
 
-    setComponent(world, props.eid, c.ColorStop, { color: nextColor });
+    props.onEditColor(nextColor);
   };
 
   const handleColorInput = (event: InputEvent & { currentTarget: HTMLInputElement }) => {
@@ -626,23 +599,23 @@ function GradientStopRow(props: GradientStopRowProps) {
   };
 
   const handleOffsetChange = (value: number) => {
-    setComponent(world, props.eid, c.ColorStop, { offset: Math.max(0, Math.round(value)) / 100 });
+    props.onEditOffset(Math.max(0, Math.round(value)) / 100);
   };
 
   const handleOpacityChange = (value: number) => {
-    setComponent(world, props.eid, c.ColorStop, { opacity: clamp(Math.round(value), 0, 100) / 100 });
+    props.onEditOpacity(clamp(Math.round(value), 0, 100) / 100);
   };
 
   const handleClickColorPicker = (e: MouseEvent & { currentTarget: HTMLButtonElement }) => {
     e.stopPropagation();
-    props.spawnColorPicker(e.currentTarget, props.eid);
+    props.onPickColor();
   };
 
   return (
     <div class="flex min-w-0 items-center gap-2">
       <ControlledTextField
         class="w-15 shrink-0"
-        value={Math.round(props.offset * 100)}
+        value={Math.round(props.stop.offset * 100)}
         min={0}
         step={1}
         unit="%"
@@ -651,7 +624,7 @@ function GradientStopRow(props: GradientStopRowProps) {
         autoSelect
         onNumber={handleOffsetChange}
         inputClassName="transition-none"
-        keyframe={<Keyframe target={props.eid} property="stop.offset" />}
+        keyframe={<Keyframe target={props.stop.entity} property="offset" />}
       />
 
       <div
@@ -667,7 +640,7 @@ function GradientStopRow(props: GradientStopRowProps) {
             onFocusIn={(e) => e.stopPropagation()}
             onClick={handleClickColorPicker}
           >
-            <OpacitySwatch color={props.color} opacity={props.opacity} />
+            <OpacitySwatch color={props.stop.color} opacity={props.stop.opacity} />
           </button>
 
           <input
@@ -686,13 +659,13 @@ function GradientStopRow(props: GradientStopRowProps) {
             onPointerDown={(e) => e.stopPropagation()}
             onFocusIn={(e) => e.stopPropagation()}
           >
-            <Keyframe target={props.eid} property="stop.color" />
+            <Keyframe target={props.stop.entity} property="color" />
           </div>
         </div>
 
         <ControlledTextField
           class="w-15 shrink-0"
-          value={Math.round(props.opacity * 100)}
+          value={Math.round(props.stop.opacity * 100)}
           min={0}
           max={100}
           step={1}
@@ -702,7 +675,7 @@ function GradientStopRow(props: GradientStopRowProps) {
           autoSelect
           onNumber={handleOpacityChange}
           inputClassName="rounded-l-none"
-          keyframe={<Keyframe target={props.eid} property="stop.opacity" />}
+          keyframe={<Keyframe target={props.stop.entity} property="opacity" />}
         />
       </div>
     </div>

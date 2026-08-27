@@ -8,42 +8,36 @@ import {
   DropdownMenuShortcut,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { useEngine } from "@/context/engine";
-import { copySelection, pasteClipboard, duplicateSelection, selectStageEntities, selectParentEntities, selectChildEntities, addComponent, removeComponent, clearComponent } from "@/components/engine";
-import { useECS } from "@/context/ecs";
-import { hasComponent, Or, query } from 'bitecs';
+import { useWorld } from "@diffusionstudio/koota-solid";
+import {
+  copySelection,
+  deleteSelection,
+  duplicateSelection,
+  getEditHistory,
+  pasteSelection,
+  selectAll,
+  selectChildren,
+  selectParents,
+  toggleSelectionHidden,
+  useEditor,
+  useSelection,
+} from "@/engine";
 
 export function EditMenu() {
-  const { world } = useEngine();
-  const { selectedNodes } = useECS();
-  const hasSelection = () => selectedNodes().size > 0;
-  const c = world.components;
-
-  const handleToggleHidden = () => {
-    const eids = [...query(world, [c.Selected, Or(c.Geometry, c.Group)])];
-    const anyVisible = Array.from(eids).some((eid) => !hasComponent(world, eid, c.Hidden));
-
-    if (anyVisible) {
-      eids.forEach(eid => addComponent(world, eid, c.Hidden));
-    } else {
-      eids.forEach(eid => removeComponent(world, eid, c.Hidden));
-    }
-  };
+  const world = useWorld();
+  const editor = useEditor();
+  const history = getEditHistory(world);
+  const { nodes } = useSelection();
+  const hasSelection = () => nodes().length > 0;
 
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuItem
-          disabled={!world.history.canUndo}
-          onSelect={() => world.history.undo()}
-        >
+        <DropdownMenuItem disabled={!history.canUndo()} onSelect={() => history.undo()}>
           Undo
           <DropdownMenuShortcut>⌘Z</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={!world.history.canRedo}
-          onSelect={() => world.history.redo()}
-        >
+        <DropdownMenuItem disabled={!history.canRedo()} onSelect={() => history.redo()}>
           Redo
           <DropdownMenuShortcut>⇧⌘Z</DropdownMenuShortcut>
         </DropdownMenuItem>
@@ -59,7 +53,7 @@ export function EditMenu() {
           Copy
           <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => pasteClipboard(world)}>
+        <DropdownMenuItem onSelect={() => pasteSelection(world)}>
           Paste
           <DropdownMenuShortcut>⌘V</DropdownMenuShortcut>
         </DropdownMenuItem>
@@ -75,7 +69,10 @@ export function EditMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!hasSelection()}
+          onSelect={() => deleteSelection(world)}
+        >
           Delete
           <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
         </DropdownMenuItem>
@@ -86,7 +83,7 @@ export function EditMenu() {
       <DropdownMenuGroup>
         <DropdownMenuItem
           disabled={!hasSelection()}
-          onSelect={handleToggleHidden}
+          onSelect={() => toggleSelectionHidden(world)}
         >
           Hide
           <DropdownMenuShortcut>⇧⌘H</DropdownMenuShortcut>
@@ -96,27 +93,27 @@ export function EditMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={() => selectStageEntities(world)}>
+        <DropdownMenuItem onSelect={() => selectAll(world)}>
           Select all
           <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!hasSelection()}
-          onSelect={() => selectParentEntities(world)}
+          onSelect={() => selectParents(world)}
         >
           Select parent
           <DropdownMenuShortcut>{"\\"}</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!hasSelection()}
-          onSelect={() => selectChildEntities(world)}
+          onSelect={() => selectChildren(world)}
         >
           Select children
           <DropdownMenuShortcut>↩︎</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!hasSelection()}
-          onSelect={() => clearComponent(world, c.Selected, false)}
+          onSelect={() => editor.clearSelection()}
         >
           Deselect
           <DropdownMenuShortcut>Esc</DropdownMenuShortcut>

@@ -31,6 +31,7 @@ import {
 import {
   PROMPT_INPUT_IMAGE_MODEL_OPTIONS,
   PROMPT_INPUT_VIDEO_MODEL_OPTIONS,
+  PROMPT_INPUT_VOICE_MODEL,
   PROMPT_INPUT_VOICE_OPTIONS,
   PROMPT_INPUT_MODE_OPTIONS,
   PROMPT_INPUT_IMAGE_ASPECT_RATIO_OPTIONS,
@@ -48,22 +49,23 @@ import { useGenerateVideo } from "./use-generate-video";
 import { useGenerateVoice } from "./use-generate-voice";
 import { useGenerateAudio } from "./use-generate-audio";
 import { PromptInputActions } from "./prompt-input-actions";
-import { useEngine } from "@/context/engine";
-import { showFileDialog } from "@/utils";
 import type {
-  Asset,
   AspectRatio,
   GenerationConfig,
   ImageGenerationConfig,
   VideoGenerationConfig,
   VoiceGenerationConfig,
   AudioGenerationConfig,
-} from "@/components/engine/db";
+} from "./schemas";
 import { AssetThumbnail } from "@/components/ui/asset-thumbnail";
-import { ChildOf, PaintType, removeComponent } from "@/components/engine";
-import { useAssets, loadAsset } from "@/components/engine";
-import { useECS } from "@/context/ecs";
-import { Not, query } from 'bitecs';
+import { useLibrary } from "@/engine/library";
+import { useEditor } from "@/engine/hooks";
+import { droppedFiles, importFiles, pickFiles } from "@/engine/asset-actions";
+import { useMediaSelection } from "./selection";
+import { ASSET_DRAG_TYPE } from "@/components/sidebar-left/folder-item";
+
+import type { AssetCache } from "@diffusionstudio/assets";
+import type { ThumbnailAsset } from "@/components/ui/asset-thumbnail";
 
 export type PromptInputMode = "IMAGE" | "VIDEO" | "VOICE" | "AUDIO";
 
@@ -99,7 +101,7 @@ export function createDefaultConfig<K extends keyof GenerationConfgs>(mode: K, p
     case "VOICE":
       return {
         mode: "VOICE",
-        model: "elevenlabs-v3",
+        model: PROMPT_INPUT_VOICE_MODEL,
         prompt,
         voice: PROMPT_INPUT_VOICE_OPTIONS[0].value,
       } as GenerationConfgs[K];
@@ -117,10 +119,9 @@ export interface PromptInputProps {
 }
 
 export function PromptInput(props: PromptInputProps) {
-  const { world } = useEngine();
-  const assets = useAssets(world);
-  const { selectedNodes } = useECS();
-  const c = world.components;
+  const library = useLibrary();
+  const editor = useEditor();
+  const { images: selectedImages } = useMediaSelection();
   const { generate: generateImage } = useGenerateImage();
   const { generate: generateVideo } = useGenerateVideo();
   const { generate: generateVoice } = useGenerateVoice();
@@ -171,43 +172,36 @@ export function PromptInput(props: PromptInputProps) {
     return model ? ALL_VIDEO_ASPECT_RATIO_OPTIONS.filter((o) => model.aspectRatios.includes(o.value)) : [];
   });
 
-  const selectedImageEntries = createMemo(() => {
-    const entries: { assetId: string; eid: number }[] = [];
-    const AssetId = world.components.AssetId;
-    for (const eid of selectedNodes()) {
-      for (const fid of query(world, [c.Paint, ChildOf(eid), Not(c.Deleted), Not(c.Hidden)])) {
-        if (c.Paint[fid] === PaintType.IMAGE) {
-          const assetId = AssetId[fid];
-          if (!assetId) continue;
-          entries.push({ assetId, eid });
-          break; // we just need the first image fill
-        }
-      }
-    }
-    return entries;
-  });
-
-  const selectedImageIds = createMemo(() =>
-    selectedImageEntries().map((e) => e.assetId),
-  );
-
+  // Pictures on the canvas are offered as references and as video frames:
+  // selecting one is another way of attaching it.
   const effectiveImageRefIds = createMemo(() => {
+    const lib = library();
+    if (!lib) return [];
     const local = imageConfig()?.imageRefIds ?? [];
-    const selected = selectedImageIds().filter((id) => !local.includes(id));
+    const selected = selectedImages()
+      .map((entry) => entry.asset.id)
+      .filter((id) => !local.includes(id));
     return [...local, ...selected]
-      .filter((id) => assets.get(id))
+      .filter((id) => lib.get(id))
       .slice(0, MAX_IMAGE_REFERENCES);
   });
 
-  const effectiveStartFrameId = createMemo(() => {
-    const id = videoConfig()?.startFrameImageId ?? selectedImageIds()[0] ?? null;
-    return id && assets.get(id) ? id : null;
-  });
+  /** The library id a frame is set to, explicitly or by the selection. */
+  const frameId = (frame: "start" | "end") => {
+    // A frame the model cannot take is not one the prompt box offers, and
+    // not one a canvas selection quietly attaches either: the declaration is
+    // checked against the model before it runs.
+    if (!currentVideoModel()?.features.includes(`${frame}-frame`)) return null;
 
-  const effectiveEndFrameId = createMemo(() => {
-    const id = videoConfig()?.endFrameImageId ?? selectedImageIds()[1] ?? null;
-    return id && assets.get(id) ? id : null;
-  });
+    const lib = library();
+    const config = videoConfig();
+    const explicit = frame === "start" ? config?.startFrameImageId : config?.endFrameImageId;
+    const id = explicit ?? selectedImages()[frame === "start" ? 0 : 1]?.asset.id ?? null;
+    return id && lib?.get(id) ? id : null;
+  };
+
+  const effectiveStartFrameId = createMemo(() => frameId("start"));
+  const effectiveEndFrameId = createMemo(() => frameId("end"));
 
   const [recentPrompts, setRecentPrompts] = createStoredSignal(
     store.define<string[]>("prompt-input.recent-prompts", []),
@@ -241,48 +235,41 @@ export function PromptInput(props: PromptInputProps) {
       patch({ imageRefIds: refs.filter((id) => id !== assetId) });
       return;
     }
-    const entry = selectedImageEntries().find((e) => e.assetId === assetId);
-    if (entry) {
-      removeComponent(world, entry.eid, c.Selected, false);
-    }
+    // The reference is shown from a selected canvas entity, so removing it
+    // means deselecting that entity.
+    const entry = selectedImages().find((e) => e.asset.id === assetId);
+    if (entry) editor.deselect(entry.entity);
   };
 
   const openImageReferencesPicker = async () => {
     if (effectiveImageRefIds().length >= MAX_IMAGE_REFERENCES) return;
-    const handles = await showFileDialog("image/*");
-    if (handles.length === 0) return;
+    const lib = library();
+    if (!lib) return;
 
-    try {
-      const loadedAssets = await Promise.all(handles.map((handle) => loadAsset(world, handle)));
-      const imageAssets = loadedAssets.filter((a) => a.type === "IMAGE");
-      const current = imageConfig()?.imageRefIds ?? [];
-      patch({
-        imageRefIds: [...current, ...imageAssets.map((a) => a.id)].slice(0, MAX_IMAGE_REFERENCES),
-      });
-    } catch (e) {
-      toast("Failed to import assets", {
-        description: (e as Error).message,
-      });
-    }
+    const files = await pickFiles({ accept: "image/*" });
+    if (files.length === 0) return;
+
+    // `importFiles` reports its own failures.
+    const imported = await importFiles(lib, files, "");
+    const imageAssets = imported.filter((a) => a.type === "IMAGE");
+    const current = imageConfig()?.imageRefIds ?? [];
+    patch({
+      imageRefIds: [...current, ...imageAssets.map((a) => a.id)].slice(0, MAX_IMAGE_REFERENCES),
+    });
   };
 
   const openVideoFramePicker = async (frame: "start" | "end") => {
-    const handles = await showFileDialog("image/*", false);
-    if (handles.length !== 1) return;
+    const lib = library();
+    if (!lib) return;
 
-    try {
-      const loadedAsset = await loadAsset(world, handles[0]!);
-      if (loadedAsset.type !== "IMAGE") return;
-      if (frame === "start") {
-        patch({ startFrameImageId: loadedAsset.id });
-      } else {
-        patch({ endFrameImageId: loadedAsset.id });
-      }
-    } catch (e) {
-      toast("Failed to import assets", {
-        description: (e as Error).message,
-      });
-    }
+    const files = await pickFiles({ accept: "image/*", multiple: false });
+    if (files.length === 0) return;
+
+    // `importFiles` reports its own failures.
+    const [imported] = (await importFiles(lib, files, "")).filter((a) => a.type === "IMAGE");
+    if (!imported) return;
+
+    patch(frame === "start" ? { startFrameImageId: imported.id } : { endFrameImageId: imported.id });
   };
 
   const swapVideoFrameImages = () => {
@@ -302,10 +289,8 @@ export function PromptInput(props: PromptInputProps) {
     }
     // The frame is being shown from a selected canvas entity, so clearing it
     // means deselecting that entity (mirrors removeImageReference).
-    const entry = frame === "start" ? selectedImageEntries()[0] : selectedImageEntries()[1];
-    if (entry) {
-      removeComponent(world, entry.eid, c.Selected, false);
-    }
+    const entry = selectedImages()[frame === "start" ? 0 : 1];
+    if (entry) editor.deselect(entry.entity);
   };
 
   const resizeTextarea = () => {
@@ -414,42 +399,42 @@ export function PromptInput(props: PromptInputProps) {
     dragCounter = 0;
     setIsDragging(false);
 
-    const assetIdData = event.dataTransfer?.getData("application/x-asset-id");
+    if (mode() !== "IMAGE" && mode() !== "VIDEO") return;
+
+    const lib = library();
+    if (!lib) return;
+
+    // What a generation is given to work from lives in the project library:
+    // dragged library assets are taken as they are, external files imported.
+    const assetIdData = event.dataTransfer?.getData(ASSET_DRAG_TYPE);
     const existingAssetIds = assetIdData?.split(",").filter(Boolean) ?? [];
+    const files = droppedFiles(event).filter((file) => file.type.startsWith("image/"));
+    if (existingAssetIds.length === 0 && files.length === 0) return;
 
-    const fileItems = Array.from(event.dataTransfer?.items ?? []).filter(
-      (item) => item.kind === "file" && item.type.startsWith("image/"),
-    );
+    // `importFiles` reports its own failures.
+    const droppedIds =
+      existingAssetIds.length > 0
+        ? existingAssetIds
+        : (await importFiles(lib, files, "")).map((a) => a.id);
 
-    if (existingAssetIds.length === 0 && fileItems.length === 0) return;
+    const imageIds = droppedIds.filter((id) => lib.get(id)?.type === "IMAGE");
+    if (imageIds.length === 0) return;
 
-    try {
-      let newAssetIds =
-        existingAssetIds.length > 0
-          ? existingAssetIds
-          : (await Promise.all(fileItems.map((item) => loadAsset(world, item)))).map((a) => a.id);
-
-      newAssetIds = newAssetIds.filter((id) => world.assets.get(id)?.type === "IMAGE");
-
-      if (mode() === "VIDEO") {
-        const c = videoConfig();
-        if (!c?.startFrameImageId && newAssetIds[0]) {
-          patch({ startFrameImageId: newAssetIds[0] });
-        }
-        if (!c?.endFrameImageId && newAssetIds[1]) {
-          patch({ endFrameImageId: newAssetIds[1] });
-        }
-      } else {
-        const current = imageConfig()?.imageRefIds ?? [];
-        patch({
-          imageRefIds: [...current, ...newAssetIds].slice(0, MAX_IMAGE_REFERENCES),
-        });
+    if (mode() === "VIDEO") {
+      const c = videoConfig();
+      if (!c?.startFrameImageId && imageIds[0]) {
+        patch({ startFrameImageId: imageIds[0] });
       }
-    } catch (e) {
-      toast("Failed to import assets", {
-        description: (e as Error).message,
-      });
+      if (!c?.endFrameImageId && imageIds[1]) {
+        patch({ endFrameImageId: imageIds[1] });
+      }
+      return;
     }
+
+    const current = imageConfig()?.imageRefIds ?? [];
+    patch({
+      imageRefIds: [...current, ...imageIds].slice(0, MAX_IMAGE_REFERENCES),
+    });
   };
 
   const handleVideoModelChange = (id: string) => {
@@ -463,7 +448,7 @@ export function PromptInput(props: PromptInputProps) {
       ...c,
       model: id,
       endFrameImageId: model.features.includes("end-frame") ? c.endFrameImageId : undefined,
-      generateAudio: model.features.includes("audio") ? c.generateAudio : true,
+      generateAudio: model.features.includes("audio") ? (c.generateAudio ?? true) : false,
       duration: model.durations.includes(durationStr) ? c.duration : parseInt(model.durations[0], 10),
       aspectRatio: model.aspectRatios.includes(c.aspectRatio)
         ? c.aspectRatio
@@ -495,7 +480,8 @@ export function PromptInput(props: PromptInputProps) {
             <For each={effectiveImageRefIds()}>
               {(assetId) => (
                 <PromptInputReferenceImageButton
-                  asset={assets.get(assetId)!}
+                  asset={library()!.get(assetId)!}
+                  cache={library()!.cache}
                   class="size-16"
                   size={{ width: 64, height: 64 }}
                   onRemove={() => removeImageReference(assetId)}
@@ -529,7 +515,8 @@ export function PromptInput(props: PromptInputProps) {
               >
                 {(src) => (
                   <PromptInputReferenceImageButton
-                    asset={assets.get(src())!}
+                    asset={library()!.get(src())!}
+                    cache={library()!.cache}
                     class="h-16 w-28"
                     size={{ width: 112, height: 64 }}
                     onRemove={() => clearVideoFrame("start")}
@@ -563,7 +550,8 @@ export function PromptInput(props: PromptInputProps) {
               >
                 {(src) => (
                   <PromptInputReferenceImageButton
-                    asset={assets.get(src())!}
+                    asset={library()!.get(src())!}
+                    cache={library()!.cache}
                     class="h-16 w-28"
                     size={{ width: 112, height: 64 }}
                     onRemove={() => clearVideoFrame("end")}
@@ -1068,7 +1056,8 @@ function VoiceMenu(props: VoiceMenuProps) {
 }
 
 type PromptInputReferenceImageButtonProps = {
-  asset: Asset;
+  asset: ThumbnailAsset;
+  cache?: AssetCache;
   class?: string;
   size?: { width: number; height: number };
   onRemove(): void;
@@ -1078,7 +1067,7 @@ function PromptInputReferenceImageButton(props: PromptInputReferenceImageButtonP
   return (
     <div class={cx("group relative shrink-0", props.class)}>
       <div class="size-full overflow-hidden rounded-md bg-input outline-none">
-        <AssetThumbnail asset={props.asset} class="size-full" size={props.size} />
+        <AssetThumbnail asset={props.asset} cache={props.cache} class="size-full" size={props.size} />
       </div>
       <Show when={props.onRemove}>
         <button

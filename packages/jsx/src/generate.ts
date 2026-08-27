@@ -44,12 +44,14 @@ export type GenerateVoiceOptions = {
   prompt: string;
   /** Voice id; default the first voice from `dapi voices`. */
   voice?: string;
+  seed?: number;
 };
 
 export type GenerateAudioOptions = {
   prompt: string;
   model?: string;
   duration?: number;
+  seed?: number;
 };
 
 export type AssetSpecInput =
@@ -74,6 +76,51 @@ export class AssetRef {
 
 export function isAssetRef(value: unknown): value is AssetRef {
   return value instanceof AssetRef;
+}
+
+/** An `AssetSpecInput` whose inputs are all strings — no nested declarations. */
+export type FlatAssetSpec = AssetSpecInput & {
+  refs?: string[];
+  startFrame?: string;
+  endFrame?: string;
+};
+
+/**
+ * A declaration as data, for the edit protocol. An `AssetRef` itself cannot
+ * travel as a prop value (see `isPropValue`: an object literal would not read
+ * back as one), so an edit carries the spec in this tagged shape instead, and
+ * the source writer spells it as the `generate.*` call that reproduces it.
+ */
+export type SerializedAssetRef = { $generate: FlatAssetSpec };
+
+/**
+ * The wire form of a declaration, or undefined when the spec references
+ * other declarations: nested refs only exist in authored code, where the
+ * call spelling them already is — the editor declares over library assets.
+ */
+export function serializeAssetRef(ref: AssetRef): SerializedAssetRef | undefined {
+  const spec = ref.spec;
+  const inputs = [
+    ...(spec.type === "image" ? (spec.refs ?? []) : []),
+    ...(spec.type === "video" ? [spec.startFrame, spec.endFrame] : []),
+  ];
+  if (inputs.some((input) => isAssetRef(input))) return undefined;
+
+  // Without the undefined entries: they are not part of the declaration, and
+  // the writer spells every entry it is handed.
+  const entries = Object.entries(spec).filter(([, value]) => value !== undefined);
+  return { $generate: Object.fromEntries(entries) as FlatAssetSpec };
+}
+
+const SPEC_TYPES = ["image", "video", "voice", "audio"];
+
+export function isSerializedAssetRef(value: unknown): value is SerializedAssetRef {
+  if (typeof value !== "object" || value === null || !("$generate" in value)) return false;
+  const spec = (value as SerializedAssetRef).$generate;
+  return (
+    typeof spec === "object" && spec !== null &&
+    SPEC_TYPES.includes(spec.type) && typeof spec.prompt === "string"
+  );
 }
 
 /** Host-side accessor for a declaration's spec. */

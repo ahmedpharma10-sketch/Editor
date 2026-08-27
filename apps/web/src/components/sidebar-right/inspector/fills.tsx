@@ -2,64 +2,83 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {
-  For,
-  Show,
-  createMemo,
-  createSignal,
-} from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Icon } from "@/components/ui/icon";
 import { PanelSection } from "@/components/ui/panel-section";
-
+import { SolidPaint } from "@diffusionstudio/reconciler";
+import { Cache, isText } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
 import { FillPicker, type FillTab } from "./fill-picker";
-import { useEntityState, createEntity, deleteEntity, getSiblingEntities, PaintType, isText, appendChild, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
 import { FillRow } from "./fill-row";
 
+import type { Entity } from "koota";
+
+/** What "Add fill" authors. */
+const DEFAULT_FILL_COLOR = "#E0E0E0";
+
+/** A text is painted by its glyphs, which no picture and no video fills. */
+const TEXT_TABS: FillTab[] = ["solid", "gradient"];
+
+// Stable identity, so a node without fills does not resample every tick.
+const NO_FILLS: Entity[] = [];
+
 type FillsSettingsProps = {
-  selection: Set<number>;
+  selection: Entity[];
 };
 
+/**
+ * The paint children of the selected node, in paint order (the list is shown
+ * topmost first, so the last element in the file is the first row). A row
+ * opens the picker, where the fill's kind can be changed — which replaces the
+ * element, since each kind is a tag of its own, so the picker hands back the
+ * entity it ended up with.
+ */
 export function FillsSettings(props: FillsSettingsProps) {
-  const { world } = useEngine();
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-  const c = world.components;
   let anchorRef!: HTMLDivElement;
 
-  const [selectedFill, setSelectedFill] = createSignal<number>();
-  const eid = () => props.selection.values().next().value!;
+  const [picked, setPicked] = createSignal<Entity>();
 
-  const fillEids = useEntityState(c.Cache.fills, eid, []);
-  const tabs = createMemo<FillTab[] | undefined>(() => {
-    return isText(world, eid())
-      ? ['solid', 'gradient']
-      : undefined;
-  });
+  // Cache is derived state, written without change events.
+  const fills = useDerived(() => entity().get(Cache)?.fills ?? NO_FILLS);
+
+  const tabs = createMemo<FillTab[] | undefined>(() =>
+    isText(entity()) ? TEXT_TABS : undefined,
+  );
 
   const handleAppendFill = () => {
-    world.history.transaction('Append fill', () => {
-      const solidEid = createEntity(world);
-      setComponent(world, solidEid, c.Paint, PaintType.SOLID);
-      setComponent(world, solidEid, c.Color, 0xE0E0E0);
-      appendChild(world, solidEid, eid());
-    })
+    const [fill] = editor.insertElement(entity(), () => (
+      <SolidPaint color={DEFAULT_FILL_COLOR} />
+    ));
+    if (fill) setPicked(fill);
   };
 
-  const handleClosePicker = () => setSelectedFill(undefined);
-  const handleSelectFill = (fillEid: number) => setSelectedFill(fillEid);
-  const handleRemoveFill = (fillEid: number) => deleteEntity(world, fillEid);
+  // Read back off the list, so removing a fill closes the picker on it.
+  const editing = createMemo(() => {
+    const fill = picked();
+    return fill !== undefined && fills().includes(fill) ? fill : undefined;
+  });
 
-  const handleReorderFill = (fillEid: number, direction: number) => {
-    const fills = getSiblingEntities(world, fillEid, c.Paint);
-    const index = fills.indexOf(fillEid);
-    const newIndex = index + direction;
-    if (newIndex >= 0 && newIndex < fills.length) {
-      fills.splice(newIndex, 0, fills.splice(index, 1)[0]);
-      for (const [idx, eid] of fills.entries()) {
-        setComponent(world, eid, c.ItemIndex, idx);
-      }
+  /**
+   * Swaps `fill` with its neighbour, later in the file (`direction` 1, on
+   * top) or earlier. Written as a swap because a move needs an anchor:
+   * `reparent` appends without one, and refuses an append into the parent the
+   * element already has.
+   */
+  const handleReorderFill = (fill: Entity, direction: number) => {
+    const siblings = fills();
+    const index = siblings.indexOf(fill);
+    const target = index + direction;
+    if (index === -1 || target < 0 || target >= siblings.length) return;
+
+    if (direction > 0) {
+      editor.reparent(siblings[target]!, entity(), fill);
+    } else {
+      editor.reparent(fill, entity(), siblings[target]!);
     }
   };
 
@@ -83,26 +102,26 @@ export function FillsSettings(props: FillsSettingsProps) {
           </Tooltip>
         }
       >
-        <For each={fillEids().toReversed()}>
-          {(fillEid) => (
+        <For each={fills().toReversed()}>
+          {(fill) => (
             <FillRow
-              nodeEid={eid()}
-              fillEid={fillEid}
-              onSelect={() => handleSelectFill(fillEid)}
-              onRemove={() => handleRemoveFill(fillEid)}
-              onMoveUp={() => handleReorderFill(fillEid, 1)}
-              onMoveDown={() => handleReorderFill(fillEid, -1)}
+              fill={fill}
+              onSelect={() => setPicked(fill)}
+              onRemove={() => editor.remove(fill)}
+              onMoveUp={() => handleReorderFill(fill, 1)}
+              onMoveDown={() => handleReorderFill(fill, -1)}
             />
           )}
         </For>
       </PanelSection>
-      <Show when={selectedFill()}>
+
+      <Show when={editing() !== undefined}>
         <FillPicker
-          nodeEid={eid()}
-          fillEid={selectedFill()!}
+          node={entity()}
+          fill={editing()!}
           anchorRef={anchorRef}
-          open={!!selectedFill()}
-          onClose={handleClosePicker}
+          onClose={() => setPicked(undefined)}
+          onReplace={(next) => setPicked(next)}
           tabs={tabs()}
         />
       </Show>

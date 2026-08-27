@@ -1,59 +1,48 @@
-# `dapi open [target]`
+# `dapi open [path]`
 
-Launches Diffusion Studio, or opens a target. Behavior depends on what `[target]` resolves to. Does not require the app to already be running.
+Launches Diffusion Studio — or surfaces the running instance — and, given a
+path, opens that folder as a project. The first command of the core loop:
+`open`, then mount, then render.
+
+The folder may live anywhere on disk, and does not have to be a project yet.
+Opening is what makes it one, writing as little as that takes:
+
+- a missing folder is created;
+- a folder with no entry file (package.json `main`, or `index.tsx` and
+  friends) gains an `index.tsx` holding an empty stage.
+
+Nothing else is written — no package.json, tsconfig, README, or manifest. A
+project is its JSX; the rest of the scaffold appears lazily, each piece when
+something first needs it. A folder that is already a project is opened
+untouched, wherever it lives.
+
+The app remembers the folder, so the project reopens across app relaunches
+and stays addressable by folder name or project id.
 
 ## Input
 
-- `[target]` (optional), one of:
-  - *omitted*: launches the app.
-  - **`diffusion://...` URL**: follows the deep link.
-  - **file path**: opens the file in the app.
-  - **folder path**: see [Folder open](#folder-open) below.
-
-## Options
-
-- `-b, --background`: launch with the window hidden (`show: false`), so the app runs headlessly and can be driven by other CLI commands without any visible UI.
+- `[path]`: project folder to open or create (optional; with no path the
+  command just makes sure the app is up). Relative paths resolve against the
+  shell's working directory.
+- `-b, --background`: launch or keep the app in the background, without
+  raising a window. The way to drive the editor headless.
 
 ## Output
 
-- File / URL / no target: nothing.
-- Folder: one JSON object (see below).
-
-## Folder open
-
-When `[target]` is a directory, `open` either creates a project from the folder's contents or switches to a previously created one. The decision is driven by a `.dapi` marker file at the folder root.
-
-**First time** (no marker present):
-
-1. Creates a new project named after the folder.
-2. Imports every supported asset file under the folder (recursively, excluding the marker itself), mirroring the on-disk directory structure as library folders. Directories without any supported assets beneath them produce no folder.
-3. Writes the `.dapi` marker at the folder root with the new project id.
-4. Opens the project.
-
-**Subsequent times** (marker present):
-
-1. Reads the project id from the marker.
-2. Switches to that project. No re-import.
-3. If the referenced project no longer exists, the marker is treated as stale and the first-time flow runs again, overwriting the marker.
-
-**Marker file**: `.dapi` at the folder root. JSON:
+With a path, the opened project as one JSON object:
 
 ```ts
 {
-  version:   1;
-  projectId: string;
-  createdAt: string;   // ISO 8601
+  id:   string;   // package.json `projectId`; "" until the project has a record
+  name: string;   // display name (falls back to the folder name)
+  dir:  string;   // absolute project folder, as opened
 }
 ```
 
-Add it to `.gitignore` to keep the project association per-clone, or commit it to share the same project across teammates.
+With no path, nothing: exit code `0` says the app is up.
 
-**Output:** one JSON object
+## Errors
 
-```ts
-{
-  project:  { id: string; name: string };
-  created:  boolean;     // true if a new project was created this run (first-time or stale-marker)
-  imported: number;      // assets imported this run; 0 on switch-only
-}
-```
+- The path exists but is not a folder.
+- Off macOS, the app cannot be launched; the command then requires it to
+  already be running.

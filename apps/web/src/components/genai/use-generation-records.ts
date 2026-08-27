@@ -3,14 +3,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createMemo, createResource } from "solid-js";
-import { hasComponent } from "bitecs";
-import { PaintType } from "@/components/engine";
-import { useEngine } from "@/context/engine";
+import { getAssetSpec, isAssetRef } from "@diffusionstudio/jsx";
+import { authoredElement } from "@diffusionstudio/reconciler";
+import { useSelection } from "@/engine/hooks";
+import { useLibrary } from "@/engine/library";
 import { supabase } from "@/lib/supabase";
-import { generationConfigSchema, type GenerationConfig } from "@/components/engine/db";
+import { useMediaSelection } from "./selection";
+import {
+  PROMPT_INPUT_AUDIO_MODEL_OPTIONS,
+  PROMPT_INPUT_IMAGE_MODEL_OPTIONS,
+  PROMPT_INPUT_VIDEO_MODEL_OPTIONS,
+  PROMPT_INPUT_VOICE_MODEL,
+  PROMPT_INPUT_VOICE_OPTIONS,
+} from "./config";
+import { generationConfigSchema, type GenerationConfig } from "./schemas";
 
-import type { EngineWorld } from "@/components/engine";
-import { useECS } from "@/context/ecs";
+import type { AssetInput, AssetSpecInput } from "@diffusionstudio/jsx";
+import type { AssetLibrary } from "@diffusionstudio/assets";
 
 /**
  * The stored `usage_records.config` IS the server-side adapter input, which
@@ -48,36 +57,73 @@ export function toClientConfig(stored: unknown): GenerationConfig | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-function getNodeAssetId(world: EngineWorld, eid: number): string | undefined {
-  const c = world.components;
-  if (hasComponent(world, eid, c.Audio)) {
-    return c.AssetId[eid];
+/**
+ * A declaration read back as what the prompt box would have to be set to to
+ * produce it — the element's own account of how it was made, which is what
+ * "Rerun" and "Reuse" work from. Inputs are named by library path in the
+ * file and by asset id in the prompt box, so they are looked up on the way.
+ */
+function toPromptConfig(spec: AssetSpecInput, library: AssetLibrary): GenerationConfig {
+  const idOf = (input: AssetInput | undefined): string | undefined =>
+    typeof input === "string" ? library.get(input)?.id : undefined;
+
+  switch (spec.type) {
+    case "image":
+      return {
+        mode: "IMAGE",
+        model: spec.model ?? PROMPT_INPUT_IMAGE_MODEL_OPTIONS[0].id,
+        prompt: spec.prompt,
+        aspectRatio: spec.aspectRatio ?? "16:9",
+        count: 1,
+        imageRefIds: (spec.refs ?? []).map(idOf).filter((id): id is string => id !== undefined),
+      };
+    case "video":
+      return {
+        mode: "VIDEO",
+        model: spec.model ?? PROMPT_INPUT_VIDEO_MODEL_OPTIONS[0].id,
+        prompt: spec.prompt,
+        aspectRatio: spec.aspectRatio ?? "16:9",
+        duration: spec.duration ?? 5,
+        generateAudio: spec.audio ?? false,
+        startFrameImageId: idOf(spec.startFrame),
+        endFrameImageId: idOf(spec.endFrame),
+      };
+    case "voice":
+      return {
+        mode: "VOICE",
+        model: PROMPT_INPUT_VOICE_MODEL,
+        prompt: spec.prompt,
+        voice: spec.voice ?? PROMPT_INPUT_VOICE_OPTIONS[0].value,
+      };
+    case "audio":
+      return {
+        mode: "AUDIO",
+        model: spec.model ?? PROMPT_INPUT_AUDIO_MODEL_OPTIONS[0].id,
+        prompt: spec.prompt,
+      };
   }
-  for (const fid of c.Cache.fills[eid]) {
-    if (hasComponent(world, fid, c.Hidden)) continue;
-    if (c.Paint[fid] === PaintType.VIDEO || c.Paint[fid] === PaintType.IMAGE) {
-      return c.AssetId[fid];
-    }
-  }
-  return undefined;
 }
 
 export function useGenerationRecords() {
-  const { selectedNodes } = useECS();
-  const { world } = useEngine();
+  const library = useLibrary();
+  const { nodes } = useSelection();
+  const { bound } = useMediaSelection();
 
+  // What the selected elements declare their source to be. An element made by
+  // the prompt box carries the whole spec, so this answers before the asset
+  // exists — and without asking the server what it was asked for.
+  const declarations = createMemo(() =>
+    nodes()
+      .map((entity) => authoredElement(entity)?.props.src)
+      .filter(isAssetRef)
+      .map(getAssetSpec),
+  );
+
+  // Credits are the server's to know, and it knows them per generation.
   const generationIds = createMemo(() => {
     const ids = new Set<string>();
-    for (const eid of selectedNodes()) {
-      const assetId = getNodeAssetId(world, eid);
-      if (!assetId) {
-        continue;
-      }
-
-      const asset = world.assets.get(assetId);
-      if (asset?.generationId) {
-        ids.add(asset.generationId);
-      }
+    for (const { asset } of bound()) {
+      if (asset.generation?.id) ids.add(asset.generation.id);
     }
     return [...ids];
   });
@@ -106,9 +152,15 @@ export function useGenerationRecords() {
     return (records() ?? []).reduce((sum, r) => sum + r.credits, 0);
   });
 
-  const isGenerated = createMemo(() => generationIds().length > 0);
+  const isGenerated = createMemo(() => declarations().length > 0 || generationIds().length > 0);
 
   const firstConfig = (): GenerationConfig | undefined => {
+    const lib = library();
+    const declared = declarations()[0];
+    if (declared && lib) return toPromptConfig(declared, lib);
+
+    // Nothing declared: an asset generated before the project was written in
+    // JSX, whose settings only the record of the run still has.
     const ids = generationIds();
     if (ids.length === 0) return undefined;
     const record = (records() ?? []).find((r) => r.id === ids[0]);

@@ -1,10 +1,10 @@
-# `dapi media grab <id|path>`
+# `dapi media grab <path>`
 
-Decodes one or more frames of a video asset at the given times and merges them into **contact sheets**: up to 12 frames per PNG, each cell labelled with its timecode and drawn as large as the sheet allows, so a handful of frames arrives as one high-resolution picture instead of a directory to open one by one. `--separate` writes a PNG per frame instead. Like [`node capture`](../node/capture.md), but grabs the asset's own pixels (unlike `node capture`, which renders the composited node). Renders locally; no credits. Past ~12 frames, [`media filmstrip`](./filmstrip.md) is the cheaper way to scan a clip.
+Decodes one or more frames of a video asset at the given times and merges them into **contact sheets**: up to 12 frames per PNG, each cell labelled with its timecode and drawn as large as the sheet allows, so a handful of frames arrives as one high-resolution picture instead of a directory to open one by one. `--separate` writes a PNG per frame instead. Like [`capture`](../capture.md), but grabs the asset's own pixels (unlike `capture`, which renders the composited node). Renders locally; no credits. Past ~12 frames, [`media filmstrip`](./filmstrip.md) is the cheaper way to scan a clip.
 
 ## Input
 
-- `<id|path>`: a video asset id, or a local video file to grab frames from in place without adding it to the library (required).
+- `<path>`: a local video file to grab frames from in place without adding it to the library, or a project library path (required; library paths need an open project).
 - `-t, --time <time...>`: one or more timestamps to grab, `Time` values in source/content time (optional; default `0`). A negative value is an offset back from the end of the clip, so `-1` is one second before the end and `-1f` one frame before it. Order is preserved in the output regardless of the order given. Mutually exclusive with `--count`.
 - `-c, --count <n>`: instead of `--time`, grab `n` frames evenly spaced across the clip at a fixed interval of `window / n`, starting at the window start (optional; positive integer).
 - `-s, --start <time>`: with `--count`, the start of the window to sample (optional; `Time` value; default `0`).
@@ -42,4 +42,4 @@ A sheet's timecode is the span it covers; a frame's is its own. Sheets come in t
 
 ## Errors
 
-Exits non-zero if the id is unknown, the asset is not a video, any `--time` is past the asset's duration, the `--count` window is empty, `--time` and `--count` are combined, `--start`/`--end` are given without `--count`, `--per-sheet` is outside 1 to 12, more than 100 frames are requested without `--uncapped`, or a PNG can't be written.
+Exits non-zero if the path can't be resolved, the asset is not a video, any `--time` is past the asset's duration, the `--count` window is empty, `--time` and `--count` are combined, `--start`/`--end` are given without `--count`, `--per-sheet` is outside 1 to 12, more than 100 frames are requested without `--uncapped`, or a PNG can't be written.

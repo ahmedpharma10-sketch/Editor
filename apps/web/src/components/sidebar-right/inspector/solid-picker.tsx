@@ -3,28 +3,35 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { ColorOpacityPicker } from "@/components/ui/color-opacity-picker";
-import { useEntityState, setComponent } from "@/components/engine";
-import { useEngine } from "@/context/engine";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { Computed, colorToHex } from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { syncKeyframe } from "@/engine/keyframes";
 
+import type { Entity } from "koota";
 
-export type SolidColorPickerProps = {
-  nodeEid: number;
-  fillEid: number;
+export type SolidFillPickerProps = {
+  fill: Entity;
 };
 
-export function SolidFillPicker(props: SolidColorPickerProps) {
-  const { world } = useEngine();
-  const c = world.components;
+/** A `<solidPaint>`'s color and opacity. `color` is required, never unset. */
+export function SolidFillPicker(props: SolidFillPickerProps) {
+  const world = useWorld();
+  const editor = useEditor();
 
-  const color = useEntityState(c.Computed.color, props.fillEid, 0xE0E0E0);
-  const opacity = useEntityState(c.Computed.opacity, props.fillEid, 1);
+  const color = useDerived(() => props.fill.get(Computed)?.color ?? 0xE0E0E0);
+  const opacity = useDerived(() => props.fill.get(Computed)?.opacity ?? 1);
 
-  const updateColor = (color: number) => {
-    setComponent(world, props.fillEid, c.Color, color);
+  const updateColor = (next: number) => {
+    const hex = colorToHex(next);
+    editor.editProperty(props.fill, "color", hex);
+    syncKeyframe(world, editor, props.fill, "color", hex);
   };
 
-  const updateOpacity = (opacity: number) => {
-    setComponent(world, props.fillEid, c.Appearance, { opacity });
+  const updateOpacity = (next: number) => {
+    const value = Math.round(next * 100) / 100;
+    editor.editProperty(props.fill, "opacity", value === 1 ? false : value);
+    syncKeyframe(world, editor, props.fill, "opacity", value);
   };
 
   return (
@@ -33,9 +40,7 @@ export function SolidFillPicker(props: SolidColorPickerProps) {
       opacity={opacity()}
       onColorChange={updateColor}
       onOpacityChange={updateOpacity}
-      onBeginChange={(label) => world.history.startTransaction(label)}
-      onEndChange={() => world.history.commitTransaction()}
-      keyframeTarget={props.fillEid}
+      keyframeTarget={props.fill}
     />
   );
 }

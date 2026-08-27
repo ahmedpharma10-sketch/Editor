@@ -1,22 +1,15 @@
 # @diffusionstudio/jsx
 
 The editor supplies the runtime when a project is mounted, so this package is
-needed for **types and tooling** — IntelliSense, `tsc --noEmit`, and testing
-components outside the editor.
+needed for **types and tooling** — IntelliSense and `tsc --noEmit`. It carries
+no renderer: `useTicker` is a declaration that throws outside a mount, and
+elements only become a composition once the editor renders them. The pure
+helpers (`generate.*`, `parseTime`, the source-stamp constants) are real here;
+everything else is a type.
 
-```sh
-npm install --save-dev @diffusionstudio/jsx solid-js
-```
+See [reference/jsx](https://github.com/diffusionstudio/editor/blob/main/reference/jsx/README.md)
+for the authoring surface itself.
 
-```jsonc
-// tsconfig.json
-{
-  "compilerOptions": {
-    "jsx": "preserve",
-    "jsxImportSource": "@diffusionstudio/jsx"
-  }
-}
-```
 
 ## License
 

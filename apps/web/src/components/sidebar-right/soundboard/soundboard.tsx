@@ -3,8 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { MeterScale, VolumeControl, VolumeMeter } from './volume-meter';
-import { useEntityState, setComponent } from '@/components/engine';
-import { useEngine } from '@/context/engine';
 import { createEffect, createMemo, createSignal, Show } from 'solid-js';
 import {
   Select,
@@ -14,36 +12,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useECS } from '@/context/ecs';
-import { hasComponent } from 'bitecs';
+import { useQuery, useTrait, useWorld } from '@diffusionstudio/koota-solid';
+import { AudioBusHandle, Computed, Name, Volume } from '@diffusionstudio/runtime';
+import { Or } from 'koota';
+import { useDerived, useEditor, useTimelineIndex } from '@/engine/hooks';
+import { syncKeyframe } from '@/engine/keyframes';
+
+import type { Entity } from 'koota';
+
+/** A layer's name, following a rename. */
+function LayerName(props: { entity: Entity | undefined }) {
+  const name = useTrait(() => props.entity, Name);
+
+  return <>{name()?.value || (props.entity ? `Layer ${props.entity.id()}` : 'Layer')}</>;
+}
 
 export function Soundboard() {
-  const { world } = useEngine();
-  const { playing } = useECS();
+  const world = useWorld();
+  const editor = useEditor();
+  const timelineIndex = useTimelineIndex();
 
-  const c = world.components;
-  const scene = () => world.timelineIndex().root;
-  const masterVolume = useEntityState(c.Volume, scene, 0);
+  const scene = () => timelineIndex().root ?? undefined;
 
-  // Only audio-bearing clips can be metered.
-  const audioLayers = createMemo(() =>
-    world
-      .timelineIndex()
+  // Only audio-bearing layers can be metered. A bus is spun up by the playback
+  // system the first time a node has audio to play, so what is meterable grows
+  // while a project plays — the query follows that, the timeline index (which
+  // only reports a changed tree) would not.
+  const audible = useQuery(Or(AudioBusHandle, Volume));
+
+  const audioLayers = createMemo(() => {
+    const metered = new Set<Entity>(audible());
+    return timelineIndex()
       .layers
-      .map((layer) => layer.eid)
-      .filter((eid) => hasComponent(world, eid, c.AudioBus) || hasComponent(world, eid, c.Volume))
-  );
+      .map((layer) => layer.entity)
+      .filter((entity) => metered.has(entity));
+  });
 
-  const [leftMeterEid, setLeftMeterEid] = createSignal<number | undefined>(audioLayers()[1]);
-  const [rightMeterEid, setRightMeterEid] = createSignal<number | undefined>(audioLayers()[0]);
+  const [leftMeterEntity, setLeftMeterEntity] = createSignal<Entity | undefined>(audioLayers()[1]);
+  const [rightMeterEntity, setRightMeterEntity] = createSignal<Entity | undefined>(audioLayers()[0]);
 
-  const leftOptions = () => audioLayers().filter((eid) => eid !== rightMeterEid());
-  const rightOptions = () => audioLayers().filter((eid) => eid !== leftMeterEid());
+  const leftOptions = () => audioLayers().filter((entity) => entity !== rightMeterEntity());
+  const rightOptions = () => audioLayers().filter((entity) => entity !== leftMeterEntity());
 
   createEffect(() => {
     const list = audioLayers();
-    let left = leftMeterEid();
-    let right = rightMeterEid();
+    let left = leftMeterEntity();
+    let right = rightMeterEntity();
 
     // Drop selections whose layer no longer exists.
     if (left !== undefined && !list.includes(left)) left = undefined;
@@ -51,75 +65,51 @@ export function Soundboard() {
 
     // Auto-fill empty slots, preferring a layer not already shown in the sibling
     // so the two meters never collapse onto the same layer.
-    if (right === undefined) right = list.find((eid) => eid !== left);
-    if (left === undefined) left = list.find((eid) => eid !== right);
+    if (right === undefined) right = list.find((entity) => entity !== left);
+    if (left === undefined) left = list.find((entity) => entity !== right);
 
-    setRightMeterEid(right);
-    setLeftMeterEid(left);
+    setRightMeterEntity(right);
+    setLeftMeterEntity(left);
   }, { defer: true });
 
-  const masterBus = createMemo(() => {
-    playing();
-    const sceneEid = scene();
-    return c.AudioBus[sceneEid ?? -1];
-  });
+  // The bus is the playback system's, and is set back to null when the node's
+  // decoders are released; the meter follows it either way.
+  const masterBus = useTrait(scene, AudioBusHandle);
+  const leftMeterBus = useTrait(leftMeterEntity, AudioBusHandle);
+  const rightMeterBus = useTrait(rightMeterEntity, AudioBusHandle);
 
-  const leftMeterNode = createMemo(() => {
-    playing();
-    scene();
-    const eid = leftMeterEid();
-    if (eid === undefined) return;
-    return c.AudioBus[eid]?.getGain();
-  });
+  const masterNode = () => masterBus()?.getGain();
+  const leftMeterNode = () => leftMeterBus()?.getGain();
+  const rightMeterNode = () => rightMeterBus()?.getGain();
 
-  const leftMeterVolume = useEntityState(c.Volume, leftMeterEid, 0);
+  // Computed is written by the systems without change events.
+  const masterVolume = useDerived(() => scene()?.get(Computed)?.volume ?? 0);
+  const leftMeterVolume = useDerived(() => leftMeterEntity()?.get(Computed)?.volume ?? 0);
+  const rightMeterVolume = useDerived(() => rightMeterEntity()?.get(Computed)?.volume ?? 0);
 
-  const rightMeterNode = createMemo(() => {
-    playing();
-    scene();
-    const eid = rightMeterEid();
-    if (eid === undefined) return;
-    return c.AudioBus[eid]?.getGain();
-  });
-
-  const rightMeterVolume = useEntityState(c.Volume, rightMeterEid, 0);
-
-  const masterNode = createMemo(() => {
-    playing();
-    scene();
-
-    return masterBus()?.getGain();
-  });
-
-  const handleMasterVolumeChange = (volume: number) => {
-    const sceneEid = scene();
-    if (sceneEid === null) return;
-    setComponent(world, sceneEid, c.Volume, volume);
+  const editVolume = (entity: Entity | undefined, volume: number) => {
+    if (entity === undefined) return;
+    // Whole decibels: the fader only ever shows the value that coarse, and a
+    // dragged one would otherwise write a new fraction per pointer event.
+    const next = Math.round(volume);
+    // 0 dB is unity, so a volume left there is unset.
+    editor.editProperty(entity, 'volume', next === 0 ? false : next);
+    syncKeyframe(world, editor, entity, 'volume', next);
   };
 
-  const handleLeftMeterVolumeChange = (volume: number) => {
-    const eid = leftMeterEid();
-    if (eid === undefined) return;
-    setComponent(world, eid, c.Volume, volume);
-  };
+  const handleMasterVolumeChange = (volume: number) => editVolume(scene(), volume);
+  const handleLeftMeterVolumeChange = (volume: number) => editVolume(leftMeterEntity(), volume);
+  const handleRightMeterVolumeChange = (volume: number) => editVolume(rightMeterEntity(), volume);
 
-  const handleRightMeterVolumeChange = (volume: number) => {
-    const eid = rightMeterEid();
-    if (eid === undefined) return;
-    setComponent(world, eid, c.Volume, volume);
-  };
-
-  const handleLeftMeterLayerChange = (eid: number | null) => {
-    if (eid === null) return;
-    if (audioLayers().includes(eid)) setLeftMeterEid(eid);
+  const handleLeftMeterLayerChange = (entity: Entity | null) => {
+    if (entity === null) return;
+    if (audioLayers().includes(entity)) setLeftMeterEntity(entity);
   }
 
-  const handleRightMeterLayerChange = (eid: number | null) => {
-    if (eid === null) return;
-    if (audioLayers().includes(eid)) setRightMeterEid(eid);
+  const handleRightMeterLayerChange = (entity: Entity | null) => {
+    if (entity === null) return;
+    if (audioLayers().includes(entity)) setRightMeterEntity(entity);
   }
-
-  const layerName = (eid: number) => c.Name[eid] ?? `Layer ${eid}`;
 
   return (
     <div class="soundboard flex items-stretch h-full w-full justify-between px-4 pt-4 pb-1">
@@ -134,18 +124,18 @@ export function Soundboard() {
           <MeterScale />
         </div>
         <div class="h-6 flex items-center justify-center shrink-0">
-          <Show when={leftMeterEid() !== undefined}>
-            <Select<number>
-              value={leftMeterEid()}
+          <Show when={leftMeterEntity() !== undefined}>
+            <Select<Entity>
+              value={leftMeterEntity()}
               onChange={handleLeftMeterLayerChange}
               options={leftOptions()}
               disabled={leftOptions().length <= 1}
               itemComponent={(itemProps) => (
-                <SelectItem item={itemProps.item}>{layerName(itemProps.item.rawValue)}</SelectItem>
+                <SelectItem item={itemProps.item}><LayerName entity={itemProps.item.rawValue} /></SelectItem>
               )}
             >
               <SelectTrigger class="text-xs text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent w-20 focus-visible:after:opacity-0">
-                <SelectValue<number>>{(state) => layerName(state.selectedOption() ?? -1)}</SelectValue>
+                <SelectValue<Entity>>{(state) => <LayerName entity={state.selectedOption()} />}</SelectValue>
               </SelectTrigger>
               <SelectPortal>
                 <SelectContent />
@@ -165,18 +155,18 @@ export function Soundboard() {
           <MeterScale />
         </div>
         <div class="h-6 flex items-center justify-center shrink-0">
-          <Show when={rightMeterEid() !== undefined}>
-            <Select<number>
-              value={rightMeterEid()}
+          <Show when={rightMeterEntity() !== undefined}>
+            <Select<Entity>
+              value={rightMeterEntity()}
               onChange={handleRightMeterLayerChange}
               options={rightOptions()}
               disabled={rightOptions().length <= 1}
               itemComponent={(itemProps) => (
-                <SelectItem item={itemProps.item}>{layerName(itemProps.item.rawValue)}</SelectItem>
+                <SelectItem item={itemProps.item}><LayerName entity={itemProps.item.rawValue} /></SelectItem>
               )}
             >
               <SelectTrigger class="text-xs text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent w-20 focus-visible:after:opacity-0">
-                <SelectValue<number>>{(state) => layerName(state.selectedOption() ?? -1)}</SelectValue>
+                <SelectValue<Entity>>{(state) => <LayerName entity={state.selectedOption()} />}</SelectValue>
               </SelectTrigger>
               <SelectPortal>
                 <SelectContent />

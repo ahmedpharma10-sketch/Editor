@@ -12,83 +12,67 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { useSearchParams } from "@solidjs/router";
-import { getAllEntities } from "bitecs";
+import { useNavigate } from "@solidjs/router";
 import { For, Show, createMemo } from "solid-js";
-import { nanoid } from "nanoid";
 import { toast } from "somoto";
-import { deleteProject, duplicateProject, DEFAULT_PROJECT_ID } from "@/components/engine/db";
-import { Not } from "bitecs";
-import { ChildOf, isScene, useQuery, loadAsset, changeAssetDirectory, removeAsset, getAssetFile } from "@/components/engine";
-import { useProjectId } from "@/hooks/use-project-id";
-import { useEngine } from "@/context/engine";
+import { forgetProjectBundle, generateProjectName } from "@/lib/db";
+import { createProject, deleteProject, duplicateProject, ensureProjectsRoot } from "@/projects";
+import { AssetId, ChildOf, Name, Root, Scene, getAssetFile, getActiveEntity, sortByItemIndex } from "@diffusionstudio/runtime";
+import { assetName } from "@diffusionstudio/assets";
+import { useQuery, useWorld } from "@diffusionstudio/koota-solid";
+import { useLibrary } from "@/engine/library";
+import { pickAndImport } from "@/engine/asset-actions";
+import { projectRoute } from "@/hooks/use-project-route";
+import { useProject } from "@/context/project";
 import { useExport } from "@/context/export";
 import { getDefaultExportTemplate } from "@/components/sidebar-right/inspector/export-templates";
-import { showFileDialog, mimeTypeToExtension } from "@/utils";
+import { mimeTypeToExtension } from "@/utils";
+
+import type { Entity } from "koota";
 
 export function FileMenu() {
-  const [, setParams] = useSearchParams();
-  const projectId = useProjectId();
-  const { world } = useEngine();
+  const navigate = useNavigate();
+  const project = useProject();
+  const library = useLibrary();
 
-  const handleNewProject = () => {
-    setParams({
-      project: nanoid(),
-      dashboard: undefined
-    }, { replace: true });
+  const handleNewProject = async () => {
+    try {
+      if (!(await ensureProjectsRoot())) return;
+      const created = await createProject(generateProjectName());
+      navigate(projectRoute(created.id));
+    } catch (e) {
+      toast.error("Failed to create project", {
+        description: (e as Error).message,
+      });
+    }
   };
 
   const handleDuplicateProject = async () => {
-    const currentId = projectId();
-    if (currentId === DEFAULT_PROJECT_ID) return;
-
     try {
-      const entry = await duplicateProject(currentId);
-      if (!entry) return;
-      setParams({
-        project: entry.id,
-        dashboard: undefined
-      }, { replace: true });
-    } catch {
-      toast.error("Failed to duplicate project");
+      const copy = await duplicateProject(project.dir());
+      navigate(projectRoute(copy.id));
+    } catch (e) {
+      toast.error("Failed to duplicate project", { description: (e as Error).message });
     }
   };
 
   const handleDeleteProject = async () => {
-    const currentId = projectId();
-    if (currentId === DEFAULT_PROJECT_ID) return;
-
     try {
-      await deleteProject(currentId);
-      setParams({
-        project: undefined,
-        dashboard: "projects",
-      }, { replace: true });
-    } catch {
-      toast.error("Failed to delete project");
-    }
-  };
-
-  const handleChangeProjectFolder = async () => {
-    try {
-      await changeAssetDirectory(world);
+      await deleteProject(project.dir());
+      forgetProjectBundle(project.id());
+      navigate("/?dashboard=projects");
     } catch (e) {
-      toast.error("Failed to change project folder", {
-        description: (e as Error).message,
-      });
+      toast.error("Failed to delete project", { description: (e as Error).message });
     }
   };
 
   const handleImportFromComputer = async () => {
-    try {
-      const files = await showFileDialog();
-      if (files.length === 0) return;
-      await Promise.all(files.map((file) => loadAsset(world, file)));
-    } catch (e) {
-      toast.error("Failed to import assets", {
-        description: (e as Error).message,
-      });
+    const lib = library();
+    if (!lib) {
+      toast("No project open");
+      return;
     }
+    await pickAndImport(lib, "");
   };
 
   return (
@@ -97,19 +81,8 @@ export function FileMenu() {
         <DropdownMenuItem onSelect={handleNewProject}>
           New project
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={projectId() === DEFAULT_PROJECT_ID}
-          onSelect={handleDuplicateProject}
-        >
+        <DropdownMenuItem onSelect={handleDuplicateProject}>
           Duplicate project
-        </DropdownMenuItem>
-      </DropdownMenuGroup>
-
-      <DropdownMenuSeparator />
-
-      <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={handleChangeProjectFolder}>
-          Change project folder...
         </DropdownMenuItem>
       </DropdownMenuGroup>
 
@@ -146,10 +119,7 @@ export function FileMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem
-          disabled={projectId() === DEFAULT_PROJECT_ID}
-          onSelect={handleDeleteProject}
-        >
+        <DropdownMenuItem onSelect={handleDeleteProject}>
           Delete project
         </DropdownMenuItem>
       </DropdownMenuGroup>
@@ -158,10 +128,11 @@ export function FileMenu() {
 }
 
 export function FileAssetMenu() {
-  const { world } = useEngine();
+  const world = useWorld();
+  const library = useLibrary();
 
   const handleDownloadAll = async () => {
-    const all = Array.from(world.assets.values());
+    const all = library()?.list() ?? [];
     if (all.length === 0) {
       toast("No assets to download");
       return;
@@ -186,9 +157,10 @@ export function FileAssetMenu() {
       await Promise.all(
         all.map(async (asset) => {
           const file = await getAssetFile(asset);
-          const base = asset.name.match(/\.[^.]+$/)
-            ? asset.name
-            : asset.name + mimeTypeToExtension(asset.mimeType);
+          const assetFileName = assetName(asset);
+          const base = assetFileName.match(/\.[^.]+$/)
+            ? assetFileName
+            : assetFileName + mimeTypeToExtension(asset.mimeType);
 
           let name = base;
           let i = 1;
@@ -218,58 +190,24 @@ export function FileAssetMenu() {
     }
   };
 
-  const handleRemoveDuplicates = async () => {
-    const all = Array.from(world.assets.values());
-    const byHash = new Map<string, typeof all>();
-    for (const asset of all) {
-      const list = byHash.get(asset.hash) ?? [];
-      list.push(asset);
-      byHash.set(asset.hash, list);
-    }
-
-    const toRemove: string[] = [];
-    for (const list of byHash.values()) {
-      if (list.length <= 1) continue;
-      list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      for (const asset of list.slice(1)) toRemove.push(asset.id);
-    }
-
-    if (toRemove.length === 0) {
-      toast("No duplicated media found");
-      return;
-    }
-
-    try {
-      await removeAsset(world, ...toRemove);
-      toast.success(
-        `Removed ${toRemove.length} duplicate${toRemove.length === 1 ? "" : "s"}`
-      );
-    } catch (e) {
-      toast.error("Failed to remove duplicated media", {
-        description: (e as Error).message,
-      });
-    }
-  };
-
   const handleRemoveUnused = async () => {
+    const lib = library();
+    if (!lib) return;
+
     const referenced = new Set<string>();
-    const AssetId = world.components.AssetId;
-    for (const eid of getAllEntities(world)) {
-      const id = AssetId[eid];
+    for (const entity of world.query(AssetId)) {
+      const id = entity.get(AssetId)?.value;
       if (id) referenced.add(id);
     }
 
-    const toRemove = Array.from(world.assets.values())
-      .filter((asset) => !referenced.has(asset.id))
-      .map((asset) => asset.id);
-
+    const toRemove = lib.list().filter((asset) => !referenced.has(asset.id));
     if (toRemove.length === 0) {
       toast("No unused media found");
       return;
     }
 
     try {
-      await removeAsset(world, ...toRemove);
+      await lib.remove(toRemove);
       toast.success(
         `Removed ${toRemove.length} unused asset${toRemove.length === 1 ? "" : "s"}`
       );
@@ -291,9 +229,6 @@ export function FileAssetMenu() {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={handleRemoveDuplicates}>
-          Remove duplicated media...
-        </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleRemoveUnused}>
           Remove unused media...
         </DropdownMenuItem>
@@ -303,16 +238,16 @@ export function FileAssetMenu() {
 }
 
 export function FileExportMenu() {
-  const { world } = useEngine();
+  const world = useWorld();
   const { exportScene, exportCurrentFrame } = useExport();
 
   const handleExportScene = async () => {
-    const sceneEid = world.selection.scene;
-    if (sceneEid === null) {
+    const scene = getActiveEntity(world);
+    if (scene === null) {
       toast("No active scene to export");
       return;
     }
-    await exportScene(sceneEid, getDefaultExportTemplate());
+    await exportScene(scene, getDefaultExportTemplate());
   };
 
   return (
@@ -345,15 +280,16 @@ export function FileExportMenu() {
 }
 
 export function FileExportSpecificSceneMenu() {
-  const { world } = useEngine();
+  const world = useWorld();
   const { exportScene } = useExport();
 
-  const c = world.components;
-  const children = useQuery([c.Geometry, c.Playback, Not(ChildOf('*')), Not(c.Deleted)]);
-  const scenes = createMemo(() => children().filter((eid) => isScene(world, eid)));
+  // Scenes are top-level by definition; the order is the stage's, so the menu
+  // reads the way the timeline's scene switcher does.
+  const children = useQuery(Scene, ChildOf(world.get(Root)!));
+  const scenes = createMemo(() => [...children()].sort(sortByItemIndex));
 
-  const handleExport = async (sceneEid: number) => {
-    await exportScene(sceneEid, getDefaultExportTemplate());
+  const handleExport = async (scene: Entity) => {
+    await exportScene(scene, getDefaultExportTemplate());
   };
 
   return (
@@ -365,9 +301,9 @@ export function FileExportSpecificSceneMenu() {
         }
       >
         <For each={scenes()}>
-          {(sceneEid, index) => (
-            <DropdownMenuItem onSelect={() => handleExport(sceneEid)}>
-              {world.components.Name[sceneEid] || `Scene ${index() + 1}`}
+          {(scene, index) => (
+            <DropdownMenuItem onSelect={() => handleExport(scene)}>
+              {scene.get(Name)?.value || `Scene ${index() + 1}`}
             </DropdownMenuItem>
           )}
         </For>

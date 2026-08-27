@@ -4,7 +4,9 @@
 
 import { createSignal, onMount, onCleanup, Show, createMemo } from "solid-js";
 import { toast } from "somoto";
-import { downloadAsset } from "@/components/assets/actions";
+import { useWorld } from "@diffusionstudio/koota-solid";
+import { assetName } from "@diffusionstudio/assets";
+import { insertAssetAtPlayhead, replaceAssetSource, saveAssetAs } from "@/engine/asset-actions";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,11 +18,10 @@ import {
 } from "../ui/context-menu";
 import { AssetThumbnail } from "../ui/asset-thumbnail";
 import { formatAssetDuration } from "@/utils";
-import { useEngine } from "@/context/engine";
-import { insertAssetInTimeline, replaceAssetHandle, removeAsset, saveAsset } from "@/components/engine";
+import { useLibrary } from "@/engine/library";
+import { ASSET_DRAG_TYPE } from "./folder-item";
 
-import type { Asset } from "@/components/engine/db";
-
+import type { Asset } from "@diffusionstudio/assets";
 
 export type LazyAssetItemProps = {
   asset: Asset;
@@ -32,11 +33,13 @@ export type LazyAssetItemProps = {
  * A lazy loaded asset item. Clears the buffer when not visible.
  */
 export function LazyAssetItem(props: LazyAssetItemProps) {
-  const { world } = useEngine();
+  const world = useWorld();
+  const library = useLibrary();
 
   const [isVisible, setIsVisible] = createSignal(false);
   const [isRenaming, setIsRenaming] = createSignal(false);
   const assetDuration = createMemo(() => formatAssetDuration(props.asset));
+  const name = () => assetName(props.asset);
 
   let ref: HTMLDivElement | undefined;
 
@@ -54,35 +57,25 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
 
   const handleDeleteAsset = async () => {
     try {
-      await removeAsset(world, props.asset.id);
+      await library()?.remove([props.asset]);
     } catch (e) {
       toast.error("Failed to delete", { description: (e as Error).message });
     }
   };
 
   const handleDragStart = (event: DragEvent) => {
-    event.dataTransfer?.setData("application/x-asset-id", props.asset.id);
+    event.dataTransfer?.setData(ASSET_DRAG_TYPE, props.asset.id);
   };
 
-  const handleRename = () => {
-    setIsRenaming(true);
-  };
-
-  const commitRename = async (nextName: string) => {
+  const commitRename = (nextName: string) => {
     if (!isRenaming()) return;
     setIsRenaming(false);
     const trimmed = nextName.trim();
-    if (!trimmed || trimmed === props.asset.name) return;
-    try {
-      await saveAsset(world, { ...props.asset, name: trimmed });
-    } catch (e) {
-      toast.error("Failed to rename", { description: (e as Error).message });
-    }
+    if (!trimmed || trimmed === name()) return;
+    library()?.rename(props.asset, trimmed);
   };
 
-  const handleRenameKeyDown = (
-    event: KeyboardEvent & { currentTarget: HTMLInputElement }
-  ) => {
+  const handleRenameKeyDown = (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
     event.stopPropagation();
     if (event.key === "Enter") {
       event.preventDefault();
@@ -100,9 +93,13 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
     });
   };
 
-  const handleDownloadMedia = () => downloadAsset(props.asset);
-  const handleReplaceMedia = () => replaceAssetHandle(world, props.asset);
-  const handleInsertToTimeline = () => insertAssetInTimeline(world, props.asset, 'playhead');
+  const handleReplaceMedia = async () => {
+    const lib = library();
+    if (lib) await replaceAssetSource(lib, props.asset);
+  };
+
+  const handleSaveAs = () => saveAssetAs(props.asset);
+  const handleInsertToTimeline = () => insertAssetAtPlayhead(world, props.asset);
 
   return (
     <ContextMenu>
@@ -120,7 +117,7 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
           class="relative aspect-video w-full overflow-clip rounded bg-muted after:pointer-events-none after:absolute after:inset-0 after:rounded after:opacity-0 after:ring-2 after:ring-inset after:ring-ring after:z-10 data-[selected=true]:after:opacity-100"
         >
           <Show when={isVisible()}>
-            <AssetThumbnail asset={props.asset} class="h-full w-full" />
+            <AssetThumbnail asset={props.asset} class="absolute inset-0" cache={library()?.cache} />
           </Show>
           <Show when={assetDuration()}>
             {(duration) => (
@@ -135,8 +132,8 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
         <Show
           when={isRenaming()}
           fallback={
-            <div class="text-xs text-foreground truncate select-none">
-              {props.asset.name}
+            <div class="text-xs text-foreground truncate select-none" title={props.asset.source}>
+              {name()}
             </div>
           }
         >
@@ -145,7 +142,7 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
             type="text"
             name="asset-name"
             autocomplete="off"
-            value={props.asset.name}
+            value={name()}
             onKeyDown={handleRenameKeyDown}
             onBlur={(e) => commitRename(e.currentTarget.value)}
             onClick={(e) => e.stopPropagation()}
@@ -161,14 +158,14 @@ export function LazyAssetItem(props: LazyAssetItemProps) {
             Insert at playhead
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={handleRename}>
+          <ContextMenuItem onSelect={() => setIsRenaming(true)}>
             Rename
           </ContextMenuItem>
           <ContextMenuItem onSelect={handleReplaceMedia}>
             Replace
           </ContextMenuItem>
-          <ContextMenuItem onSelect={handleDownloadMedia}>
-            Download
+          <ContextMenuItem onSelect={handleSaveAs}>
+            Save as
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={handleDeleteAsset}>

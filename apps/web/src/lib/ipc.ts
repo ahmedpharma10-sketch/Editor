@@ -105,7 +105,10 @@ type PendingCliRequest = { req: CliRequest; ws: WebSocket };
 // mounts (or between remounts on project switches) are held and retried on
 // the next registration — no explicit ready signal needed.
 class CliBridge {
-  private router: RouterCaller | null = null;
+  // Several routers coexist: the shell router (always mounted, owns `ping`
+  // and `open`) and the editor router (mounted per open project). Paths are
+  // disjoint; a request is answered by whichever router owns its path.
+  private routers = new Set<RouterCaller>();
   private pending: PendingCliRequest[] = [];
 
   constructor() {
@@ -128,9 +131,17 @@ class CliBridge {
     }
   }
 
+  private resolve(path: string): ProcedureCaller | undefined {
+    for (const router of this.routers) {
+      const proc = router(path);
+      if (proc) return proc;
+    }
+    return undefined;
+  }
+
   private async dispatch(pending: PendingCliRequest): Promise<void> {
     const { req, ws } = pending;
-    const proc = this.router?.(req.path);
+    const proc = this.resolve(req.path);
     if (!proc) {
       this.pending.push(pending);
       return;
@@ -156,12 +167,12 @@ class CliBridge {
 
   register(router: RouterCaller): () => void {
     if (!window.desktop) return () => {};
-    this.router = router;
+    this.routers.add(router);
     const held = this.pending;
     this.pending = [];
     for (const pending of held) void this.dispatch(pending);
     return () => {
-      if (this.router === router) this.router = null;
+      this.routers.delete(router);
     };
   }
 }

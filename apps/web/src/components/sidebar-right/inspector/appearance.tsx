@@ -24,24 +24,26 @@ import { PanelSection } from "@/components/ui/panel-section";
 import { Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedIconTabs } from "@/components/ui/segmented-icon-tabs";
-import { useEntityState, useEntityTag, BlendMode, isRect, addComponent, removeComponent, setComponent, isAudio, removeKeyframeTrack } from "@/components/engine";
-import { useEngine } from "@/context/engine";
 import { Keyframe } from "@/components/ui/keyframe";
-import { hasComponent } from 'bitecs';
-import { BLEND_MODE_ORDER, BLEND_MODE_SEPARATORS } from "./blend-mode-menu";
+import { useHas, useTrait, useWorld } from "@diffusionstudio/koota-solid";
+import {
+  BlendMode,
+  BlendModeType,
+  Computed,
+  CornerRadius,
+  Hidden,
+  MixedCornerRadius,
+  isAudio,
+  isRect,
+} from "@diffusionstudio/runtime";
+import { useDerived, useEditor } from "@/engine/hooks";
+import { removeKeyframeTrack, syncKeyframe } from "@/engine/keyframes";
+import { BLEND_MODE_ORDER, BLEND_MODE_SEPARATORS, blendModeName, displayBlendMode } from "./blend-modes";
+
+import type { Entity } from "koota";
 
 type AppearanceSettingsProps = {
-  selection: Set<number>;
-};
-
-function capitalize(str: string) {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-}
-
-function displayBlendMode(mode: string) {
-  if (mode === String(BlendMode.SOURCE_OVER)) return "Normal";
-
-  return capitalize(mode.replace("_", " "));
+  selection: Entity[];
 };
 
 function round(v: number) {
@@ -63,40 +65,58 @@ const RADIUS_MODE_ITEMS = [
   },
 ] as const;
 
+type Corner = 'cornerRadiusTopLeft' | 'cornerRadiusTopRight' | 'cornerRadiusBottomRight' | 'cornerRadiusBottomLeft';
+
+const CORNERS: Corner[] = ['cornerRadiusTopLeft', 'cornerRadiusTopRight', 'cornerRadiusBottomRight', 'cornerRadiusBottomLeft'];
+
+/**
+ * Opacity, blending, visibility and corner radii. All of them are props
+ * (`opacity`, `blendMode`, `hidden`, `cornerRadius` and the four per-corner
+ * radii) written through the editor; the shown values are Computed, which
+ * the motion system writes, hence `useDerived`. A radius the panel leaves
+ * at its default is unset rather than written as 0, and a mode switch
+ * drops the other mode's props and tracks: uniform is `cornerRadius`,
+ * separate is the four corners with `cornerRadius` gone.
+ */
 export function AppearanceSettings(props: AppearanceSettingsProps) {
-  const { world } = useEngine();
-  const c = world.components;
-  const eid = () => props.selection.values().next().value!;
+  const world = useWorld();
+  const editor = useEditor();
+  const entity = () => props.selection[0]!;
 
-  const opacity = useEntityState(c.Computed.opacity, eid, 1);
-  const blendMode = useEntityState(c.Appearance.blendMode, eid, 0);
-  const hidden = useEntityTag(c.Hidden, eid);
+  const opacity = useDerived(() => entity().get(Computed)?.opacity ?? 1);
+  const blendModeTrait = useTrait(entity, BlendMode);
+  const blendMode = () => blendModeTrait()?.value ?? BlendModeType.SOURCE_OVER;
+  const hidden = useHas(entity, Hidden);
 
-  const vertexRadius = useEntityState(c.Computed.cornerRadius, eid, 0);
-  const mixedTL = useEntityState(c.Computed.cornerRadiusTopLeft, eid, 0);
-  const mixedTR = useEntityState(c.Computed.cornerRadiusTopRight, eid, 0);
-  const mixedBR = useEntityState(c.Computed.cornerRadiusBottomRight, eid, 0);
-  const mixedBL = useEntityState(c.Computed.cornerRadiusBottomLeft, eid, 0);
-
-  const hasMixed = hasComponent(world, eid(), c.MixedCornerRadius);
+  const vertexRadius = useDerived(() => entity().get(Computed)?.cornerRadius ?? 0);
+  const mixedTL = useDerived(() => entity().get(Computed)?.cornerRadiusTopLeft ?? 0);
+  const mixedTR = useDerived(() => entity().get(Computed)?.cornerRadiusTopRight ?? 0);
+  const mixedBR = useDerived(() => entity().get(Computed)?.cornerRadiusBottomRight ?? 0);
+  const mixedBL = useDerived(() => entity().get(Computed)?.cornerRadiusBottomLeft ?? 0);
 
   const [selectedBlendMode, setSelectedBlendMode] = createSignal(blendMode());
-  const [radiusMode, setRadiusMode] = createSignal<RadiusMode>(hasMixed ? 'separate' : 'uniform');
+  const [radiusMode, setRadiusMode] = createSignal<RadiusMode>(entity().has(MixedCornerRadius) ? 'separate' : 'uniform');
 
   const handleOpacityChange = (v: number) => {
-    setComponent(world, eid(), c.Appearance, { opacity: Math.round(v) / 100 });
+    const value = Math.round(v) / 100;
+    editor.editProperty(entity(), 'opacity', value === 1 ? false : value);
+    syncKeyframe(world, editor, entity(), 'opacity', value);
   };
 
-  const handleBlendModePointerEnter = (mode: number) => (c.Appearance.blendMode[eid()] = mode);
+  const previewBlendMode = (mode: BlendModeType) => {
+    if (mode === BlendModeType.SOURCE_OVER) {
+      entity().remove(BlendMode);
+      return;
+    }
+    entity().add(BlendMode);
+    entity().set(BlendMode, { value: mode });
+  };
 
-  const handleBlendModeSelect = (mode: number | null) => {
-    if (mode === null) return;
+  const handleBlendModeSelect = (mode: BlendModeType | null) => {
+    if (mode === null || mode === selectedBlendMode()) return;
 
     setSelectedBlendMode(mode);
-
-    if (mode === blendMode()) return;
-
-    setComponent(world, eid(), c.Appearance, { blendMode: mode });
+    editor.editProperty(entity(), 'blendMode', mode === BlendModeType.SOURCE_OVER ? false : blendModeName(mode));
   };
 
   const handleBlendModeOpenChange = (isOpen: boolean) => {
@@ -104,17 +124,13 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
 
     // Reset blend mode if it has not been changed.
     if (selectedBlendMode() !== blendMode()) {
-      handleBlendModePointerEnter(selectedBlendMode());
+      previewBlendMode(selectedBlendMode());
     }
   };
 
   const handleVisibilityChange = () => {
-    if (!hasComponent(world, eid(), c.Hidden)) {
-      addComponent(world, eid(), c.Hidden);
-    } else {
-      removeComponent(world, eid(), c.Hidden);
-    }
-  }
+    editor.editProperty(entity(), 'hidden', !hidden());
+  };
 
   // Radius helpers
   const isRadiusDefault = createMemo(() => {
@@ -125,41 +141,40 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
   });
 
   const handleUniformRadiusChange = (v: number) => {
-    removeKeyframeTrack(world, eid(), 'mixedVertexRadius.topLeft');
-    removeKeyframeTrack(world, eid(), 'mixedVertexRadius.topRight');
-    removeKeyframeTrack(world, eid(), 'mixedVertexRadius.bottomRight');
-    removeKeyframeTrack(world, eid(), 'mixedVertexRadius.bottomLeft');
-    removeComponent(world, eid(), c.MixedCornerRadius);
-    setComponent(world, eid(), c.CornerRadius, v);
+    for (const corner of CORNERS) {
+      removeKeyframeTrack(world, editor, entity(), corner);
+    }
+    if (entity().has(MixedCornerRadius)) {
+      for (const corner of CORNERS) {
+        editor.editProperty(entity(), corner, false);
+      }
+    }
+    editor.editProperty(entity(), 'cornerRadius', v === 0 ? false : v);
+    syncKeyframe(world, editor, entity(), 'cornerRadius', v);
 
     setRadiusMode('uniform');
   };
 
-  const handleSeparateRadiusChange = (corner: 'topLeft' | 'topRight' | 'bottomRight' | 'bottomLeft', v: number) => {
-    removeKeyframeTrack(world, eid(), 'vertexRadius');
-    setComponent(world, eid(), c.MixedCornerRadius, { [corner]: v });
+  const handleSeparateRadiusChange = (corner: Corner, v: number) => {
+    removeKeyframeTrack(world, editor, entity(), 'cornerRadius');
+    editor.editProperty(entity(), corner, v);
+    syncKeyframe(world, editor, entity(), corner, v);
   };
 
   const handleRadiusModeChange = (value: RadiusMode) => {
     setRadiusMode(value);
     if (value === 'separate') {
+      // Read before the uniform radius goes, which resets it.
       const r = vertexRadius();
-      removeKeyframeTrack(world, eid(), 'vertexRadius');
-      removeComponent(world, eid(), c.CornerRadius);
-      setComponent(world, eid(), c.MixedCornerRadius, {
-        topLeft: r,
-        topRight: r,
-        bottomRight: r,
-        bottomLeft: r,
-      });
+      removeKeyframeTrack(world, editor, entity(), 'cornerRadius');
+      if (entity().has(CornerRadius)) {
+        editor.editProperty(entity(), 'cornerRadius', false);
+      }
+      for (const corner of CORNERS) {
+        editor.editProperty(entity(), corner, r);
+      }
     } else {
-      const avg = mixedTL();
-      removeKeyframeTrack(world, eid(), 'mixedVertexRadius.topLeft');
-      removeKeyframeTrack(world, eid(), 'mixedVertexRadius.topRight');
-      removeKeyframeTrack(world, eid(), 'mixedVertexRadius.bottomRight');
-      removeKeyframeTrack(world, eid(), 'mixedVertexRadius.bottomLeft');
-      removeComponent(world, eid(), c.MixedCornerRadius);
-      setComponent(world, eid(), c.CornerRadius, avg);
+      handleUniformRadiusChange(mixedTL());
     }
   };
 
@@ -189,7 +204,7 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
             value={Math.round(opacity() * 100)}
             onChange={handleOpacityChange}
             format={(v) => `${v}%`}
-            keyframe={<Keyframe target={eid()} property="opacity" />}
+            keyframe={<Keyframe target={entity()} property="opacity" />}
           />
         </div>
       </ControlRow>
@@ -208,9 +223,9 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
                 </Show>
                 <SelectItem
                   item={itemProps.item}
-                  onPointerEnter={() => handleBlendModePointerEnter(itemProps.item.rawValue)}
+                  onPointerEnter={() => previewBlendMode(itemProps.item.rawValue)}
                 >
-                  {displayBlendMode(BlendMode[itemProps.item.rawValue])}
+                  {displayBlendMode(itemProps.item.rawValue)}
                 </SelectItem>
               </>
             )}
@@ -219,7 +234,7 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
               icon={<Icon name="blending-mode-default" class="size-5" />}
               valueClass="text-xxs flex-1"
             >
-              {displayBlendMode(BlendMode[selectedBlendMode()])}
+              {displayBlendMode(selectedBlendMode())}
             </SelectIconTrigger>
             <SelectPortal>
               <SelectContent class="w-44 overscroll-contain" />
@@ -228,7 +243,7 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
         </div>
       </ControlRow>
 
-      <Show when={isRect(world, eid()) && !isAudio(world, eid())}>
+      <Show when={isRect(entity()) && !isAudio(entity())}>
         <ContextMenu>
           <ContextMenuTrigger<typeof ControlRow>
             as={ControlRow}
@@ -244,7 +259,7 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
               icon={<Icon name="corner-radius-all" />}
               sliderEnabled
               limitEvents
-              keyframe={<Keyframe target={eid()} property="vertexRadius" />}
+              keyframe={<Keyframe target={entity()} property="cornerRadius" />}
             />
             <SegmentedIconTabs
               value={() => radiusMode()}
@@ -270,10 +285,10 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
               autoSelect
               step={1}
               min={0}
-              onNumber={(v) => handleSeparateRadiusChange('topLeft', v)}
+              onNumber={(v) => handleSeparateRadiusChange('cornerRadiusTopLeft', v)}
               sliderEnabled
               limitEvents
-              keyframe={<Keyframe target={eid()} property="mixedVertexRadius.topLeft" />}
+              keyframe={<Keyframe target={entity()} property="cornerRadiusTopLeft" />}
             />
             <ControlledTextField
               icon={<Icon name="corner-radius-top-right" />}
@@ -281,10 +296,10 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
               autoSelect
               step={1}
               min={0}
-              onNumber={(v) => handleSeparateRadiusChange('topRight', v)}
+              onNumber={(v) => handleSeparateRadiusChange('cornerRadiusTopRight', v)}
               sliderEnabled
               limitEvents
-              keyframe={<Keyframe target={eid()} property="mixedVertexRadius.topRight" />}
+              keyframe={<Keyframe target={entity()} property="cornerRadiusTopRight" />}
             />
             <ControlledTextField
               icon={<Icon name="corner-radius-bottom-left" />}
@@ -292,10 +307,10 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
               autoSelect
               step={1}
               min={0}
-              onNumber={(v) => handleSeparateRadiusChange('bottomLeft', v)}
+              onNumber={(v) => handleSeparateRadiusChange('cornerRadiusBottomLeft', v)}
               sliderEnabled
               limitEvents
-              keyframe={<Keyframe target={eid()} property="mixedVertexRadius.bottomLeft" />}
+              keyframe={<Keyframe target={entity()} property="cornerRadiusBottomLeft" />}
             />
             <ControlledTextField
               icon={<Icon name="corner-radius-bottom-right" />}
@@ -303,10 +318,10 @@ export function AppearanceSettings(props: AppearanceSettingsProps) {
               autoSelect
               step={1}
               min={0}
-              onNumber={(v) => handleSeparateRadiusChange('bottomRight', v)}
+              onNumber={(v) => handleSeparateRadiusChange('cornerRadiusBottomRight', v)}
               sliderEnabled
               limitEvents
-              keyframe={<Keyframe target={eid()} property="mixedVertexRadius.bottomRight" />}
+              keyframe={<Keyframe target={entity()} property="cornerRadiusBottomRight" />}
             />
           </ControlRow>
         </Show>

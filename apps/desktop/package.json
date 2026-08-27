@@ -1,7 +1,7 @@
 {
   "name": "@diffusionstudio/desktop",
   "private": true,
-  "version": "0.132.2",
+  "version": "0.200.0",
   "license": "MPL-2.0",
   "repository": {
     "type": "git",
@@ -10,16 +10,17 @@
   "main": "dist/main.js",
   "scripts": {
     "build:preload": "esbuild src/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/preload.js",
-    "build:main": "esbuild src/main.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/main.js",
+    "build:main": "esbuild src/main.ts --bundle --platform=node --format=cjs --external:electron --external:esbuild --external:@babel/core --external:@babel/preset-typescript --external:babel-preset-solid --outfile=dist/main.js",
     "build:native": "node scripts/build-native.mjs",
     "build": "npm run check && npm run build:main && npm run build:preload && npm run build:native",
     "build:web": "npm --prefix ../web run build:desktop",
     "stage:cli": "npm --prefix ../cli run build && node scripts/stage-cli.mjs",
+    "stage:docs": "node scripts/stage-docs.mjs",
     "check": "tsc --noEmit",
     "dev": "npm run build && electron-forge start",
-    "package": "npm run build && npm run build:web && npm run stage:cli && electron-forge package",
-    "make": "npm run build && npm run build:web && npm run stage:cli && electron-forge make",
-    "publish": "npm run build && npm run build:web && npm run stage:cli && electron-forge publish",
+    "package": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && electron-forge package",
+    "make": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && electron-forge make",
+    "publish": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && electron-forge publish",
     "make:icns": "sh scripts/make-icns.sh"
   },
   "devDependencies": {
@@ -27,13 +28,21 @@
     "@electron-forge/maker-dmg": "^7.11.1",
     "@electron-forge/maker-zip": "^7.11.1",
     "@electron-forge/publisher-github": "^7.11.1",
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^24.10.1",
     "electron": "^43.1.1",
-    "esbuild": "^0.28.1",
     "typescript": "~5.9.3"
   },
   "dependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-typescript": "^7.27.1",
     "@diffusionstudio/cli": "*",
-    "update-electron-app": "^3.0.0"
+    "@diffusionstudio/jsx": "*",
+    "babel-preset-solid": "^1.9.12",
+    "esbuild": "^0.28.1",
+    "nanoid": "^6.0.1",
+    "ts-morph": "^28.0.0",
+    "update-electron-app": "^3.0.0",
+    "yaml": "^2.9.0"
   }
 }

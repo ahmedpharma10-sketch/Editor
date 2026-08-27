@@ -1,32 +1,34 @@
 # Keyframes
 
-Animatable props accept a keyframe list in place of a static value:
+A `<keyframeTrack>` animates one prop of the element holding it over the node's local time; its `<keyframe>` children are the values along the way:
 
 ```tsx
-<image
-  src="/photo.jpg"
-  start={0} end={5}
-  x={[
-    { time: 0, value: -400 },
-    { time: 1, value: 200, easing: "easeOut" },
-  ]}
-  opacity={[{ time: 0, value: 0 }, { time: "15f", value: 1 }]}
-/>
+<image src="stills/photo.jpg" start={0} end={5}>
+  <keyframeTrack property="x">
+    <keyframe time={0} value={-400} easing="easeOut" />
+    <keyframe time={1} value={200} />
+  </keyframeTrack>
+  <keyframeTrack property="opacity">
+    <keyframe time={0} value={0} />
+    <keyframe time="15f" value={1} />
+  </keyframeTrack>
+</image>
 ```
 
-```ts
-type Keyframe<T> = { time: Time; value: T; easing?: Easing };
-type Animatable<T> = T | Keyframe<T>[];
-```
+| Element | Props | Meaning |
+| ------- | ----- | ------- |
+| `<keyframeTrack>` | `property` (**required**) | The prop of the holding element it drives, by name. One track per prop. |
+| `<keyframe>` | `time` (**required**), `value` (**required**), `easing` | One keyframe: node-local time in any [time format](./timing.md#time-formats), the value at that time (a number, or any CSS color on a `color` track), and the easing into the next keyframe. |
 
-Animatable props: `x`, `y`, `offsetX`, `offsetY`, `width`, `height`, `rotation`, `opacity`, `cornerRadius`, `volume`, `color`, `offset`. As part of the shared property table this applies to [`dapi node patch`](../node/patch.md) identically, and to [paints and color stops](./paints.md) (`color`, `opacity`, `offset` animate gradients). For preset in/out effects (fade, slides, text reveals, ...) use the [`animations` prop](./animations.md) instead.
+Animatable props (`property`): `x`, `y`, `offsetX`, `offsetY`, `width`, `height`, `rotation`, `scale`, `scaleX`, `scaleY`, `opacity`, `cornerRadius`, `cornerRadiusTopLeft`, `cornerRadiusTopRight`, `cornerRadiusBottomRight`, `cornerRadiusBottomLeft`, `volume`, `color`, `offset`, `blur`, `value`. Whose prop is the track's holder's: a track under a [paint or color stop](./paints.md) animates the paint (`color`, `opacity`, `offset`), and one under a [`<stroke>`, `<shadow>` or `<effect>`](./styles.md) that style's own — `width` is a stroke's line width, `blur`/`offsetX`/`offsetY` a shadow's, `value` an effect's amount. For preset in/out effects (fade, slides, text reveals, ...) use [`<animation>`](./animations.md) instead.
 
 ## Semantics
 
-- `time` is **node-local**: `0` is where the clip begins (its `start`), in any [time format](./timing.md#time-formats). Timing props are parent-relative; keyframe times are not, so animation moves with the clip.
-- Outside the keyframed range the value holds at the first/last keyframe.
+- `time` is **node-local**: `0` is where the clip begins (its `start`). Timing props are parent-relative; keyframe times are not, so animation moves with the clip.
+- Keyframes may be written in any order; they sort by `time`. Outside the keyframed range the value holds at the first/last keyframe.
 - `easing` shapes the segment from its keyframe to the next; the last keyframe's easing is ignored. Default `"linear"`.
-- A **static value replaces any existing keyframes** on that property; mount and `dapi node patch` own what they set. Keyframes land as regular editor keyframes, editable in the timeline and inspector, and props the render doesn't set keep their hand-made tracks across re-mounts.
+- The prop's static value (`x={10}` on the element) is what holds when the track has no keyframes; while it has any, the track wins.
+- Tracks and keyframes are elements like any other: each has an `id`, the editor writes a moved keyframe back to it, and they are copied with their element.
 
 ## Easing
 

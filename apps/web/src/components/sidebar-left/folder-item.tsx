@@ -4,6 +4,7 @@
 
 import { createMemo, createSignal, Show } from "solid-js";
 import { toast } from "somoto";
+import { basename } from "@diffusionstudio/assets";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -13,54 +14,46 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu";
 import { Icon } from "../ui/icon";
-import { useEngine } from "@/context/engine";
-import {
-  renameFolder,
-  deleteFolder,
-  moveFolder,
-  moveAssetsToFolder,
-  useAssets,
-  useFolders,
-  assetFolderId,
-} from "@/components/engine";
+import { useLibrary } from "@/engine/library";
 
-import type { Folder } from "@/components/engine/db";
+import type { AssetLibrary } from "@diffusionstudio/assets";
 
+/** Drag payloads: comma-separated asset ids, or one folder path. */
 export const ASSET_DRAG_TYPE = "application/x-asset-id";
-export const FOLDER_DRAG_TYPE = "application/x-folder-id";
+export const FOLDER_DRAG_TYPE = "application/x-folder-path";
 
-function isAssetOrFolderDrag(event: DragEvent): boolean {
+export function isAssetOrFolderDrag(event: DragEvent): boolean {
   const types = event.dataTransfer?.types ?? [];
   return types.includes(ASSET_DRAG_TYPE) || types.includes(FOLDER_DRAG_TYPE);
 }
 
 /**
  * Handles a drop of an internal asset/folder drag onto the target folder
- * (null = root). Returns true when the event was an internal drag.
+ * ('' = root). Returns true when the event was an internal drag.
  */
-export async function handleFolderDrop(
-  world: ReturnType<typeof useEngine>["world"],
-  event: DragEvent,
-  targetFolderId: string | null,
-): Promise<boolean> {
-  const assetId = event.dataTransfer?.getData(ASSET_DRAG_TYPE);
-  const folderId = event.dataTransfer?.getData(FOLDER_DRAG_TYPE);
-  if (!assetId && !folderId) return false;
+export function handleFolderDrop(library: AssetLibrary | undefined, event: DragEvent, target: string): boolean {
+  if (!library) return false;
 
-  if (assetId) {
-    await moveAssetsToFolder(world, [assetId], targetFolderId);
-  }
-  if (folderId && folderId !== targetFolderId) {
-    const moved = await moveFolder(world, folderId, targetFolderId);
-    if (!moved) {
+  const assetIds = event.dataTransfer?.getData(ASSET_DRAG_TYPE)?.split(",").filter(Boolean) ?? [];
+  const folder = event.dataTransfer?.getData(FOLDER_DRAG_TYPE);
+  if (!assetIds.length && !folder) return false;
+
+  const assets = assetIds.map((id) => library.get(id)).filter((asset) => asset !== undefined);
+  if (assets.length) library.move(assets, target);
+
+  if (folder && folder !== target) {
+    if (target === folder || target.startsWith(`${folder}/`)) {
       toast("Cannot move a folder into itself");
+    } else {
+      library.moveFolder(folder, target);
     }
   }
   return true;
 }
 
 export type FolderItemProps = {
-  folder: Folder;
+  /** The folder's library path. */
+  path: string;
   renaming: boolean;
   onRenameStart(): void;
   onRenameEnd(): void;
@@ -68,19 +61,17 @@ export type FolderItemProps = {
 };
 
 export function FolderItem(props: FolderItemProps) {
-  const { world } = useEngine();
-  const assets = useAssets(world);
-  const folders = useFolders(world);
-
+  const library = useLibrary();
   const [isDropTarget, setIsDropTarget] = createSignal(false);
 
-  const childCount = createMemo(() =>
-    folders.childrenOf(props.folder.id).length +
-    assets.all().filter((asset) => assetFolderId(world, asset) === props.folder.id).length
-  );
+  const name = () => basename(props.path);
+  const childCount = createMemo(() => {
+    const children = library()?.childrenOf(props.path);
+    return children ? children.folders.length + children.assets.length : 0;
+  });
 
   const handleDragStart = (event: DragEvent) => {
-    event.dataTransfer?.setData(FOLDER_DRAG_TYPE, props.folder.id);
+    event.dataTransfer?.setData(FOLDER_DRAG_TYPE, props.path);
   };
 
   const handleDragOver = (event: DragEvent) => {
@@ -90,33 +81,23 @@ export function FolderItem(props: FolderItemProps) {
     setIsDropTarget(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDropTarget(false);
-  };
-
-  const handleDrop = async (event: DragEvent) => {
+  const handleDrop = (event: DragEvent) => {
     if (!isAssetOrFolderDrag(event)) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDropTarget(false);
-    await handleFolderDrop(world, event, props.folder.id);
+    handleFolderDrop(library(), event, props.path);
   };
 
-  const commitRename = async (nextName: string) => {
+  const commitRename = (nextName: string) => {
     if (!props.renaming) return;
     props.onRenameEnd();
     const trimmed = nextName.trim();
-    if (!trimmed || trimmed === props.folder.name) return;
-    try {
-      await renameFolder(world, props.folder.id, trimmed);
-    } catch (e) {
-      toast.error("Failed to rename", { description: (e as Error).message });
-    }
+    if (!trimmed || trimmed === name()) return;
+    library()?.renameFolder(props.path, trimmed);
   };
 
-  const handleRenameKeyDown = (
-    event: KeyboardEvent & { currentTarget: HTMLInputElement }
-  ) => {
+  const handleRenameKeyDown = (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
     event.stopPropagation();
     if (event.key === "Enter") {
       event.preventDefault();
@@ -136,7 +117,7 @@ export function FolderItem(props: FolderItemProps) {
 
   const handleDelete = async () => {
     try {
-      await deleteFolder(world, props.folder.id);
+      await library()?.deleteFolder(props.path);
     } catch (e) {
       toast.error("Failed to delete", { description: (e as Error).message });
     }
@@ -147,11 +128,11 @@ export function FolderItem(props: FolderItemProps) {
       <ContextMenuTrigger
         as="div"
         class="flex flex-col gap-1 text-left"
-        data-folder-id={props.folder.id}
+        data-folder-path={props.path}
         draggable={true}
         onDragStart={handleDragStart}
         on:dragover={handleDragOver}
-        on:dragleave={handleDragLeave}
+        on:dragleave={() => setIsDropTarget(false)}
         on:drop={handleDrop}
         onClick={props.onOpen}
       >
@@ -162,26 +143,20 @@ export function FolderItem(props: FolderItemProps) {
           <Icon name="folder-thumbnail" class="w-8 h-6 text-muted-foreground pointer-events-none" />
           <Show when={childCount() > 0}>
             <div class="absolute left-1 top-1 z-20 flex h-4 items-center justify-center rounded bg-overlay px-1">
-              <span class="text-xxs text-primary-foreground">
-                {childCount()}
-              </span>
+              <span class="text-xxs text-primary-foreground">{childCount()}</span>
             </div>
           </Show>
         </div>
         <Show
           when={props.renaming}
-          fallback={
-            <div class="text-xs text-foreground truncate select-none">
-              {props.folder.name}
-            </div>
-          }
+          fallback={<div class="text-xs text-foreground truncate select-none">{name()}</div>}
         >
           <input
             ref={handleFocusElement}
             type="text"
             name="folder-name"
             autocomplete="off"
-            value={props.folder.name}
+            value={name()}
             onKeyDown={handleRenameKeyDown}
             onBlur={(e) => commitRename(e.currentTarget.value)}
             onClick={(e) => e.stopPropagation()}
@@ -193,17 +168,11 @@ export function FolderItem(props: FolderItemProps) {
       </ContextMenuTrigger>
       <ContextMenuPortal>
         <ContextMenuContent class="w-[220px]">
-          <ContextMenuItem onSelect={props.onOpen}>
-            Open
-          </ContextMenuItem>
+          <ContextMenuItem onSelect={props.onOpen}>Open</ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={props.onRenameStart}>
-            Rename
-          </ContextMenuItem>
+          <ContextMenuItem onSelect={props.onRenameStart}>Rename</ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={handleDelete}>
-            Delete
-          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleDelete}>Delete</ContextMenuItem>
         </ContextMenuContent>
       </ContextMenuPortal>
     </ContextMenu>

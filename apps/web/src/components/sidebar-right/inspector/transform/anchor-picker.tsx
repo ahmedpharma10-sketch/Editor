@@ -6,34 +6,20 @@ import { createSignal, For, Show } from 'solid-js';
 import { Icon } from '@/components/ui/icon';
 import { anchorPositions } from './constants';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useEngine } from '@/context/engine';
-import { useEntityState, setComponent } from '@/components/engine';
-
 
 import type { AnchorPosition } from './constants';
 
 export type AnchorPointPickerProps = {
-  nodeEid: number;
+  x: number;
+  y: number;
+  onPick(x: number, y: number): void;
 };
 
 export function AnchorPointPicker(props: AnchorPointPickerProps) {
-  const { world } = useEngine();
-  const c = world.components;
   const [hoveredIndex, setHoveredIndex] = createSignal<number | null>(null);
 
-  const anchorX = useEntityState(c.Anchor.x, props.nodeEid, 0.5);
-  const anchorY = useEntityState(c.Anchor.y, props.nodeEid, 0.5);
-
   const isActive = (pos: AnchorPosition) => {
-    const ax = anchorX();
-    const ay = anchorY();
-    if (ax === undefined || ay === undefined) return false;
-
-    return Math.abs(ax - pos.x) < 0.01 && Math.abs(ay - pos.y) < 0.01;
-  };
-
-  const assignAnchor = (x: number, y: number) => {
-    setComponent(world, props.nodeEid, c.Anchor, { x, y });
+    return Math.abs(props.x - pos.x) < 0.01 && Math.abs(props.y - pos.y) < 0.01;
   };
 
   return (
@@ -51,7 +37,7 @@ export function AnchorPointPicker(props: AnchorPointPickerProps) {
                 class="w-full h-full relative rounded-md transition-colors flex items-center justify-center"
                 onMouseEnter={() => setHoveredIndex(index())}
                 onMouseLeave={() => setHoveredIndex(null)}
-                onClick={() => assignAnchor(pos.x, pos.y)}
+                onClick={() => props.onPick(pos.x, pos.y)}
               >
                 <Show
                   when={active() || hovered()}

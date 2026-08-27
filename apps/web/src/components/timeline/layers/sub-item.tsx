@@ -3,76 +3,59 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { createMemo, Show } from 'solid-js';
-import { hasComponent } from 'bitecs';
+import { useTag, useWorld } from '@diffusionstudio/koota-solid';
+import {
+  ColorStop,
+  Effect,
+  Expanded,
+  Hovering,
+  Name,
+  Paint,
+  PaintType,
+  Selected,
+  Shadow,
+  Stroke,
+} from '@diffusionstudio/runtime';
 import { Icon } from '@/components/ui/icon';
-import { useEngine } from '@/context/engine';
-import { addComponent, clearComponent, removeComponent, useEntityTag, EffectType, PaintType } from '@/components/engine';
-import { EFFECT_DEFAULTS } from '@/components/sidebar-right/inspector/effects-inspector';
+import { useEditor } from '@/engine/hooks';
+import { KEYFRAME_TRACK_HEIGHT } from '@/engine/timeline';
+import { effectOption } from '@/components/sidebar-right/inspector/effect-types';
 import { NESTED_INDENT_PX } from './config';
+import { setRowHover } from './hover';
 
-import type { TimelineNode } from '@/components/engine/api/timeline-index';
-import { KEYFRAME_TRACK_HEIGHT } from '@/components/engine/timeline/config';
+import type { Entity } from 'koota';
+import type { LayerRowProps } from './layer';
 
-type SubItemLayerProps = {
-  layer: TimelineNode;
-  depth?: number;
-  expanded: boolean;
-  ancestorSelected: boolean;
-}
+const PAINT_NAMES: Partial<Record<PaintType, string>> = {
+  [PaintType.LINEAR_GRADIENT]: 'Gradient',
+  [PaintType.RADIAL_GRADIENT]: 'Gradient',
+  [PaintType.SOLID]: 'Solid',
+  [PaintType.IMAGE]: 'Image',
+  [PaintType.VIDEO]: 'Video',
+  [PaintType.WAVEFORM]: 'Waveform',
+  [PaintType.HTML]: 'HTML',
+  [PaintType.SURFACE]: 'Surface',
+  [PaintType.SHADER]: 'Shader',
+};
 
-export function SubItemLayer(props: SubItemLayerProps) {
-  const { world } = useEngine();
+/**
+ * A row for one of a clip's parts — a fill, a stroke, a shadow, an effect —
+ * which is here only so the keyframe rows under it have something to hang
+ * from. It has no clip of its own on the canvas beside it.
+ */
+export function SubItemLayer(props: LayerRowProps) {
+  const world = useWorld();
+  const editor = useEditor();
 
-  const c = world.components;
+  const entity = () => props.layer.entity;
 
-  const eid = () => props.layer.eid;
-
-  const depth = () => props.depth ?? 0;
-  const canExpand = () => props.layer.expandable;
-  const hovering = useEntityTag(c.Hovering, eid);
-  const selected = useEntityTag(c.Selected, eid);
-  const name = createMemo(() => {
-    if (c.Name[eid()]) return c.Name[eid()];
-    if (hasComponent(world, eid(), c.Stroke)) return 'Stroke';
-    if (hasComponent(world, eid(), c.Shadow)) return 'Shadow';
-    if (hasComponent(world, eid(), c.Paint)) {
-      if (c.Paint[eid()] === PaintType.LINEAR_GRADIENT) return 'Gradient';
-      if (c.Paint[eid()] === PaintType.RADIAL_GRADIENT) return 'Gradient';
-      if (c.Paint[eid()] === PaintType.SOLID) return 'Solid';
-      if (c.Paint[eid()] === PaintType.IMAGE) return 'Image';
-      if (c.Paint[eid()] === PaintType.VIDEO) return 'Video';
-      if (c.Paint[eid()] === PaintType.SEQUENCE) return 'Sequence';
-      if (c.Paint[eid()] === PaintType.WAVEFORM) return 'Waveform';
-      if (c.Paint[eid()] === PaintType.HTML) return 'HTML';
-      if (c.Paint[eid()] === PaintType.SURFACE) return 'Surface';
-      if (c.Paint[eid()] === PaintType.SHADER) return 'Shader';
-      return 'Fill';
-    }
-    if (hasComponent(world, eid(), c.ColorStop)) return 'Stop';
-    if (hasComponent(world, eid(), c.Effect)) {
-      const type = c.Effect.type[eid()] as Exclude<EffectType, EffectType.DROP_SHADOW>;
-      return EFFECT_DEFAULTS[type]?.label ?? `Sub-item ${eid()}`;
-    }
-    return `Sub-item ${eid()}`;
-  });
+  const hovering = useTag(entity, Hovering);
+  const selected = useTag(entity, Selected);
+  const name = createMemo(() => describe(entity()));
 
   const toggleExpanded = () => {
-    const eid = props.layer.eid;
-    if (hasComponent(world, eid, c.Expanded)) {
-      removeComponent(world, eid, c.Expanded);
-    } else {
-      addComponent(world, eid, c.Expanded);
-    }
-  }
-
-  const handlePointerEnter = () => {
-    clearComponent(world, c.Hovering, false);
-    addComponent(world, props.layer.eid, c.Hovering, false);
-  }
-  const handlePointerLeave = () => {
-    clearComponent(world, c.Hovering, false);
-    removeComponent(world, props.layer.eid, c.Hovering, false);
-  }
+    editor.editProperty(entity(), 'expanded', !entity().has(Expanded));
+  };
 
   return (
     <div
@@ -82,23 +65,25 @@ export function SubItemLayer(props: SubItemLayerProps) {
         'bg-accent/70': !selected() && hovering(),
         'bg-accent/40': !selected() && !hovering() && props.ancestorSelected,
       }}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
+      onPointerEnter={() => setRowHover(world, entity())}
+      onPointerLeave={() => setRowHover(world, null)}
       style={{ height: KEYFRAME_TRACK_HEIGHT + 'px' }}
     >
       <div data-layer-label class="flex-1 min-w-0 overflow-hidden">
         <div
           class="flex items-center gap-0.5 w-max"
           style={{
-            'padding-left': `${depth() * NESTED_INDENT_PX}px`,
+            'padding-left': `${props.depth * NESTED_INDENT_PX}px`,
             transform: 'translateX(calc(var(--layer-x, 0px) * -1))',
           }}
         >
+          <div class="size-4 shrink-0" />
           <button
-            disabled={!canExpand()}
+            disabled={!props.layer.expandable}
             onClick={toggleExpanded}
-            class="size-4 shrink-0 flex items-center justify-center overflow-clip invisible group-hover/layers:visible focus-ring rounded-sm mr-0.5">
-            <Show when={canExpand()}>
+            class="size-4 shrink-0 flex items-center justify-center overflow-clip invisible group-hover/layers:visible focus-ring rounded-sm mr-0.5"
+          >
+            <Show when={props.layer.expandable}>
               <Icon name={props.expanded ? "chevron-down" : "chevron-right"} class="size-6 hover:text-foreground" />
             </Show>
           </button>
@@ -109,4 +94,24 @@ export function SubItemLayer(props: SubItemLayerProps) {
       </div>
     </div>
   )
+}
+
+/** What the part calls itself, or what kind of part it is. */
+function describe(entity: Entity): string {
+  const name = entity.get(Name)?.value;
+  if (name) return name;
+
+  if (entity.has(Stroke)) return 'Stroke';
+  if (entity.has(Shadow)) return 'Shadow';
+  if (entity.has(ColorStop)) return 'Stop';
+
+  if (entity.has(Paint)) {
+    return PAINT_NAMES[entity.get(Paint)!.value as PaintType] ?? 'Fill';
+  }
+
+  if (entity.has(Effect)) {
+    return effectOption(entity.get(Effect)?.type).label;
+  }
+
+  return 'Sub-item';
 }

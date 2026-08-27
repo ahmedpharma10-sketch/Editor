@@ -11,7 +11,6 @@ import {
   ContextMenuPortal,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useEditorApi } from "@/context/editor-api";
 import { downloadDesktopApp } from "@/lib/desktop-app";
 import { createStoredSignal } from "@/lib/store";
 import { track } from "@/lib/analytics";
@@ -25,7 +24,7 @@ import { store } from "@/init";
  * context menu on the bar itself.
  */
 export function DashboardGetDesktopApp() {
-  const { isDesktop } = useEditorApi();
+  const isDesktop = !!window.desktop;
   const [hidden, setHidden] = createStoredSignal(
     store.define("dashboard.desktop-app-promo-hidden", false),
   );
