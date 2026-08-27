@@ -18,8 +18,6 @@
 </p>
 
 <br />
-<br />
-<br />
 
 <p align="center">
   <a href="https://app.diffusion.studio">
