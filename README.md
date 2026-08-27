@@ -29,11 +29,11 @@
 
 ## Why Diffusion Studio
 
-Diffusion Studio is an open-source video editor where every edit becomes code. Think IDE, but it renders a video canvas instead of text. 
+Diffusion Studio is an open-source video editor that uses [SolidJS](https://www.solidjs.com) modules as the document source. Think IDE, but it renders a video canvas instead of text.
+
+It goes both ways: edit on the canvas and the change lands in the code; edit the code and the canvas redraws.
 
 The desktop app comes with a command line that lets agents watch and listen to your footage and cut it on a timeline.
-
-Every output opens in a full video editing interface, so you can pick up and refine exactly where the agent left off.
 
 ## What it's for
 
@@ -117,14 +117,18 @@ Both were created by prompting. The compositions are published in [diffusionstud
 
 ## Compositions as code
 
-Compositions are [SolidJS](https://www.solidjs.com) modules. `dapi mount` compiles them and renders each element into an editable node in the document; re-mounting rebuilds in place, like reloading a webpage. Solid's control flow (`<For>`, `<Show>`, …) and any npm package are available to compose the tree, and generative assets are declared as values and produced on mount:
+Compositions are [SolidJS](https://www.solidjs.com) modules, and **the source is the document**. A project is a folder of that JSX: `dapi open <dir>` once, then edit the files. Saving recompiles the entry file and mounts it directly into the editor's ECS.
+
+It goes back the other way too: every element carries an `id`, so a rect dragged on the canvas, a clip trimmed on the timeline, or a retyped line lands as a prop on the element that authored it.
+
+The root is a `<stage>` holding one `<scene>` per frame you cut in:
 
 ```tsx
 import { For } from "solid-js";
 import { generate } from "@diffusionstudio/jsx";
 
-const hero = generate.image({ prompt: "A neon city at night, cinematic" });
-const motion = generate.video({ prompt: "slow camera push-in", startFrame: hero });
+const hero = generate.image({ prompt: "A neon city at night, cinematic", aspectRatio: "16:9" });
+const motion = generate.video({ prompt: "slow camera push-in", startFrame: hero, duration: 5 });
 
 const TITLES = [
   { text: "The Grid", start: 0, end: 2.5 },
@@ -133,18 +137,18 @@ const TITLES = [
 
 export default function Project() {
   return (
-    <rect scene="intro" name="Intro" width={1920} height={1080} fill="black">
-      <video src={motion} width={1920} height={1080} />
-      <sequence>
+    <stage camera={[0.3, 0, 0, 0.3, 85, 150]}>
+      <scene name="Intro" width={1920} height={1080} fill="black" active>
+        <video src={motion} start={0} end={5} width={1920} height={1080} />
         <For each={TITLES}>
           {(t) => (
             <text
+              width={1920}
+              height={1080}
               textAlign="center"
               textBaseline="middle"
               fontSize={128}
-              width={1920}
-              height={1080}
-              fill="white"
+              color="#FFFFFF"
               start={t.start}
               end={t.end}
             >
@@ -152,8 +156,8 @@ export default function Project() {
             </text>
           )}
         </For>
-      </sequence>
-    </rect>
+      </scene>
+    </stage>
   );
 }
 ```
@@ -171,14 +175,14 @@ dapi media filmstrip clip.mp4                            # grid of video frames
 dapi media waveform track.mp3                            # audio waveform, silence flagged
 dapi media transcribe interview.wav                      # timed, word-level transcript
 dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
-dapi capture intro                                       # see the canvas itself, by the node's id in the JSX
+dapi capture intro -t 0 2 4                              # the frames a render would produce, by scene id
 ```
 
 | Command | Purpose |
 | --- | --- |
 | `dapi open` | Launch the app and open (or create) a project folder, anywhere on disk |
 | `dapi context` | Summary of app state |
-| `dapi capture` | Render a node in isolation to a labelled contact sheet, or one PNG per position |
+| `dapi capture` | Render frames of a scene, as an export would, to a labelled contact sheet or one PNG per position |
 | `dapi check` | Check a node's subtree for structural mistakes (black-frame gaps, never-visible nodes, failed sources) and report subtree stats |
 | `dapi media …` | Inspect a file by id or path: `probe`, `grab`, `filmstrip`, `waveform`, `transcribe`, `listen` |
 | `dapi models` / `dapi voices` / `dapi fonts` | Discover generation models, speech voices, local fonts |
@@ -202,7 +206,12 @@ Conventions throughout: single results are one JSON value, collections are JSON 
 | `apps/web` | `@diffusionstudio/web` | The editor UI (Solid + Vite) |
 | `apps/desktop` | `@diffusionstudio/desktop` | Electron shell hosting the editor |
 | `apps/cli` | `@diffusionstudio/cli` | The `dapi` CLI |
-| `packages/jsx` | `@diffusionstudio/jsx` | JSX runtime, types, and generated assets (`generate.*`) for compositions |
+| `packages/runtime` | `@diffusionstudio/runtime` | Headless editor runtime: the koota world, traits, actions, systems, media decoding, capture. No DOM, no Solid |
+| `packages/reconciler` | `@diffusionstudio/reconciler` | Evaluates a compiled project bundle and reconciles its element tree onto runtime entities, via Solid's universal renderer |
+| `packages/jsx` | `@diffusionstudio/jsx` | The authoring API: element vocabulary, types, and generated assets (`generate.*`) |
+| `packages/assets` | `@diffusionstudio/assets` | A project's asset library: the `assets.yml` manifest, content hashing, probing, resolution |
+| `packages/encoder` | `@diffusionstudio/encoder` | Offline video/audio/image encoding over runtime worlds (mediabunny) |
+| `packages/koota-solid` | `@diffusionstudio/koota-solid` | Solid bindings for koota, ported from `@koota/react` |
 
 ## Contributing / local setup
 
@@ -215,9 +224,7 @@ npm install
 
 cp apps/web/.env.example apps/web/.env   # required: the app won't run without it
 
-npm run dev:web        # editor in the browser (Vite dev server)
-# or
-npm run dev:desktop    # editor as a desktop app (Electron): builds the CLI, starts the web server, launches the app
+npm run dev
 ```
 
 To put `dapi` on your PATH (macOS/Homebrew layout; adjust the link target for other setups), link it once:
