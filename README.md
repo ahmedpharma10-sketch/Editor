@@ -117,9 +117,9 @@ Both were created by prompting. The compositions are published in [diffusionstud
 
 ## Compositions as code
 
-Compositions are [SolidJS](https://www.solidjs.com) modules, and **the source is the document**. A project is a folder of that JSX: `dapi open <dir>` once, then edit the files. Saving recompiles the entry file and mounts it directly into the editor's ECS.
+A project is a folder of that JSX: `dapi open <dir>` once, then edit the files. Saving recompiles the entry file and mounts it directly into the editor's ECS.
 
-It goes back the other way too: every element carries an `id`, so a rect dragged on the canvas, a clip trimmed on the timeline, or a retyped line lands as a prop on the element that authored it.
+Every element carries an `id`, which is how the write-back finds its target: a rect dragged on the canvas, a clip trimmed on the timeline, or a retyped line lands as a prop on the element that authored it.
 
 The root is a `<stage>` holding one `<scene>` per frame you cut in:
 
