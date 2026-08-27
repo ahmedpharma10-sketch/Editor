@@ -15,7 +15,7 @@ import {
 } from '../traits';
 import { AnimationType, AnimationPhase } from '../constants';
 import { revealChars, revealWords, scrambleChars } from '../utils/text-motion';
-import { getSourceWindow } from '../utils/time';
+import { getLocalWindow } from '../utils/time';
 
 import type { Entity, Trait, TraitRecord, World } from 'koota';
 
@@ -207,7 +207,7 @@ export function motionSystem(world: World): void {
 
 		resetAnimatedValues(world, entity);
 
-		const source = getSourceWindow(entity);
+		const source = getLocalWindow(entity);
 
 		const localFrame = computed.localTime[eid];
 
@@ -225,7 +225,7 @@ export function motionSystem(world: World): void {
 			const windowEnd = windowStart + duration;
 			if (isOut ? localFrame < windowStart : localFrame >= windowEnd) continue;
 
-			const progress = clamp01((localFrame - windowStart) / duration);
+			const progress = clamp01((localFrame - windowStart) / Math.max(1, duration - 1));
 			applyAnimation(world, entity, anim, progress);
 		}
 

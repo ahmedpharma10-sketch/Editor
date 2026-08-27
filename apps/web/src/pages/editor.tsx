@@ -123,6 +123,7 @@ export function EditorPage() {
 
       // A broken edit keeps the last good render on the canvas.
       if (!result.ok) {
+        console.error('[projects] compile failed:', result.error);
         toast.error('Project failed to compile', { description: result.error });
         return;
       }
@@ -135,11 +136,19 @@ export function EditorPage() {
         rememberProjectBundle(untrack(project.id), result.code).catch((error) =>
           console.error('[projects] could not save the bundle', error));
       } catch (error) {
+        console.error('[projects] render failed:', error);
         toast.error('Project failed to render', { description: (error as Error).message });
       }
     };
 
-    loadProject();
+    const load = (): void => {
+      loadProject().catch((error) => {
+        console.error('[projects] load failed:', error);
+        toast.error('Project failed to load', { description: (error as Error).message });
+      });
+    };
+
+    load();
   
     const unwatch = watchProject(dir, (path) => {
       if (isCacheFile(path)) return;
@@ -153,7 +162,7 @@ export function EditorPage() {
           config.load();
           void project.refresh();
         }
-        loadProject();
+        load();
       }
     });
 

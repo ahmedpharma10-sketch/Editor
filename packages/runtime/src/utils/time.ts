@@ -94,6 +94,26 @@ export function getSourceWindow(entity: Entity): { in: number; out: number } {
 }
 
 /**
+ * The node's playing span in its own local frames — the space `localTime`
+ * advances in. For a clip with a source this is its trim window, same as
+ * `getSourceWindow`. It differs for a container that spans its children
+ * (see `recomputeEntityTimeRange`): its origin stays at its parent's, so its
+ * span does not begin at local 0 but at where its first child does. Anything
+ * anchored to a node's head or tail in local time — preset animation windows —
+ * must use this, not the source window.
+ */
+export function getLocalWindow(entity: Entity): { in: number; out: number } {
+	const computed = entity.get(Computed);
+	const origin = computed?.origin ?? 0;
+	const playbackRate = computed?.playbackRate || 1;
+
+	return {
+		in: Math.round(((computed?.start ?? 0) - origin) * playbackRate),
+		out: Math.round(((computed?.end ?? 0) - origin) * playbackRate),
+	};
+}
+
+/**
  * The paint a geometry is intrinsically made of: its own Paint trait, when it
  * carries one. Like its own Color, an intrinsic paint is drawn (and played) by
  * the geometry itself, from its own AssetId, beneath any paint children — a
