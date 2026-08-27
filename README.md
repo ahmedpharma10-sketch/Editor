@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <code>npx skills add diffusionstudio/skills -g</code>
+  <code>npx skills add diffusionstudio/skills</code>
 </p>
 
 <br />
@@ -29,7 +29,9 @@
 
 ## Why Diffusion Studio
 
-Diffusion Studio is an open-source video editor built for agents. It runs as a desktop app with a command line that lets an agent watch and listen to footage and cut it on a timeline.
+Diffusion Studio is an open-source video editor where every edit becomes code. Think IDE, but it renders a video canvas instead of text. 
+
+The desktop app comes with a command line that lets agents watch and listen to your footage and cut it on a timeline.
 
 Every output opens in a full video editing interface, so you can pick up and refine exactly where the agent left off.
 
@@ -46,7 +48,7 @@ Every output opens in a full video editing interface, so you can pick up and ref
 Use with Claude Code, Codex, Cursor, Copilot, or Gemini CLI. Install the skill once, globally:
 
 ```sh
-npx skills add diffusionstudio/skills -g
+npx skills add diffusionstudio/skills
 ```
 
 `/editor` is the main skill you'll use. Ask for what you want in plain language. Behind it is `dapi`, the CLI that drives the app.
@@ -170,16 +172,6 @@ dapi media waveform track.mp3                            # audio waveform, silen
 dapi media transcribe interview.wav                      # timed, word-level transcript
 dapi media listen interview.mp4 -p "what is said in the intro?"   # ask a multimodal model
 dapi capture intro                                       # see the canvas itself, by the node's id in the JSX
-```
-
-## CLI at a glance
-
-The core loop is three commands:
-
-```sh
-dapi open                       # use -b to run the editor headless
-dapi mount hero.tsx             # render a composition into it
-dapi node render -o hero.mp4    # encode the scene to disk
 ```
 
 | Command | Purpose |
