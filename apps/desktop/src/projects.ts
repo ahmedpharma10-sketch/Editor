@@ -644,7 +644,7 @@ All of them talk to the running app, except \`fonts\` and \`fetch\`.
 | ------ | ------- | ------------ |
 | \`open\` | \`dapi open .\` | Launch the app with this project open. |
 | \`context\` | \`dapi context\` | Which project the app has open, where its playhead sits, its fonts, where its generations stand. |
-| \`capture\` | \`dapi capture <id>\` | Render one node in isolation to labelled PNG contact sheets. |
+| \`capture\` | \`dapi capture <id>\` | Render frames of a scene, as an export would, to labelled PNG contact sheets. |
 | \`probe\` | \`dapi media probe <id\\|path>\` | Container and per-track metadata, without decoding. |
 | \`transcribe\` | \`dapi media transcribe <id\\|path>\` | Timed speech transcript, word by word. |
 | \`grab\` | \`dapi media grab <id\\|path>\` | Decode frames of a video to labelled PNG contact sheets. |
@@ -704,8 +704,9 @@ never edit it, and trust it over memory.
   \`npm run <name> -- <args>\` runs one.
 - \`npm run context\` reports what the app has open, where its playhead sits,
   and where generations stand.
-- Verify visually with \`npm run capture -- <id>\`: it renders a node exactly
-  as the viewer gets it. Do not export a video to check work.
+- Verify visually with \`npm run capture -- <sceneId>\`: it renders the
+  scene's frames exactly as an export encodes them. Do not export a video to
+  check work.
 - Position and size are explicit, in pixels. There is no layout pass and no CSS.
 - A composition you author from scratch marks one scene \`active\` and gives
   \`<stage>\` a \`camera\` framing it, or the project opens on an empty timeline

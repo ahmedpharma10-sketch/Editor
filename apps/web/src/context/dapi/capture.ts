@@ -11,6 +11,8 @@ import {
   sheetTimecode,
 } from "@diffusionstudio/encoder";
 
+import { getParentNode, isScene, Source } from "@diffusionstudio/runtime";
+
 import { createCapture } from "@/engine/capture";
 import { resolveNode } from "./nodes";
 
@@ -25,13 +27,29 @@ export function handleCapture(session: () => EditorSession) {
     const { world, project } = session();
     const node = resolveNode(world, id);
 
-    // `undefined` means the node's first visible frame (the encoder's frame 0).
+    // Scenes only: a capture's promise is that its frames are the frames an
+    // export encodes, and a scene is the unit an export renders — framing an
+    // arbitrary node would need its bounds measured across the requested
+    // positions first, and that pre-roll runs the project's code ahead of the
+    // frames being drawn, which is exactly what an export never does.
+    if (!isScene(node)) {
+      let scene = getParentNode(node);
+      while (scene !== null && !isScene(scene)) scene = getParentNode(scene);
+      const stamp = scene?.get(Source)?.value;
+      throw new Error(
+        stamp
+          ? `"${id}" is not a scene — capture renders what an export renders. Capture its scene "${stamp}" instead.`
+          : `"${id}" is not a scene — capture renders what an export renders, so it takes a scene id.`,
+      );
+    }
+
+    // `undefined` means the export's first frame (the workarea's start).
     let shots = frames;
     if (shots === undefined || shots.length === 0) {
       shots = [0];
     }
 
-    // The project re-rendered into a world of its own, reduced to this node:
+    // The project re-rendered into a world of its own, reduced to this scene:
     // the same arrangement an export runs against, and the encoder's to draw.
     const capture = await createCapture(world, node, { dir: project.dir() });
 
@@ -42,9 +60,9 @@ export function handleCapture(session: () => EditorSession) {
       });
 
       // Sheets render at their cell size instead of the flat 720p: with a few
-      // frames that is sharper than a standalone capture, never coarser. A node
-      // is drawn, not decoded, so a small one is worth rendering past its own
-      // bounds; beyond SHEET_CAPTURE_HEIGHT that only costs tokens.
+      // frames that is sharper than a standalone capture, never coarser. A
+      // scene is drawn, not decoded, so a small one is worth rendering past
+      // its own size; beyond SHEET_CAPTURE_HEIGHT that only costs tokens.
       const aspect = encoder.bounds.width / encoder.bounds.height;
       const height = Math.max(encoder.bounds.height, SHEET_CAPTURE_HEIGHT);
       const sizes = combine ? planSheetSizes(shots.length, perSheet) : [];

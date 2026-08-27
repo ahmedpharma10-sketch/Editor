@@ -8,13 +8,13 @@ import {
 	AudioSample,
 	AudioSampleSource,
 } from 'mediabunny';
-import { Not, Or } from 'koota';
+import { Not } from 'koota';
 import {
-	setActive, propagateTimeRangeDown, framesToSeconds,
+	setActive, framesToSeconds,
 	assert, store, isScene,
 	assetSystem, playbackSystem, motionSystem, transformSystem, renderSystem,
 	AudioBus, AudioBusHandle,
-	ChildOf, Geometry, Group, Paint, Workarea, Playback,
+	ChildOf, Geometry, Paint, Workarea, Playback,
 	AudioPlayback, Computed,
 	Position, Offset, Rotation, Scale, Skew,
 	Time, FrameRate, RenderSurface, AudioEngine, Root,
@@ -34,7 +34,7 @@ import type { ExportResult } from './types';
  * what to encode is the whole of what is in it — so a stage with anything
  * else under it is a caller that has not finished preparing the world.
  */
-function captureScene(world: World): Entity {
+export function captureScene(world: World): Entity {
 	const roots = [...world.query(ChildOf(world.get(Root)!))];
 	assert(roots.length === 1, `A capture world holds one scene, this one holds ${roots.length}`);
 
@@ -410,7 +410,7 @@ function createThrottledCallback<T>(callback: ((value: T) => void) | undefined, 
 	};
 }
 
-function normalizeSceneTransform(world: World, sceneId: number): void {
+export function normalizeSceneTransform(world: World, sceneId: number): void {
 	const position = store(world, Position);
 	const offset = store(world, Offset);
 	const rotation = store(world, Rotation);
@@ -459,15 +459,3 @@ export async function resolverSystem(world: World) {
 	}
 }
 
-/**
- * Refresh every entity's accumulated delay + time bounds after raw store
- * rewrites. propagateTimeRangeDown recomputes top-down and then re-derives
- * each parent after its children, since koota has no hierarchy-ordered
- * queries to walk in one pass.
- */
-export function recomputeAllTimeRanges(world: World): void {
-	const stage = world.get(Root)!;
-	for (const node of world.query(Or(Geometry, Group), ChildOf(stage))) {
-		propagateTimeRangeDown(world, node);
-	}
-}
