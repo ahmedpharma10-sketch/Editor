@@ -31,7 +31,7 @@
 
 Diffusion Studio is an open-source video editor that uses [SolidJS](https://www.solidjs.com) modules as the document source. Think IDE, but it renders a video canvas instead of text.
 
-It goes both ways: edit on the canvas and the change lands in the code; edit the code and the canvas redraws.
+This goes both ways: edit on the canvas and the change lands in the code; edit the code and the canvas redraws.
 
 The desktop app comes with a command line that lets agents watch and listen to your footage and cut it on a timeline.
 
