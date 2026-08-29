@@ -695,6 +695,7 @@ never edit it, and trust it over memory.
 | \`.diffusion/docs/reference/jsx/README.md\` | The JSX contract — elements, props, pipeline. Start here. |
 | \`.diffusion/docs/reference/jsx/timing.md\` | \`start\`/\`end\`/\`sourceIn\`/\`sourceOut\`, and the time formats. |
 | \`.diffusion/docs/reference/jsx/generate.md\` | Declaring AI-generated assets (\`generate.*\`). |
+| \`.diffusion/docs/reference/jsx/variables.md\` | \`@inspect\` variables: annotated consts as live inspector controls. |
 | \`.diffusion/docs/reference/README.md\` | Every dapi command, its options and its output. |
 | \`.diffusion/docs/examples/\` | Complete compositions, basics through shaders. |
 
