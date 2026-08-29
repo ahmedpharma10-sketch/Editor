@@ -11,9 +11,10 @@
 // disagreed, a drag would write to the wrong element; that invariant is why
 // these two modules are read together.
 
-import { COMPOSITION_TAGS, ID_ATTR, LOOP_ATTR, SOURCE_ATTR, formatSource, isCompositionTag, isLoopTag } from "@diffusionstudio/jsx";
+import { COMPOSITION_TAGS, ID_ATTR, INSPECT_TAG, INSPECT_TYPES, LOOP_ATTR, SOURCE_ATTR, formatSource, isCompositionTag, isLoopTag } from "@diffusionstudio/jsx";
 
 import type { NodePath, PluginObj, types as t } from "@babel/core";
+import type { InspectDeclaration, InspectType } from "@diffusionstudio/jsx";
 
 /** What babel hands a plugin factory. */
 type BabelApi = { types: typeof import("@babel/core").types };
@@ -112,6 +113,191 @@ export function canonicalizeTagsPlugin({ types }: BabelApi): PluginObj {
         program.unshiftContainer(
           "body",
           types.importDeclaration(specifiers, types.stringLiteral("@diffusionstudio/jsx")),
+        );
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// @inspect variables
+
+/** What the compiled module imports `__inspect` from. */
+const INSPECT_MODULE = "@diffusionstudio/jsx";
+
+/**
+ * An `@inspect` tag at the start of a comment line. Anchored there — the way a
+ * JSDoc tag is written — so prose mentioning the tag mid-sentence is not read
+ * as an annotation.
+ */
+const INSPECT_ANNOTATION = new RegExp(`(?:^|\\n)\\s*\\*?\\s*@${INSPECT_TAG}\\b([^\\n]*)`);
+
+const INSPECT_PAIR = /(\w+)=(?:"([^"]*)"|(\S+))/g;
+
+type ParsedInspect = Pick<InspectDeclaration, "type" | "path" | "min" | "max" | "step">;
+
+const isInspectType = (value: string): value is InspectType => (INSPECT_TYPES as readonly string[]).includes(value);
+
+/**
+ * The annotation in `comments`, parsed, or undefined when none of them carry
+ * one. Throws (a plain Error the caller turns into a code frame) on an
+ * annotation that does not spell a control.
+ */
+function parseInspectComments(comments: readonly t.Comment[] | null | undefined): ParsedInspect | undefined {
+  const match = comments?.map((comment) => INSPECT_ANNOTATION.exec(comment.value)).find((found) => found !== null);
+  if (!match) return undefined;
+
+  const line = match[1]!.trim();
+  const typeMatch = /^([A-Za-z]+)\b/.exec(line);
+  if (!typeMatch || !isInspectType(typeMatch[1]!)) {
+    throw new Error(`@${INSPECT_TAG} needs a control type: one of ${INSPECT_TYPES.join(", ")}`);
+  }
+  const type = typeMatch[1] as InspectType;
+
+  const options: Record<string, string> = {};
+  let rest = line.slice(typeMatch[0].length);
+  rest = rest.replace(INSPECT_PAIR, (_, key: string, quoted: string | undefined, bare: string | undefined) => {
+    if (key in options) throw new Error(`@${INSPECT_TAG}: "${key}" is given twice`);
+    options[key] = quoted ?? bare ?? "";
+    return "";
+  });
+  if (rest.trim()) throw new Error(`@${INSPECT_TAG}: cannot read "${rest.trim()}" — options are written as key=value`);
+
+  const parsed: ParsedInspect = { type };
+
+  for (const key of ["min", "max", "step"] as const) {
+    const value = options[key];
+    if (value === undefined) continue;
+    if (type !== "number") throw new Error(`@${INSPECT_TAG}: "${key}" only applies to a number`);
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) throw new Error(`@${INSPECT_TAG}: "${key}" must be a number, not "${value}"`);
+    parsed[key] = numeric;
+  }
+
+  const { path, label } = options;
+  if (path !== undefined && label !== undefined) {
+    throw new Error(`@${INSPECT_TAG}: "path" already names the label — drop "label"`);
+  }
+  const spelled = path ?? label;
+  if (spelled !== undefined) {
+    const segments = spelled.split("/").map((segment) => segment.trim()).filter(Boolean);
+    if (!segments.length) throw new Error(`@${INSPECT_TAG}: "${path === undefined ? "label" : "path"}" is empty`);
+    parsed.path = segments;
+  }
+
+  for (const key of Object.keys(options)) {
+    if (!["min", "max", "step", "path", "label"].includes(key)) {
+      throw new Error(`@${INSPECT_TAG}: unknown option "${key}"`);
+    }
+  }
+
+  return parsed;
+}
+
+/** The literal an `@inspect` initializer must be for its type, or undefined. */
+function inspectInitializer(node: t.Expression | null | undefined, type: InspectType): t.Expression | undefined {
+  if (!node) return undefined;
+  if (type === "number") {
+    if (node.type === "NumericLiteral") return node;
+    if (node.type === "UnaryExpression" && (node.operator === "-" || node.operator === "+") && node.argument.type === "NumericLiteral") return node;
+    return undefined;
+  }
+  return node.type === "StringLiteral" ? node : undefined;
+}
+
+/**
+ * Turns `@inspect`-annotated top-level consts into signals: the declaration's
+ * initializer becomes an `__inspect(declaration, literal)` call — which the
+ * editor implements as a signal it also hands its inspector — and every
+ * reference to the variable becomes a call of the accessor. Reads inside the
+ * JSX stay reactive (Solid's transform wraps them); a value derived at module
+ * top level is computed once, like any module-level expression.
+ *
+ * The variable is addressed by file and name, so the source is not written to;
+ * the write direction lives in `./edit`, which overwrites the initializer the
+ * second argument came from.
+ */
+export function inspectPlugin({ types }: BabelApi, { file }: { file: string }): PluginObj {
+  return {
+    name: "jsx-inspect-variables",
+    visitor: {
+      // On Program enter, like the other passes: everything is rewritten
+      // before Solid's transform consumes the JSX the references sit in.
+      Program(program) {
+        const helper = program.scope.generateUidIdentifier("inspect");
+        let used = false;
+
+        program.traverse({
+          VariableDeclaration(path) {
+            let annotation: ParsedInspect | undefined;
+            try {
+              // On an exported declaration the comment sits on the export
+              // statement; read it there too, so the export is refused rather
+              // than the annotation silently ignored.
+              annotation = parseInspectComments(path.node.leadingComments)
+                ?? (path.parentPath.isExportNamedDeclaration()
+                  ? parseInspectComments(path.parentPath.node.leadingComments)
+                  : undefined);
+            } catch (error) {
+              throw path.buildCodeFrameError((error as Error).message);
+            }
+            if (!annotation) return;
+
+            if (path.parentPath.isExportNamedDeclaration()) {
+              throw path.buildCodeFrameError(
+                `an @${INSPECT_TAG} variable cannot be exported: another module would import the value, not the control`,
+              );
+            }
+            if (!path.parentPath.isProgram()) {
+              throw path.buildCodeFrameError(`@${INSPECT_TAG} only works on a top-level const`);
+            }
+            if (path.node.kind !== "const" || path.node.declarations.length !== 1) {
+              throw path.buildCodeFrameError(`@${INSPECT_TAG} annotates a single const declaration`);
+            }
+
+            const declarator = path.node.declarations[0]!;
+            if (declarator.id.type !== "Identifier") {
+              throw path.buildCodeFrameError(`@${INSPECT_TAG} needs a plain name, not a destructuring`);
+            }
+            const name = declarator.id.name;
+
+            const initial = inspectInitializer(declarator.init, annotation.type);
+            if (!initial) {
+              throw path.buildCodeFrameError(
+                `an @${INSPECT_TAG} ${annotation.type} must be initialized with a ${annotation.type === "number" ? "number" : "string"} literal — it is what the editor writes back to`,
+              );
+            }
+
+            // Every read becomes a call of the accessor. The reference lists
+            // are per binding, so a shadowing local elsewhere keeps its own.
+            const binding = program.scope.getBinding(name);
+            for (const reference of binding?.referencePaths ?? []) {
+              // A type position mentions the name without reading the value.
+              if (reference.findParent((parent) => parent.node.type.startsWith("TS"))) continue;
+              if (reference.parentPath?.isExportSpecifier()) {
+                throw reference.buildCodeFrameError(
+                  `an @${INSPECT_TAG} variable cannot be exported: another module would import the value, not the control`,
+                );
+              }
+              // `{ padding }` reads as `{ padding: padding() }` once rewritten.
+              const parent = reference.parent;
+              if (parent.type === "ObjectProperty" && parent.shorthand) parent.shorthand = false;
+              reference.replaceWith(types.callExpression(types.identifier(name), []));
+            }
+
+            const declaration: InspectDeclaration = { file, name, ...annotation };
+            declarator.init = types.callExpression(types.cloneNode(helper), [types.valueToNode(declaration), initial]);
+            used = true;
+          },
+        });
+
+        if (!used) return;
+        program.unshiftContainer(
+          "body",
+          types.importDeclaration(
+            [types.importSpecifier(helper, types.identifier("__inspect"))],
+            types.stringLiteral(INSPECT_MODULE),
+          ),
         );
       },
     },

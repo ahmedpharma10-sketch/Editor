@@ -16,8 +16,10 @@ import { createRoot } from 'solid-js';
 
 import { authoredElement, authoredTree, getRuntimeDocument, insert, isSceneNode, renderAuthored, withDocument } from '@diffusionstudio/reconciler';
 
+import { findInspectEntry } from './inspect';
+
 import type { SceneNode } from '@diffusionstudio/runtime';
-import type { PropValue, SerializedAssetRef } from '@diffusionstudio/jsx';
+import type { InspectValue, PropValue, SerializedAssetRef } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 import type { AuthoredTree, ProjectDocument, RuntimeDocument } from '@diffusionstudio/reconciler';
 
@@ -158,7 +160,21 @@ export interface UnrollEdit {
 	iterations: LoopIteration[];
 }
 
-export type EntityEdit = PropEdit | TextEdit | InsertEdit | MoveEdit | RemoveEdit | UnrollEdit;
+/**
+ * An `@inspect` variable the editor set (see `engine/inspect`). Not an
+ * element's edit at all: it is addressed by file and variable name rather
+ * than by source stamp, and the writer overwrites the declaration's
+ * initializer. `previous` is the inverse for the history, as on `PropEdit`.
+ */
+export interface VariableEdit {
+	kind: 'variable';
+	file: string;
+	name: string;
+	value: InspectValue;
+	previous: InspectValue;
+}
+
+export type EntityEdit = PropEdit | TextEdit | InsertEdit | MoveEdit | RemoveEdit | UnrollEdit | VariableEdit;
 
 /**
  * Sources of elements the editor created that no write has named yet. Shaped
@@ -321,6 +337,22 @@ export class DocumentEditor {
 		}
 		this.document.setProperty(node, name, value);
 		this.reportEdit(entity, name, value, previous ?? false);
+	}
+
+	/**
+	 * Sets an `@inspect` variable and reports it: the signal moves the
+	 * composition (one reactive graph, no remount), the report takes the value
+	 * to the declaration's initializer and into the history. A name the mount
+	 * did not declare is ignored — an undo can outlive the registry entry it
+	 * was recorded against.
+	 */
+	public editVariable(file: string, name: string, value: InspectValue): void {
+		const entry = findInspectEntry(this.world, file, name);
+		if (!entry) return;
+		const previous = entry.get();
+		if (previous === value) return;
+		entry.set(value);
+		this.emit({ kind: 'variable', file, name, value, previous });
 	}
 
 	/**

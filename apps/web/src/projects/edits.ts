@@ -8,7 +8,7 @@ import { toast } from 'somoto';
 
 import { writeProject } from './host';
 
-import type { EntityEdit, InsertEdit, MoveEdit, RemoveEdit, UnrollEdit } from '@/engine/editor';
+import type { EntityEdit, InsertEdit, MoveEdit, RemoveEdit, UnrollEdit, VariableEdit } from '@/engine/editor';
 import type { SourceEdit, WriteResult } from './host';
 import type { World } from 'koota';
 
@@ -40,6 +40,9 @@ class EditWriter {
 	// worth writing, same as a prop's.
 	private texts = new Map<string, string>();
 	private removes = new Set<string>();
+	// `@inspect` variables, by file and name. Independent of the elements:
+	// nothing else addresses one, and none of them is ever pending.
+	private variables = new Map<string, VariableEdit>();
 	// Pending sources a write is out for: edits to them wait for the answer.
 	private inflight = new Set<string>();
 	// The unrolls a write is out for. One the write declines is taken back
@@ -77,6 +80,9 @@ class EditWriter {
 			} else {
 				this.moves.set(edit.source, edit);
 			}
+		} else if (edit.kind === 'variable') {
+			// The last value is the only one worth writing, like a prop's.
+			this.variables.set(`${edit.file}\n${edit.name}`, edit);
 		} else if (edit.kind === 'text') {
 			// What an element still waiting to be inserted says is part of how
 			// it is inserted, the way a prop of it is.
@@ -158,7 +164,7 @@ class EditWriter {
 
 	private flush(): void {
 		this.timer = undefined;
-		if (!this.unrolls.size && !this.inserts.size && !this.moves.size && !this.pending.size && !this.texts.size && !this.removes.size) return;
+		if (!this.unrolls.size && !this.inserts.size && !this.moves.size && !this.pending.size && !this.texts.size && !this.removes.size && !this.variables.size) return;
 
 		// Anything addressed through an element whose insert is still out
 		// waits for its name: edits to it, and inserts or moves under or
@@ -216,12 +222,16 @@ class EditWriter {
 			...[...this.removes]
 				.filter((source) => !heldRemoves.has(source))
 				.map((source): SourceEdit => ({ kind: 'remove', source })),
+			// Variables are addressed by name, so nothing above moves them.
+			...[...this.variables.values()]
+				.map(({ file, name, value }): SourceEdit => ({ kind: 'variable', file, name, value })),
 		];
 		if (!edits.length) return;
 
 		// The names an unroll handed out are out with it.
 		this.sent = [...this.unrolls.values()];
 		this.unrolls = new Map();
+		this.variables = new Map();
 		this.inflight = new Set([
 			...[...this.inflight, ...this.inserts.keys()].filter((source) => !heldInserts.has(source)),
 			...this.sent.flatMap((unroll) => pendingsOf(unroll)),

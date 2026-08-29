@@ -20,6 +20,7 @@
 import * as authoring from '@diffusionstudio/jsx';
 
 import * as elements from './elements';
+import { __inspect } from './inspect';
 import {
 	createComponent,
 	createElement,
@@ -52,4 +53,5 @@ export const JSX_RUNTIME = {
 	mergeProps,
 	use,
 	useTicker,
+	__inspect,
 };

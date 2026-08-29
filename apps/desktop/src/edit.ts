@@ -9,9 +9,9 @@ import { join } from "node:path";
 
 import { IndentationText, Project, SyntaxKind } from "ts-morph";
 
-import { ID_ATTR, formatSource, isCompositionTag, isLoopTag, isSerializedAssetRef, parseSource } from "@diffusionstudio/jsx";
+import { ID_ATTR, INSPECT_TAG, formatSource, isCompositionTag, isLoopTag, isSerializedAssetRef, parseSource } from "@diffusionstudio/jsx";
 
-import type { PropValue, SerializedAssetRef } from "@diffusionstudio/jsx";
+import type { InspectValue, PropValue, SerializedAssetRef } from "@diffusionstudio/jsx";
 import type {
   ArrowFunction,
   FunctionExpression,
@@ -121,7 +121,21 @@ export interface SourceUnroll {
   iterations: SourceIteration[];
 }
 
-export type SourceEdit = SourceSet | SourceInsert | SourceMove | SourceRemove | SourceUnroll;
+/**
+ * Overwrites the initializer of an `@inspect`-annotated top-level const (see
+ * @diffusionstudio/jsx's inspect). Addressed by file and variable name — a
+ * const's name is unique in its module, so no id is needed — and only written
+ * when the declaration still carries the annotation and holds a literal: an
+ * initializer someone rewrote into an expression is theirs again.
+ */
+export interface SourceVariable {
+  kind: "variable";
+  file: string;
+  name: string;
+  value: InspectValue;
+}
+
+export type SourceEdit = SourceSet | SourceInsert | SourceMove | SourceRemove | SourceUnroll | SourceVariable;
 
 export interface WriteResult {
   /** Sources that could not be written, as `id` or `id (prop)`. */
@@ -627,6 +641,10 @@ interface FileWrite {
   unrolled: string[];
 }
 
+/** How an edit is named in `WriteResult.skipped`: its source, or the variable's `file:name`. */
+export const editLabel = (edit: SourceEdit): string =>
+  edit.kind === "variable" ? formatSource(edit.file, edit.name) : edit.source;
+
 /**
  * The element a source names, resolved through the names this write has
  * already handed out: an insert answers with a real source, and anything
@@ -779,10 +797,16 @@ class SourceWriter {
     const fileOf = new Map<string, string>();
     const byFile = new Map<string, SourceEdit[]>();
     for (const edit of edits) {
-      const address = edit.kind === "insert" ? edit.parent : edit.source;
-      const file = parseSource(address)?.file ?? fileOf.get(address);
+      let file: string | undefined;
+      if (edit.kind === "variable") {
+        // A variable names its file itself; nothing about it is pending.
+        file = edit.file;
+      } else {
+        const address = edit.kind === "insert" ? edit.parent : edit.source;
+        file = parseSource(address)?.file ?? fileOf.get(address);
+      }
       if (!file) {
-        skipped.push(edit.source);
+        skipped.push(editLabel(edit));
         continue;
       }
       if (edit.kind === "insert") fileOf.set(edit.source, file);
@@ -807,7 +831,7 @@ class SourceWriter {
       // ts-morph will not vouch for is dropped rather than half written.
       if (!written) {
         this.discard(file);
-        skipped.push(...entries.map((entry) => entry.source));
+        skipped.push(...entries.map(editLabel));
         continue;
       }
 
@@ -837,6 +861,11 @@ class SourceWriter {
 
     try {
       for (const edit of entries) {
+        if (edit.kind === "variable") {
+          if (!this.setVariable(sourceFile, edit)) skipped.push(`${editLabel(edit)} (variable)`);
+          continue;
+        }
+
         if (edit.kind === "insert") {
           if (!this.insertElement(file, sourceFile, edit, ids, nextId)) skipped.push(edit.source);
           continue;
@@ -922,6 +951,31 @@ class SourceWriter {
     // The tree an edit leaves behind answers for itself before it is printed.
     this.dropUnparsed([file]);
     return this.files.has(file) ? { skipped, ids, unrolled } : undefined;
+  }
+
+  /**
+   * Overwrites the initializer of an `@inspect`-annotated top-level const.
+   * False when no top-level const of that name carries the annotation, or when
+   * its initializer is not a literal anymore — an expression there is authored
+   * reactivity again, the same rule `isWritable` applies to a prop.
+   */
+  private setVariable(sourceFile: SourceFile, edit: SourceVariable): boolean {
+    for (const statement of sourceFile.getVariableStatements()) {
+      const declaration = statement.getDeclarations().find((candidate) => candidate.getName() === edit.name);
+      if (!declaration) continue;
+      // The same leniency the compile step reads with: any leading comment
+      // carrying the tag at the start of a line (past the comment markers).
+      const annotated = statement.getLeadingCommentRanges().some((range) =>
+        new RegExp(`(?:^|\\n)[\\s/*]*@${INSPECT_TAG}\\b`).test(range.getText()),
+      );
+      if (!annotated) continue;
+
+      const initializer = declaration.getInitializer();
+      if (!initializer || !isLiteral(initializer)) return false;
+      declaration.setInitializer(literalText(edit.value));
+      return true;
+    }
+    return false;
   }
 
   /**

@@ -5,6 +5,7 @@
 export * from './document';
 export * from './elements';
 export { evaluate } from './evaluate';
+export { collectInspect, type InspectEntry } from './inspect';
 export { mount, type Mount } from './mount';
 export { insert, renderProject, withDocument } from './renderer';
 export { JSX_RUNTIME } from './runtime';
