@@ -287,7 +287,7 @@ type FontDropdownProps = {
   onWeightsChange(weights: string[]): void;
 };
 
-function FontDropdown(props: FontDropdownProps) {
+export function FontDropdown(props: FontDropdownProps) {
   const [webfonts] = createSignal(getWebFonts());
   const [fontQuery, setFontQuery] = createSignal('');
   const fontsPermission = usePermissionState('local-fonts');
@@ -447,7 +447,7 @@ type GrowingTextAreaProps = {
   onFocus?(): void;
 };
 
-function GrowingTextArea(props: GrowingTextAreaProps) {
+export function GrowingTextArea(props: GrowingTextAreaProps) {
   let ref!: HTMLTextAreaElement;
   const lineHeight = 18; // matches text-xs leading
   const maxRows = () => props.maxRows ?? 8;

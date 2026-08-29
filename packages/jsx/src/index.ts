@@ -45,6 +45,8 @@ export {
 export type { CompositionTag, PropValue } from "./source";
 export { useTicker } from "./hooks";
 export type { Ticker } from "./hooks";
+export { INSPECT_TAG, INSPECT_TYPES, __inspect } from "./inspect";
+export type { InspectDeclaration, InspectType, InspectValue } from "./inspect";
 export type {
   AdjustmentLayerProps,
   AnimatableProperty,

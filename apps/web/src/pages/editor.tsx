@@ -16,6 +16,7 @@ import { useWorld } from '@diffusionstudio/koota-solid';
 import { mount } from '@diffusionstudio/reconciler';
 import { getDocumentEditor } from '@/engine/editor';
 import { getEditHistory } from '@/engine/history';
+import { setInspectEntries } from '@/engine/inspect';
 import { attachLibrary, isLibraryFile } from '@/engine/library';
 import { attachAi } from '@/utils/gen-ai';
 import { attachProjectConfig, isProjectConfigFile } from '@/engine/project-config';
@@ -71,6 +72,8 @@ export function EditorPage() {
       mounted?.dispose();
       mounted = undefined;
       mountedCode = undefined;
+      // The entries hold the dead mount's signals; the inspector must not.
+      setInspectEntries(world, []);
     };
 
     /** Puts `code` on the stage, unless it is what is there already. */
@@ -80,6 +83,8 @@ export function EditorPage() {
       unmount();
       mounted = mount(code, world);
       mountedCode = code;
+      // The `@inspect` variables this mount declared, for the inspector.
+      setInspectEntries(world, mounted.inspect);
       // The rendered scene knows which element every entity came from, so
       // from here on an edit in the editor can find its way back.
       writer = createEditWriter(dir, world);

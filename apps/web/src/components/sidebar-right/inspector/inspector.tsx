@@ -20,6 +20,7 @@ import {
 import { useAssetSelection, useSelection, useTool } from "@/engine/hooks";
 import { InspectorHeader } from "./inspector-header";
 import { BackgroundSettings } from "./background";
+import { VariablesSettings } from "./variables";
 import { SceneTemplatePanel } from "./scene-template";
 import { AssetInfoPanel } from "./asset-info";
 import { TimeSettings } from "./time";
@@ -121,6 +122,10 @@ export function Inspector() {
 
           <Show when={includesTarget("stage")}>
             <BackgroundSettings />
+          </Show>
+
+          <Show when={includesTarget("stage")}>
+            <VariablesSettings />
           </Show>
 
           <Show when={includesTarget("shape", "text", "audio", "scene", "caption", "group", "mask", "adjustment")}>

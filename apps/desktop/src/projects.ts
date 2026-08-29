@@ -17,8 +17,8 @@ import type { BuildOptions, Plugin } from "esbuild";
 import { isHeadless } from "./cli-server";
 import { mainBridge } from "./main-manager";
 import { MAIN_CHANNELS } from "./main-channels";
-import { applyEdits, stampProject } from "./edit";
-import { canonicalizeTagsPlugin, sourcePlugin } from "./source";
+import { applyEdits, editLabel, stampProject } from "./edit";
+import { canonicalizeTagsPlugin, inspectPlugin, sourcePlugin } from "./source";
 import type { CompileResult, FsEntry, FsStat, ProjectInfo, SourceEdit, WriteResult } from "./main-channels";
 import type { SourceContext } from "./edit";
 
@@ -695,6 +695,7 @@ never edit it, and trust it over memory.
 | \`.diffusion/docs/reference/jsx/README.md\` | The JSX contract — elements, props, pipeline. Start here. |
 | \`.diffusion/docs/reference/jsx/timing.md\` | \`start\`/\`end\`/\`sourceIn\`/\`sourceOut\`, and the time formats. |
 | \`.diffusion/docs/reference/jsx/generate.md\` | Declaring AI-generated assets (\`generate.*\`). |
+| \`.diffusion/docs/reference/jsx/variables.md\` | \`@inspect\` variables: annotated consts as live inspector controls. |
 | \`.diffusion/docs/reference/README.md\` | Every dapi command, its options and its output. |
 | \`.diffusion/docs/examples/\` | Complete compositions, basics through shaders. |
 
@@ -968,7 +969,7 @@ const babelOptions = (file: string, filename: string): TransformOptions => ({
   configFile: false,
   // Runs before the presets, which is what it needs: Solid's transform
   // replaces the JSX trees this stamps.
-  plugins: [[sourcePlugin, { file }], canonicalizeTagsPlugin],
+  plugins: [[sourcePlugin, { file }], canonicalizeTagsPlugin, [inspectPlugin, { file }]],
   presets: [
     [preset("babel-preset-solid"), { generate: "universal", moduleName: RUNTIME_MODULE }],
     [preset("@babel/preset-typescript"), { onlyRemoveTypeImports: true }],
@@ -1042,7 +1043,7 @@ export async function writeProject(dir: string, edits: SourceEdit[]): Promise<Wr
   try {
     return await applyEdits(sourceContext(dir), edits);
   } catch (error) {
-    return { skipped: edits.map((edit) => edit.source), error: error instanceof Error ? error.message : String(error) };
+    return { skipped: edits.map(editLabel), error: error instanceof Error ? error.message : String(error) };
   }
 }
 

@@ -29,7 +29,7 @@ import { createSignal } from 'solid-js';
 import { getDocumentEditor } from './editor';
 
 import type { AuthoredTree } from '@diffusionstudio/reconciler';
-import type { PropValue } from '@diffusionstudio/jsx';
+import type { InspectValue, PropValue } from '@diffusionstudio/jsx';
 import type { Entity, World } from 'koota';
 import type { CapturedNode, DocumentEditor, EntityEdit } from './editor';
 
@@ -97,7 +97,30 @@ interface MoveOp {
 	toBefore?: string;
 }
 
-type HistoryOp = PropOp | TextOp | InsertOp | RemoveOp | MoveOp;
+/**
+ * An `@inspect` variable, set. Addressed by file and variable name — no
+ * source, no entity, so renames never touch it and it replays against
+ * whatever the current mount declared under that name.
+ */
+interface VariableOp {
+	kind: 'variable';
+	file: string;
+	name: string;
+	before: InspectValue;
+	after: InspectValue;
+}
+
+type HistoryOp = PropOp | TextOp | InsertOp | RemoveOp | MoveOp | VariableOp;
+
+/**
+ * The identity a sliding op coalesces on: the same prop of the same element,
+ * or the same variable, adjusted again is one continuing adjustment.
+ */
+const slidingKey = (op: HistoryOp): string | undefined => {
+	if (op.kind === 'prop') return `prop ${op.source} ${op.name}`;
+	if (op.kind === 'variable') return `variable ${op.file} ${op.name}`;
+	return undefined;
+};
 
 /**
  * One undo step: the ops of one gesture, or of one synchronous burst of
@@ -263,6 +286,20 @@ export class EditHistory {
 				return;
 			}
 
+			case 'variable': {
+				const transaction = this.ensureOpen();
+				// A slider writes the same variable every frame; one op, sliding.
+				const existing = transaction.ops.find(
+					(op): op is VariableOp => op.kind === 'variable' && op.file === edit.file && op.name === edit.name,
+				);
+				if (existing) {
+					existing.after = edit.value;
+					return;
+				}
+				transaction.ops.push({ kind: 'variable', file: edit.file, name: edit.name, before: edit.previous, after: edit.value });
+				return;
+			}
+
 			case 'insert': {
 				const transaction = this.ensureOpen();
 				// The element as it stands, live values included, rather than
@@ -359,10 +396,9 @@ export class EditHistory {
 
 		const last = this.undos[this.undos.length - 1];
 		if (last && this.coalesces(last, transaction)) {
-			for (const op of transaction.ops as PropOp[]) {
+			for (const op of transaction.ops as (PropOp | VariableOp)[]) {
 				const target = last.ops.find(
-					(candidate): candidate is PropOp =>
-						candidate.kind === 'prop' && candidate.source === op.source && candidate.name === op.name,
+					(candidate): candidate is PropOp | VariableOp => slidingKey(candidate) === slidingKey(op),
 				);
 				if (target) target.after = op.after;
 			}
@@ -377,18 +413,26 @@ export class EditHistory {
 	}
 
 	/**
-	 * Whether `next` is `last` still going: both prop-only bursts (never
-	 * gestures — two drags are two steps), the same props of the same
-	 * elements, close enough in time. A slider writes this shape.
+	 * Whether `next` is `last` still going: both bursts of sliding ops only —
+	 * props or variables, never gestures (two drags are two steps) — over the
+	 * same keys, close enough in time. A slider writes this shape.
 	 */
 	private coalesces(last: Transaction, next: Transaction): boolean {
 		if (last.gesture || next.gesture) return false;
 		if (next.committedAt - last.committedAt > COALESCE_WINDOW) return false;
 
-		const key = (op: PropOp): string => `${op.source} ${op.name}`;
-		if (!last.ops.every((op) => op.kind === 'prop') || !next.ops.every((op) => op.kind === 'prop')) return false;
-		const lastKeys = new Set((last.ops as PropOp[]).map(key));
-		const nextKeys = new Set((next.ops as PropOp[]).map(key));
+		const keysOf = (transaction: Transaction): Set<string> | undefined => {
+			const keys = new Set<string>();
+			for (const op of transaction.ops) {
+				const key = slidingKey(op);
+				if (key === undefined) return undefined;
+				keys.add(key);
+			}
+			return keys;
+		};
+		const lastKeys = keysOf(last);
+		const nextKeys = keysOf(next);
+		if (!lastKeys || !nextKeys) return false;
 		return lastKeys.size === nextKeys.size && [...nextKeys].every((entry) => lastKeys.has(entry));
 	}
 
@@ -424,6 +468,10 @@ export class EditHistory {
 				this.editor.reparent(entity, parent, anchor);
 				return;
 			}
+			case 'variable': {
+				this.editor.editVariable(op.file, op.name, op.before);
+				return;
+			}
 		}
 	}
 
@@ -454,6 +502,10 @@ export class EditHistory {
 				if (!entity || !parent) return;
 				const anchor = op.toBefore === undefined ? undefined : this.resolve(op.toBefore);
 				this.editor.reparent(entity, parent, anchor);
+				return;
+			}
+			case 'variable': {
+				this.editor.editVariable(op.file, op.name, op.after);
 				return;
 			}
 		}

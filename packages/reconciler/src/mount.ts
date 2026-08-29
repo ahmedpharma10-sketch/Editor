@@ -6,13 +6,21 @@ import { Tickers } from '@diffusionstudio/runtime';
 
 import { createRuntimeDocument } from './document';
 import { evaluate } from './evaluate';
+import { collectInspect } from './inspect';
 import { renderProject } from './renderer';
 
 import type { World } from 'koota';
+import type { InspectEntry } from './inspect';
 
 export interface Mount {
 	/** Tears down the reactive graph and every entity the project rendered. */
 	dispose(): void;
+	/**
+	 * The `@inspect` variables the bundle declared, in declaration order, each
+	 * holding the live signal the composition reads. Die with the mount: a
+	 * remount evaluates the module again and declares them afresh.
+	 */
+	inspect: InspectEntry[];
 }
 
 /**
@@ -27,7 +35,7 @@ export interface Mount {
  * is what `useTicker` subscribes to.
  */
 export function mount(code: string, world: World): Mount {
-	const component = evaluate(code);
+	const { result: component, entries } = collectInspect(() => evaluate(code));
 	const document = createRuntimeDocument(world);
 
 	let dispose: () => void;
@@ -42,6 +50,7 @@ export function mount(code: string, world: World): Mount {
 	world.get(Tickers)?.add(advance);
 
 	return {
+		inspect: entries,
 		dispose() {
 			world.get(Tickers)?.delete(advance);
 			// Solid's universal render disposer only drops the reactive graph;
