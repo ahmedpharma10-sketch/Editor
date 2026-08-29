@@ -50,7 +50,7 @@ export default function Project() {
 | [audio-sync.md](./audio-sync.md) | `syncTo` audio alignment |
 | [captions.md](./captions.md) | `<captions>` and style presets |
 | [generate.md](./generate.md) | Declarative AI asset generation (`generate.*`) |
-| [variables.md](./variables.md) | `@inspect` variables: annotated consts as live inspector controls |
+| [variables.md](./variables.md) | `@inspect` variables: annotated consts as live inspector controls (number, color, text, font, boolean, select) |
 | [lifecycle.md](./lifecycle.md) | Mount lifecycle: always live, persisted + re-executed, `useTicker` |
 | [errors.md](./errors.md) | Where each pipeline stage fails and with what effect |
 

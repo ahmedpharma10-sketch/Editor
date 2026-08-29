@@ -29,7 +29,7 @@ export default function Project() {
 ## The annotation
 
 ```
-@inspect <type> [min=…] [max=…] [step=…] [path="Group/Label"] [label="Label"]
+@inspect <type> [min=…] [max=…] [step=…] [options="a,b,c"] [path="Group/Label"] [label="Label"]
 ```
 
 | Type | Control | Initializer |
@@ -38,8 +38,18 @@ export default function Project() {
 | `color` | Color picker | a string literal (`"#ff3366"`) |
 | `text` | Text area | a string literal |
 | `font` | Font picker (web + system fonts) | a string literal naming the family |
+| `boolean` | Toggle | `true` or `false` |
+| `select` | Dropdown over `options="a,b,c"` (required, at least two) | a string literal that is one of the options |
 
-`min`, `max` and `step` only apply to `number`.
+`min`, `max` and `step` only apply to `number`; `options` only to `select`.
+
+```tsx
+/** @inspect boolean */
+const showFrame = true;
+
+/** @inspect select options="left,center,right" */
+const align = "center";
+```
 
 **Identity is the file and the variable name** — nothing else. Renaming the variable renames the control's identity; no id is minted, and nothing extra is written into your source.
 

@@ -23,29 +23,37 @@ const fontSize = 120;
 const textColor = "#ffffff";
 
 /** @inspect color */
-const backdrop = "#161616";
+const backdrop = "#000000";
 
 /** @inspect number min=0 max=200 */
 const padding = 64;
+
+/** @inspect boolean path="Frame/Show" */
+const showFrame = true;
+
+/** @inspect select options="left,center,right" path="Typography/Align" */
+const align = "center";
 
 export default function InspectVariables() {
   return (
     <stage>
       <scene name="Inspect" width={1920} height={1080} fill={backdrop} active>
-        <rect
-          x={padding}
-          y={padding}
-          width={1920 - padding * 2}
-          height={1080 - padding * 2}
-          fill="transparent"
-          cornerRadius={24}
-        >
-          <stroke color="#ffffff33" width={2} />
-        </rect>
+        {showFrame && (
+          <rect
+            x={padding}
+            y={padding}
+            width={1920 - padding * 2}
+            height={1080 - padding * 2}
+            fill="transparent"
+            cornerRadius={24}
+          >
+            <stroke color="#ffffff33" width={2} />
+          </rect>
+        )}
         <text
           width={1920}
           height={1080}
-          textAlign="center"
+          textAlign={align as "left" | "center" | "right"}
           textBaseline="middle"
           color={textColor}
           fontFamily={fontFamily}

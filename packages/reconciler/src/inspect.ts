@@ -32,6 +32,8 @@ export interface InspectEntry {
 	min?: number;
 	max?: number;
 	step?: number;
+	/** What a `select` chooses between, in the authored order. */
+	options?: string[];
 	/** What the source declared, before anyone touched the signal. */
 	initial: InspectValue;
 	get: Accessor<InspectValue>;
@@ -80,6 +82,7 @@ export function __inspect(declaration: InspectDeclaration, initial: InspectValue
 		...(declaration.min === undefined ? {} : { min: declaration.min }),
 		...(declaration.max === undefined ? {} : { max: declaration.max }),
 		...(declaration.step === undefined ? {} : { step: declaration.step }),
+		...(declaration.options === undefined ? {} : { options: declaration.options }),
 		initial,
 		get,
 		set,

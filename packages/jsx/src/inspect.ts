@@ -20,8 +20,9 @@
  * it, the label is the variable's own name, prettified, and the control is
  * ungrouped. `label="Font"` names the control without grouping it.
  *
- * The initializer must be a plain literal — a `number` a numeric one, the
- * string types a string — since it is what the editor overwrites. Because the
+ * The initializer must be a plain literal — a `number` a numeric one, a
+ * `boolean` `true`/`false`, the string types a string (a `select`'s one of its
+ * `options="a,b,c"`) — since it is what the editor overwrites. Because the
  * rewrite is per file, an annotated variable cannot be exported: an importer
  * would receive the accessor where it expects the value.
  */
@@ -32,12 +33,12 @@ import type { Accessor } from "solid-js";
 export const INSPECT_TAG = "inspect";
 
 /** The controls an annotation can ask for, keyed by how the value is edited. */
-export const INSPECT_TYPES = ["number", "color", "text", "font"] as const;
+export const INSPECT_TYPES = ["number", "color", "text", "font", "boolean", "select"] as const;
 
 export type InspectType = (typeof INSPECT_TYPES)[number];
 
 /** What an inspected variable can hold: what its literal initializer can be. */
-export type InspectValue = string | number;
+export type InspectValue = string | number | boolean;
 
 /**
  * An annotated declaration as the compile step spells it into the bundle —
@@ -55,6 +56,8 @@ export interface InspectDeclaration {
   min?: number;
   max?: number;
   step?: number;
+  /** What a `select` chooses between, in the authored order. */
+  options?: string[];
 }
 
 function hostOnly(name: string): never {

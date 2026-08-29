@@ -134,7 +134,20 @@ const INSPECT_ANNOTATION = new RegExp(`(?:^|\\n)\\s*\\*?\\s*@${INSPECT_TAG}\\b([
 
 const INSPECT_PAIR = /(\w+)=(?:"([^"]*)"|(\S+))/g;
 
-type ParsedInspect = Pick<InspectDeclaration, "type" | "path" | "min" | "max" | "step">;
+/**
+ * TS nodes that hold a value expression: `x as T`, `x satisfies T`, `x!`,
+ * `f<T>`. A reference under one of these is read at runtime; anything else
+ * TS-flavored above a reference is a type position, which mentions the name
+ * without reading the value.
+ */
+const TS_VALUE_NODES: ReadonlySet<string> = new Set([
+  "TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSInstantiationExpression",
+]);
+
+const inTypePosition = (reference: NodePath): boolean =>
+  reference.findParent((parent) => parent.node.type.startsWith("TS") && !TS_VALUE_NODES.has(parent.node.type)) !== null;
+
+type ParsedInspect = Pick<InspectDeclaration, "type" | "path" | "min" | "max" | "step" | "options">;
 
 const isInspectType = (value: string): value is InspectType => (INSPECT_TYPES as readonly string[]).includes(value);
 
@@ -185,8 +198,19 @@ function parseInspectComments(comments: readonly t.Comment[] | null | undefined)
     parsed.path = segments;
   }
 
+  if (options.options !== undefined && type !== "select") {
+    throw new Error(`@${INSPECT_TAG}: "options" only applies to a select`);
+  }
+  if (type === "select") {
+    const choices = (options.options ?? "").split(",").map((choice) => choice.trim()).filter(Boolean);
+    if (choices.length < 2) {
+      throw new Error(`@${INSPECT_TAG}: a select needs options to choose between, as options="a,b,c"`);
+    }
+    parsed.options = choices;
+  }
+
   for (const key of Object.keys(options)) {
-    if (!["min", "max", "step", "path", "label"].includes(key)) {
+    if (!["min", "max", "step", "path", "label", "options"].includes(key)) {
       throw new Error(`@${INSPECT_TAG}: unknown option "${key}"`);
     }
   }
@@ -202,8 +226,19 @@ function inspectInitializer(node: t.Expression | null | undefined, type: Inspect
     if (node.type === "UnaryExpression" && (node.operator === "-" || node.operator === "+") && node.argument.type === "NumericLiteral") return node;
     return undefined;
   }
+  if (type === "boolean") return node.type === "BooleanLiteral" ? node : undefined;
   return node.type === "StringLiteral" ? node : undefined;
 }
+
+/** What the initializer of each type must literally be, for the error message. */
+const INSPECT_LITERALS: Record<InspectType, string> = {
+  number: "number",
+  boolean: "true/false",
+  color: "string",
+  text: "string",
+  font: "string",
+  select: "string",
+};
 
 /**
  * Turns `@inspect`-annotated top-level consts into signals: the declaration's
@@ -264,7 +299,14 @@ export function inspectPlugin({ types }: BabelApi, { file }: { file: string }): 
             const initial = inspectInitializer(declarator.init, annotation.type);
             if (!initial) {
               throw path.buildCodeFrameError(
-                `an @${INSPECT_TAG} ${annotation.type} must be initialized with a ${annotation.type === "number" ? "number" : "string"} literal — it is what the editor writes back to`,
+                `an @${INSPECT_TAG} ${annotation.type} must be initialized with a ${INSPECT_LITERALS[annotation.type]} literal — it is what the editor writes back to`,
+              );
+            }
+            // A select must start on one of its own choices, or the control
+            // would show a value it cannot offer.
+            if (annotation.type === "select" && initial.type === "StringLiteral" && !annotation.options!.includes(initial.value)) {
+              throw path.buildCodeFrameError(
+                `an @${INSPECT_TAG} select is initialized with "${initial.value}", which is not one of its options (${annotation.options!.join(", ")})`,
               );
             }
 
@@ -273,7 +315,7 @@ export function inspectPlugin({ types }: BabelApi, { file }: { file: string }): 
             const binding = program.scope.getBinding(name);
             for (const reference of binding?.referencePaths ?? []) {
               // A type position mentions the name without reading the value.
-              if (reference.findParent((parent) => parent.node.type.startsWith("TS"))) continue;
+              if (inTypePosition(reference)) continue;
               if (reference.parentPath?.isExportSpecifier()) {
                 throw reference.buildCodeFrameError(
                   `an @${INSPECT_TAG} variable cannot be exported: another module would import the value, not the control`,

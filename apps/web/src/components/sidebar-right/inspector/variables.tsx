@@ -29,6 +29,15 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch as SwitchToggle, SwitchControl, SwitchInput, SwitchThumb } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectPortal,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { For, Match, Switch, createMemo, createSignal } from "solid-js";
 import { WebFonts, loadWebFont } from "@diffusionstudio/runtime";
 import { useWorld } from "@diffusionstudio/koota-solid";
@@ -107,6 +116,41 @@ function VariableControl(props: { entry: InspectEntry }) {
             maxRows={8}
             onInput={(value) => commit(value)}
           />
+        </ControlRow>
+      </Match>
+      <Match when={entry().type === "boolean"}>
+        <ControlRow label={entry().label} contentClass="flex justify-end">
+          <SwitchToggle
+            checked={Boolean(entry().get())}
+            onChange={(checked) => commit(checked)}
+            class="flex items-center"
+          >
+            <SwitchInput aria-label={entry().label} />
+            <SwitchControl variant="compact">
+              <SwitchThumb variant="compact" />
+            </SwitchControl>
+          </SwitchToggle>
+        </ControlRow>
+      </Match>
+      <Match when={entry().type === "select"}>
+        <ControlRow label={entry().label}>
+          <Select
+            value={String(entry().get())}
+            onChange={(value) => {
+              if (value !== null) commit(value);
+            }}
+            options={entry().options ?? []}
+            itemComponent={(itemProps) => (
+              <SelectItem item={itemProps.item}>{itemProps.item.rawValue}</SelectItem>
+            )}
+          >
+            <SelectTrigger>
+              <SelectValue>{String(entry().get())}</SelectValue>
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectContent />
+            </SelectPortal>
+          </Select>
         </ControlRow>
       </Match>
     </Switch>
