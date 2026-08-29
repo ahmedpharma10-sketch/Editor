@@ -95,9 +95,9 @@ function VariableControl(props: { entry: InspectEntry }) {
       <Match when={entry().type === "font"}>
         <ControlRow label={entry().label}>
           <FontDropdown
-            family={String(entry().get())}
-            // Hovering previews on the signal alone; closing puts the
-            // authored family back (the dropdown hands it back itself).
+            family={String(entry().committed())}
+            // Hovering previews on the live signal alone; closing puts the
+            // committed family back (the dropdown hands it back itself).
             onPreview={(family) => entry().set(family)}
             onFamilyChange={(family) => {
               commit(family);

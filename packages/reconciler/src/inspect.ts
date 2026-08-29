@@ -36,8 +36,17 @@ export interface InspectEntry {
 	options?: string[];
 	/** What the source declared, before anyone touched the signal. */
 	initial: InspectValue;
+	/** The live value — what the composition reads, previews included. */
 	get: Accessor<InspectValue>;
+	/** Moves the live value alone: a hover preview, taken back on commit. */
 	set: (value: InspectValue) => void;
+	/**
+	 * The last committed value — where the live value returns to when a
+	 * preview ends, and the `previous` an edit of the variable inverts to.
+	 */
+	committed: Accessor<InspectValue>;
+	/** Settles a value: the live signal and the committed one, together. */
+	commit: (value: InspectValue) => void;
 }
 
 // Module evaluation is synchronous (see `evaluate`), so one slot is enough:
@@ -71,6 +80,7 @@ function prettify(name: string): string {
 
 export function __inspect(declaration: InspectDeclaration, initial: InspectValue): Accessor<InspectValue> {
 	const [get, set] = createSignal(initial);
+	const [committed, setCommitted] = createSignal(initial);
 	const path = declaration.path ?? [];
 
 	collecting?.push({
@@ -86,6 +96,11 @@ export function __inspect(declaration: InspectDeclaration, initial: InspectValue
 		initial,
 		get,
 		set,
+		committed,
+		commit: (value) => {
+			set(value);
+			setCommitted(value);
+		},
 	});
 
 	return get;

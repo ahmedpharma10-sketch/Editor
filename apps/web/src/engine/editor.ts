@@ -349,9 +349,10 @@ export class DocumentEditor {
 	public editVariable(file: string, name: string, value: InspectValue): void {
 		const entry = findInspectEntry(this.world, file, name);
 		if (!entry) return;
-		const previous = entry.get();
+		// Against the committed value, not the live one
+		const previous = entry.committed();
+		entry.commit(value);
 		if (previous === value) return;
-		entry.set(value);
 		this.emit({ kind: 'variable', file, name, value, previous });
 	}
 
