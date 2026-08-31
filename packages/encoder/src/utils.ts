@@ -2,6 +2,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/** The exact pixel size an export produces, and the scale it draws at. */
+export interface OutputSize {
+	width: number;
+	height: number;
+	scale: number;
+}
+
+/**
+ * The output size an export at `resolution` produces for a scene: the
+ * resolution is a target height, the scene is scaled to reach it, and both
+ * sides are rounded to even for the encoders. The one formula the video
+ * encoder, the image encoder and the UI all share — what is shown to the
+ * user is what is encoded.
+ */
+export function computeOutputSize(
+	sceneWidth: number,
+	sceneHeight: number,
+	resolution?: number,
+): OutputSize {
+	const scale = Math.round((resolution ?? sceneHeight) * 1e6 / sceneHeight) / 1e6;
+	return {
+		scale,
+		width: Math.round(sceneWidth * scale / 2) * 2,
+		height: Math.round(sceneHeight * scale / 2) * 2,
+	};
+}
+
 /**
  * Helper for creating the render event detail
  */

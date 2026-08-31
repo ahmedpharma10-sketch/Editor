@@ -70,11 +70,13 @@ export interface VideoConfig {
 	fps?: number;
 
 	/**
-	 * Resolution of the composition
+	 * Target output height in pixels. The scene is scaled uniformly until it
+	 * is this tall, so the output width follows the scene's aspect ratio —
+	 * a 1920×1080 scene at 2160 encodes as 3840×2160, a 3840×1620 scene at
+	 * 2160 as 5120×2160. See `computeOutputSize` for the exact rounding.
 	 * @example
-	 * 1080 for 1080p
-	 * 1440 for 1440p
-	 * 2160 for 4k
+	 * 1080 for an output 1080px tall
+	 * 2160 for an output 2160px tall
 	 * @default 1080
 	 */
 	resolution?: number;
