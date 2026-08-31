@@ -10,23 +10,34 @@ export interface OutputSize {
 }
 
 /**
- * The output size an export at `resolution` produces for a scene: the
- * resolution is a target height, the scene is scaled to reach it, and both
- * sides are rounded to even for the encoders. The one formula the video
- * encoder, the image encoder and the UI all share — what is shown to the
- * user is what is encoded.
+ * A scene size scaled and rounded to even the way the encoders take it —
+ * the one rounding the video encoder, the image encoder and the UI share,
+ * so what is shown to the user is what is encoded.
+ */
+export function scaleSize(sceneWidth: number, sceneHeight: number, scale: number): OutputSize {
+	return {
+		scale,
+		width: Math.round(sceneWidth * scale / 2) * 2,
+		height: Math.round(sceneHeight * scale / 2) * 2,
+	};
+}
+
+/**
+ * The output size an export at `resolution` produces for a scene. The
+ * resolution names the output's shorter side — the "p" number, which for
+ * a vertical video is by convention its width: at 1080, a 1920×1080 scene
+ * exports as it is, a portrait 1080×1920 one does too, and a 3840×1620
+ * ultrawide is scaled down to 2560×1080. Without a resolution the scene
+ * exports at its own size.
  */
 export function computeOutputSize(
 	sceneWidth: number,
 	sceneHeight: number,
 	resolution?: number,
 ): OutputSize {
-	const scale = Math.round((resolution ?? sceneHeight) * 1e6 / sceneHeight) / 1e6;
-	return {
-		scale,
-		width: Math.round(sceneWidth * scale / 2) * 2,
-		height: Math.round(sceneHeight * scale / 2) * 2,
-	};
+	const shortSide = Math.min(sceneWidth, sceneHeight);
+	const scale = Math.round((resolution ?? shortSide) * 1e6 / shortSide) / 1e6;
+	return scaleSize(sceneWidth, sceneHeight, scale);
 }
 
 /**

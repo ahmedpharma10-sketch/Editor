@@ -123,10 +123,13 @@ export function ExportPanel(props: ExportPanelProps) {
   const resolutionOptions = createMemo<ResolutionOption[]>(() => {
     const w = sceneWidth();
     const h = sceneHeight();
-    return [...new Set([...RESOLUTION_OPTIONS, h])].sort((a, b) => a - b).map((resolution) => ({
+    // A resolution names the output's shorter side (the "p" number — for a
+    // vertical scene, its width), so a portrait scene still offers 720p–4K.
+    const shortSide = Math.min(w, h);
+    return [...new Set([...RESOLUTION_OPTIONS, shortSide])].sort((a, b) => a - b).map((resolution) => ({
       resolution,
       ...computeOutputSize(w, h, resolution),
-      native: resolution === h,
+      native: resolution === shortSide,
     }));
   });
 
@@ -136,7 +139,7 @@ export function ExportPanel(props: ExportPanelProps) {
     if (match) return match;
     const w = sceneWidth();
     const h = sceneHeight();
-    return { resolution, ...computeOutputSize(w, h, resolution), native: resolution === h };
+    return { resolution, ...computeOutputSize(w, h, resolution), native: resolution === Math.min(w, h) };
   });
 
   const [encodable] = createResource(

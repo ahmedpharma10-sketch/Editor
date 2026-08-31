@@ -10,7 +10,7 @@ import {
 } from '@diffusionstudio/runtime';
 
 import { captureScene, normalizeSceneTransform, resolverSystem, warmupAssets } from './encoder';
-import { computeOutputSize } from './utils';
+import { scaleSize } from './utils';
 
 import type { World } from 'koota';
 import type { ImageEncoderConfig } from './interfaces';
@@ -81,9 +81,8 @@ export async function createImageEncoder(world: World, config: ImageEncoderConfi
 
 	/** Re-target the output height; callers that lay frames out do this once sized. */
 	const resize = (height?: number) => {
-		// The export's own scale and rounding, so a capture at a resolution is
-		// pixel-for-pixel the encoded frame at that resolution.
-		const output = computeOutputSize(sceneWidth, sceneHeight, height);
+		const scale = Math.round((height ?? sceneHeight) * 1e6 / sceneHeight) / 1e6;
+		const output = scaleSize(sceneWidth, sceneHeight, scale);
 		canvas.width = output.width;
 		canvas.height = output.height;
 		world.set(RenderSurface, { resolution: output.scale });
