@@ -611,7 +611,11 @@ export type KeyframeTrackProps = {
 
 /** `<keyframe>` — one keyframe of the `<keyframeTrack>` holding it. */
 export type KeyframeProps = {
-  /** Node-local time: 0 is where the clip begins (its `start`). Any `Time` format. */
+  /**
+   * Source-local time, any `Time` format: 0 is the source's first frame, so a
+   * head-trimmed clip (`sourceIn`) starts at time `sourceIn`, not 0. Keyframes
+   * stay pinned to the same content when the clip is moved or trimmed.
+   */
   time: Time;
   /** The value at `time`: a number, or any CSS color on a `color` track. */
   value: number | string;
