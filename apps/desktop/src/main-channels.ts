@@ -31,6 +31,10 @@ export const MAIN_CHANNELS = {
   APP_SHOW_IN_FOLDER: "app:show-in-folder",
   AUTH_GET_PENDING_CALLBACK: "auth:get-pending-callback",
   CHECKOUT_GET_PENDING_CALLBACK: "checkout:get-pending-callback",
+  CLI_IS_INSTALLED: "cli:is-installed",
+  CLI_INSTALL: "cli:install",
+  SKILLS_IS_INSTALLED: "skills:is-installed",
+  SKILLS_INSTALL: "skills:install",
   WINDOW_IS_FULLSCREEN: "window:is-fullscreen",
   WINDOW_CAPTURE: "window:capture",
   FILE_TRANSFER: "file:transfer",
@@ -101,6 +105,19 @@ export type CompileResult =
   | { ok: true; code: string }
   | { ok: false; error: string };
 
+// Outcome of linking the bundled dapi CLI into PATH. "cancelled" means the
+// user dismissed the macOS admin prompt — not an error, not installed.
+export type CliInstallResult =
+  | { status: "installed" }
+  | { status: "cancelled" }
+  | { status: "error"; error: string };
+
+// Outcome of running the skills CLI. `npxMissing` marks a machine without a
+// usable Node/npx, where the renderer falls back to copy-the-command.
+export type SkillsInstallResult =
+  | { status: "installed" }
+  | { status: "error"; error: string; npxMissing: boolean };
+
 export type { SourceEdit, WriteResult };
 
 export type MainChannel = (typeof MAIN_CHANNELS)[keyof typeof MAIN_CHANNELS];
@@ -115,6 +132,10 @@ export type MainRequestMap = {
   [MAIN_CHANNELS.APP_OPEN_EXTERNAL]: { request: { url: string }; response: void };
   [MAIN_CHANNELS.AUTH_GET_PENDING_CALLBACK]: { request: void; response: string | null };
   [MAIN_CHANNELS.CHECKOUT_GET_PENDING_CALLBACK]: { request: void; response: string | null };
+  [MAIN_CHANNELS.CLI_IS_INSTALLED]: { request: void; response: boolean };
+  [MAIN_CHANNELS.CLI_INSTALL]: { request: void; response: CliInstallResult };
+  [MAIN_CHANNELS.SKILLS_IS_INSTALLED]: { request: void; response: boolean };
+  [MAIN_CHANNELS.SKILLS_INSTALL]: { request: void; response: SkillsInstallResult };
   [MAIN_CHANNELS.WINDOW_IS_FULLSCREEN]: { request: void; response: boolean };
   [MAIN_CHANNELS.WINDOW_CAPTURE]: { request: void; response: ScreenshotResult };
   [MAIN_CHANNELS.FILE_TRANSFER]: {
