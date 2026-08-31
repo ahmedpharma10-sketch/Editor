@@ -10,7 +10,7 @@ import type { FileHandle } from "node:fs/promises";
 import { updateElectronApp } from "update-electron-app";
 import { startCliServer, stopCliServer, isHeadless } from "./cli-server";
 import { installCli, isCliInstalled } from "./cli-install";
-import { installSkills, isSkillsInstalled } from "./skills-install";
+import { healSkillsLinks, installSkills, isSkillsInstalled } from "./skills-install";
 import { trackInstall } from "./analytics";
 import { setupAppMenu } from "./menu";
 import { mainBridge } from "./main-manager";
@@ -360,6 +360,7 @@ if (app.requestSingleInstanceLock()) {
     if (url) deliverDeepLink(url);
 
     startCliServer();
+    healSkillsLinks();
     trackInstall();
     createWindow(!isHiddenLaunch(process.argv));
   });

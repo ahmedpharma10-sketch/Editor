@@ -85,11 +85,6 @@ export function OnboardingPage() {
   const isDesktop = !!window.desktop;
   const [cliState, setCliState] = createSignal<StepState>('todo');
   const [skillsState, setSkillsState] = createSignal<StepState>('todo');
-  // On the web (and on desktop machines without Node) the skills CLI can't
-  // run, so the button degrades to copying the command.
-  const [skillsMode, setSkillsMode] = createSignal<'install' | 'copy'>(
-    isDesktop ? 'install' : 'copy',
-  );
 
   onMount(async () => {
     if (!isDesktop) return;
@@ -156,15 +151,7 @@ export function OnboardingPage() {
         return;
       }
       setSkillsState('todo');
-      if (result.npxMissing) {
-        setSkillsMode('copy');
-        toast('Node.js required', {
-          description:
-            'Installing needs npx, which was not found. Copy the command and run it where Node.js is available.',
-        });
-      } else {
-        toast('Could not install the agent skills', { description: result.error });
-      }
+      toast('Could not install the agent skills', { description: result.error });
     } catch (error) {
       setSkillsState('todo');
       toast('Could not install the agent skills', {
@@ -233,7 +220,7 @@ export function OnboardingPage() {
                 title="Agent skills"
                 description="Instructions that help agents edit videos through dapi."
                 action={
-                  skillsMode() === 'install' ? (
+                  isDesktop ? (
                     <StepButton
                       state={skillsState()}
                       label="Install"

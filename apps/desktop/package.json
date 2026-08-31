@@ -16,11 +16,12 @@
     "build:web": "npm --prefix ../web run build:desktop",
     "stage:cli": "npm --prefix ../cli run build && node scripts/stage-cli.mjs",
     "stage:docs": "node scripts/stage-docs.mjs",
+    "stage:skills": "node scripts/stage-skills.mjs",
     "check": "tsc --noEmit",
     "dev": "npm run build && electron-forge start",
-    "package": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && electron-forge package",
-    "make": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && electron-forge make",
-    "publish": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && electron-forge publish",
+    "package": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && npm run stage:skills && electron-forge package",
+    "make": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && npm run stage:skills && electron-forge make",
+    "publish": "npm run build && npm run build:web && npm run stage:cli && npm run stage:docs && npm run stage:skills && electron-forge publish",
     "make:icns": "sh scripts/make-icns.sh"
   },
   "devDependencies": {

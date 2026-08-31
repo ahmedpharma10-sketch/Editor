@@ -112,11 +112,10 @@ export type CliInstallResult =
   | { status: "cancelled" }
   | { status: "error"; error: string };
 
-// Outcome of running the skills CLI. `npxMissing` marks a machine without a
-// usable Node/npx, where the renderer falls back to copy-the-command.
+// Outcome of symlinking the bundled skills into the agent skill directories.
 export type SkillsInstallResult =
   | { status: "installed" }
-  | { status: "error"; error: string; npxMissing: boolean };
+  | { status: "error"; error: string };
 
 export type { SourceEdit, WriteResult };
 
