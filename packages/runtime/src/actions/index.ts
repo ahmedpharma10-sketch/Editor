@@ -13,6 +13,7 @@ export * from './entities';
 export * from './camera';
 export * from './hierarchy';
 export * from './cache';
+export * from './timeline-view';
 export * from './timing';
 export * from './resize';
 export * from './keyframe';

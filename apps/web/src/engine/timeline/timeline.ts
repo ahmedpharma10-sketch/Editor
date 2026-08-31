@@ -14,7 +14,7 @@ import { RULER_HEIGHT } from './config';
 import { renderLayers, renderMarquee, renderPlayhead, renderRuler, renderSnapLine, renderWorkarea, updateMarquee } from './render';
 import { updateDragGestures } from './drag';
 import { TimelineSurface } from './surface';
-import { ensureTimelineView, getTimelineScene } from './view';
+import { getTimelineScene, updateTimelineTransform } from './view';
 
 import type { World } from 'koota';
 import type { TimelinePointer } from './pointer';
@@ -33,7 +33,11 @@ export function timelineSystem(world: World): void {
 		return;
 	}
 
-	ensureTimelineView(world, scene);
+	// Re-derived every pass rather than only on gestures: the view store can
+	// move under the draw loop's feet — the reconciler restoring a
+	// `<scene timeline>` from the file, or a scene shown again after the
+	// canvas was resized while another was up.
+	updateTimelineTransform(world, scene);
 
 	try {
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
