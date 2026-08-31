@@ -470,7 +470,7 @@ function packageName(name: string): string {
 }
 
 // Types only: the editor supplies the runtime when it mounts the project.
-const JSX_VERSION = () => `^${app.getVersion()}`;
+const JSX_VERSION = "latest";
 const SOLID_VERSION = "^1.9.10";
 
 /**
@@ -509,7 +509,7 @@ const packageJson = (name: string, displayName: string): PackageJson => ({
   main: "index.tsx",
   scripts: { ...SCRIPTS },
   devDependencies: {
-    "@diffusionstudio/jsx": JSX_VERSION(),
+    "@diffusionstudio/jsx": JSX_VERSION,
     "solid-js": SOLID_VERSION,
   },
 });
