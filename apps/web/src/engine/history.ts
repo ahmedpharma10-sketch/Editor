@@ -39,7 +39,7 @@ import type { CapturedNode, DocumentEditor, EntityEdit } from './editor';
  * entering the history. `error` is the runtime speaking (see source-errors),
  * not the user.
  */
-const EXCLUDED_PROPS: ReadonlySet<string> = new Set(['selected', 'active', 'camera', 'expanded', 'clipHeight', 'error']);
+const EXCLUDED_PROPS: ReadonlySet<string> = new Set(['selected', 'active', 'camera', 'expanded', 'clipHeight', 'timeline', 'error']);
 
 /**
  * How long after one step a same-shaped step still merges into it. Edits

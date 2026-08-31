@@ -2,7 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { Show, createMemo, createSignal } from "solid-js";
+import { Show, createMemo, createResource, createSignal } from "solid-js";
+import { canEncodeVideo } from "mediabunny";
+import { computeOutputSize } from "@diffusionstudio/encoder";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,6 +54,29 @@ type ExportPanelProps = {
   selection: Entity[];
 };
 
+/**
+ * One entry of the resolution picker: the stored setting (a target height)
+ * together with the pixel size it works out to for this scene, so the picker
+ * names what the file will actually be.
+ */
+type ResolutionOption = {
+  resolution: number;
+  width: number;
+  height: number;
+  /** 1× — the scene's own size. */
+  native: boolean;
+};
+
+/** The right-hand tag of a picker entry, set like a menu shortcut. */
+function resolutionTag(option: ResolutionOption): string {
+  return option.native ? "Original" : `${option.resolution}p`;
+}
+
+function resolutionLabel(option: ResolutionOption | null | undefined): string {
+  if (!option) return "";
+  return `${option.width}×${option.height} · ${resolutionTag(option)}`;
+}
+
 /** The whole settings a template stands for: every field, so it replaces what was there. */
 function templateSettings(id: string): ProjectExportConfig | null {
   const template = TEMPLATE_BY_ID.get(id);
@@ -87,21 +112,68 @@ export function ExportPanel(props: ExportPanelProps) {
   const frameRate = useTrait(world, FrameRate);
   const duration = useDerived(() => entity().get(Computed)?.duration ?? 0);
   const durationInSeconds = createMemo(() => duration() / (frameRate()?.value ?? 30));
+  const sceneWidth = useDerived(() => entity().get(Computed)?.width || 1920);
+  const sceneHeight = useDerived(() => entity().get(Computed)?.height || 1080);
 
   const template = createMemo(() => {
     const id = settings()?.template;
     return id ? TEMPLATE_BY_ID.get(id) ?? null : null;
   });
 
+  const resolutionOptions = createMemo<ResolutionOption[]>(() => {
+    const w = sceneWidth();
+    const h = sceneHeight();
+    // A resolution names the output's shorter side (the "p" number — for a
+    // vertical scene, its width), so a portrait scene still offers 720p–4K.
+    const shortSide = Math.min(w, h);
+    return [...new Set([...RESOLUTION_OPTIONS, shortSide])].sort((a, b) => a - b).map((resolution) => ({
+      resolution,
+      ...computeOutputSize(w, h, resolution),
+      native: resolution === shortSide,
+    }));
+  });
+
+  const selectedResolution = createMemo(() => {
+    const resolution = settings()?.video?.resolution ?? 1080;
+    const match = resolutionOptions().find((option) => option.resolution === resolution);
+    if (match) return match;
+    const w = sceneWidth();
+    const h = sceneHeight();
+    return { resolution, ...computeOutputSize(w, h, resolution), native: resolution === Math.min(w, h) };
+  });
+
+  const [encodable] = createResource(
+    () => {
+      const current = settings();
+      const size = selectedResolution();
+      if (!current || !size) return undefined;
+      if (current.format === "ogg" || current.video?.enabled === false) return undefined;
+      return {
+        codec: current.video?.codec ?? ("avc" as const),
+        bitrate: current.video?.bitrate ?? 10e6,
+        width: size.width,
+        height: size.height,
+      };
+    },
+    ({ codec, bitrate, width, height }) => canEncodeVideo(codec, { width, height, bitrate }),
+  );
+
+  // Audio-only exports always encode
+  const exportSupported = createMemo(() => {
+    const current = settings();
+    if (!current || current.format === "ogg" || current.video?.enabled === false) return true;
+    return encodable() !== false;
+  });
+
   // What the row says: the preset's name, or "Custom" for settings authored
-  // without one, and the resolution the export actually uses (a preset's
+  // without one, and the pixel size the export actually produces (a preset's
   // resolution can be changed in the inspector without leaving the preset).
   const label = createMemo(() => {
     const current = settings();
     if (!current) return "";
     const name = template()?.name ?? "Custom";
-    const resolution = current.video?.resolution ?? template()?.video?.resolution;
-    return resolution ? `${name} · ${resolution}p` : name;
+    const size = selectedResolution();
+    return size ? `${name} · ${size.width}×${size.height}` : name;
   });
 
   const write = (value: ProjectExportConfig | null) => {
@@ -148,7 +220,10 @@ export function ExportPanel(props: ExportPanelProps) {
     });
   };
 
-  const estimatedFileSize = createMemo(() => estimateFileSize(settings(), durationInSeconds()));
+  const estimatedFileSize = createMemo(() => {
+    const size = selectedResolution();
+    return estimateFileSize(settings(), durationInSeconds(), size ? size.width * size.height : undefined);
+  });
 
   let inspectorAnchorRef: HTMLDivElement | undefined;
 
@@ -192,9 +267,18 @@ export function ExportPanel(props: ExportPanelProps) {
             <TooltipContent>Remove export</TooltipContent>
           </Tooltip>
         </ItemRow>
-        <Button class="w-full" onClick={runExport} disabled={exporting()}>
-          Export
-        </Button>
+        <Tooltip disabled={exportSupported()}>
+          <TooltipTrigger as="div" class="w-full">
+            <Button class="w-full" onClick={runExport} disabled={exporting() || !exportSupported()}>
+              Export
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent class="max-w-64">
+            This browser cannot encode {(settings()?.video?.codec ?? "avc").toUpperCase()} at{" "}
+            {selectedResolution()?.width}×{selectedResolution()?.height}. Choose a lower
+            resolution, a lower bitrate, or another codec.
+          </TooltipContent>
+        </Tooltip>
         <div class="flex justify-between items-center h-7">
           <span class="text-base text-muted-foreground">
             Duration {formatDuration(durationInSeconds())}
@@ -208,6 +292,8 @@ export function ExportPanel(props: ExportPanelProps) {
         {(current) => (
           <ExportInspector
             settings={current()}
+            resolutionOptions={resolutionOptions()}
+            selectedResolution={selectedResolution()}
             anchorRef={inspectorAnchorRef}
             onClose={() => setIsInspectorOpen(false)}
             onSelectTemplate={applyTemplate}
@@ -221,6 +307,8 @@ export function ExportPanel(props: ExportPanelProps) {
 
 type ExportInspectorProps = {
   settings: ProjectExportConfig;
+  resolutionOptions: ResolutionOption[];
+  selectedResolution: ResolutionOption | null;
   anchorRef: HTMLDivElement | undefined;
   onClose: () => void;
   onSelectTemplate: (id: string) => void;
@@ -293,16 +381,39 @@ function ExportInspector(props: ExportInspectorProps) {
             }}
           >
             <ControlRow label="Resolution">
-              <Select
-                value={config().video?.resolution ?? 1080}
-                options={[...RESOLUTION_OPTIONS]}
-                onChange={(value) => value && write({ video: { resolution: value } })}
-                itemComponent={(itemProps) => (
-                  <SelectItem item={itemProps.item}>{itemProps.item.rawValue}p</SelectItem>
-                )}
+              <Select<ResolutionOption>
+                value={props.selectedResolution ?? undefined}
+                options={props.resolutionOptions}
+                optionValue="resolution"
+                optionTextValue={resolutionLabel}
+                onChange={(value) => value && write({ video: { resolution: value.resolution } })}
+                itemComponent={(itemProps) => {
+                  const option = itemProps.item.rawValue;
+                  return (
+                    <SelectItem item={itemProps.item}>
+                      <div class="flex min-w-0 flex-1 items-center">
+                        <span>{option.width}×{option.height}</span>
+                        <span class="ml-auto pl-3 text-xxs text-muted-foreground group-[[data-highlighted]]:text-[inherit]">
+                          {resolutionTag(option)}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue>{config().video?.resolution ?? 1080}p</SelectValue>
+                  <SelectValue<ResolutionOption>>
+                    <Show when={props.selectedResolution}>
+                      {(selected) => (
+                        <>
+                          <span>{selected().width}×{selected().height}</span>
+                          <span class="ml-auto text-xxs text-muted-foreground">
+                            {resolutionTag(selected())}
+                          </span>
+                        </>
+                      )}
+                    </Show>
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectPortal>
                   <SelectContent />
@@ -437,6 +548,7 @@ function ExportInspector(props: ExportInspectorProps) {
 const DEFAULT_ESTIMATE_VIDEO_BITRATE = 10e6;
 const DEFAULT_ESTIMATE_AUDIO_BITRATE = 128e3;
 const DEFAULT_ESTIMATE_RESOLUTION = 1080;
+const DEFAULT_ESTIMATE_PIXELS = 1920 * 1080;
 const DEFAULT_ESTIMATE_FRAME_RATE = 30;
 
 const VIDEO_CODEC_SIZE_FACTORS: Partial<Record<VideoCodec, number>> = {
@@ -459,7 +571,7 @@ const CONTAINER_SIZE_FACTORS: Record<ContainerFormat, number> = {
   mov: 1.03,
 };
 
-function estimateFileSize(config?: ExportConfig, duration?: number) {
+function estimateFileSize(config?: ExportConfig, duration?: number, outputPixels?: number) {
   if (!duration || duration <= 0) return 0;
 
   const format = config?.format ?? "mp4";
@@ -479,7 +591,12 @@ function estimateFileSize(config?: ExportConfig, duration?: number) {
   const audioCodecFactor = AUDIO_CODEC_SIZE_FACTORS[audioCodec] ?? 1;
   const containerFactor = CONTAINER_SIZE_FACTORS[format];
 
-  const resolutionFactor = Math.pow(resolution / DEFAULT_ESTIMATE_RESOLUTION, 1.08);
+  // Scaled by pixel count when the actual output size is known (for 16:9
+  // content the two expressions agree); the height-only fallback stays for
+  // callers with nothing but the config.
+  const resolutionFactor = outputPixels
+    ? Math.pow(outputPixels / DEFAULT_ESTIMATE_PIXELS, 0.54)
+    : Math.pow(resolution / DEFAULT_ESTIMATE_RESOLUTION, 1.08);
   const frameRateFactor = fps / DEFAULT_ESTIMATE_FRAME_RATE;
 
   const effectiveVideoBitrate =

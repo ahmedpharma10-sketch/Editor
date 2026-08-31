@@ -70,11 +70,14 @@ export interface VideoConfig {
 	fps?: number;
 
 	/**
-	 * Resolution of the composition
+	 * Target size of the output's shorter side in pixels — the "p" number,
+	 * which for a vertical video is by convention its width. The scene is
+	 * scaled uniformly until its shorter side reaches it: at 2160, a
+	 * 1920×1080 scene encodes as 3840×2160, a portrait 1080×1920 one as
+	 * 2160×3840. See `computeOutputSize` for the exact rounding.
 	 * @example
 	 * 1080 for 1080p
-	 * 1440 for 1440p
-	 * 2160 for 4k
+	 * 2160 for 4K
 	 * @default 1080
 	 */
 	resolution?: number;

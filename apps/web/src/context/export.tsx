@@ -4,7 +4,9 @@
 
 import { createContext, useContext, onCleanup, onMount } from "solid-js";
 import { toast } from "somoto";
+import { canEncodeVideo } from "mediabunny";
 import { useWorld } from "@diffusionstudio/koota-solid";
+import { computeOutputSize } from "@diffusionstudio/encoder";
 import { Computed, FrameRate, getActiveEntity } from "@diffusionstudio/runtime";
 import { assert, downloadObject, isInputTarget } from "@/utils";
 import { useEngineContext } from "@/engine";
@@ -43,6 +45,33 @@ export function ExportProvider(props: { children: JSX.Element }) {
 
     const format = config.format ?? "mp4";
     const mimeType = MIME_TYPES[format];
+
+    // Fail before the save picker: an unencodable configuration is known
+    // right away, and the encoder would only find out after a file was
+    // picked and the render machinery spun up.
+    const videoEnabled = format !== "ogg" && config.video?.enabled !== false;
+    if (videoEnabled) {
+      const computed = scene.get(Computed);
+      const codec = config.video?.codec ?? "avc";
+      const { width, height } = computeOutputSize(
+        computed?.width || 1920,
+        computed?.height || 1080,
+        config.video?.resolution ?? 1080,
+      );
+      const encodable = await canEncodeVideo(codec, {
+        width,
+        height,
+        bitrate: config.video?.bitrate ?? 10e6,
+      });
+      if (!encodable) {
+        toast.error("Export not supported", {
+          description:
+            `This browser cannot encode ${codec.toUpperCase()} at ${width}×${height}. ` +
+            "Choose a lower resolution, a lower bitrate, or another codec.",
+        });
+        return;
+      }
+    }
 
     const name = project.name().replace(/\s+/g, "-").toLowerCase();
 
@@ -160,6 +189,8 @@ export function ExportProvider(props: { children: JSX.Element }) {
         progress={renderOverlay()?.progress ?? 0}
         remaining={renderOverlay()?.remaining}
         config={renderOverlay()?.config as ExportConfig | undefined}
+        width={renderOverlay()?.width ?? 0}
+        height={renderOverlay()?.height ?? 0}
         duration={renderOverlay()?.duration ?? 0}
         onCancel={cancelRender}
       />

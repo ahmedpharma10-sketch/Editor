@@ -7,7 +7,9 @@
  * a frame is worth. The state lives on the scene being shown (the runtime's
  * `Timeline` trait) so every scene keeps its own place, and it is written
  * through the store rather than `entity.set`: a scroll is not an edit of the
- * project, so nothing should observe it and nothing reaches the file.
+ * project, so nothing should observe it. It does reach the file — as
+ * `<scene timeline>`, which the controller reports itself the way the camera
+ * controller reports a pan (see `./controller`).
  */
 
 import { Computed, FrameRate, Timeline, getActiveEntity, store } from '@diffusionstudio/runtime';
@@ -101,8 +103,8 @@ export function getViewport(world: World, scene: Entity, width: number): [left: 
 
 /**
  * Re-derives the matrix the rows are drawn under: device pixels, scrolled,
- * and below the ruler. Called whenever the scroll, the zoom or the canvas
- * itself has moved.
+ * and below the ruler. Called by every draw pass, and by the gestures that
+ * move the view, so whatever wrote the store last is what is drawn.
  */
 export function updateTimelineTransform(world: World, scene: Entity): void {
 	ensureTimelineView(world, scene);

@@ -7,6 +7,7 @@ import {
 	Output,
 	AudioSample,
 	AudioSampleSource,
+	canEncodeVideo,
 } from 'mediabunny';
 import { Not } from 'koota';
 import {
@@ -23,7 +24,7 @@ import {
 
 import { TargetBuffer } from './buffer';
 import { createOutputFormat } from './format';
-import { createRenderEventDetail } from './utils';
+import { computeOutputSize, createRenderEventDetail } from './utils';
 
 import type { Entity, World } from 'koota';
 import type { EncoderConfig } from './interfaces';
@@ -99,10 +100,21 @@ export async function createEncoder(world: World, config: EncoderConfig) {
 	const videoCodec = config.video?.codec ?? 'avc';
 	const containerFormat = config.format ?? 'mp4';
 	const resolution = config.video?.resolution ?? 1080;
-	const scale = Math.round(resolution * 1e6 / sceneHeight) / 1e6;
-	const width = Math.round(sceneWidth * scale / 2) * 2;
-	const height = Math.round(sceneHeight * scale / 2) * 2;
+	const { scale, width, height } = computeOutputSize(sceneWidth, sceneHeight, resolution);
 	const frameDuration = 1 / frameRate;
+
+	// Fail before anything is written: mediabunny would reject the config on
+	// the first frame anyway, with a message in codec strings; this one names
+	// the size the resolution setting worked out to, which is what the user
+	// can change.
+	if (videoEnabled) {
+		const encodable = await canEncodeVideo(videoCodec, { width, height, bitrate: videoBitrate });
+		assert(
+			encodable,
+			`This browser cannot encode ${videoCodec.toUpperCase()} at ${width}×${height}. ` +
+			'Choose a lower resolution, a lower bitrate, or another codec.',
+		);
+	}
 
 	const canvas = world.get(RenderSurface)?.canvas;
 	assert(canvas instanceof HTMLCanvasElement, 'The capture world has no canvas to draw into');

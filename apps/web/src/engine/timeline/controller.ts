@@ -9,7 +9,10 @@
  * controller itself never paints.
  */
 
+import { getTimelineView } from '@diffusionstudio/runtime';
+
 import { assert, clamp } from '@/utils';
+import { getDocumentEditor } from '@/engine/editor';
 import { createPointer } from './pointer';
 import { TimelineSurface } from './surface';
 import { timelineSystem } from './timeline';
@@ -57,6 +60,16 @@ export function createTimelineController(world: World) {
 	const withScene = (action: (scene: Entity) => void): void => {
 		const scene = getTimelineScene(world);
 		if (scene !== null) action(scene);
+	};
+
+	/**
+	 * A gesture moved the view: report it so the file remembers where the
+	 * scene's timeline is looking (`<scene timeline>`), the way the camera
+	 * controller reports a pan. No `previous`, so it never enters the history.
+	 */
+	const reportView = (scene: Entity): void => {
+		const view = getTimelineView(world, scene);
+		if (view) getDocumentEditor(world).reportEdit(scene, 'timeline', view);
 	};
 
 	const applyResize = (): void => {
@@ -152,6 +165,7 @@ export function createTimelineController(world: World) {
 			}
 
 			updateTimelineTransform(world, scene);
+			reportView(scene);
 		});
 	};
 
@@ -170,6 +184,7 @@ export function createTimelineController(world: World) {
 
 			applyScroll();
 			updateTimelineTransform(world, scene);
+			reportView(scene);
 		});
 	};
 
@@ -179,6 +194,7 @@ export function createTimelineController(world: World) {
 			setScrollY(world, scene, getScrollY(world, scene) + deltaY);
 			applyScroll();
 			updateTimelineTransform(world, scene);
+			reportView(scene);
 		});
 	};
 

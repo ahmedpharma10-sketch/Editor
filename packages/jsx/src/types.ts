@@ -417,6 +417,13 @@ export type SourceProps = {
 export type CameraMatrix = [a: number, b: number, c: number, d: number, e: number, f: number];
 
 /**
+ * A scene's timeline viewport: `zoom` in pixels per second of timeline, `x`
+ * the horizontal scroll in seconds, `y` the vertical scroll in pixels. See
+ * `SceneProps["timeline"]`.
+ */
+export type TimelineView = [zoom: number, x: number, y: number];
+
+/**
  * The infinite canvas every project renders into; only allowed as the root
  * element, and holding `<scene>` children.
  */
@@ -465,6 +472,16 @@ export type SceneProps = IdentityProps & PositionProps & Required<Pick<SizeProps
    * empty timeline, with no playhead and no scene to export.
    */
   active?: boolean;
+  /**
+   * Where this scene's timeline is looking when the project is opened, as
+   * `[zoom, x, y]`: zoomed to `zoom` pixels per second, scrolled `x` seconds
+   * in, the rows scrolled down `y` pixels. Editor state carried by the source
+   * the way `<stage>`'s `camera` is — nothing rendered or exported depends on
+   * it, and the first scroll or zoom of the timeline overwrites it. Absent
+   * means the default zoom, at the beginning, which is the right opening for
+   * an authored project: there is no need to write one.
+   */
+  timeline?: TimelineView;
   /**
    * Decibels on the scene's own bus, which everything in it mixes into: the
    * master fader. 0 = unity, negative attenuates (-6 = half as loud),
@@ -611,7 +628,11 @@ export type KeyframeTrackProps = {
 
 /** `<keyframe>` — one keyframe of the `<keyframeTrack>` holding it. */
 export type KeyframeProps = {
-  /** Node-local time: 0 is where the clip begins (its `start`). Any `Time` format. */
+  /**
+   * Source-local time, any `Time` format: 0 is the source's first frame, so a
+   * head-trimmed clip (`sourceIn`) starts at time `sourceIn`, not 0. Keyframes
+   * stay pinned to the same content when the clip is moved or trimmed.
+   */
   time: Time;
   /** The value at `time`: a number, or any CSS color on a `color` track. */
   value: number | string;
