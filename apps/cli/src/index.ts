@@ -644,7 +644,7 @@ program
 program
   .command("export")
   .description(
-    `Encode a scene to a video file — the full render the app's own export runs: the scene's workarea from start to end, video and audio, streamed to the output file as it encodes. Settings are read from the scene's entry in the project's package.json (\`diffusion.export.<id>\`: container format, video codec/bitrate/fps/resolution, audio codec/bitrate/sampleRate — the same entry the app's export panel writes), so an export is reproducible from the project alone; a scene without an entry exports with the defaults (1080p H.264 MP4 with AAC audio). The [output] extension picks the container (.mp4, .webm, .ogg audio-only, .mov), overriding the configured format. Prints one JSON object with the written path, encoded size, duration, byte size, and the settings used. Renders take a while (timeout: 60 minutes); progress shows in the app, where the export can also be canceled. One export runs at a time. Verify frames with \`capture\` and structure with \`check\` before spending the render time.`,
+    `Encode a scene to a video file — the same render the app's export runs, covering the scene's workarea. Settings come from the scene's \`diffusion.export.<id>\` entry in the project's package.json (the entry the app's export panel writes); a scene without one exports with the defaults (1080p H.264 MP4, AAC audio). The [output] extension picks the container, overriding the configured format. Prints one JSON object with the written path and the settings used. One export runs at a time; progress shows in the app.`,
   )
   .argument("<id>", 'scene id to export or `file:id` when two files use the same id')
   .argument(
