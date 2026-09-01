@@ -119,6 +119,56 @@ export type CheckResult = {
   issues: CheckIssue[];
 };
 
+export type ExportFormat = "mp4" | "webm" | "ogg" | "mov";
+
+// The settings shape mirrors the scene's `diffusion.export.<id>` entry in the
+// project's package.json (see the web app's engine/project-config), spelled
+// out here so the wire seam stays dependency-free. Codecs are strings on the
+// wire; the app validates them against what the encoder accepts.
+export type ExportVideoSettings = {
+  enabled?: boolean;
+  codec?: string;
+  bitrate?: number;
+  fps?: number;
+  resolution?: number;
+};
+
+export type ExportAudioSettings = {
+  enabled?: boolean;
+  codec?: string;
+  sampleRate?: number;
+  bitrate?: number;
+};
+
+export type ExportSettings = {
+  format?: ExportFormat;
+  video?: ExportVideoSettings;
+  audio?: ExportAudioSettings;
+};
+
+/**
+ * `path` is the absolute output file, whose extension picks the container;
+ * omitted, the app writes `exports/<id>.<format>` in the project folder.
+ * Everything else — codecs, bitrates, resolution — is read from the scene's
+ * export entry in the project's package.json.
+ */
+export type ExportRequest = { id: string; path?: string };
+
+/**
+ * `config` echoes the settings the export was made with — the package.json
+ * entry (or the defaults), with the container the extension resolved to — so
+ * a caller sees what its config edit actually did. `width`/`height` are the
+ * encoded pixel size (0×0 for an audio-only export); `duration` is seconds.
+ */
+export type ExportResult = {
+  path: string;
+  width: number;
+  height: number;
+  duration: number;
+  size: number;
+  config: ExportSettings;
+};
+
 export type GeneratedAsset = { id: string; name: string; type: string };
 
 export type ModelsRequest = { type?: "image" | "video" | "audio" };

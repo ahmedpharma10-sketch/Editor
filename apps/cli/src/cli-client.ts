@@ -15,6 +15,7 @@ import type { AppRouter } from "../../web/src/context/dapi";
 
 const DEFAULT_TIMEOUT_MS = 60000;
 export const GENERATE_TIMEOUT_MS = 600000;
+export const EXPORT_TIMEOUT_MS = 3600000;
 
 // Asks the app (via the unix socket) to have the renderer dial our WebSocket
 // server. Main replies once the connect info has been delivered, so a

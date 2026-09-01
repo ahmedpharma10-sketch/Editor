@@ -12,6 +12,7 @@ import { assert } from "@/utils/common";
 
 import type { Accessor } from "solid-js";
 import type { World } from "koota";
+import type { Engine } from "@/engine";
 
 /**
  * The open project, as the editor knows it. Structural on purpose: this is
@@ -22,8 +23,8 @@ export type OpenProject = {
   dir: () => string;
 };
 
-/** What only an open project can offer: the world drawing it, and which project that is. */
-export type EditorSession = { world: World; project: OpenProject };
+/** What only an open project can offer: the world drawing it, the engine running it, and which project that is. */
+export type EditorSession = { world: World; project: OpenProject; engine: Engine };
 
 const [session, setSession] = createSignal<EditorSession | null>(null);
 

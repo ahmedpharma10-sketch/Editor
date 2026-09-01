@@ -8,12 +8,14 @@ import { useWorld } from '@diffusionstudio/koota-solid';
 import { Project } from '@diffusionstudio/runtime';
 import { useProject } from '@/context/project';
 import { useAuth } from '@/context/auth';
+import { useEngineContext } from '@/engine';
 import { t, q, q0, m } from "@/lib/cli-rpc";
 import { editorSession, requireEditorSession, setEditorSession } from "./session";
 import { handleContextGet } from "./context";
 import { createAssetResolver, handleMediaProbe, handleMediaFrame, handleMediaTranscribe, handleMediaFilmstrip, handleMediaWaveform, handleMediaListen } from "./media";
 import { handleCapture } from "./capture";
 import { handleCheck } from "./check";
+import { handleExport } from "./export";
 import { handleLogs } from "./logs";
 import { handleModels } from "./models";
 import { handleVoices } from "./voices";
@@ -76,11 +78,12 @@ export function EditorApiProvider(props: EditorApiProviderProps) {
   const project = useProject();
   const isFullscreen = useFullscreenState();
   const world = useWorld();
+  const engine = useEngineContext();
 
   createEffect(() => {
     if (!window.desktop || project.id() !== world.get(Project)?.id) return;
 
-    setEditorSession({ world, project });
+    setEditorSession({ world, project, engine });
     onCleanup(() => setEditorSession(null));
   });
 
@@ -117,6 +120,7 @@ function createAppRouter({ navigate, getUser, requireAuth }: AppRouterDeps) {
     context: q0(handleContextGet(editorSession)),
     capture: q(handleCapture(requireEditorSession)),
     check: q(handleCheck(requireEditorSession)),
+    export: m(handleExport(requireEditorSession)),
     models: q(handleModels()),
     logs: q(handleLogs()),
     screenshot: q0(handleWindowScreenshot()),
