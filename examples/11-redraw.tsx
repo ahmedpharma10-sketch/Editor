@@ -37,10 +37,17 @@
  * end={period}). Period, stroke width, palette speed, and the background are
  * `@inspect` variables (see 09-inspect-variables.tsx): sidebar controls whose
  * reads in the draw closure are reactive, so moving one re-records the frame.
+ *
+ * The bitmap adapts to the output through `useResolution` (see
+ * reference/jsx/lifecycle.md): the display's pixel ratio live, the export
+ * scale offline. The surface bitmap is oversized by the factor and the
+ * recording draws in composition pixels through canvas.scale(k) — redraw's
+ * own dpr pattern — so the stroke stays sharp at any export resolution
+ * instead of upscaling a composition-size bitmap.
  */
 
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
-import { useTicker } from "@diffusionstudio/jsx";
+import { useResolution, useTicker } from "@diffusionstudio/jsx";
 import {
   Color,
   Paint,
@@ -113,11 +120,12 @@ const background = "#ffffff";
 
 type Gpu = {
   destroy: () => void;
-  draw: (timeMs: number) => void;
+  draw: (timeMs: number, k: number) => void;
 };
 
 export default function RedrawHello() {
   const { time, hold } = useTicker();
+  const resolution = useResolution();
   const [gpu, setGpu] = createSignal<Gpu>();
 
   let surfaceRef: SceneNode | undefined;
@@ -139,27 +147,42 @@ export default function RedrawHello() {
       alphaMode: "premultiplied",
     });
 
-    // Declare the vocabulary and bind a long-lived canvas to the surface.
-    // drawPath records one command per segment group per tile; the stroke
-    // crosses itself, so give headroom over the default 32.
+    // Declare the vocabulary. drawPath records one command per segment
+    // group per tile; the stroke crosses itself, so give headroom over the
+    // default 32.
     const lib = createLibrary(device, [PathGradient, HelloStroke], {
       maxCommandsPerTile: 64,
     });
-    const canvas = lib.makeCanvas(context.getCurrentTexture());
 
-    // The surface canvas is sized to the element's box in composition pixels.
+    // The composition-pixel box: the bitmap is oversized from it by the
+    // resolution factor, and the recording draws in composition pixels
+    // through canvas.scale(k) — the redraw docs' dpr pattern.
     const { width, height } = el;
     const pathGeo = fitPath(
       helloPath,
       capWidth(deflate({ width, height }, 30), 800),
     );
 
+    // The canvas binds to the swapchain texture's size, so a bitmap resize
+    // (the export scale arriving, a pixel-ratio change) re-makes it.
+    let canvas = lib.makeCanvas(context.getCurrentTexture());
+    let bitmapK = 1;
+
     setGpu({
       destroy: () => {
         lib.dispose();
         device.destroy();
       },
-      draw: (timeMs) => {
+      draw: (timeMs, k) => {
+        if (k !== bitmapK) {
+          bitmapK = k;
+          el.width = Math.round(width * k);
+          el.height = Math.round(height * k);
+          canvas = lib.makeCanvas(context.getCurrentTexture());
+        }
+        // Draw in composition pixels; the scale maps them to the bitmap.
+        // render() resets the recorder, so it is re-applied every frame.
+        canvas.scale(k);
         // The inspect reads live here, so moving a control re-records.
         canvas.fill(new Paint().setColor(background));
         const t = boomerang(timeMs, period * 1000);
@@ -171,7 +194,7 @@ export default function RedrawHello() {
           canvas.drawPath(pathGeo.segment(0, progress), paint);
         }
         // The swapchain texture is new every frame, but its size and format
-        // stay the same; hand the current one to render().
+        // stay the same between resizes; hand the current one to render().
         canvas.render(context.getCurrentTexture());
       },
     });
@@ -183,8 +206,9 @@ export default function RedrawHello() {
   createEffect(() => {
     const g = gpu();
     const t = time();
+    const k = resolution();
     if (!g) return;
-    g.draw(t * 1000);
+    g.draw(t * 1000, k);
   });
 
   onCleanup(() => gpu()?.destroy());

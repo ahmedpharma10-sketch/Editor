@@ -386,6 +386,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		};
 		root.add(Host);
 		root.set(Host, this.stage);
+		this.resolutionSignal[1](world.get(RenderSurface)?.resolution ?? 1);
 	}
 
 	/**
@@ -1684,6 +1685,17 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		return this.ticker[0]();
 	}
 
+	// The rasterization density behind `useResolution`: device pixels per
+	// composition pixel, camera zoom excluded — the display's pixel ratio in
+	// the live editor, the export scale offline. Read into a signal alongside
+	// the ticker, so an encoder that learns its scale only after the mount
+	// still propagates it before the first frame is sampled.
+	private readonly resolutionSignal = createSignal(1);
+
+	public resolution(): number {
+		return this.resolutionSignal[0]();
+	}
+
 	/**
 	 * The barrier behind `useTicker().hold`: a project's own async work, put
 	 * where the frames in flight wait for it — the same list the decoders push
@@ -1729,6 +1741,7 @@ export class RuntimeDocument implements ProjectDocument<SceneNode> {
 		const time = computed?.localTimeInSeconds ?? 0;
 		const delta = this.lastTickTime === null ? 0 : time - this.lastTickTime;
 		this.lastTickTime = time;
+		this.resolutionSignal[1](this.world.get(RenderSurface)?.resolution ?? 1);
 		this.ticker[1]({
 			time,
 			frame: computed?.localTime ?? 0,

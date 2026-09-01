@@ -22,7 +22,7 @@ dapi open ~/Projects/basics
 | [08-shader-paint.tsx](08-shader-paint.tsx) | `<shaderPaint>` post-processing a `<video>`: WGSL chromatic aberration + vignette, uniforms patchable live |
 | [09-inspect-variables.tsx](09-inspect-variables.tsx) | `@inspect` variables: annotated top-level consts becoming sidebar controls, values written back into the source |
 | [10-typegpu.tsx](10-typegpu.tsx) | TypeGPU on a `<surface>`: shaders written in TypeScript (`'use gpu'`), compiled through the project's own [babel config](../reference/jsx/module.md#compile-time-plugins-babel-config) |
-| [11-redraw.tsx](11-redraw.tsx) | [Redraw](https://redraw.dev) on a `<surface>`: the docs' Hello World write-on stroke, a vendored-tarball package driven by composition time; the surface spans one animation cycle and `@inspect` variables tune it |
+| [11-redraw.tsx](11-redraw.tsx) | [Redraw](https://redraw.dev) on a `<surface>`: the docs' Hello World write-on stroke, a vendored-tarball package driven by composition time; the surface spans one animation cycle, `@inspect` variables tune it, and `useResolution` keeps it sharp at any export size |
 
 Requirements: `02-genai.tsx` consumes generation credits (results are cached per session);
 `01-basics.tsx`, `06-three.tsx`, and `08-shader-paint.tsx` fetch remote media.
