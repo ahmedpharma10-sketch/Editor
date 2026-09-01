@@ -11,7 +11,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Command } from "commander";
 import { version } from "../../../package.json";
 import { parseTime, TIME_FPS } from "@diffusionstudio/jsx";
-import { editor, errnoCode, GENERATE_TIMEOUT_MS, waitForCliSocket } from "./cli-client";
+import { editor, errnoCode, EXPORT_TIMEOUT_MS, GENERATE_TIMEOUT_MS, waitForCliSocket } from "./cli-client";
 import { listLocalFonts } from "./fonts";
 import { buildIssueBody, createIssue } from "./report";
 import { fetchVideo } from "./ytdlp";
@@ -20,6 +20,7 @@ import type { AssetRef, FrameQuality, LogEntry, LogLevel, TimecodedImage } from 
 
 // Long-running commands (renders, AI generation) override the default 60s.
 const GENERATE = { context: { timeoutMs: GENERATE_TIMEOUT_MS } };
+const EXPORT = { context: { timeoutMs: EXPORT_TIMEOUT_MS } };
 
 const APP_NAME = "Diffusion Studio";
 
@@ -298,6 +299,22 @@ async function captureNode(id: string, opts: CaptureOptions): Promise<void> {
     );
     writeImages(images, dir);
   } catch (e) {
+    handleSocketError(e);
+  }
+}
+
+async function exportScene(id: string, output: string | undefined): Promise<void> {
+  // The app owns everything else: settings come from the project's
+  // package.json, the extension check and the default output path need the
+  // config and project folder, which live on its side of the socket.
+  const path = output !== undefined ? resolve(process.cwd(), output) : undefined;
+  const stop = startSpinner("Exporting scene");
+  try {
+    const result = await editor.export.mutate({ id, path }, EXPORT);
+    stop();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    stop();
     handleSocketError(e);
   }
 }
@@ -623,6 +640,18 @@ program
   .option("--per-sheet <n>", "positions per contact sheet, 1-12; fewer means a larger cell each (default: as many as fit)")
   .option("-o, --output <dir>", "directory to write the PNGs into (default: a fresh dir in the system temp dir)")
   .action((id: string, opts: CaptureOptions) => captureNode(id, opts));
+
+program
+  .command("export")
+  .description(
+    `Encode a scene to a video file — the same render the app's export runs, covering the scene's workarea. Settings come from the scene's \`diffusion.export.<id>\` entry in the project's package.json (the entry the app's export panel writes); a scene without one exports with the defaults (1080p H.264 MP4, AAC audio). The [output] extension picks the container, overriding the configured format. Prints one JSON object with the written path and the settings used. One export runs at a time; progress shows in the app.`,
+  )
+  .argument("<id>", 'scene id to export or `file:id` when two files use the same id')
+  .argument(
+    "[output]",
+    'output file path, ffmpeg-style; its extension picks the container (default: "exports/<id>.<format>" in the project folder)',
+  )
+  .action((id: string, output: string | undefined) => exportScene(id, output));
 
 program
   .command("check")

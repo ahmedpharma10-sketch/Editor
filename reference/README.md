@@ -8,7 +8,7 @@ A project is a folder of that JSX, and **the source is the document**: the app c
 
 ## Groups
 
-**Top-level:** [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`report`](./report.md), [`context`](./context.md) (alias `ctx`), [`capture`](./capture.md), [`check`](./check.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
+**Top-level:** [`whoami`](./whoami.md), [`logs`](./logs.md), [`screenshot`](./screenshot.md), [`report`](./report.md), [`context`](./context.md) (alias `ctx`), [`capture`](./capture.md), [`check`](./check.md), [`export`](./export.md), [`models`](./models.md), [`voices`](./voices.md), [`fonts`](./fonts.md), [`fetch`](./fetch.md).
 
 | Group | Alias | Scope |
 | ----- | ----- | ----- |
@@ -34,6 +34,7 @@ How the surface is divided:
 - [`dapi context`](./context.md): which project the app has open, where its playhead sits, its registered fonts, and where its generations stand
 - [`dapi capture`](./capture.md): render frames of a scene, as an export would, to a labelled contact sheet or one PNG per position
 - [`dapi check`](./check.md): check a node's subtree for structural mistakes (black-frame gaps, never-visible nodes, failed sources) and report subtree stats
+- [`dapi export`](./export.md): encode a scene to a video file, with the settings saved in the project's `package.json`
 
 ### Media
 
