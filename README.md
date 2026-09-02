@@ -37,7 +37,19 @@ The desktop app comes with a command line that lets agents watch and listen to y
 
 ## What it's for
 
-- **Video editing**: raw footage into a finished cut
+Drop your raw footage and files into a folder, then ask for the video you want. That's it.
+
+The agent handles everything from there:
+
+- Cuts the clips
+- Removes filler words
+- Adds subtitles
+- Applies color correction and filters
+- Handles animations
+- Renders the final video
+
+Beyond finishing a cut, it covers:
+
 - **Motion graphics**: explainers, promos, and title sequences
 - **Generative assets**: images, video, and voiceover, declared in code and composited into the timeline
 - **Clipping**: highlights from a long video, reformatted for social
