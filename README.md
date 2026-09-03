@@ -31,7 +31,7 @@
 
 Edit videos with Codex, Claude Code, OpenCode, or Pi. Refine any output in a fully featured editing environment.
 
-Every edit you make is written to real code, so the agent always sees the latest version. A Headless mode is available too.
+Every edit you make is written to real code, so the agent always sees the latest version. A headless mode is available too.
 
 ## What people do with it
 
