@@ -35,8 +35,10 @@ jobs:
       - name: Prepare web environment
         run: cp apps/web/.env.example apps/web/.env
 
-      - name: Typecheck
-        run: npm run check
+      - name: Typecheck shipped workspaces
+        # Upstream's root check also compiles optional examples whose README
+        # explicitly says require extra project-local packages not installed by this repo.
+        run: npm run check --workspaces --if-present
 
       - name: Lint
         run: npm run lint
