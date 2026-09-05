@@ -92,7 +92,8 @@ jobs:
 
           curl --fail --silent --show-error --location --head "$LIVE_BASE_URL/" > /tmp/live-headers.txt
           grep -Eqi '^cross-origin-opener-policy:[[:space:]]*same-origin([[:space:]]|$)' /tmp/live-headers.txt
-          grep -Eqi '^cross-origin-embedder-policy:[[:space:]]*credentialless([[:space:]]|$)' /tmp/live-headers.txt
+          grep -Eqi '^cross-origin-embedder-policy:[[:space:]]*(credentialless|require-corp)([[:space:]]|$)' /tmp/live-headers.txt
+          grep -Ei '^cross-origin-(opener|embedder)-policy:' /tmp/live-headers.txt
 
           matched=0
           while IFS= read -r -d '' local_file; do
