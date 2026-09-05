@@ -70,3 +70,112 @@ jobs:
           path: apps/web/dist
           if-no-files-found: error
           retention-days: 7
+
+  hosted-runtime:
+    name: Hosted runtime verification
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LIVE_BASE_URL: https://diffusion-studio-editor-ahmed.netlify.app
+    steps:
+      - name: Download exact build from verify job
+        uses: actions/download-artifact@v4
+        with:
+          name: diffusionstudio-web-dist
+          path: apps/web/dist
+
+      - name: Verify live headers and exact deployed bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl --fail --silent --show-error --location --head "$LIVE_BASE_URL/" > /tmp/live-headers.txt
+          grep -Eqi '^cross-origin-opener-policy:[[:space:]]*same-origin([[:space:]]|$)' /tmp/live-headers.txt
+          grep -Eqi '^cross-origin-embedder-policy:[[:space:]]*credentialless([[:space:]]|$)' /tmp/live-headers.txt
+
+          matched=0
+          while IFS= read -r -d '' local_file; do
+            rel="${local_file#apps/web/dist/}"
+            encoded_rel="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$rel")"
+            live_file="/tmp/live-${matched}"
+            curl --fail --silent --show-error --location "$LIVE_BASE_URL/$encoded_rel" -o "$live_file"
+            cmp --silent "$local_file" "$live_file" || {
+              echo "Live byte mismatch: $rel"
+              sha256sum "$local_file" "$live_file"
+              exit 1
+            }
+            matched=$((matched + 1))
+          done < <(find apps/web/dist -type f -print0 | sort -z)
+
+          test "$matched" -gt 0
+          echo "EXACT_DEPLOYED_FILES_MATCH=$matched"
+
+      - name: Install pinned browser runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/diffusion-runtime-smoke --no-package-lock --no-save playwright@1.55.0
+          /tmp/diffusion-runtime-smoke/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Chromium smoke-test live editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { chromium } = require('/tmp/diffusion-runtime-smoke/node_modules/playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+            const consoleErrors = [];
+            const pageErrors = [];
+            page.on('console', (msg) => {
+              if (msg.type() === 'error') consoleErrors.push(msg.text());
+            });
+            page.on('pageerror', (error) => pageErrors.push(String(error)));
+
+            const response = await page.goto(process.env.LIVE_BASE_URL, {
+              waitUntil: 'networkidle',
+              timeout: 60000,
+            });
+            if (!response || !response.ok()) {
+              throw new Error(`Navigation failed: ${response ? response.status() : 'no response'}`);
+            }
+
+            await page.waitForSelector('#root > *', { timeout: 30000 });
+            const title = await page.title();
+            const rootState = await page.locator('#root').evaluate((el) => ({
+              children: el.children.length,
+              width: el.getBoundingClientRect().width,
+              height: el.getBoundingClientRect().height,
+              textLength: (el.textContent || '').trim().length,
+            }));
+
+            if (title !== 'Diffusion Studio') throw new Error(`Unexpected title: ${title}`);
+            if (rootState.children < 1 || rootState.width < 300 || rootState.height < 200) {
+              throw new Error(`Editor root did not render: ${JSON.stringify(rootState)}`);
+            }
+
+            await page.screenshot({ path: '/tmp/diffusion-studio-live.png', fullPage: true });
+            console.log('LIVE_TITLE=' + title);
+            console.log('LIVE_ROOT=' + JSON.stringify(rootState));
+            console.log('PAGE_ERRORS=' + JSON.stringify(pageErrors));
+            console.log('CONSOLE_ERRORS=' + JSON.stringify(consoleErrors));
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload hosted runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diffusionstudio-hosted-runtime-evidence
+          path: |
+            /tmp/live-headers.txt
+            /tmp/diffusion-studio-live.png
+          if-no-files-found: warn
+          retention-days: 7
