@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "cp apps/web/.env.example apps/web/.env && npm run build",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    { "source": "/((?!.*\\..*).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" }
+      ]
+    }
+  ]
+}

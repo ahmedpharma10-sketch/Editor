@@ -52,6 +52,13 @@ export async function importFiles(library: AssetLibrary, files: ReadonlyArray<Fi
 	return { ...(await library.import(paths, { folder })), unnamed };
 }
 
+type SaveFilePickerWindow = Window & {
+	showSaveFilePicker(options?: {
+		suggestedName?: string;
+		types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+	}): Promise<FileSystemFileHandle>;
+};
+
 /**
  * Asks where to save a copy of an asset's file and writes it there. Resolves
  * to false when the dialog was cancelled; throws when the write failed.
@@ -62,7 +69,7 @@ export async function saveAssetAs(asset: Pick<Asset, 'handle' | 'mimeType' | 'pa
 
 	let target: FileSystemFileHandle;
 	try {
-		target = await window.showSaveFilePicker({
+		target = await (window as unknown as SaveFilePickerWindow).showSaveFilePicker({
 			suggestedName,
 			...(extension && asset.mimeType.includes('/')
 				? { types: [{ description: asset.mimeType, accept: { [asset.mimeType]: [extension] } as Record<`${string}/${string}`, `.${string}`[]> }] }
