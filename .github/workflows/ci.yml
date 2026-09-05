@@ -176,23 +176,39 @@ jobs:
 
             await page.waitForSelector('#root > *', { timeout: 30000 });
             const title = await page.title();
-            const rootState = await page.locator('#root').evaluate((el) => ({
-              children: el.children.length,
-              width: el.getBoundingClientRect().width,
-              height: el.getBoundingClientRect().height,
-              textLength: (el.textContent || '').trim().length,
-            }));
-
-            if (title !== 'Diffusion Studio') throw new Error(`Unexpected title: ${title}`);
-            if (rootState.children < 1 || rootState.width < 300 || rootState.height < 200) {
-              throw new Error(`Editor root did not render: ${JSON.stringify(rootState)}`);
-            }
+            const renderState = await page.evaluate(() => {
+              const root = document.querySelector('#root');
+              if (!root) return null;
+              const visibleLargeDescendants = Array.from(root.querySelectorAll('*')).filter((el) => {
+                const style = getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' && rect.width >= 300 && rect.height >= 200;
+              }).length;
+              return {
+                rootChildren: root.children.length,
+                rootTextLength: (root.textContent || '').trim().length,
+                bodyWidth: document.body.getBoundingClientRect().width,
+                bodyHeight: document.body.getBoundingClientRect().height,
+                viewportWidth: innerWidth,
+                viewportHeight: innerHeight,
+                visibleLargeDescendants,
+              };
+            });
 
             await page.screenshot({ path: '/tmp/diffusion-studio-live.png', fullPage: true });
             console.log('LIVE_TITLE=' + title);
-            console.log('LIVE_ROOT=' + JSON.stringify(rootState));
+            console.log('LIVE_RENDER=' + JSON.stringify(renderState));
             console.log('PAGE_ERRORS=' + JSON.stringify(pageErrors));
             console.log('CONSOLE_ERRORS=' + JSON.stringify(consoleErrors));
+
+            if (title !== 'Diffusion Studio') throw new Error(`Unexpected title: ${title}`);
+            if (!renderState || renderState.rootChildren < 1 || renderState.rootTextLength < 20 || renderState.bodyWidth < 300 || renderState.viewportHeight < 200 || renderState.visibleLargeDescendants < 1) {
+              throw new Error(`Editor did not render a usable viewport: ${JSON.stringify(renderState)}`);
+            }
+            if (pageErrors.length > 0) {
+              throw new Error(`Uncaught page errors: ${JSON.stringify(pageErrors)}`);
+            }
+
             await browser.close();
           })().catch((error) => {
             console.error(error);
