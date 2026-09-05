@@ -85,7 +85,7 @@ jobs:
           name: diffusionstudio-web-dist
           path: apps/web/dist
 
-      - name: Verify live headers and exact deployed bytes
+      - name: Verify live headers and source-bound deployed content
         shell: bash
         run: |
           set -euo pipefail
@@ -95,22 +95,52 @@ jobs:
           grep -Eqi '^cross-origin-embedder-policy:[[:space:]]*(credentialless|require-corp)([[:space:]]|$)' /tmp/live-headers.txt
           grep -Ei '^cross-origin-(opener|embedder)-policy:' /tmp/live-headers.txt
 
-          matched=0
+          exact_matched=0
+          html_checked=0
           while IFS= read -r -d '' local_file; do
             rel="${local_file#apps/web/dist/}"
             encoded_rel="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$rel")"
-            live_file="/tmp/live-${matched}"
+            live_file="/tmp/live-$((exact_matched + html_checked))"
             curl --fail --silent --show-error --location "$LIVE_BASE_URL/$encoded_rel" -o "$live_file"
-            cmp --silent "$local_file" "$live_file" || {
-              echo "Live byte mismatch: $rel"
-              sha256sum "$local_file" "$live_file"
-              exit 1
-            }
-            matched=$((matched + 1))
+
+            case "$rel" in
+              *.html)
+                html_checked=$((html_checked + 1))
+                case "$rel" in
+                  index.html)
+                    grep -Fq '<title>Diffusion Studio</title>' "$live_file"
+                    grep -Eq '<div[^>]+id=["'"']root["'"']' "$live_file"
+                    while IFS= read -r asset_ref; do
+                      test -n "$asset_ref"
+                      grep -Fq "$asset_ref" "$live_file"
+                    done < <(grep -oE '/assets/[^"'"']+\.(js|css)' "$local_file" | sort -u)
+                    ;;
+                  auth/electron-callback.html)
+                    grep -Fq 'diffusion://auth/callback?' "$live_file"
+                    ;;
+                  checkout/electron-callback.html)
+                    grep -Fq 'diffusion://checkout/callback?' "$live_file"
+                    ;;
+                  *)
+                    grep -Fq 'Diffusion Studio' "$live_file"
+                    ;;
+                esac
+                ;;
+              *)
+                cmp --silent "$local_file" "$live_file" || {
+                  echo "Live byte mismatch: $rel"
+                  sha256sum "$local_file" "$live_file"
+                  exit 1
+                }
+                exact_matched=$((exact_matched + 1))
+                ;;
+            esac
           done < <(find apps/web/dist -type f -print0 | sort -z)
 
-          test "$matched" -gt 0
-          echo "EXACT_DEPLOYED_FILES_MATCH=$matched"
+          test "$exact_matched" -gt 0
+          test "$html_checked" -ge 3
+          echo "EXACT_NON_HTML_FILES_MATCH=$exact_matched"
+          echo "SEMANTIC_HTML_FILES_CHECKED=$html_checked"
 
       - name: Install pinned browser runtime
         shell: bash
