@@ -109,11 +109,11 @@ jobs:
                 case "$rel" in
                   index.html)
                     grep -Fq '<title>Diffusion Studio</title>' "$live_file"
-                    grep -Eq '<div[^>]+id=["'"']root["'"']' "$live_file"
+                    (grep -Fq 'id="root"' "$live_file" || grep -Fq "id='root'" "$live_file")
                     while IFS= read -r asset_ref; do
                       test -n "$asset_ref"
                       grep -Fq "$asset_ref" "$live_file"
-                    done < <(grep -oE '/assets/[^"'"']+\.(js|css)' "$local_file" | sort -u)
+                    done < <(grep -oE '/assets/[^\"]+\.(js|css)' "$local_file" | sort -u)
                     ;;
                   auth/electron-callback.html)
                     grep -Fq 'diffusion://auth/callback?' "$live_file"
